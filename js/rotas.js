@@ -2,12 +2,67 @@
 let rotasCarros = {};
 const storageRotasCarrosKey = "novoRioTendasRotasCarrosV1";
 
+
+async function carregarRotasCarrosNuvem() {
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("app_config")
+      .select("valor")
+      .eq("chave", "rotas_carros")
+      .maybeSingle();
+
+    if (error) {
+      console.warn("Não foi possível carregar carros das rotas na nuvem:", error);
+      return null;
+    }
+
+    return data?.valor || null;
+  } catch (erro) {
+    console.warn("Erro ao carregar carros das rotas na nuvem:", erro);
+    return null;
+  }
+}
+
+async function salvarRotasCarrosNuvem() {
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from("app_config")
+      .upsert({
+        chave: "rotas_carros",
+        valor: rotasCarros || {},
+        atualizado_em: new Date().toISOString()
+      }, { onConflict: "chave" });
+
+    if (error) console.warn("Não foi possível salvar carros das rotas na nuvem:", error);
+  } catch (erro) {
+    console.warn("Erro ao salvar carros das rotas na nuvem:", erro);
+  }
+}
+
+async function sincronizarRotasCarrosNuvem() {
+  const nuvem = await carregarRotasCarrosNuvem();
+
+  if (nuvem && typeof nuvem === "object") {
+    rotasCarros = { ...rotasCarros, ...nuvem };
+    localStorage.setItem(storageRotasCarrosKey, JSON.stringify(rotasCarros));
+    renderizarRotas();
+    return;
+  }
+
+  await salvarRotasCarrosNuvem();
+}
+
 function carregarRotasCarrosLocal() {
   return JSON.parse(localStorage.getItem(storageRotasCarrosKey) || "{}");
 }
 
 function salvarRotasCarrosLocal() {
   localStorage.setItem(storageRotasCarrosKey, JSON.stringify(rotasCarros));
+  salvarRotasCarrosNuvem();
 }
 
 function atualizarFiltroCarrosRotas() {
@@ -28,6 +83,7 @@ function iniciarRotas() {
 
   rotasCarros = carregarRotasCarrosLocal();
   atualizarFiltroCarrosRotas();
+  sincronizarRotasCarrosNuvem();
 
   const hoje = new Date();
   const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;

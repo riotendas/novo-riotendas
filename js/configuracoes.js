@@ -23,9 +23,74 @@ function carregarConfiguracoes() {
   return { ...configPadrao(), ...(salvas || {}) };
 }
 
+
+async function carregarConfiguracoesNuvem() {
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("app_config")
+      .select("valor")
+      .eq("chave", "configuracoes")
+      .maybeSingle();
+
+    if (error) {
+      console.warn("Não foi possível carregar configurações da nuvem:", error);
+      return null;
+    }
+
+    return data?.valor || null;
+  } catch (erro) {
+    console.warn("Erro ao carregar configurações da nuvem:", erro);
+    return null;
+  }
+}
+
+async function salvarConfiguracoesNuvem(config) {
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from("app_config")
+      .upsert({
+        chave: "configuracoes",
+        valor: config,
+        atualizado_em: new Date().toISOString()
+      }, { onConflict: "chave" });
+
+    if (error) console.warn("Não foi possível salvar configurações na nuvem:", error);
+  } catch (erro) {
+    console.warn("Erro ao salvar configurações na nuvem:", erro);
+  }
+}
+
+async function sincronizarConfiguracoesNuvem() {
+  const configNuvem = await carregarConfiguracoesNuvem();
+
+  if (configNuvem) {
+    const configLocal = carregarConfiguracoes();
+    const configFinal = { ...configLocal, ...configNuvem };
+    localStorage.setItem(storageConfigKey, JSON.stringify(configFinal));
+    aplicarConfiguracoesNoSistema();
+
+    if (typeof renderizarProdutos === "function") renderizarProdutos();
+    if (typeof renderizarRotas === "function") renderizarRotas();
+    if (typeof renderizarFotosPadraoConfig === "function") renderizarFotosPadraoConfig();
+    if (typeof renderizarCarrosConfig === "function") renderizarCarrosConfig();
+    return configFinal;
+  }
+
+  const configAtual = carregarConfiguracoes();
+  await salvarConfiguracoesNuvem(configAtual);
+  return configAtual;
+}
+
 function salvarConfiguracoes(config) {
   localStorage.setItem(storageConfigKey, JSON.stringify(config));
   aplicarConfiguracoesNoSistema();
+
+  // Em nuvem, mantém configurações compartilhadas entre computadores/celulares.
+  salvarConfiguracoesNuvem(config);
 }
 
 function aplicarConfiguracoesNoSistema() {
@@ -94,6 +159,14 @@ function iniciarConfiguracoes() {
   if (!document.getElementById("configSection")) return;
 
   aplicarConfiguracoesNoSistema();
+  sincronizarConfiguracoesNuvem().then(() => {
+    preencherPreferenciasConfig();
+    renderizarCarrosConfig();
+    renderizarCategoriasConfig();
+    preencherSelectsFotoPadrao();
+    renderizarCoresConfig();
+    renderizarFotosPadraoConfig();
+  });
   preencherPreferenciasConfig();
   renderizarCarrosConfig();
   renderizarCategoriasConfig();
@@ -825,6 +898,7 @@ function iniciarConfiguracoesUmaVez() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  sincronizarConfiguracoesNuvem();
   iniciarConfiguracoesUmaVez();
 
   document.querySelectorAll("[data-section='configSection']").forEach(btn => {
