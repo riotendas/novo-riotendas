@@ -1,0 +1,361 @@
+
+let clientes = [];
+const storageClientesKey = "novoRioTendasClientesV2";
+
+async function buscarClientesBanco() {
+  if (!supabaseClient) return JSON.parse(localStorage.getItem(storageClientesKey) || "[]");
+
+  const { data, error } = await supabaseClient
+    .from("clientes_cadastro")
+    .select("*")
+    .order("nome", { ascending: true });
+
+  if (error) {
+    console.error(error);
+    alert("Erro ao buscar clientes no Supabase: " + (error.message || ""));
+    return [];
+  }
+  return data || [];
+}
+
+async function salvarClienteBanco(cliente) {
+  if (!supabaseClient) {
+    const i = clientes.findIndex(c => c.id === cliente.id);
+    if (i >= 0) clientes[i] = cliente;
+    else clientes.push(cliente);
+    localStorage.setItem(storageClientesKey, JSON.stringify(clientes));
+    return cliente;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("clientes_cadastro")
+    .upsert(cliente, { onConflict: "id" })
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    alert("Erro ao salvar cliente no Supabase: " + (error.message || ""));
+    return null;
+  }
+  return data;
+}
+
+async function excluirClienteBanco(id) {
+  if (!supabaseClient) {
+    clientes = clientes.filter(c => c.id !== id);
+    localStorage.setItem(storageClientesKey, JSON.stringify(clientes));
+    return true;
+  }
+
+  const { error } = await supabaseClient.from("clientes_cadastro").delete().eq("id", id);
+  if (error) {
+    alert("Erro ao excluir cliente: " + (error.message || ""));
+    return false;
+  }
+  return true;
+}
+
+async function carregarClientes() {
+  clientes = await buscarClientesBanco();
+  renderizarClientes();
+}
+
+function iniciarClientes() {
+  if (!document.getElementById("clientesTbody")) return;
+
+  document.getElementById("novoClienteBtn").addEventListener("click", abrirNovoCliente);
+  document.getElementById("fecharClienteModal").addEventListener("click", fecharClienteModal);
+  document.getElementById("cancelarCliente").addEventListener("click", fecharClienteModal);
+  document.getElementById("clienteForm").addEventListener("submit", salvarClienteForm);
+  document.getElementById("fecharClienteDetalheModal").addEventListener("click", () => document.getElementById("clienteDetalheDialog").close());
+
+  ["buscaCliente", "filtroClienteNome", "filtroClienteDocumento", "filtroClienteTelefone", "filtroClienteEndereco"].forEach(id => {
+    document.getElementById(id).addEventListener("input", renderizarClientes);
+  });
+
+  carregarClientes();
+}
+
+function abrirNovoCliente() {
+  document.getElementById("clienteForm").reset();
+  document.getElementById("clienteId").value = "";
+  document.getElementById("clienteModalTitulo").textContent = "Novo cliente";
+  document.getElementById("clienteDialog").showModal();
+}
+
+function abrirEditarCliente(id) {
+  const c = clientes.find(x => x.id === id);
+  if (!c) return;
+
+  document.getElementById("clienteId").value = c.id;
+  document.getElementById("clienteNome").value = c.nome || "";
+  document.getElementById("clienteDocumento").value = c.documento || "";
+  document.getElementById("clienteTelefone").value = c.telefone || "";
+  document.getElementById("clienteEndereco").value = c.endereco || "";
+  document.getElementById("clienteModalTitulo").textContent = "Editar cliente";
+  document.getElementById("clienteDialog").showModal();
+}
+
+function fecharClienteModal() {
+  document.getElementById("clienteDialog").close();
+}
+
+async function salvarClienteForm(event) {
+  event.preventDefault();
+
+  const id = document.getElementById("clienteId").value || gerarId();
+  const existente = clientes.find(c => c.id === id);
+
+  const cliente = {
+    id,
+    nome: document.getElementById("clienteNome").value.trim(),
+    documento: document.getElementById("clienteDocumento").value.trim(),
+    telefone: document.getElementById("clienteTelefone").value.trim(),
+    endereco: document.getElementById("clienteEndereco").value.trim(),
+    colaborador: getColaboradorLogado(),
+    criado_em: existente?.criado_em || new Date().toISOString()
+  };
+
+  const salvo = await salvarClienteBanco(cliente);
+  if (!salvo) return;
+
+  const i = clientes.findIndex(c => c.id === salvo.id);
+  if (i >= 0) clientes[i] = salvo;
+  else clientes.push(salvo);
+
+  fecharClienteModal();
+  renderizarClientes();
+}
+
+function filtrarClientes() {
+  const busca = document.getElementById("buscaCliente").value.trim().toLowerCase();
+  const nome = document.getElementById("filtroClienteNome").value.trim().toLowerCase();
+  const documento = document.getElementById("filtroClienteDocumento").value.trim().toLowerCase();
+  const telefone = document.getElementById("filtroClienteTelefone").value.trim().toLowerCase();
+  const endereco = document.getElementById("filtroClienteEndereco").value.trim().toLowerCase();
+
+  return clientes.filter(c => {
+    const texto = `${c.nome || ""} ${c.documento || ""} ${c.telefone || ""} ${c.endereco || ""}`.toLowerCase();
+    return (!busca || texto.includes(busca))
+      && (!nome || String(c.nome || "").toLowerCase().includes(nome))
+      && (!documento || String(c.documento || "").toLowerCase().includes(documento))
+      && (!telefone || String(c.telefone || "").toLowerCase().includes(telefone))
+      && (!endereco || String(c.endereco || "").toLowerCase().includes(endereco));
+  });
+}
+
+function renderizarClientes() {
+  const tbody = document.getElementById("clientesTbody");
+  if (!tbody) return;
+
+  const lista = filtrarClientes();
+  document.getElementById("clientesTotal").textContent = lista.length;
+
+  if (!lista.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Nenhum cliente cadastrado.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = lista.map(c => `
+    <tr>
+      <td><button class="code-link" data-action="detalhe" data-id="${c.id}">${c.nome || "-"}</button></td>
+      <td>${c.documento || "-"}</td>
+      <td>${c.telefone || "-"}</td>
+      <td>${c.endereco || "-"}</td>
+      <td>${c.colaborador || "-"}</td>
+      <td class="actions">
+        <button data-action="editar" data-id="${c.id}">Editar</button>
+        <button class="btn-outline" data-action="excluir" data-id="${c.id}">Excluir</button>
+      </td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll("button[data-action]").forEach(btn => btn.addEventListener("click", lidarAcaoCliente));
+}
+
+async function lidarAcaoCliente(event) {
+  const action = event.currentTarget.dataset.action;
+  const id = event.currentTarget.dataset.id;
+
+  if (action === "editar") return abrirEditarCliente(id);
+  if (action === "detalhe") return abrirDetalheCliente(id);
+
+  if (action === "excluir") {
+    const c = clientes.find(x => x.id === id);
+    if (!confirm(`Excluir o cliente ${c?.nome || ""}?`)) return;
+
+    const ok = await excluirClienteBanco(id);
+    if (!ok) return;
+
+    clientes = clientes.filter(x => x.id !== id);
+    renderizarClientes();
+  }
+}
+
+
+function normalizarTextoCliente(valor) {
+  return String(valor || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\D/g, "") || String(valor || "").trim().toLowerCase();
+}
+
+function somenteNumerosCliente(valor) {
+  return String(valor || "").replace(/\D/g, "");
+}
+
+function eventosDoCliente(cliente) {
+  try {
+    if (typeof eventos === "undefined" || !Array.isArray(eventos)) return [];
+
+    const nomeCliente = String(cliente.nome || "").trim().toLowerCase();
+    const docCliente = somenteNumerosCliente(cliente.documento);
+    const telCliente = somenteNumerosCliente(cliente.telefone);
+
+    return eventos.filter(evento => {
+      const nomeEvento = String(evento.nome || "").trim().toLowerCase();
+      const docEvento = somenteNumerosCliente(evento.documento);
+      const telEvento = somenteNumerosCliente(evento.telefone);
+
+      const bateNome = nomeCliente && nomeEvento && nomeEvento === nomeCliente;
+      const bateDoc = docCliente && docEvento && docEvento === docCliente;
+      const bateTel = telCliente && telEvento && telEvento === telCliente;
+
+      return bateNome || bateDoc || bateTel;
+    }).sort((a, b) => String(b.data_evento || "").localeCompare(String(a.data_evento || "")));
+  } catch (erro) {
+    console.warn("Não foi possível buscar eventos do cliente:", erro);
+    return [];
+  }
+}
+
+function formatarDataClienteEvento(dataISO) {
+  if (!dataISO) return "-";
+  const texto = String(dataISO);
+  if (texto.includes("T")) return formatarData(texto);
+
+  const partes = texto.split("-");
+  if (partes.length === 3) return `${partes[2]}/${partes[1]}/${partes[0]}`;
+  return texto;
+}
+
+function horarioClienteEvento(evento) {
+  const inicio = evento.hora_inicio || evento.hora_evento || "";
+  const fim = evento.hora_termino || "";
+  return inicio ? `${inicio}${fim ? " às " + fim : ""}` : "-";
+}
+
+function dinheiroClienteEvento(valor) {
+  return Number(valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function resumoProdutosClienteEvento(evento) {
+  const tendas = (evento.tendas || []).map(p => {
+    const nome = [p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - ");
+    return nome || "Produto";
+  });
+
+  const apoio = (evento.itens_apoio || []).map(i => `${i.nome} (${i.quantidade})`);
+  const extras = (evento.produtos_extras || []).map(i => `${i.descricao} (${i.quantidade})`);
+
+  const todos = [...tendas, ...apoio, ...extras];
+
+  return todos.length ? todos.join(", ") : "-";
+}
+
+function renderizarEventosCliente(cliente) {
+  const lista = eventosDoCliente(cliente);
+
+  if (!lista.length) {
+    return `<p class="empty">Nenhum evento encontrado para este cliente.</p>`;
+  }
+
+  return `
+    <div class="cliente-eventos-lista">
+      ${lista.map(evento => `
+        <div class="cliente-evento-card ${evento.pagamento_quitado ? "cliente-evento-ok" : "cliente-evento-aberto"}">
+          <div class="cliente-evento-top">
+            <strong>${formatarDataClienteEvento(evento.data_evento)} — ${horarioClienteEvento(evento)}</strong>
+            <span>${evento.pagamento_quitado ? "Quitado" : "Em aberto"}</span>
+          </div>
+
+          <div class="cliente-evento-grid">
+            <div>
+              <span>Cliente</span>
+              <strong>${evento.nome || "-"}</strong>
+            </div>
+            <div>
+              <span>Telefone</span>
+              <strong>${evento.telefone || "-"}</strong>
+            </div>
+            <div>
+              <span>Total</span>
+              <strong>${dinheiroClienteEvento(evento.valor_total)}</strong>
+            </div>
+            <div>
+              <span>Sinal</span>
+              <strong>${dinheiroClienteEvento(evento.valor_sinal)}</strong>
+            </div>
+            <div>
+              <span>Restante</span>
+              <strong>${dinheiroClienteEvento(evento.valor_restante)}</strong>
+            </div>
+          </div>
+
+          <div class="cliente-evento-info">
+            <span>Endereço</span>
+            <strong>${evento.endereco || "-"}</strong>
+          </div>
+
+          <div class="cliente-evento-info">
+            <span>Produtos</span>
+            <strong>${resumoProdutosClienteEvento(evento)}</strong>
+          </div>
+
+          <button type="button" class="btn-outline cliente-abrir-evento" data-cliente-evento="${evento.id}">
+            Abrir evento
+          </button>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+async function abrirDetalheCliente(id) {
+  const c = clientes.find(x => x.id === id);
+  if (!c) return;
+
+  document.getElementById("clienteDetalheTitulo").textContent = c.nome || "Cliente";
+  document.getElementById("clienteDetalheConteudo").innerHTML = `
+    <div class="info-grid">
+      <div class="info-box"><span>Nome</span><strong>${c.nome || "-"}</strong></div>
+      <div class="info-box"><span>CPF/CNPJ</span><strong>${c.documento || "-"}</strong></div>
+      <div class="info-box"><span>Telefone</span><strong>${c.telefone || "-"}</strong></div>
+      <div class="info-box"><span>Endereço</span><strong>${c.endereco || "-"}</strong></div>
+      <div class="info-box"><span>Colaborador</span><strong>${c.colaborador || "-"}</strong></div>
+      <div class="info-box"><span>Cadastro</span><strong>${formatarData(c.criado_em)}</strong></div>
+    </div>
+    <div class="subpanel cliente-eventos-panel">
+      <h3>Eventos encontrados</h3>
+      ${renderizarEventosCliente(c)}
+    </div>
+  `;
+  document.getElementById("clienteDetalheDialog").showModal();
+}
+
+document.addEventListener("DOMContentLoaded", iniciarClientes);
+
+
+document.addEventListener("click", event => {
+  const btn = event.target.closest("[data-cliente-evento]");
+  if (!btn) return;
+
+  const eventoId = btn.dataset.clienteEvento;
+
+  if (typeof abrirDetalheEvento === "function") {
+    abrirDetalheEvento(eventoId);
+  } else {
+    alert("Abra o setor de Eventos para visualizar este evento.");
+  }
+});
