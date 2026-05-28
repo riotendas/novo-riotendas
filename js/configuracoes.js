@@ -413,7 +413,9 @@ async function importarProdutosExcel(event) {
   const file = event.target.files[0];
   if (!file) return;
 
-  if (!confirm("Importar produtos do Excel? Produtos com o mesmo ID serão atualizados. As fotos existentes serão preservadas.")) return;
+  if (!confirm("Importar produtos do Excel? Produtos com o mesmo código serão atualizados, evitando duplicidade.")) return;
+
+  const normalizarCodigoProduto = valor => String(valor || "").trim().toLowerCase();
 
   const fotoValidaImportacao = valor => {
     const texto = String(valor || "").trim();
@@ -422,25 +424,59 @@ async function importarProdutosExcel(event) {
     if (texto === "Foto própria cadastrada") return "";
     if (texto === "Foto padrão cadastrada") return "";
     if (texto === "Foto própria cadastrada no sistema") return "";
-    if (texto === "Foto padrão enviada por upload") return "";
     if (texto === "Foto padrão cadastrada no sistema") return "";
+    if (texto === "Foto padrão enviada por upload") return "";
 
-    // Aceita link curto ou data:image real, mas não aceita textos de resumo.
     if (texto.startsWith("http://") || texto.startsWith("https://") || texto.startsWith("data:image")) return texto;
 
     return "";
   };
 
-  lerPlanilhaArquivo(file, async linhas => {
+  lerPlanilhaArquivo(file, async linhasOriginais => {
+    const linhas = [];
+    const codigosNaPlanilha = new Set();
+    let ignoradosSemCodigo = 0;
+    let duplicadosNaPlanilha = 0;
+
+    for (const linha of linhasOriginais) {
+      const codigo = linha["Código"] || linha.codigo || "";
+      const codigoNormalizado = normalizarCodigoProduto(codigo);
+
+      if (!codigoNormalizado) {
+        ignoradosSemCodigo++;
+        continue;
+      }
+
+      // Se a própria planilha tiver o mesmo código repetido,
+      // fica valendo a última linha encontrada.
+      const existenteIndex = linhas.findIndex(l => normalizarCodigoProduto(l["Código"] || l.codigo || "") === codigoNormalizado);
+
+      if (existenteIndex >= 0) {
+        linhas[existenteIndex] = linha;
+        duplicadosNaPlanilha++;
+      } else {
+        linhas.push(linha);
+      }
+
+      codigosNaPlanilha.add(codigoNormalizado);
+    }
+
     const produtosAtuais = typeof buscarProdutosBanco === "function"
       ? await buscarProdutosBanco()
       : (Array.isArray(produtos) ? produtos : []);
 
+    let atualizados = 0;
+    let criados = 0;
+
     for (const linha of linhas) {
-      const id = linha.ID || linha.id || gerarId();
+      const codigo = linha["Código"] || linha.codigo || "";
+      const codigoNormalizado = normalizarCodigoProduto(codigo);
+
       const existente = Array.isArray(produtosAtuais)
-        ? produtosAtuais.find(p => String(p.id) === String(id) || String(p.codigo || "") === String(linha["Código"] || linha.codigo || ""))
+        ? produtosAtuais.find(p => normalizarCodigoProduto(p.codigo) === codigoNormalizado)
         : null;
+
+      const id = existente?.id || linha.ID || linha.id || gerarId();
 
       const fotoImportada = fotoValidaImportacao(linha["Foto"] || linha.foto || "");
       const fotoPreservada = fotoImportada || existente?.foto || "";
@@ -448,7 +484,7 @@ async function importarProdutosExcel(event) {
       const produto = {
         ...(existente || {}),
         id,
-        codigo: linha["Código"] || linha.codigo || existente?.codigo || "",
+        codigo: codigo,
         categoria: linha["Categoria"] || linha.categoria || linha.tipo || existente?.categoria || existente?.tipo || "",
         tipo: linha["Categoria"] || linha.tipo || linha.categoria || existente?.tipo || existente?.categoria || "",
         tamanho: linha["Tamanho"] || linha.tamanho || existente?.tamanho || "",
@@ -458,7 +494,7 @@ async function importarProdutosExcel(event) {
         foto: fotoPreservada,
         grau_usabilidade: linha["Grau de usabilidade"] || linha.grau_usabilidade || linha.usabilidade || existente?.grau_usabilidade || "Bom",
         colaborador: linha["Colaborador"] || linha.colaborador || existente?.colaborador || getColaboradorLogado(),
-        criado_em: linha["Cadastro"] || linha.criado_em || existente?.criado_em || new Date().toISOString(),
+        criado_em: existente?.criado_em || linha["Cadastro"] || linha.criado_em || new Date().toISOString(),
         atualizado_em: new Date().toISOString(),
         historico: existente?.historico || [],
         locacoes: existente?.locacoes || []
@@ -467,10 +503,20 @@ async function importarProdutosExcel(event) {
       if (typeof salvarProdutoBanco === "function") {
         await salvarProdutoBanco(produto);
       }
+
+      if (existente) atualizados++;
+      else criados++;
     }
 
     if (typeof carregarProdutos === "function") await carregarProdutos();
-    alert("Produtos importados com sucesso. As fotos existentes foram preservadas.");
+
+    alert(
+      `Importação concluída.\n\n` +
+      `Criados: ${criados}\n` +
+      `Atualizados: ${atualizados}\n` +
+      `Duplicados na planilha ignorados/mesclados: ${duplicadosNaPlanilha}\n` +
+      `Linhas sem código ignoradas: ${ignoradosSemCodigo}`
+    );
   });
 
   event.target.value = "";

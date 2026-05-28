@@ -62,9 +62,26 @@
         <div id="dashboardProdutosProblema" class="compact-list empty">Nenhum produto encontrado.</div>
       </div>
 
-      <div class="panel">
-        <h3>Eventos da semana</h3>
-        <div class="empty">Setor de eventos será ligado na próxima etapa.</div>
+      <div class="dashboard-grid-2">
+        <div class="panel">
+          <div class="panel-title-row">
+            <h3>Eventos de Hoje</h3>
+            <span class="dash-mini-badge" id="dashEventosHojeQtd">0</span>
+          </div>
+          <div id="dashboardEventosHoje" class="dashboard-events-list empty">
+            Nenhum evento hoje.
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title-row">
+            <h3>Próximos Eventos</h3>
+            <span class="dash-mini-badge" id="dashEventosFuturosQtd">0</span>
+          </div>
+          <div id="dashboardProximosEventos" class="dashboard-events-list empty">
+            Nenhum evento futuro encontrado.
+          </div>
+        </div>
       </div>
     </section>
 
@@ -227,7 +244,7 @@
             <tr>
               <th>Data</th>
               
-              <th>Horário</th>
+              <th>Mont./Desm.</th>
               <th>Cliente</th>
               <th>Telefone</th>
               <th>Endereço</th>
@@ -671,7 +688,13 @@
                 <option value="A partir de">A partir de</option>
                 <option value="Até">Até</option>
                 <option value="Exatamente">Exatamente</option>
+                <option value="Intervalo">Intervalo</option>
+                <option value="Horário comercial" selected>Horário comercial</option>
+                <option value="Livre / combinar">Livre / combinar</option>
               </select>
+            </label>
+            <label class="campo-hora-final" id="eventoMontagemFimBox">Hora final
+              <input id="eventoMontagemFim" type="time">
             </label>
           </div>
 
@@ -684,7 +707,13 @@
                 <option value="A partir de">A partir de</option>
                 <option value="Até">Até</option>
                 <option value="Exatamente">Exatamente</option>
+                <option value="Intervalo">Intervalo</option>
+                <option value="Horário comercial" selected>Horário comercial</option>
+                <option value="Livre / combinar">Livre / combinar</option>
               </select>
+            </label>
+            <label class="campo-hora-final" id="eventoDesmontagemFimBox">Hora final
+              <input id="eventoDesmontagemFim" type="time">
             </label>
           </div>
         </div>

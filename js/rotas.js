@@ -1,4 +1,31 @@
 
+
+function tipoHorarioBaseRota(valor) {
+  return String(valor || "A partir de").split("|")[0] || "A partir de";
+}
+
+function tipoHorarioFimRota(valor) {
+  const partes = String(valor || "").split("|");
+  return partes.length > 1 ? partes[1] : "";
+}
+
+function textoHorarioRota(tipoSalvo, horario, dataISO) {
+  const tipo = tipoHorarioBaseRota(tipoSalvo);
+  const fim = tipoHorarioFimRota(tipoSalvo);
+
+  if (tipo === "Exatamente") return horario ? `Exatamente às ${horario}` : "Exatamente";
+  if (tipo === "A partir de") return horario ? `A partir das ${horario}` : "A partir de";
+  if (tipo === "Até") return horario ? `Até ${horario}` : "Até";
+  if (tipo === "Intervalo") {
+    if (horario && fim) return `Entre ${horario} e ${fim}`;
+    if (horario) return `Intervalo a partir das ${horario}`;
+    return "Intervalo";
+  }
+  if (tipo === "Horário comercial") return "Horário comercial";
+  if (tipo === "Livre / combinar") return "Livre / combinar";
+  return horario ? `${tipo} ${horario}` : tipo;
+}
+
 let rotasCarros = {};
 const storageRotasCarrosKey = "novoRioTendasRotasCarrosV1";
 
@@ -372,10 +399,19 @@ function renderizarRotas() {
 
 
 
+function rotaEhDesmontagem(rota) {
+  const tipo = String(rota?.tipo || "").toLowerCase();
+  return tipo.includes("desmont") || tipo.includes("retirada");
+}
+
 function listaMateriaisRotas(listaRotas = []) {
   const materiais = [];
 
   listaRotas.forEach(rota => {
+    // No resumo ao lado do carro, listar somente materiais que serão levados
+    // para montagem/entrega. Desmontagens/retiradas não entram nessa soma.
+    if (rotaEhDesmontagem(rota)) return;
+
     if (Array.isArray(rota.materiais)) {
       rota.materiais.forEach(item => materiais.push(item));
     }
@@ -386,6 +422,7 @@ function listaMateriaisRotas(listaRotas = []) {
 
 function totalMateriaisRotas(listaRotas = []) {
   return listaRotas.reduce((total, rota) => {
+    if (rotaEhDesmontagem(rota)) return total;
     return total + (Array.isArray(rota.materiais) ? rota.materiais.length : 0);
   }, 0);
 }
@@ -508,7 +545,7 @@ function renderizarCardRota(rota, index = 0, total = 0) {
         </div>
         <div class="rota-col rota-operacao-data">
           <span>${rota.tipo}</span>
-          <strong>${rota.tipoHorario} ${rota.horario || "--:--"}</strong>
+          <strong>${textoHorarioRota(rota.tipoHorario, rota.horario, rota.data)}</strong>
         </div>
         <div class="rota-col">
           <span>Cliente</span>
@@ -740,7 +777,7 @@ function imprimirRotaData(data) {
               <div class="card ${rota.tipo === "Desmontagem" ? "desmontagem" : ""}">
                 <div class="titulo">
                   <strong>${rota.tipo}</strong>
-                  <span>${rota.tipoHorario} ${rota.horario || "--:--"}</span>
+                  <span>${textoHorarioRota(rota.tipoHorario, rota.horario, rota.data)}</span>
                 </div>
 
                 <div class="grid">
@@ -751,7 +788,7 @@ function imprimirRotaData(data) {
 
                   <div class="col">
                     <span>${rota.tipo}</span>
-                    <strong>${rota.tipoHorario} ${rota.horario || "--:--"}</strong>
+                    <strong>${textoHorarioRota(rota.tipoHorario, rota.horario, rota.data)}</strong>
                   </div>
 
                   <div class="col">

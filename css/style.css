@@ -1613,8 +1613,10 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 .rota-identificacao {
   display: flex !important;
   align-items: center !important;
+  justify-content: flex-start !important;
   gap: 6px !important;
   min-width: 110px !important;
+  margin-left: 6px !important;
 }
 
 .rota-tipo-pill {
@@ -2455,3 +2457,1249 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
     font-size: 0.65rem;
   }
 }
+
+/* Dashboard eventos */
+.dashboard-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.panel-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.dash-mini-badge {
+  background: #eef4fb;
+  color: #23496d;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.dashboard-events-list {
+  display: grid;
+  gap: 8px;
+}
+
+.dash-event-card {
+  border: 1px solid #dce6f0;
+  border-left: 4px solid #2b7ed0;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fbfdff;
+}
+
+.dash-event-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.dash-event-top strong {
+  display: block;
+  font-size: 0.84rem;
+}
+
+.dash-event-top span {
+  color: #5c6f82;
+  font-size: 0.7rem;
+}
+
+.dash-event-date {
+  text-align: right;
+}
+
+.dash-event-middle {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 8px;
+  font-size: 0.72rem;
+  color: #4f6173;
+}
+
+.dash-event-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.dash-pay-badge {
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.dash-pay-badge.ok {
+  background: #e8f8e8;
+  color: #0a7d00;
+}
+
+.dash-pay-badge.partial {
+  background: #fff6db;
+  color: #9b6b00;
+}
+
+.dash-pay-badge.pending {
+  background: #ffe7e7;
+  color: #b00020;
+}
+
+.dash-open-event-btn {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 0.7rem;
+}
+
+@media (max-width: 980px) {
+  .dashboard-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Dashboard compacto - produtos e eventos agrupados */
+.dash-produtos-problema-lista {
+  display: grid;
+  gap: 5px;
+}
+
+.dash-produto-problema-linha {
+  display: grid;
+  grid-template-columns: 0.7fr 1.4fr 0.9fr 2fr;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid #edf2f7;
+  border-left: 4px solid #f5a623;
+  border-radius: 9px;
+  background: #fbfdff;
+  font-size: 0.76rem;
+}
+
+.dash-produto-problema-linha span,
+.dash-produto-problema-linha strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-produto-status {
+  font-weight: 800;
+  color: #8a5200;
+}
+
+.dash-produto-obs {
+  color: #617286;
+}
+
+.dash-event-card-compacto {
+  padding: 8px !important;
+}
+
+.dash-event-top.compacto {
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.dash-event-top.compacto strong {
+  font-size: 0.80rem;
+}
+
+.dash-event-top.compacto span {
+  display: block;
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-event-actions {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.dash-open-event-btn {
+  min-height: 24px !important;
+  padding: 3px 8px !important;
+  font-size: 0.66rem !important;
+}
+
+.dash-pay-badge {
+  padding: 2px 7px !important;
+  font-size: 0.62rem !important;
+}
+
+.dash-ops-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 5px;
+}
+
+.dash-op {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 7px;
+  font-size: 0.64rem;
+  line-height: 1;
+  background: #eef4fb;
+  color: #314f68;
+}
+
+.dash-op strong {
+  font-size: 0.62rem;
+}
+
+.dash-op-evento {
+  background: #e8f8e8;
+  color: #0a6f00;
+}
+
+.dash-op-montagem {
+  background: #eef4ff;
+  color: #174a8b;
+}
+
+.dash-op-desmontagem {
+  background: #f5edff;
+  color: #6b28a8;
+}
+
+.dash-event-middle.compacto {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+  font-size: 0.68rem;
+}
+
+@media (max-width: 760px) {
+  .dash-produto-problema-linha {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-event-top.compacto {
+    display: grid;
+  }
+}
+
+
+/* AJUSTE V3 - Badge Montagem/Desmontagem realmente para a esquerda */
+.rota-card-top-refinado {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  width: 100% !important;
+}
+
+.rota-identificacao {
+  order: 1 !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: fit-content !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+.rota-tipo-pill {
+  margin-left: 0 !important;
+}
+
+.rota-controles-linha {
+  order: 2 !important;
+  margin-left: auto !important;
+  justify-content: flex-end !important;
+  flex: 0 0 auto !important;
+}
+
+
+/* V9 - campo de horário final para intervalo */
+.campo-hora-final {
+  transition: all .2s ease;
+}
+
+
+/* V14 - montagem/desmontagem na mesma linha */
+.event-operation-row {
+  display: grid !important;
+  grid-template-columns: 2fr 1.3fr 1fr !important;
+  gap: 12px !important;
+  align-items: end !important;
+}
+
+.event-operation-row .campo-hora-final {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 900px) {
+  .event-operation-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+
+/* =========================
+   V17.1 - ajuste leve de tipografia na tabela de eventos
+========================= */
+
+#eventosSection table th,
+#eventosSection table td {
+  font-size: 0.84rem !important;
+  line-height: 1.18 !important;
+}
+
+#eventosSection table .code-link,
+#eventosSection table .product-list-button {
+  font-size: 0.83rem !important;
+  line-height: 1.15 !important;
+}
+
+#eventosSection table td {
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
+}
+
+#eventosSection table .weekday-badge {
+  font-size: 0.68rem !important;
+}
+
+
+/* =========================
+   V17.2 - ajuste fino tabela eventos
+========================= */
+
+/* fonte um pouco menor */
+#eventosSection table th,
+#eventosSection table td {
+  font-size: 0.79rem !important;
+  line-height: 1.12 !important;
+}
+
+#eventosSection table .code-link,
+#eventosSection table .product-list-button {
+  font-size: 0.78rem !important;
+  line-height: 1.10 !important;
+}
+
+/* aumentar largura da coluna produtos */
+#eventosSection table th:nth-child(6),
+#eventosSection table td:nth-child(6) {
+  width: 24% !important;
+  min-width: 320px !important;
+}
+
+/* reduzir um pouco endereço para abrir espaço */
+#eventosSection table th:nth-child(5),
+#eventosSection table td:nth-child(5) {
+  width: 18% !important;
+}
+
+/* colunas financeiras mais compactas */
+#eventosSection table th:nth-child(7),
+#eventosSection table td:nth-child(7),
+#eventosSection table th:nth-child(8),
+#eventosSection table td:nth-child(8),
+#eventosSection table th:nth-child(9),
+#eventosSection table td:nth-child(9) {
+  width: 6% !important;
+  white-space: nowrap !important;
+}
+
+
+
+/* =========================
+   V17.3 - ajuste fino endereço + fontes iguais
+========================= */
+
+/* todas as colunas com fonte igual à produtos */
+#eventosSection table th,
+#eventosSection table td,
+#eventosSection table .code-link,
+#eventosSection table .product-list-button,
+#eventosSection table button {
+  font-size: 0.78rem !important;
+  line-height: 1.10 !important;
+}
+
+/* aumentar um pouco endereço */
+#eventosSection table th:nth-child(5),
+#eventosSection table td:nth-child(5) {
+  width: 21% !important;
+}
+
+/* produtos continua largo */
+#eventosSection table th:nth-child(6),
+#eventosSection table td:nth-child(6) {
+  width: 25% !important;
+  min-width: 340px !important;
+}
+
+/* compactar financeiro para abrir espaço */
+#eventosSection table th:nth-child(7),
+#eventosSection table td:nth-child(7),
+#eventosSection table th:nth-child(8),
+#eventosSection table td:nth-child(8),
+#eventosSection table th:nth-child(9),
+#eventosSection table td:nth-child(9),
+#eventosSection table th:nth-child(10),
+#eventosSection table td:nth-child(10),
+#eventosSection table th:nth-child(11),
+#eventosSection table td:nth-child(11),
+#eventosSection table th:nth-child(12),
+#eventosSection table td:nth-child(12) {
+  white-space: nowrap !important;
+}
+
+
+
+/* =========================
+   V17.4 - aumentar levemente endereço
+========================= */
+
+#eventosSection table th:nth-child(5),
+#eventosSection table td:nth-child(5) {
+  width: 23% !important;
+}
+
+/* pequenos ajustes para compensar */
+#eventosSection table th:nth-child(3),
+#eventosSection table td:nth-child(3) {
+  width: 11% !important;
+}
+
+#eventosSection table th:nth-child(4),
+#eventosSection table td:nth-child(4) {
+  width: 8% !important;
+}
+
+
+
+/* =========================
+   V17.5 - ajuste fino cliente/endereço
+========================= */
+
+/* endereço maior */
+#eventosSection table th:nth-child(5),
+#eventosSection table td:nth-child(5) {
+  width: 26% !important;
+  min-width: 360px !important;
+}
+
+/* produtos mantém espaço */
+#eventosSection table th:nth-child(6),
+#eventosSection table td:nth-child(6) {
+  width: 24% !important;
+}
+
+/* cliente menor e alinhado esquerda */
+#eventosSection table th:nth-child(3),
+#eventosSection table td:nth-child(3) {
+  width: 10% !important;
+  text-align: left !important;
+  vertical-align: top !important;
+}
+
+#eventosSection table td:nth-child(3) .code-link {
+  font-size: 0.70rem !important;
+  line-height: 1.02 !important;
+  text-align: left !important;
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+  display: flex !important;
+  width: 100% !important;
+  font-weight: 700 !important;
+}
+
+/* telefone um pouco mais compacto */
+#eventosSection table th:nth-child(4),
+#eventosSection table td:nth-child(4) {
+  width: 7% !important;
+}
+
+/* financeiro mais compacto para abrir espaço */
+#eventosSection table th:nth-child(7),
+#eventosSection table td:nth-child(7),
+#eventosSection table th:nth-child(8),
+#eventosSection table td:nth-child(8),
+#eventosSection table th:nth-child(9),
+#eventosSection table td:nth-child(9),
+#eventosSection table th:nth-child(10),
+#eventosSection table td:nth-child(10),
+#eventosSection table th:nth-child(11),
+#eventosSection table td:nth-child(11),
+#eventosSection table th:nth-child(12),
+#eventosSection table td:nth-child(12) {
+  font-size: 0.72rem !important;
+  white-space: nowrap !important;
+}
+
+
+
+/* ==========================================================
+   V17.6 - Tabela Eventos compacta e completa
+   Objetivo: todas as informações visíveis, fonte pequena,
+   endereço/produtos com mais espaço, sem rolagem horizontal.
+========================================================== */
+
+#eventosSection {
+  overflow-x: hidden !important;
+}
+
+#eventosSection .table-wrap,
+#eventosSection .table-container,
+#eventosSection .data-table-wrapper {
+  overflow-x: hidden !important;
+}
+
+/* tabela real da tela Eventos */
+#eventosSection table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+/* cabeçalho e células compactos */
+#eventosSection table th,
+#eventosSection table td {
+  font-size: 10px !important;
+  line-height: 1.08 !important;
+  padding: 5px 6px !important;
+  text-align: left !important;
+  vertical-align: top !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* cabeçalho */
+#eventosSection table th {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+/* largura das colunas da tabela pontual */
+#eventosSection table th:nth-child(1),
+#eventosSection table td:nth-child(1) {
+  width: 6% !important;   /* Data */
+}
+
+#eventosSection table th:nth-child(2),
+#eventosSection table td:nth-child(2) {
+  width: 6% !important;   /* Horário */
+}
+
+#eventosSection table th:nth-child(3),
+#eventosSection table td:nth-child(3) {
+  width: 9% !important;   /* Cliente */
+  text-align: left !important;
+}
+
+#eventosSection table th:nth-child(4),
+#eventosSection table td:nth-child(4) {
+  width: 8% !important;   /* Telefone */
+}
+
+#eventosSection table th:nth-child(5),
+#eventosSection table td:nth-child(5) {
+  width: 25% !important;  /* Endereço */
+}
+
+#eventosSection table th:nth-child(6),
+#eventosSection table td:nth-child(6) {
+  width: 25% !important;  /* Produtos */
+}
+
+#eventosSection table th:nth-child(7),
+#eventosSection table td:nth-child(7) {
+  width: 6% !important;   /* Total */
+}
+
+#eventosSection table th:nth-child(8),
+#eventosSection table td:nth-child(8) {
+  width: 5% !important;   /* Sinal */
+}
+
+#eventosSection table th:nth-child(9),
+#eventosSection table td:nth-child(9) {
+  width: 6% !important;   /* Restante */
+}
+
+#eventosSection table th:nth-child(10),
+#eventosSection table td:nth-child(10) {
+  width: 5% !important;   /* Pagamento */
+}
+
+#eventosSection table th:nth-child(11),
+#eventosSection table td:nth-child(11) {
+  width: 5% !important;   /* Colaborador */
+}
+
+#eventosSection table th:nth-child(12),
+#eventosSection table td:nth-child(12) {
+  width: 4% !important;   /* Ações */
+}
+
+/* cliente: esquerda, menor, sem centralização */
+#eventosSection table td:nth-child(3),
+#eventosSection table td:nth-child(3) * {
+  text-align: left !important;
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+}
+
+#eventosSection table .code-link {
+  display: inline !important;
+  width: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  font-size: 10px !important;
+  line-height: 1.08 !important;
+  font-weight: 800 !important;
+  text-align: left !important;
+}
+
+/* produtos completos e compactos */
+#eventosSection table .product-list-button {
+  display: block !important;
+  width: 100% !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #071b33 !important;
+  font-size: 10px !important;
+  line-height: 1.06 !important;
+  font-weight: 700 !important;
+  text-align: left !important;
+  white-space: normal !important;
+}
+
+/* valores: compactos */
+#eventosSection table td:nth-child(7),
+#eventosSection table td:nth-child(8),
+#eventosSection table td:nth-child(9),
+#eventosSection table td:nth-child(10),
+#eventosSection table td:nth-child(11) {
+  font-size: 10px !important;
+  line-height: 1.05 !important;
+}
+
+/* ações pequenas */
+#eventosSection table td.actions {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  align-items: stretch !important;
+}
+
+#eventosSection table td.actions button {
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 4px 5px !important;
+  border-radius: 7px !important;
+  font-size: 9px !important;
+  line-height: 1 !important;
+  font-weight: 700 !important;
+}
+
+/* sábado/domingo menor */
+#eventosSection table .weekday-badge {
+  display: block !important;
+  font-size: 8px !important;
+  line-height: 1 !important;
+  margin-top: 3px !important;
+}
+
+/* linhas mais limpas */
+#eventosSection table tbody tr {
+  border-bottom: 1px solid #ffd0d0 !important;
+}
+
+#eventosSection table tbody tr.payment-open {
+  background: #fff1f1 !important;
+}
+
+/* Em telas menores, mantém tudo cabendo com fonte ainda menor */
+@media (max-width: 1350px) {
+  #eventosSection table th,
+  #eventosSection table td,
+  #eventosSection table .code-link,
+  #eventosSection table .product-list-button {
+    font-size: 9px !important;
+    line-height: 1.04 !important;
+  }
+
+  #eventosSection table th,
+  #eventosSection table td {
+    padding: 4px 4px !important;
+  }
+
+  #eventosSection table td.actions button {
+    font-size: 8px !important;
+    padding: 3px 4px !important;
+  }
+}
+
+
+/* =========================
+   V17.7 - ações compactas com ícones
+========================= */
+
+#eventosSection table td.actions {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 4px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
+
+#eventosSection table td.actions button {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+}
+
+/* editar */
+#eventosSection table td.actions button:first-child::before {
+  content: "✏️";
+  font-size: 12px;
+}
+
+/* excluir */
+#eventosSection table td.actions button:last-child::before {
+  content: "🗑️";
+  font-size: 12px;
+}
+
+
+
+/* =========================
+   V17.8 - ações horizontais + fonte +1 ponto
+========================= */
+
+/* fonte da tabela +1 ponto */
+#eventosSection table th,
+#eventosSection table td,
+#eventosSection table .code-link,
+#eventosSection table .product-list-button {
+  font-size: 11px !important;
+  line-height: 1.10 !important;
+}
+
+/* sábado/domingo um pouco maior também */
+#eventosSection table .weekday-badge {
+  font-size: 9px !important;
+}
+
+/* ações sempre lado a lado */
+#eventosSection table td.actions {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 4px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  white-space: nowrap !important;
+}
+
+/* botões compactos com ícones */
+#eventosSection table td.actions button {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  max-width: 24px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 6px !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 24px !important;
+}
+
+/* editar */
+#eventosSection table td.actions button:first-child::before {
+  content: "✏️";
+  font-size: 12px !important;
+}
+
+/* excluir */
+#eventosSection table td.actions button:last-child::before {
+  content: "🗑️";
+  font-size: 12px !important;
+}
+
+
+
+/* =========================
+   V17.9 - ajustar largura produtos
+========================= */
+
+/* diminuir um pouco produtos */
+#eventosSection table th:nth-child(6),
+#eventosSection table td:nth-child(6) {
+  width: 22% !important;
+}
+
+/* liberar espaço para ações */
+#eventosSection table th:nth-child(12),
+#eventosSection table td:nth-child(12) {
+  width: 6% !important;
+}
+
+
+
+/* =========================
+   V18-scroll-fix - scroll interno correto
+========================= */
+
+/* mantém a linha compacta sem esconder ações */
+#eventosSection table tbody tr {
+  height: 56px !important;
+}
+
+/* não aplicar overflow nos td comuns */
+#eventosSection table td {
+  vertical-align: top !important;
+  overflow: visible !important;
+}
+
+/* scroll real dentro de uma div interna */
+#eventosSection table .cell-scroll {
+  max-height: 44px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  display: block !important;
+  padding-right: 4px !important;
+  line-height: 1.05 !important;
+  scrollbar-width: thin !important;
+}
+
+/* produtos ocupa toda largura */
+#eventosSection table .cell-produtos,
+#eventosSection table .cell-produtos .product-list-button {
+  width: 100% !important;
+}
+
+/* scrollbar discreta */
+#eventosSection table .cell-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+#eventosSection table .cell-scroll::-webkit-scrollbar-thumb {
+  background: #b8c7d8;
+  border-radius: 10px;
+}
+
+/* ações nunca somem */
+#eventosSection table td.actions {
+  overflow: visible !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 4px !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  height: auto !important;
+}
+
+#eventosSection table td.actions button {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  flex: 0 0 24px !important;
+}
+
+
+
+/* =========================
+   V18-mont-desm-col
+   Mantém larguras da v18-scroll-fix e troca Horário por Mont./Desm.
+========================= */
+
+#eventosSection table .mont-desm-cell {
+  font-size: 9px !important;
+  line-height: 1.05 !important;
+  color: #172b3f !important;
+  white-space: normal !important;
+}
+
+#eventosSection table .mont-desm-cell .md-line {
+  display: block !important;
+  margin-bottom: 2px !important;
+  white-space: nowrap !important;
+}
+
+#eventosSection table .mont-desm-cell b {
+  color: #0f4f86 !important;
+  font-weight: 800 !important;
+}
+
+/* cabeçalho da coluna Mont./Desm. menor */
+#eventosSection table th:nth-child(2) {
+  font-size: 10px !important;
+}
+
+
+
+/* =========================
+   V18-mont-desm-col-v2
+   Horário abaixo da data + respiro antes do cliente
+========================= */
+
+#eventosSection table .event-hour-under {
+  display: block !important;
+  margin-top: 2px !important;
+  font-size: 8px !important;
+  line-height: 1 !important;
+  color: #516679 !important;
+  font-weight: 700 !important;
+}
+
+/* separar Mont./Desm. da coluna Cliente */
+#eventosSection table th:nth-child(2),
+#eventosSection table td:nth-child(2) {
+  padding-right: 12px !important;
+  border-right: 1px solid rgba(15, 79, 134, 0.12) !important;
+}
+
+#eventosSection table th:nth-child(3),
+#eventosSection table td:nth-child(3) {
+  padding-left: 12px !important;
+}
+
+/* Mont./Desm. um pouco menor para caber com folga */
+#eventosSection table .mont-desm-cell {
+  font-size: 8.5px !important;
+  line-height: 1.05 !important;
+}
+
+
+
+/* =========================
+   V18-mont-desm-col-v3
+   Apenas espaçamento entre colunas
+========================= */
+
+/* remover linha divisória */
+#eventosSection table th:nth-child(2),
+#eventosSection table td:nth-child(2) {
+  border-right: none !important;
+  padding-right: 18px !important;
+}
+
+/* cliente com pequeno respiro */
+#eventosSection table th:nth-child(3),
+#eventosSection table td:nth-child(3) {
+  padding-left: 10px !important;
+}
+
+
+
+/* =========================
+   V18-mont-desm-col-v4
+   Data compacta dd/mm/aa ddd
+========================= */
+
+#eventosSection table td:first-child {
+  white-space: nowrap !important;
+}
+
+#eventosSection table td:first-child .weekday-badge {
+  display: none !important;
+}
+
+
+
+/* =========================
+   V18-mont-desm-col-v5
+   Data em negrito + ddd leve
+========================= */
+
+#eventosSection table .event-date-strong {
+  font-weight: 800 !important;
+  color: #132a44 !important;
+}
+
+#eventosSection table .event-weekday-light {
+  font-size: 8px !important;
+  font-weight: 400 !important;
+  color: #66788c !important;
+  text-transform: lowercase !important;
+}
+
+#eventosSection table .event-hour-under {
+  display: block !important;
+  margin-top: 2px !important;
+  font-size: 8px !important;
+  font-weight: 600 !important;
+  color: #516679 !important;
+  line-height: 1 !important;
+}
+
+
+
+/* =========================
+   V18-detail-compact
+   Popup detalhe do evento compacto
+========================= */
+
+#eventoDetalheConteudo .detail-actions-top {
+  display: flex !important;
+  justify-content: flex-end !important;
+  margin: -4px 0 10px !important;
+}
+
+#eventoDetalheConteudo .detalhe-editar-btn {
+  padding: 7px 12px !important;
+  border-radius: 10px !important;
+  font-size: 0.78rem !important;
+  font-weight: 800 !important;
+}
+
+#eventoDetalheConteudo .detalhe-compacto {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+#eventoDetalheConteudo .detalhe-compacto .info-box {
+  padding: 9px 10px !important;
+  border-radius: 12px !important;
+  min-height: auto !important;
+}
+
+#eventoDetalheConteudo .detalhe-compacto .info-box span {
+  font-size: 0.72rem !important;
+  line-height: 1 !important;
+  color: #5c6f82 !important;
+}
+
+#eventoDetalheConteudo .detalhe-compacto .info-box strong {
+  display: block !important;
+  margin-top: 3px !important;
+  font-size: 0.82rem !important;
+  line-height: 1.1 !important;
+}
+
+/* Linha 1: data, início, término, montagem, desmontagem */
+#eventoDetalheConteudo .linha-data,
+#eventoDetalheConteudo .linha-inicio,
+#eventoDetalheConteudo .linha-termino,
+#eventoDetalheConteudo .linha-montagem,
+#eventoDetalheConteudo .linha-desmontagem {
+  grid-column: span 1 !important;
+}
+
+/* Linha 2: cliente, tipo e telefone */
+#eventoDetalheConteudo .linha-cliente {
+  grid-column: span 2 !important;
+}
+
+#eventoDetalheConteudo .linha-tipo {
+  grid-column: span 1 !important;
+}
+
+#eventoDetalheConteudo .linha-telefone {
+  grid-column: span 2 !important;
+}
+
+/* Endereço em linha própria */
+#eventoDetalheConteudo .linha-endereco {
+  grid-column: 1 / -1 !important;
+}
+
+/* Financeiro na mesma linha */
+#eventoDetalheConteudo .linha-pagamento,
+#eventoDetalheConteudo .linha-total,
+#eventoDetalheConteudo .linha-sinal,
+#eventoDetalheConteudo .linha-restante,
+#eventoDetalheConteudo .linha-colaborador {
+  grid-column: span 1 !important;
+}
+
+#eventoDetalheConteudo h4 {
+  margin: 12px 0 6px !important;
+  font-size: 0.9rem !important;
+}
+
+#eventoDetalheConteudo .detail-products {
+  font-size: 0.82rem !important;
+  line-height: 1.15 !important;
+  background: #f7faff !important;
+  border: 1px solid #dce6f0 !important;
+  border-radius: 12px !important;
+  padding: 9px 10px !important;
+}
+
+#eventoDetalheConteudo .detalhe-pagamento-forma {
+  margin-top: 10px !important;
+}
+
+#eventoDetalheConteudo .detalhe-pagamento-forma h3 {
+  font-size: 0.9rem !important;
+}
+
+@media (max-width: 900px) {
+  #eventoDetalheConteudo .detalhe-compacto {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  #eventoDetalheConteudo .linha-endereco,
+  #eventoDetalheConteudo .linha-cliente,
+  #eventoDetalheConteudo .linha-telefone {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+
+/* =========================
+   Fix recorrentes - layout próprio
+   Evita herdar alinhamento da tabela principal
+========================= */
+
+/* tabela de eventos recorrentes */
+#eventosRecorrentesTbody {
+  display: table-row-group !important;
+}
+
+#eventosRecorrentesTbody tr {
+  display: table-row !important;
+  width: auto !important;
+  min-width: 0 !important;
+}
+
+#eventosRecorrentesTbody td {
+  display: table-cell !important;
+  vertical-align: top !important;
+  text-align: left !important;
+  font-size: 10px !important;
+  line-height: 1.08 !important;
+  padding: 5px 6px !important;
+  overflow: visible !important;
+}
+
+/* recorrentes tem 11 colunas:
+   Data | Período | Frequência | Cliente | Telefone | Endereço |
+   Produtos | Total | Pagamento | Colaborador | Ações
+*/
+
+#eventosRecorrentesTbody td:nth-child(1) {
+  width: 7% !important;
+}
+
+#eventosRecorrentesTbody td:nth-child(2) {
+  width: 12% !important;
+}
+
+#eventosRecorrentesTbody td:nth-child(3) {
+  width: 9% !important;
+}
+
+#eventosRecorrentesTbody td:nth-child(4) {
+  width: 11% !important;
+}
+
+#eventosRecorrentesTbody td:nth-child(5) {
+  width: 9% !important;
+}
+
+#eventosRecorrentesTbody td:nth-child(6) {
+  width: 22% !important;
+}
+
+#eventosRecorrentesTbody td:nth-child(7) {
+  width: 20% !important;
+}
+
+#eventosRecorrentesTbody td:nth-child(8),
+#eventosRecorrentesTbody td:nth-child(9),
+#eventosRecorrentesTbody td:nth-child(10) {
+  width: 6% !important;
+  white-space: normal !important;
+}
+
+#eventosRecorrentesTbody td:nth-child(11) {
+  width: 6% !important;
+}
+
+/* scroll interno correto para endereço/produtos recorrentes */
+#eventosRecorrentesTbody td:nth-child(6) .cell-scroll,
+#eventosRecorrentesTbody td:nth-child(7) .cell-scroll {
+  max-height: 44px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  display: block !important;
+}
+
+/* cliente recorrente alinhado à esquerda */
+#eventosRecorrentesTbody td:nth-child(4),
+#eventosRecorrentesTbody td:nth-child(4) * {
+  text-align: left !important;
+  justify-content: flex-start !important;
+}
+
+/* botões recorrentes horizontais e pequenos */
+#eventosRecorrentesTbody td.actions {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 4px !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  overflow: visible !important;
+}
+
+#eventosRecorrentesTbody td.actions button {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  max-width: 24px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 6px !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 24px !important;
+}
+
+#eventosRecorrentesTbody td.actions button:first-child::before {
+  content: "✏️";
+  font-size: 12px !important;
+}
+
+#eventosRecorrentesTbody td.actions button:last-child::before {
+  content: "🗑️";
+  font-size: 12px !important;
+}
+

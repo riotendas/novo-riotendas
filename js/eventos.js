@@ -1,4 +1,47 @@
 
+/* =========================
+   Formatação global de data/hora
+========================= */
+
+function formatarDataCurta(dataISO) {
+  if (!dataISO) return "-";
+
+  const texto = String(dataISO).slice(0,10);
+  const partes = texto.split("-");
+  if (partes.length < 3) return texto;
+
+  return `${partes[2]}/${partes[1]}/${partes[0].slice(-2)}`;
+}
+
+function formatarHoraCurta(valor) {
+  if (!valor) return "";
+
+  const texto = String(valor);
+
+  if (texto.includes("T")) {
+    return texto.slice(11,16);
+  }
+
+  return texto.slice(0,5);
+}
+
+function formatarDataHoraCurta(valor) {
+  if (!valor) return "-";
+
+  const texto = String(valor);
+
+  if (!texto.includes("T")) {
+    return texto;
+  }
+
+  const data = formatarDataCurta(texto.slice(0,10));
+  const hora = formatarHoraCurta(texto);
+
+  return `${data} ${hora}`;
+}
+
+
+
 let eventos = [];
 let produtosSelecionadosEventoAtual = [];
 let produtosExtrasEventoAtual = [];
@@ -57,6 +100,91 @@ function diaSemana(dataISO) {
   if (!dataISO) return "-";
   const data = new Date(dataISO + "T12:00:00");
   return data.toLocaleDateString("pt-BR", { weekday: "short" });
+}
+
+
+function tipoHorarioBase(valor) {
+  return String(valor || "Horário comercial").split("|")[0] || "Horário comercial";
+}
+
+function tipoHorarioFim(valor) {
+  const partes = String(valor || "").split("|");
+  return partes.length > 1 ? partes[1] : "";
+}
+
+function montarTipoHorarioParaSalvar(selectId, fimId) {
+  const tipo = document.getElementById(selectId)?.value || "A partir de";
+  const fim = document.getElementById(fimId)?.value || "";
+  return tipo === "Intervalo" && fim ? `${tipo}|${fim}` : tipo;
+}
+
+function textoHorarioOperacao(tipoSalvo, datetimeValor) {
+  if (!datetimeValor) return "-";
+
+  const tipo = tipoHorarioBase(tipoSalvo);
+  const fim = tipoHorarioFim(tipoSalvo);
+  const dataTxt = formatarData(datetimeValor);
+  const hora = String(datetimeValor || "").slice(11, 16);
+
+  if (tipo === "Exatamente") return `Exatamente ${dataTxt}`;
+  if (tipo === "A partir de") return `A partir de ${dataTxt}`;
+  if (tipo === "Até") return `Até ${dataTxt}`;
+  if (tipo === "Intervalo") {
+    return fim ? `Entre ${dataTxt} e ${fim}` : `Intervalo a partir de ${dataTxt}`;
+  }
+  if (tipo === "Horário comercial") return `${dataBR(String(datetimeValor).slice(0, 10))} — Horário comercial`;
+  if (tipo === "Livre / combinar") return `${dataBR(String(datetimeValor).slice(0, 10))} — Livre / combinar`;
+
+  return `${tipo} ${dataTxt}`;
+}
+
+function atualizarCampoHoraFinalOperacao(prefixo) {
+  const select = document.getElementById(`evento${prefixo}Tipo`);
+  const box = document.getElementById(`evento${prefixo}FimBox`);
+  const input = document.getElementById(`evento${prefixo}Fim`);
+  const campoDataHora = document.getElementById(`evento${prefixo}`);
+
+  if (!select || !box || !input || !campoDataHora) return;
+
+  const tipo = select.value;
+
+  const mostrarHoraFinal = tipo === "Intervalo";
+  box.style.display = mostrarHoraFinal ? "" : "none";
+  if (!mostrarHoraFinal) input.value = "";
+
+  const naoExigirHora =
+    tipo === "Horário comercial" ||
+    tipo === "Livre / combinar";
+
+  const valorAtual = campoDataHora.value || "";
+  const dataAtual = valorAtual.includes("T") ? valorAtual.split("T")[0] : valorAtual;
+
+  // Para Horário comercial/Livre, o campo vira apenas DATA.
+  // Isso evita o erro nativo do navegador de "data incompleta" em datetime-local.
+  if (naoExigirHora) {
+    campoDataHora.required = false;
+    campoDataHora.type = "date";
+    campoDataHora.value = dataAtual || "";
+    return;
+  }
+
+  // Para os demais tipos, volta a ser data + hora.
+  campoDataHora.type = "datetime-local";
+  campoDataHora.required = false;
+
+  if (dataAtual && !valorAtual.includes("T")) {
+    campoDataHora.value = `${dataAtual}T09:00`;
+  }
+}
+
+function aplicarTipoHorarioNoFormulario(prefixo, valorSalvo) {
+  const select = document.getElementById(`evento${prefixo}Tipo`);
+  const input = document.getElementById(`evento${prefixo}Fim`);
+  if (!select || !input) return;
+
+  select.value = tipoHorarioBase(valorSalvo);
+  input.value = tipoHorarioFim(valorSalvo);
+  atualizarCampoHoraFinalOperacao(prefixo);
 }
 
 async function buscarEventosBanco() {
@@ -219,6 +347,8 @@ function iniciarEventos() {
     campo.addEventListener("blur", () => { formatarCampoMoeda(campo); calcularRestanteEvento(); });
   });
   onEventoSeguro("eventoBuscaCliente", "change", preencherClienteSelecionado);
+  onEventoSeguro("eventoMontagemTipo", "change", () => atualizarCampoHoraFinalOperacao("Montagem"));
+  onEventoSeguro("eventoDesmontagemTipo", "change", () => atualizarCampoHoraFinalOperacao("Desmontagem"));
   onEventoSeguro("adicionarProdutoEvento", "click", adicionarProdutoSelecionadoAoEvento);
   const btnExtraEvento = document.getElementById("adicionarExtraEvento");
   if (btnExtraEvento) btnExtraEvento.addEventListener("click", adicionarExtraAoEvento);
@@ -227,7 +357,7 @@ function iniciarEventos() {
   document.getElementById("adicionarProdutoRapido").addEventListener("click", adicionarProdutoRapido);
   document.getElementById("salvarEventoProdutosRapido").addEventListener("click", salvarProdutosRapido);
 
-  ["eventoData", "eventoHoraInicio", "eventoHoraTermino", "eventoMontagem", "eventoDesmontagem"].forEach(id => {
+  ["eventoData", "eventoHoraInicio", "eventoHoraTermino", "eventoMontagem", "eventoDesmontagem", "eventoMontagemTipo", "eventoDesmontagemTipo", "eventoMontagemFim", "eventoDesmontagemFim"].forEach(id => {
     const campo = document.getElementById(id);
     if (!campo) return;
     campo.addEventListener("change", () => {
@@ -363,6 +493,22 @@ function preencherDatasRecorrenciaPadrao() {
   if (fim && dataEvento && !fim.value) fim.value = addMesISO(dataEvento, 6);
 }
 
+
+function valorOperacaoParaSalvar(campoId, tipoSelectId) {
+  const campo = document.getElementById(campoId);
+  const select = document.getElementById(tipoSelectId);
+  const valor = campo?.value || "";
+  const tipo = select?.value || "";
+
+  if (!valor) return null;
+
+  if (tipo === "Horário comercial" || tipo === "Livre / combinar") {
+    return valor.includes("T") ? valor : `${valor}T00:00`;
+  }
+
+  return valor;
+}
+
 function montarEventoRecorrenteBase(id, existente) {
   return {
     id,
@@ -374,10 +520,10 @@ function montarEventoRecorrenteBase(id, existente) {
     hora_inicio: document.getElementById("eventoHoraInicio").value || null,
     hora_termino: document.getElementById("eventoHoraTermino").value || null,
     hora_evento: document.getElementById("eventoHoraInicio").value || null,
-    montagem_tipo: document.getElementById("eventoMontagemTipo").value || "A partir de",
-    montagem: document.getElementById("eventoMontagem").value || null,
-    desmontagem_tipo: document.getElementById("eventoDesmontagemTipo").value || "A partir de",
-    desmontagem: document.getElementById("eventoDesmontagem").value || null,
+    montagem_tipo: montarTipoHorarioParaSalvar("eventoMontagemTipo", "eventoMontagemFim"),
+    montagem: valorOperacaoParaSalvar("eventoMontagem", "eventoMontagemTipo"),
+    desmontagem_tipo: montarTipoHorarioParaSalvar("eventoDesmontagemTipo", "eventoDesmontagemFim"),
+    desmontagem: valorOperacaoParaSalvar("eventoDesmontagem", "eventoDesmontagemTipo"),
     tendas: obterProdutosSelecionadosEvento(),
     itens_apoio: obterApoioSelecionadoEvento(),
     produtos_extras: produtosExtrasEventoAtual,
@@ -428,10 +574,35 @@ function periodoRecorrenciaTexto(e) {
   return `${dataBR(e.recorrencia_inicio || e.data_evento)} até ${dataBR(e.recorrencia_fim || e.data_evento)}`;
 }
 
+
+function prepararHorarioPadraoNovoEvento() {
+  aplicarTipoHorarioNoFormulario("Montagem", "Horário comercial");
+  aplicarTipoHorarioNoFormulario("Desmontagem", "Horário comercial");
+
+  const montagem = document.getElementById("eventoMontagem");
+  const desmontagem = document.getElementById("eventoDesmontagem");
+
+  if (montagem) {
+    montagem.type = "date";
+    montagem.required = false;
+  }
+
+  if (desmontagem) {
+    desmontagem.type = "date";
+    desmontagem.required = false;
+  }
+}
+
 function abrirNovoEvento() {
   document.getElementById("eventoForm").reset();
+  prepararHorarioPadraoNovoEvento();
   document.getElementById("eventoId").value = "";
   document.getElementById("eventoModalTitulo").textContent = "Novo evento";
+
+  // Padrão para novo evento: horário comercial, sem exigir hora
+  aplicarTipoHorarioNoFormulario("Montagem", "Horário comercial");
+  aplicarTipoHorarioNoFormulario("Desmontagem", "Horário comercial");
+
   document.getElementById("eventoValorTotal").value = numeroParaMoeda(0);
   document.getElementById("eventoValorSinal").value = numeroParaMoeda(0);
   document.getElementById("eventoValorRestante").value = numeroParaMoeda(0);
@@ -470,10 +641,13 @@ function abrirEditarEvento(id) {
   document.getElementById("eventoData").value = e.data_evento || "";
   document.getElementById("eventoHoraInicio").value = e.hora_inicio || e.hora_evento || "";
   document.getElementById("eventoHoraTermino").value = e.hora_termino || "";
-  document.getElementById("eventoMontagemTipo").value = e.montagem_tipo || "A partir de";
-  document.getElementById("eventoMontagem").value = e.montagem ? String(e.montagem).slice(0,16) : "";
-  document.getElementById("eventoDesmontagemTipo").value = e.desmontagem_tipo || "A partir de";
-  document.getElementById("eventoDesmontagem").value = e.desmontagem ? String(e.desmontagem).slice(0,16) : "";
+  aplicarTipoHorarioNoFormulario("Montagem", e.montagem_tipo || "A partir de");
+  const campoMontagem = document.getElementById("eventoMontagem");
+  campoMontagem.value = e.montagem ? (campoMontagem.type === "date" ? String(e.montagem).slice(0,10) : String(e.montagem).slice(0,16)) : "";
+
+  aplicarTipoHorarioNoFormulario("Desmontagem", e.desmontagem_tipo || "A partir de");
+  const campoDesmontagem = document.getElementById("eventoDesmontagem");
+  campoDesmontagem.value = e.desmontagem ? (campoDesmontagem.type === "date" ? String(e.desmontagem).slice(0,10) : String(e.desmontagem).slice(0,16)) : "";
   document.getElementById("eventoValorTotal").value = numeroParaMoeda(e.valor_total || 0);
   document.getElementById("eventoValorSinal").value = numeroParaMoeda(e.valor_sinal || 0);
   document.getElementById("eventoValorRestante").value = numeroParaMoeda(e.valor_restante || 0);
@@ -954,6 +1128,52 @@ function filtrarEventosRecorrentes() {
   }).sort((a, b) => String(a.data_evento || "").localeCompare(String(b.data_evento || "")));
 }
 
+
+
+
+function dataEventoCompactaVisual(dataISO) {
+  if (!dataISO) return "-";
+
+  const partes = String(dataISO).split("-");
+  if (partes.length < 3) return dataISO;
+
+  const data = new Date(`${dataISO}T12:00:00`);
+
+  const dias = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+  const dd = partes[2];
+  const mm = partes[1];
+  const aa = partes[0].slice(-2);
+
+  return `<span class="event-date-strong">${dd}/${mm}/${aa}</span> <span class="event-weekday-light">${dias[data.getDay()]}</span>`;
+}
+
+function horarioEventoAbaixoData(e) {
+  const inicio = formatarHoraCurta(e.hora_inicio || e.hora_evento || "");
+  const fim = formatarHoraCurta(e.hora_termino || "");
+
+  if (inicio && fim) return `${inicio} às ${fim}`;
+  return inicio || "";
+}
+
+function dataHoraCurtaEvento(valor) {
+  return formatarDataHoraCurta(valor);
+}
+
+function montagemDesmontagemCompacta(e) {
+  const montagem = dataHoraCurtaEvento(e.montagem);
+  const desmontagem = dataHoraCurtaEvento(e.desmontagem);
+
+  if (montagem && desmontagem) {
+    return `<span class="md-line"><b>M:</b> ${montagem}</span><span class="md-line"><b>D:</b> ${desmontagem}</span>`;
+  }
+
+  if (montagem) return `<span class="md-line"><b>M:</b> ${montagem}</span>`;
+  if (desmontagem) return `<span class="md-line"><b>D:</b> ${desmontagem}</span>`;
+
+  return "-";
+}
+
 function resumoProdutosEvento(e) {
   const tendas = (e.tendas || []).map(p => {
     const nome = [p.categoria, p.tamanho, p.cor].filter(Boolean).join(" ");
@@ -984,15 +1204,21 @@ function renderizarEventos() {
   } else {
     tbody.innerHTML = lista.map(e => `
       <tr class="${e.pagamento_quitado ? "" : "payment-open"}">
-        <td>${dataBR(e.data_evento)} <small class="weekday-badge">${typeof diaSemanaTexto === "function" ? diaSemanaTexto(e.data_evento) : diaSemana(e.data_evento)}</small></td>
-        <td>${e.hora_inicio || e.hora_evento || "-"}${e.hora_termino ? " às " + e.hora_termino : ""}</td>
+        <td>
+          ${dataEventoCompactaVisual(e.data_evento)}
+          <small class="weekday-badge">${typeof diaSemanaTexto === "function" ? diaSemanaTexto(e.data_evento) : diaSemana(e.data_evento)}</small>
+          <small class="event-hour-under">${horarioEventoAbaixoData(e) || "-"}</small>
+        </td>
+        <td class="mont-desm-cell">${montagemDesmontagemCompacta(e)}</td>
         <td><button class="code-link" data-action="detalhe" data-id="${e.id}">${e.nome || "-"}</button></td>
         <td>${e.telefone || "-"}</td>
-        <td>${e.endereco || "-"}</td>
+        <td><div class="cell-scroll cell-endereco">${e.endereco || "-"}</div></td>
         <td>
-          <button class="product-list-button" data-action="editar-produtos" data-id="${e.id}">
-            ${resumoProdutosEvento(e)}
-          </button>
+          <div class="cell-scroll cell-produtos">
+            <button class="product-list-button" data-action="editar-produtos" data-id="${e.id}">
+              ${resumoProdutosEvento(e)}
+            </button>
+          </div>
         </td>
         <td>${dinheiro(e.valor_total)}</td>
         <td>${dinheiro(e.valor_sinal)}</td>
@@ -1018,16 +1244,18 @@ function renderizarEventos() {
 
   tbodyRec.innerHTML = recorrentes.map(e => `
     <tr class="recurring-row ${e.pagamento_quitado ? "" : "payment-open"}">
-      <td>${dataBR(e.data_evento)} <small class="weekday-badge">${typeof diaSemanaTexto === "function" ? diaSemanaTexto(e.data_evento) : diaSemana(e.data_evento)}</small></td>
+      <td>${formatarDataCurta(e.data_evento)} <small class="weekday-badge">${typeof diaSemanaTexto === "function" ? diaSemanaTexto(e.data_evento) : diaSemana(e.data_evento)}</small></td>
       <td>${periodoRecorrenciaTexto(e)}</td>
       <td>${recorrenciaLabel(e.recorrencia_tipo, e.recorrencia_dias)}</td>
       <td><button class="code-link" data-action="detalhe" data-id="${e.id}">${e.nome || "-"}</button></td>
       <td>${e.telefone || "-"}</td>
-      <td>${e.endereco || "-"}</td>
+      <td><div class="cell-scroll cell-endereco">${e.endereco || "-"}</div></td>
       <td>
-        <button class="product-list-button" data-action="editar-produtos" data-id="${e.id}">
-          ${resumoProdutosEvento(e)}
-        </button>
+        <div class="cell-scroll cell-produtos">
+          <button class="product-list-button" data-action="editar-produtos" data-id="${e.id}">
+            ${resumoProdutosEvento(e)}
+          </button>
+        </div>
       </td>
       <td>${dinheiro(e.valor_total)}</td>
       <td>${e.pagamento_quitado ? "Quitado" : "Em aberto"}</td>
@@ -1344,44 +1572,88 @@ function abrirDetalheEvento(id) {
   document.getElementById("eventoDetalheTitulo").textContent = `Evento — ${e.nome || ""}`;
 
   document.getElementById("eventoDetalheConteudo").innerHTML = `
-    <div class="info-grid">
-      <div class="info-box"><span>Cliente</span><strong>${e.nome || "-"}</strong></div>
-      <div class="info-box"><span>Telefone</span><strong>${e.telefone || "-"}</strong></div>
-      <div class="info-box"><span>Endereço</span><strong>${e.endereco || "-"}</strong></div>
-      <div class="info-box"><span>Data</span><strong>${dataBR(e.data_evento)}</strong></div>
-      <div class="info-box"><span>Início</span><strong>${e.hora_inicio || e.hora_evento || "-"}</strong></div>\n      <div class="info-box"><span>Término</span><strong>${e.hora_termino || "-"}</strong></div>
-      <div class="info-box"><span>Montagem</span><strong>${e.montagem ? (e.montagem_tipo || "A partir de") + " " + formatarData(e.montagem) : "-"}</strong></div>
-      <div class="info-box"><span>Desmontagem</span><strong>${e.desmontagem ? (e.desmontagem_tipo || "A partir de") + " " + formatarData(e.desmontagem) : "-"}</strong></div>
-      <div class="info-box"><span>Pagamento</span><strong>${e.pagamento_quitado ? "Quitado" : "Em aberto"}</strong></div>
-      <div class="info-box"><span>Total</span><strong>${dinheiro(e.valor_total)}</strong></div>
-      <div class="info-box"><span>Sinal</span><strong>${dinheiro(e.valor_sinal)}</strong></div>
-      <div class="info-box"><span>Restante</span><strong>${dinheiro(e.valor_restante)}</strong></div>
-      <div class="info-box"><span>Colaborador</span><strong>${e.colaborador || "-"}</strong></div>
-      <div class="info-box"><span>Tipo</span><strong>${isEventoRecorrente(e) ? "Recorrente" : "Pontual"}</strong></div>
-      ${isEventoRecorrente(e) ? `<div class="info-box"><span>Recorrência</span><strong>${recorrenciaLabel(e.recorrencia_tipo, e.recorrencia_dias)}</strong></div>
-      <div class="info-box"><span>Período recorrente</span><strong>${periodoRecorrenciaTexto(e)}</strong></div>` : ""}
+    <div class="detail-actions-top">
+      <button type="button" class="btn-primary detalhe-editar-btn" data-detalhe-editar="${e.id}">Editar evento</button>
     </div>
 
-    <div class="subpanel">
-      <h3>Produtos com código</h3>
-      ${(e.tendas || []).length ? (e.tendas || []).map(p => `<div class="compact-item">${p.codigo || "-"} — ${p.categoria || ""} ${p.tamanho || ""} ${p.cor || ""}</div>`).join("") : `<p class="empty">Nenhum produto com código selecionado.</p>`}
+    <div class="info-grid detalhe-compacto">
+      <div class="info-box linha-data">
+        <span>Data</span>
+        <strong>${formatarDataCurta(e.data_evento)}</strong>
+      </div>
+      <div class="info-box linha-inicio">
+        <span>Início</span>
+        <strong>${formatarHoraCurta(e.hora_inicio || e.hora_evento || '-')}</strong>
+      </div>
+      <div class="info-box linha-termino">
+        <span>Término</span>
+        <strong>${formatarHoraCurta(e.hora_termino || '-')}</strong>
+      </div>
+      <div class="info-box linha-montagem">
+        <span>Montagem</span>
+        <strong>${textoHorarioOperacao(e.montagem_tipo, e.montagem)}</strong>
+      </div>
+      <div class="info-box linha-desmontagem">
+        <span>Desmontagem</span>
+        <strong>${textoHorarioOperacao(e.desmontagem_tipo, e.desmontagem)}</strong>
+      </div>
+
+      <div class="info-box linha-cliente">
+        <span>Cliente</span>
+        <strong>${e.nome || "-"}</strong>
+      </div>
+      <div class="info-box linha-tipo">
+        <span>Tipo</span>
+        <strong>${isEventoRecorrente(e) ? "Recorrente" : "Pontual"}</strong>
+      </div>
+      <div class="info-box linha-telefone">
+        <span>Telefone</span>
+        <strong>${e.telefone || "-"}</strong>
+      </div>
+
+      <div class="info-box linha-endereco">
+        <span>Endereço</span>
+        <strong>${e.endereco || "-"}</strong>
+      </div>
+
+      <div class="info-box linha-pagamento">
+        <span>Pagamento</span>
+        <strong>${e.pagamento_quitado ? "Quitado" : "Em aberto"}</strong>
+      </div>
+      <div class="info-box linha-total">
+        <span>Total</span>
+        <strong>${dinheiro(e.valor_total)}</strong>
+      </div>
+      <div class="info-box linha-sinal">
+        <span>Sinal</span>
+        <strong>${dinheiro(e.valor_sinal)}</strong>
+      </div>
+      <div class="info-box linha-restante">
+        <span>Restante</span>
+        <strong>${dinheiro(e.valor_restante)}</strong>
+      </div>
+      <div class="info-box linha-colaborador">
+        <span>Colaborador</span>
+        <strong>${e.colaborador || "-"}</strong>
+      </div>
     </div>
 
-    <div class="subpanel">
-      <h3>Mesas e cadeiras</h3>
-      ${(e.itens_apoio || []).length ? (e.itens_apoio || []).map(i => `<div class="compact-item">${i.nome || "-"} — Quantidade: ${i.quantidade || 0}</div>`).join("") : `<p class="empty">Nenhum item de apoio selecionado.</p>`}
-    </div>
+    <h4>Produtos</h4>
+    <div class="detail-products">${resumoProdutosEvento(e)}</div>
 
-    <div class="subpanel">
-      <h3>Produtos/serviços extras</h3>
-      ${(e.produtos_extras || []).length ? (e.produtos_extras || []).map(i => `<div class="compact-item">${i.descricao || "-"} — Quantidade: ${i.quantidade || 0}</div>`).join("") : `<p class="empty">Nenhum extra selecionado.</p>`}
-    </div>
-
-    <div class="subpanel">
+    <div class="subpanel detalhe-pagamento-forma">
       <h3>Forma de pagamento</h3>
       <p>${e.forma_pagamento || "-"}</p>
     </div>
   `;
+
+  const btnEditar = document.querySelector("[data-detalhe-editar]");
+  if (btnEditar) {
+    btnEditar.addEventListener("click", () => {
+      document.getElementById("eventoDetalheDialog").close();
+      abrirEditarEvento(btnEditar.dataset.detalheEditar);
+    });
+  }
 
   document.getElementById("eventoDetalheDialog").showModal();
 }
