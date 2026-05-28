@@ -1,7 +1,46 @@
 
+function dataCompactaComDiaRecorrente(dataISO) {
+  if (!dataISO) return "-";
+
+  const partes = String(dataISO).split("-");
+  if (partes.length < 3) return dataISO;
+
+  const data = new Date(`${dataISO}T12:00:00`);
+  const dias = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+  const dd = partes[2];
+  const mm = partes[1];
+  const aa = partes[0].slice(-2);
+
+  return `<span class="event-date-strong">${dd}/${mm}/${aa}</span> <span class="event-weekday-light">${dias[data.getDay()]}</span>`;
+}
+
+
+
 /* =========================
    Formatação global de data/hora
 ========================= */
+
+
+function dataCompactaComDia(dataISO) {
+  if (!dataISO) return "-";
+
+  const partes = String(dataISO).split("-");
+  if (partes.length < 3) return dataISO;
+
+  const data = new Date(`${dataISO}T12:00:00`);
+
+  const dias = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+  const dd = partes[2];
+  const mm = partes[1];
+  const aa = partes[0].slice(-2);
+
+  return `
+    <span class="event-date-strong">${dd}/${mm}/${aa}</span>
+    <span class="event-weekday-light">${dias[data.getDay()]}</span>
+  `;
+}
 
 function formatarDataCurta(dataISO) {
   if (!dataISO) return "-";
@@ -1191,6 +1230,20 @@ function resumoProdutosEvento(e) {
 function renderizarEventos() {
   const tbody = document.getElementById("eventosTbody");
   const tbodyRec = document.getElementById("eventosRecorrentesTbody");
+
+  const tabelaPrincipalEventos = tbody ? tbody.closest("table") : null;
+  const tabelaRecorrentesEventos = tbodyRec ? tbodyRec.closest("table") : null;
+
+  if (tabelaPrincipalEventos) {
+    tabelaPrincipalEventos.classList.add("eventos-tabela-principal");
+    tabelaPrincipalEventos.classList.remove("eventos-tabela-recorrentes");
+  }
+
+  if (tabelaRecorrentesEventos) {
+    tabelaRecorrentesEventos.classList.add("eventos-tabela-recorrentes");
+    tabelaRecorrentesEventos.classList.remove("eventos-tabela-principal");
+  }
+
   if (!tbody) return;
 
   const lista = filtrarEventos();
@@ -1244,7 +1297,7 @@ function renderizarEventos() {
 
   tbodyRec.innerHTML = recorrentes.map(e => `
     <tr class="recurring-row ${e.pagamento_quitado ? "" : "payment-open"}">
-      <td>${formatarDataCurta(e.data_evento)} <small class="weekday-badge">${typeof diaSemanaTexto === "function" ? diaSemanaTexto(e.data_evento) : diaSemana(e.data_evento)}</small></td>
+      <td>${dataCompactaComDiaRecorrente(e.data_evento)}</td>
       <td>${periodoRecorrenciaTexto(e)}</td>
       <td>${recorrenciaLabel(e.recorrencia_tipo, e.recorrencia_dias)}</td>
       <td><button class="code-link" data-action="detalhe" data-id="${e.id}">${e.nome || "-"}</button></td>
@@ -1290,6 +1343,115 @@ async function lidarAcaoEvento(event) {
   }
 }
 
+
+
+function produtoMesmoModelo(a, b) {
+  if (!a || !b) return false;
+
+  const catA = String(a.categoria || "").toLowerCase().trim();
+  const catB = String(b.categoria || "").toLowerCase().trim();
+  const tamA = String(a.tamanho || "").toLowerCase().trim();
+  const tamB = String(b.tamanho || "").toLowerCase().trim();
+
+  return catA === catB && tamA === tamB;
+}
+
+function descricaoProdutoCompacta(produto) {
+  return [
+    produto.codigo,
+    produto.categoria,
+    produto.tamanho,
+    produto.cor
+  ].filter(Boolean).join(" — ");
+}
+
+function abrirTrocaRapidaProduto(index) {
+  const atual = produtosRapidoAtual[index];
+  if (!atual) return;
+
+  const opcoes = (produtos || []).filter(p => {
+    if (String(p.id) === String(atual.id)) return false;
+    return produtoMesmoModelo(p, atual);
+  });
+
+  if (!opcoes.length) {
+    alert("Não há outro produto cadastrado com a mesma categoria e tamanho.");
+    return;
+  }
+
+  let dialog = document.getElementById("trocaRapidaProdutoDialog");
+
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "trocaRapidaProdutoDialog";
+    dialog.className = "troca-rapida-dialog";
+    document.body.appendChild(dialog);
+  }
+
+  dialog.innerHTML = `
+    <div class="troca-rapida-header">
+      <h3>Alterar produto</h3>
+      <button type="button" class="troca-rapida-fechar" aria-label="Fechar">×</button>
+    </div>
+
+    <div class="troca-rapida-atual">
+      <span>Produto atual</span>
+      <strong>${descricaoProdutoCompacta(atual)}</strong>
+    </div>
+
+    <label class="troca-rapida-select-label">
+      Substituir por
+      <select id="trocaRapidaProdutoSelect">
+        <option value="">Selecione um produto compatível</option>
+        ${opcoes.map(p => `
+          <option value="${p.id}">
+            ${descricaoProdutoCompacta(p)}
+          </option>
+        `).join("")}
+      </select>
+    </label>
+
+    <div class="troca-rapida-lista">
+      ${opcoes.map(p => `
+        <button type="button" class="troca-rapida-opcao" data-troca-produto-id="${p.id}">
+          <strong>${p.codigo || "-"}</strong>
+          <span>${[p.categoria, p.tamanho, p.cor].filter(Boolean).join(" ")}</span>
+        </button>
+      `).join("")}
+    </div>
+
+    <div class="troca-rapida-actions">
+      <button type="button" class="btn-outline troca-rapida-cancelar">Cancelar</button>
+      <button type="button" class="btn-primary troca-rapida-confirmar">Alterar</button>
+    </div>
+  `;
+
+  function confirmarTroca(produtoId) {
+    const novoProduto = opcoes.find(p => String(p.id) === String(produtoId));
+
+    if (!novoProduto) {
+      alert("Selecione um produto substituto.");
+      return;
+    }
+
+    produtosRapidoAtual[index] = novoProduto;
+    dialog.close();
+    renderizarProdutosRapido();
+  }
+
+  dialog.querySelector(".troca-rapida-fechar").addEventListener("click", () => dialog.close());
+  dialog.querySelector(".troca-rapida-cancelar").addEventListener("click", () => dialog.close());
+
+  dialog.querySelector(".troca-rapida-confirmar").addEventListener("click", () => {
+    confirmarTroca(dialog.querySelector("#trocaRapidaProdutoSelect").value);
+  });
+
+  dialog.querySelectorAll("[data-troca-produto-id]").forEach(btn => {
+    btn.addEventListener("click", () => confirmarTroca(btn.dataset.trocaProdutoId));
+  });
+
+  dialog.showModal();
+}
 
 function abrirProdutosRapido(id) {
   const evento = eventos.find(e => String(e.id) === String(id));
@@ -1403,29 +1565,50 @@ function removerProdutoRapido(id) {
 }
 
 function renderizarProdutosRapido() {
-  const area = document.getElementById("eventoProdutosRapidoSelecionados");
-  if (!area) return;
+  const container = document.getElementById("eventoProdutosRapidoSelecionados");
+  if (!container) return;
 
   if (!produtosRapidoAtual.length) {
-    area.innerHTML = `<p class="empty">Nenhum produto com código selecionado.</p>`;
+    container.innerHTML = `<p class="empty">Nenhum produto selecionado.</p>`;
     return;
   }
 
-  area.innerHTML = produtosRapidoAtual.map(p => {
-    const disp = disponibilidadeProdutoRapido(p.id);
+  container.innerHTML = produtosRapidoAtual.map((produto, index) => {
+    const disponibilidade = disponibilidadeProdutoRapido(produto.id);
+    const classe = disponibilidade.classe || "neutral";
+    const textoDisponibilidade = disponibilidade.texto || "Disponibilidade não verificada";
+
     return `
-      <div class="selected-item">
-        <span>
-          <strong>${p.codigo || "Sem código"}</strong> — ${p.categoria || ""} ${p.tamanho || ""} ${p.cor || ""}
-          <small class="availability-badge ${disp.classe}">${disp.texto}</small>
-        </span>
-        <button type="button" class="btn-outline" data-remover-produto-rapido="${p.id}">Remover</button>
+      <div class="produto-rapido-row">
+        <div class="produto-rapido-info">
+          <strong>${produto.codigo || "-"}</strong>
+          <span>${[produto.categoria, produto.tamanho, produto.cor].filter(Boolean).join(" ")}</span>
+          <em class="availability ${classe}">${textoDisponibilidade}</em>
+        </div>
+
+        <div class="produto-rapido-actions">
+          <button type="button" class="btn-outline produto-alterar-btn" data-produto-rapido-alterar="${index}">
+            Alterar
+          </button>
+          <button type="button" class="btn-outline produto-remover-btn" data-produto-rapido-remover="${index}">
+            Remover
+          </button>
+        </div>
       </div>
     `;
   }).join("");
 
-  area.querySelectorAll("[data-remover-produto-rapido]").forEach(btn => {
-    btn.addEventListener("click", () => removerProdutoRapido(btn.dataset.removerProdutoRapido));
+  container.querySelectorAll("[data-produto-rapido-remover]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      produtosRapidoAtual.splice(Number(btn.dataset.produtoRapidoRemover), 1);
+      renderizarProdutosRapido();
+    });
+  });
+
+  container.querySelectorAll("[data-produto-rapido-alterar]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      abrirTrocaRapidaProduto(Number(btn.dataset.produtoRapidoAlterar));
+    });
   });
 }
 

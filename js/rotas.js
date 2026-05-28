@@ -92,6 +92,60 @@ function salvarRotasCarrosLocal() {
   salvarRotasCarrosNuvem();
 }
 
+async function carregarRotasOrdemNuvem() {
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("app_config")
+      .select("valor")
+      .eq("chave", "rotas_ordem_manual")
+      .maybeSingle();
+
+    if (error) {
+      console.warn("Não foi possível carregar ordem das rotas na nuvem:", error);
+      return null;
+    }
+
+    return data?.valor || null;
+  } catch (erro) {
+    console.warn("Erro ao carregar ordem das rotas na nuvem:", erro);
+    return null;
+  }
+}
+
+async function salvarRotasOrdemNuvem() {
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from("app_config")
+      .upsert({
+        chave: "rotas_ordem_manual",
+        valor: rotasOrdemManual || {},
+        atualizado_em: new Date().toISOString()
+      }, { onConflict: "chave" });
+
+    if (error) console.warn("Não foi possível salvar ordem das rotas na nuvem:", error);
+  } catch (erro) {
+    console.warn("Erro ao salvar ordem das rotas na nuvem:", erro);
+  }
+}
+
+async function sincronizarRotasOrdemNuvem() {
+  const nuvem = await carregarRotasOrdemNuvem();
+
+  if (nuvem && typeof nuvem === "object") {
+    rotasOrdemManual = { ...rotasOrdemManual, ...nuvem };
+    localStorage.setItem("rotas_ordem_manual", JSON.stringify(rotasOrdemManual));
+    renderizarRotas();
+    return;
+  }
+
+  await salvarRotasOrdemNuvem();
+}
+
+
 function atualizarFiltroCarrosRotas() {
   const select = document.getElementById("rotaCarroFiltro");
   if (!select) return;
@@ -105,12 +159,35 @@ function atualizarFiltroCarrosRotas() {
   select.value = valorAtual;
 }
 
+
+let ultimaSincronizacaoOrdemRotas = 0;
+
+async function atualizarOrdemRotasDaNuvemSeNecessario() {
+  const agora = Date.now();
+  if (agora - ultimaSincronizacaoOrdemRotas < 15000) return;
+
+  ultimaSincronizacaoOrdemRotas = agora;
+  const nuvem = await carregarRotasOrdemNuvem();
+
+  if (nuvem && typeof nuvem === "object") {
+    const atual = JSON.stringify(rotasOrdemManual || {});
+    const novo = JSON.stringify({ ...rotasOrdemManual, ...nuvem });
+
+    if (atual !== novo) {
+      rotasOrdemManual = { ...rotasOrdemManual, ...nuvem };
+      localStorage.setItem("rotas_ordem_manual", JSON.stringify(rotasOrdemManual));
+      renderizarRotas();
+    }
+  }
+}
+
 function iniciarRotas() {
   if (!document.getElementById("rotasConteudo")) return;
 
   rotasCarros = carregarRotasCarrosLocal();
   atualizarFiltroCarrosRotas();
   sincronizarRotasCarrosNuvem();
+  sincronizarRotasOrdemNuvem();
 
   const hoje = new Date();
   const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
@@ -133,6 +210,7 @@ function iniciarRotas() {
   setTimeout(renderizarRotas, 1200);
 
   setInterval(() => {
+    atualizarOrdemRotasDaNuvemSeNecessario();
     renderizarRotas();
   }, 30000);
 }
@@ -329,10 +407,9 @@ function renderizarRotas() {
         </div>
 
         ${carros.map(carro => {
-          const rotasOrdenadas = [...grupos[data][carro]]
-            .sort((a, b) => ordemManualRota(a) - ordemManualRota(b));
+          inicializarOrdemManualRotas(grupos[data][carro]);
 
-          inicializarOrdemManualRotas(rotasOrdenadas);
+          const rotasOrdenadas = ordenarRotasPorOrdemManual(grupos[data][carro]);
 
           return `
           <div class="rota-carro">
@@ -362,7 +439,7 @@ function renderizarRotas() {
       const grupos = agruparPorDataECarro(todas);
 
       const lista = (grupos[data] && grupos[data][carro])
-        ? [...grupos[data][carro]].sort((a, b) => ordemManualRota(a) - ordemManualRota(b))
+        ? ordenarRotasPorOrdemManual(grupos[data][carro])
         : [];
 
       moverOrdemRota(btn.dataset.rotaMove, btn.dataset.direction, lista);
@@ -444,6 +521,75 @@ function ordemCarro(carro) {
 }
 
 
+function tipoHorarioFlexivelRota(rota) {
+  const tipo = String(rota?.tipoHorario || "").toLowerCase();
+
+  return (
+    tipo.includes("horário comercial") ||
+    tipo.includes("horario comercial") ||
+    tipo.includes("livre") ||
+    tipo.includes("combinar")
+  );
+}
+
+function minutosRota(horario) {
+  if (!horario) return null;
+
+  const partes = String(horario).slice(0, 5).split(":");
+  if (partes.length < 2) return null;
+
+  const h = Number(partes[0]);
+  const m = Number(partes[1]);
+
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+
+  return h * 60 + m;
+}
+
+function intervaloConflitoRota(rota) {
+  if (!rota || tipoHorarioFlexivelRota(rota)) return null;
+
+  const tipo = String(rota.tipoHorario || "").toLowerCase();
+  const inicio = minutosRota(rota.horario);
+
+  if (inicio === null) return null;
+
+  // Intervalo salvo como "Intervalo|22:00" ou similar
+  if (tipo.includes("intervalo")) {
+    const fimTexto = String(rota.tipoHorario || "").split("|")[1] || "";
+    const fim = minutosRota(fimTexto);
+
+    if (fim !== null) {
+      return {
+        inicio: Math.min(inicio, fim),
+        fim: Math.max(inicio, fim)
+      };
+    }
+
+    // Se não tiver final, trata como uma janela curta de atenção
+    return { inicio, fim: inicio + 30 };
+  }
+
+  // Horário exato: janela pequena para detectar choque real
+  if (tipo.includes("exato") || tipo.includes("exatamente")) {
+    return { inicio, fim: inicio + 30 };
+  }
+
+  // "A partir de" e "Até" são flexíveis, então não geram conflito duro.
+  // Mantemos fora do conflito automático para evitar falso positivo.
+  if (tipo.includes("a partir") || tipo.includes("até")) {
+    return null;
+  }
+
+  // Se houver horário mas tipo indefinido, usa janela curta conservadora
+  return { inicio, fim: inicio + 30 };
+}
+
+function intervalosSobrepoemRota(a, b) {
+  if (!a || !b) return false;
+  return a.inicio < b.fim && b.inicio < a.fim;
+}
+
 function rotasComConflito(rotas) {
   const mapa = {};
 
@@ -451,15 +597,29 @@ function rotasComConflito(rotas) {
     const carro = rotasCarros[rota.id] || "Sem carro";
     if (carro === "Sem carro") return;
 
-    const chave = `${rota.data}|${carro}|${rota.horario || "--:--"}`;
+    const intervalo = intervaloConflitoRota(rota);
+    if (!intervalo) return;
+
+    const chave = `${rota.data}|${carro}`;
     if (!mapa[chave]) mapa[chave] = [];
-    mapa[chave].push(rota.id);
+
+    mapa[chave].push({
+      id: rota.id,
+      intervalo
+    });
   });
 
   const conflitos = new Set();
 
-  Object.values(mapa).forEach(ids => {
-    if (ids.length > 1) ids.forEach(id => conflitos.add(id));
+  Object.values(mapa).forEach(lista => {
+    for (let i = 0; i < lista.length; i++) {
+      for (let j = i + 1; j < lista.length; j++) {
+        if (intervalosSobrepoemRota(lista[i].intervalo, lista[j].intervalo)) {
+          conflitos.add(lista[i].id);
+          conflitos.add(lista[j].id);
+        }
+      }
+    }
   });
 
   return conflitos;
@@ -513,35 +673,23 @@ function renderizarCardRota(rota, index = 0, total = 0) {
 
   return `
     <div class="rota-card tipo-${rota.tipo.toLowerCase()} ${conflito ? "rota-conflito" : ""}">
-      <div class="rota-card-top rota-card-top-refinado">
-        <div class="rota-identificacao">
-          <span class="rota-tipo-pill tipo-${rota.tipo.toLowerCase()}">${rota.tipo}</span>
-          ${conflito ? '<b class="rota-alerta">Conflito</b>' : ''}
-        </div>
+      <div class="rota-tipo-vertical tipo-${rota.tipo.toLowerCase()}">
+        <span>${rota.tipo}</span>
+      </div>
 
-        <div class="rota-controles-linha">
-          <label class="rota-carro-inline">Carro
-            <select data-rota-carro="${rota.id}">
-              <option value="Sem carro" ${carroAtual === "Sem carro" ? "selected" : ""}>Sem carro</option>
-              ${carrosDisponiveisRotas().map(carro => `<option value="${carro}" ${carroAtual === carro ? "selected" : ""}>${carro}</option>`).join("")}
-            </select>
-          </label>
-
-          <button type="button" class="btn-outline rota-edit-event-btn" data-rota-edit-evento="${evento.id || rota.evento_id || ""}">
-            Editar
-          </button>
-
-          <div class="rota-ordem-controls">
-            <button type="button" class="rota-order-btn" title="Subir" data-rota-move="${rota.id}" data-direction="up" data-rota-data="${rota.data}" data-rota-carro-grupo="${carroAtual}" ${index === 0 ? "disabled" : ""}>↑</button>
-            <button type="button" class="rota-order-btn" title="Descer" data-rota-move="${rota.id}" data-direction="down" data-rota-data="${rota.data}" data-rota-carro-grupo="${carroAtual}" ${index >= total - 1 ? "disabled" : ""}>↓</button>
+      <div class="rota-card-conteudo">
+        <div class="rota-card-top rota-card-top-refinado">
+          <div class="rota-identificacao">
+            ${conflito ? '<b class="rota-alerta">Conflito</b>' : ''}
           </div>
-        </div>
+
+
       </div>
 
       <div class="rota-grid-info">
         <div class="rota-col rota-evento-data">
           <span>Data do evento</span>
-          <strong>${formatarDataRota(evento.data_evento || rota.data)} ${evento.hora_inicio || evento.hora_evento || ""}${evento.hora_termino ? " às " + evento.hora_termino : ""}</strong>
+          <strong>${dataHoraEventoPrintCurta(evento, rota)}</strong>
         </div>
         <div class="rota-col rota-operacao-data">
           <span>${rota.tipo}</span>
@@ -581,14 +729,61 @@ function renderizarCardRota(rota, index = 0, total = 0) {
         </div>
       </div>
 
-      <div class="rota-materiais">
-        <strong>Materiais:</strong>
-        <div>
-          ${materiais.map(item => `<span>${item}</span>`).join("")}
+      <div class="rota-materiais rota-materiais-com-controles">
+        <div class="rota-materiais-lista">
+          <strong>Materiais:</strong>
+          <div>
+            ${materiais.map(item => `<span>${item}</span>`).join("")}
+          </div>
         </div>
+
+        <div class="rota-controles-baixo">
+          <div class="rota-controles-linha rota-controles-linha-baixo">
+            <label class="rota-carro-inline">Carro
+              <select data-rota-carro="${rota.id}">
+                <option value="Sem carro" ${carroAtual === "Sem carro" ? "selected" : ""}>Sem carro</option>
+                ${carrosDisponiveisRotas().map(carro => `<option value="${carro}" ${carroAtual === carro ? "selected" : ""}>${carro}</option>`).join("")}
+              </select>
+            </label>
+
+            <button type="button" class="btn-outline rota-edit-event-btn" data-rota-edit-evento="${evento.id || rota.evento_id || ""}">
+              Editar
+            </button>
+
+            <div class="rota-ordem-controls">
+              <button type="button" class="rota-order-btn" title="Subir" data-rota-move="${rota.id}" data-direction="up" data-rota-data="${rota.data}" data-rota-carro-grupo="${carroAtual}" ${index === 0 ? "disabled" : ""}>↑</button>
+              <button type="button" class="rota-order-btn" title="Descer" data-rota-move="${rota.id}" data-direction="down" data-rota-data="${rota.data}" data-rota-carro-grupo="${carroAtual}" ${index >= total - 1 ? "disabled" : ""}>↓</button>
+            </div>
+          </div>
+        </div>
+      </div>
       </div>
     </div>
   `;
+}
+
+
+function dataEventoPrintCurta(valor) {
+  if (!valor) return "-";
+  const texto = String(valor).slice(0, 10);
+  const partes = texto.split("-");
+  if (partes.length !== 3) return texto;
+  return `${partes[2]}/${partes[1]}/${partes[0].slice(-2)}`;
+}
+
+function horaPrintCurta(valor) {
+  if (!valor) return "";
+  return String(valor).slice(0, 5);
+}
+
+function dataHoraEventoPrintCurta(evento, rota) {
+  const data = dataEventoPrintCurta(evento.data_evento || rota.data);
+  const inicio = horaPrintCurta(evento.hora_inicio || evento.hora_evento || "");
+  const fim = horaPrintCurta(evento.hora_termino || "");
+
+  if (inicio && fim) return `${data} ${inicio}-${fim}`;
+  if (inicio) return `${data} ${inicio}`;
+  return data;
 }
 
 function imprimirRotaData(data) {
@@ -610,8 +805,8 @@ function imprimirRotaData(data) {
         <style>
           body {
             font-family: Arial, sans-serif;
-            font-size: 11px;
-            padding: 16px;
+            font-size: 9px;
+            padding: 8px;
             color: #1d2b3a;
           }
 
@@ -619,16 +814,16 @@ function imprimirRotaData(data) {
             display:flex;
             align-items:center;
             gap:12px;
-            margin-bottom:16px;
+            margin-bottom:4px;
           }
 
           .topo img {
-            height:48px;
+            height:36px;
           }
 
           h1 {
             margin:0;
-            font-size:20px;
+            font-size:18px;
           }
 
           .subtitulo {
@@ -637,7 +832,7 @@ function imprimirRotaData(data) {
           }
 
           h2 {
-            margin-top:18px;
+            margin-top:10px;
             border-bottom:1px solid #d6e0ea;
             padding-bottom:4px;
             color:#0f3d66;
@@ -650,7 +845,7 @@ function imprimirRotaData(data) {
             border-radius:999px;
             background:#eef4ff;
             color:#1d5fd1;
-            font-size:10px;
+            font-size:8px;
             vertical-align:middle;
           }
 
@@ -666,16 +861,16 @@ function imprimirRotaData(data) {
             border:1px solid #dce6f0;
             color:#27445f;
             border-radius:999px;
-            padding:2px 6px;
-            font-size:9px;
+            padding:1px 4px;
+            font-size:7px;
           }
 
           .card {
             border:1px solid #dce5ee;
             border-left:4px solid #2b7cff;
-            border-radius:10px;
-            padding:10px;
-            margin-bottom:10px;
+            border-radius:7px;
+            padding:6px;
+            margin-bottom:6px;
             background:#fbfdff;
           }
 
@@ -686,30 +881,30 @@ function imprimirRotaData(data) {
           .titulo {
             display:flex;
             justify-content:space-between;
-            margin-bottom:8px;
+            margin-bottom:4px;
           }
 
           .titulo strong {
-            font-size:13px;
+            font-size:12px;
           }
 
           .grid {
             display:grid;
-            grid-template-columns: 1fr 0.9fr 1fr 1.5fr 0.8fr 0.8fr 0.8fr 0.9fr 1fr;
-            gap:6px;
-            margin-top:8px;
+            grid-template-columns: 0.9fr 0.85fr 1fr 1.0fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr;
+            gap:4px;
+            margin-top:4px;
           }
 
           .col {
             border:1px solid #e2eaf2;
-            border-radius:8px;
-            padding:5px 6px;
+            border-radius:6px;
+            padding:3px 4px;
             background:#fff;
           }
 
           .col span {
             display:block;
-            font-size:9px;
+            font-size:7px;
             color:#667788;
             font-weight:bold;
             text-transform:uppercase;
@@ -718,13 +913,13 @@ function imprimirRotaData(data) {
 
           .col strong {
             display:block;
-            font-size:10px;
-            line-height:1.2;
+            font-size:8px;
+            line-height:1.05;
             word-break:break-word;
           }
 
           .materiais {
-            margin-top:8px;
+            margin-top:4px;
           }
 
           .materiais-tags {
@@ -738,8 +933,8 @@ function imprimirRotaData(data) {
             background:#eef4ff;
             color:#1d5fd1;
             border-radius:999px;
-            padding:2px 6px;
-            font-size:9px;
+            padding:1px 4px;
+            font-size:7px;
           }
 
           .quitado {
@@ -752,9 +947,72 @@ function imprimirRotaData(data) {
 
           @page {
             size: landscape;
-            margin: 10mm;
+            margin: 6mm;
           }
-        </style>
+        
+
+          /* Ajuste final: PDF/Imprimir com 10 campos na mesma linha */
+          .grid {
+            grid-template-columns: 0.9fr 0.85fr 1fr 1.0fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr !important;
+            gap:4px !important;
+          }
+
+          .col {
+            min-width:0 !important;
+            overflow:hidden !important;
+          }
+
+          .col span {
+            font-size:10px !important;
+            line-height:1 !important;
+          }
+
+          .col strong {
+            font-size:10px !important;
+            line-height:1.05 !important;
+          }
+
+          .card {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          @page {
+            size: A4 landscape;
+            margin: 6mm;
+          }
+
+        
+
+/* Refino final PDF: fonte maior, endereço maior, valores menores */
+.grid {
+  grid-template-columns: 0.9fr 0.85fr 1fr 1.0fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr !important;
+}
+
+.col span {
+  font-size: 9px !important;
+}
+
+.col strong {
+  font-size: 10px !important;
+  line-height: 1.08 !important;
+}
+
+/* valores: total, sinal e restante */
+.grid .col:nth-child(6) strong,
+.grid .col:nth-child(7) strong,
+.grid .col:nth-child(8) strong {
+  font-size: 9px !important;
+  white-space: nowrap !important;
+}
+
+/* endereço */
+.grid .col:nth-child(5) strong {
+  font-size: 10px !important;
+  line-height: 1.08 !important;
+}
+
+</style>
       </head>
       <body>
         <div class="topo">
@@ -783,7 +1041,7 @@ function imprimirRotaData(data) {
                 <div class="grid">
                   <div class="col">
                     <span>Evento</span>
-                    <strong>${formatarDataRota(evento.data_evento || rota.data)} ${evento.hora_inicio || evento.hora_evento || ""}${evento.hora_termino ? " às " + evento.hora_termino : ""}</strong>
+                    <strong>${dataHoraEventoPrintCurta(evento, rota)}</strong>
                   </div>
 
                   <div class="col">
@@ -859,36 +1117,68 @@ let rotasOrdemManual = JSON.parse(localStorage.getItem("rotas_ordem_manual") || 
 
 function salvarRotasOrdemManual() {
   localStorage.setItem("rotas_ordem_manual", JSON.stringify(rotasOrdemManual));
+  salvarRotasOrdemNuvem();
 }
 
 function ordemManualRota(rota) {
-  return Number(rotasOrdemManual[rota.id] || 0);
+  const valor = Number(rotasOrdemManual[String(rota.id)]);
+  return Number.isFinite(valor) ? valor : 999999;
 }
 
-function inicializarOrdemManualRotas(rotas) {
-  rotas.forEach((rota, index) => {
-    if (rotasOrdemManual[rota.id] == null) {
-      rotasOrdemManual[rota.id] = index + 1;
-    }
+function ordenarRotasPorOrdemManual(listaRotas) {
+  return [...listaRotas].sort((a, b) => {
+    const ordemA = ordemManualRota(a);
+    const ordemB = ordemManualRota(b);
+
+    if (ordemA !== ordemB) return ordemA - ordemB;
+
+    const horaA = String(a.horario || "");
+    const horaB = String(b.horario || "");
+    if (horaA !== horaB) return horaA.localeCompare(horaB);
+
+    return String(a.id).localeCompare(String(b.id));
   });
 }
 
-function moverOrdemRota(rotaId, direcao, listaRotas) {
-  const atualIndex = listaRotas.findIndex(r => r.id === rotaId);
-  if (atualIndex === -1) return;
+function inicializarOrdemManualRotas(listaRotas) {
+  const ordenada = ordenarRotasPorOrdemManual(listaRotas);
 
-  const novoIndex = direcao === "up" ? atualIndex - 1 : atualIndex + 1;
-  if (novoIndex < 0 || novoIndex >= listaRotas.length) return;
+  ordenada.forEach((rota, index) => {
+    const id = String(rota.id);
 
-  const atual = listaRotas[atualIndex];
-  const alvo = listaRotas[novoIndex];
+    if (!Number.isFinite(Number(rotasOrdemManual[id]))) {
+      rotasOrdemManual[id] = index + 1;
+    }
+  });
 
-  const ordemAtual = ordemManualRota(atual);
-  const ordemAlvo = ordemManualRota(alvo);
-
-  rotasOrdemManual[atual.id] = ordemAlvo;
-  rotasOrdemManual[alvo.id] = ordemAtual;
+  // Normaliza a ordem do grupo atual para evitar empates/ordens duplicadas.
+  const normalizada = ordenarRotasPorOrdemManual(listaRotas);
+  normalizada.forEach((rota, index) => {
+    rotasOrdemManual[String(rota.id)] = index + 1;
+  });
 
   salvarRotasOrdemManual();
 }
 
+function moverOrdemRota(rotaId, direcao, listaRotas) {
+  const ordenada = ordenarRotasPorOrdemManual(listaRotas);
+  const idProcurado = String(rotaId);
+
+  // Corrige o bug principal: rotaId vem do HTML como texto.
+  const atualIndex = ordenada.findIndex(r => String(r.id) === idProcurado);
+  if (atualIndex === -1) return;
+
+  const novoIndex = direcao === "up" ? atualIndex - 1 : atualIndex + 1;
+  if (novoIndex < 0 || novoIndex >= ordenada.length) return;
+
+  const temp = ordenada[atualIndex];
+  ordenada[atualIndex] = ordenada[novoIndex];
+  ordenada[novoIndex] = temp;
+
+  // Regrava a ordem completa do grupo, sem depender de troca de valores antigos.
+  ordenada.forEach((rota, index) => {
+    rotasOrdemManual[String(rota.id)] = index + 1;
+  });
+
+  salvarRotasOrdemManual();
+}
