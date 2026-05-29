@@ -330,8 +330,22 @@ async function salvarProdutoForm(event) {
     observacao: produto.observacao || "-"
   });
 
+  const antesLogProduto = existente ? JSON.parse(JSON.stringify(existente)) : null;
+  const depoisLogProduto = JSON.parse(JSON.stringify(produto));
+
   const salvo = await salvarProdutoBanco(produto);
   if (!salvo) return;
+
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Produtos",
+      acao: existente ? "Produto editado" : "Produto cadastrado",
+      registro_id: salvo.id,
+      registro_nome: salvo.codigo || salvo.nome || salvo.categoria || "Produto",
+      antes: antesLogProduto,
+      depois: depoisLogProduto
+    });
+  }
 
   const index = produtos.findIndex(p => p.id === salvo.id);
   if (index >= 0) produtos[index] = salvo;
@@ -387,17 +401,35 @@ function conflitoPeriodoProduto(inicioBusca, fimBusca, inicioReserva, fimReserva
     && new Date(fimBusca).getTime() > new Date(inicioReserva).getTime();
 }
 
+
+function dataISOProdutoDisponibilidade(valor) {
+  if (!valor) return "";
+  return String(valor).slice(0, 10);
+}
+
 function intervaloEventoDisponibilidade(evento) {
   if (!evento) return { inicio: null, fim: null };
 
   let inicio = evento.montagem || null;
   let fim = evento.desmontagem || null;
 
-  if (!inicio || !fim) {
-    if (!evento.data_evento) return { inicio: null, fim: null };
-    inicio = `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_inicio || evento.hora_evento || "00:00"}`;
-    fim = `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_termino || evento.hora_evento || "23:59"}`;
+  const dataEvento = dataISOProdutoDisponibilidade(evento.data_evento);
+
+  if (!inicio && dataEvento) {
+    inicio = `${dataEvento}T${String(evento.hora_inicio || evento.hora_evento || "00:00").slice(0, 5)}`;
   }
+
+  if (!fim && dataEvento) {
+    fim = `${dataEvento}T${String(evento.hora_termino || "23:59").slice(0, 5)}`;
+  }
+
+  // Se só tiver montagem, considera fim no dia do evento/desmontagem se existir.
+  if (inicio && !fim) {
+    const base = dataEvento || String(inicio).slice(0, 10);
+    fim = `${base}T23:59`;
+  }
+
+  if (!inicio || !fim) return { inicio: null, fim: null };
 
   return { inicio, fim };
 }
@@ -417,34 +449,71 @@ function formatarDataHoraProdutoDisp(valor) {
   return texto;
 }
 
+
+function normalizarCodigoProdutoDisponibilidade(valor) {
+  const texto = String(valor || "").trim();
+  if (!texto) return "";
+
+  // Mantém versão original e também remove zeros à esquerda para comparar 006/6/606 com segurança.
+  const somenteDigitos = texto.replace(/\D/g, "");
+  if (!somenteDigitos) return texto.toLowerCase();
+
+  return String(Number(somenteDigitos));
+}
+
+function codigosEquivalentesProdutoDisponibilidade(a, b) {
+  const originalA = String(a || "").trim().toLowerCase();
+  const originalB = String(b || "").trim().toLowerCase();
+
+  if (!originalA || !originalB) return false;
+  if (originalA === originalB) return true;
+
+  return normalizarCodigoProdutoDisponibilidade(originalA) === normalizarCodigoProdutoDisponibilidade(originalB);
+}
+
+function dataInicioDiaProdutoDisponibilidade(valor) {
+  if (!valor) return null;
+  const data = new Date(String(valor).slice(0, 10) + "T00:00:00");
+  return Number.isNaN(data.getTime()) ? null : data;
+}
+
 function eventoUsaProdutoParaDisponibilidade(evento, produto) {
   if (!Array.isArray(evento.tendas)) return false;
 
   const produtoId = String(produto.id || "");
-  const produtoCodigo = String(produto.codigo || "");
+  const produtoCodigo = String(produto.codigo || "").trim();
 
   return evento.tendas.some(item => {
-    return String(item.id || "") === produtoId
-      || (produtoCodigo && String(item.codigo || "") === produtoCodigo);
+    const itemId = String(item.id || "");
+    const itemCodigo = String(item.codigo || "").trim();
+
+    return (produtoId && itemId && itemId === produtoId)
+      || (produtoCodigo && itemCodigo && codigosEquivalentesProdutoDisponibilidade(itemCodigo, produtoCodigo));
   });
 }
 
-
 function proximoUsoProduto(produto) {
-  const agora = new Date();
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
 
   const proximos = getEventosDisponibilidadeProduto()
     .filter(evento => eventoUsaProdutoParaDisponibilidade(evento, produto))
     .map(evento => {
       const intervalo = intervaloEventoDisponibilidade(evento);
-      return { evento, intervalo };
+
+      // Prioridade para montagem; fallback para data do evento.
+      const inicioComparacao =
+        dataInicioDiaProdutoDisponibilidade(intervalo.inicio) ||
+        dataInicioDiaProdutoDisponibilidade(evento.montagem) ||
+        dataInicioDiaProdutoDisponibilidade(evento.data_evento);
+
+      return { evento, intervalo, inicioComparacao };
     })
-    .filter(item => item.intervalo.inicio && new Date(item.intervalo.inicio) >= agora)
-    .sort((a, b) => new Date(a.intervalo.inicio) - new Date(b.intervalo.inicio));
+    .filter(item => item.inicioComparacao && item.inicioComparacao.getTime() >= hoje.getTime())
+    .sort((a, b) => a.inicioComparacao.getTime() - b.inicioComparacao.getTime());
 
   return proximos[0] || null;
 }
-
 
 function diasAteProximoUsoProduto(proximo) {
   if (!proximo || !proximo.intervalo || !proximo.intervalo.inicio) return null;
@@ -982,8 +1051,21 @@ async function lidarAcaoProduto(event) {
 
   if (action === "excluir") {
     if (!confirm(`Excluir o produto ${produto.codigo || "sem código"}?`)) return;
+    const antesExclusaoProduto = JSON.parse(JSON.stringify(produto));
     const excluido = await excluirProdutoBanco(id);
     if (!excluido) return;
+
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({
+        modulo: "Produtos",
+        acao: "Produto excluído",
+        registro_id: antesExclusaoProduto.id,
+        registro_nome: antesExclusaoProduto.codigo || antesExclusaoProduto.categoria || "Produto",
+        antes: antesExclusaoProduto,
+        depois: null
+      });
+    }
+
     produtos = produtos.filter(p => p.id !== id);
     renderizarProdutos();
     atualizarDashboard(produtos);
@@ -1015,6 +1097,17 @@ async function lidarAcaoProduto(event) {
     if (salvo) {
       const index = produtos.findIndex(p => p.id === id);
       if (index >= 0) produtos[index] = salvo;
+
+      if (typeof registrarLogSistema === "function") {
+        registrarLogSistema({
+          modulo: "Produtos",
+          acao: "Status alterado",
+          registro_id: salvo.id,
+          registro_nome: salvo.codigo || "Produto",
+          antes: { status: produto.status === novoStatus ? "Anterior" : produto.status, observacao: observacaoAnterior },
+          depois: { status: novoStatus, observacao: produto.observacao || "-" }
+        });
+      }
     }
     renderizarProdutos();
     atualizarDashboard(produtos);
@@ -1173,6 +1266,112 @@ function renderizarAgendaProduto(produtoId) {
   `;
 }
 
+
+function normalizarTextoBuscaHistorico(valor) {
+  return String(valor || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function historicoProdutoComIndice(produto) {
+  const historico = Array.isArray(produto?.historico) ? produto.historico : [];
+
+  return historico.map((item, indexOriginal) => ({
+    ...item,
+    indexOriginal
+  })).slice().reverse();
+}
+
+function renderizarHistoricoProdutoDetalhe(produtoId, termo = "") {
+  const produto = produtos.find(p => String(p.id) === String(produtoId));
+  const area = document.getElementById("historicoProdutoLista");
+  const contador = document.getElementById("historicoProdutoContador");
+
+  if (!produto || !area) return;
+
+  const termoNormalizado = normalizarTextoBuscaHistorico(termo);
+  const historico = historicoProdutoComIndice(produto);
+
+  const filtrado = historico.filter(h => {
+    const texto = [
+      formatarData(h.data),
+      h.colaborador,
+      h.alteracao,
+      h.observacao
+    ].join(" ");
+
+    return normalizarTextoBuscaHistorico(texto).includes(termoNormalizado);
+  });
+
+  if (contador) {
+    contador.textContent = `${filtrado.length} de ${historico.length} registro(s)`;
+  }
+
+  if (!filtrado.length) {
+    area.innerHTML = `<p class="empty">Nenhum histórico encontrado.</p>`;
+    return;
+  }
+
+  area.innerHTML = filtrado.map(h => `
+    <label class="historico-produto-linha historico-produto-check-linha">
+      <input type="checkbox" class="historico-produto-check" data-historico-index="${h.indexOriginal}">
+      <div class="historico-produto-conteudo">
+        <strong>${formatarData(h.data)}</strong>
+        <span>${h.colaborador || "-"}</span>
+        <span>${h.alteracao || "Alteração realizada"}</span>
+        <span class="historico-obs">Obs: ${h.observacao || "-"}</span>
+      </div>
+    </label>
+  `).join("");
+}
+
+function indicesHistoricoSelecionados() {
+  return Array.from(document.querySelectorAll(".historico-produto-check:checked"))
+    .map(input => Number(input.dataset.historicoIndex))
+    .filter(Number.isFinite);
+}
+
+async function excluirHistoricoProduto(produtoId, indices) {
+  const produto = produtos.find(p => String(p.id) === String(produtoId));
+  if (!produto || !Array.isArray(produto.historico)) return;
+
+  const unicos = [...new Set(indices)].sort((a, b) => b - a);
+
+  if (!unicos.length) {
+    alert("Selecione pelo menos um registro do histórico.");
+    return;
+  }
+
+  if (!confirm(`Excluir ${unicos.length} registro(s) do histórico deste produto?`)) return;
+
+  unicos.forEach(index => {
+    if (index >= 0 && index < produto.historico.length) {
+      produto.historico.splice(index, 1);
+    }
+  });
+
+  produto.atualizado_em = new Date().toISOString();
+  produto.colaborador = getColaboradorLogado();
+
+  const salvo = await salvarProdutoBanco(produto);
+
+  if (salvo) {
+    const indexProduto = produtos.findIndex(p => String(p.id) === String(produtoId));
+    if (indexProduto >= 0) produtos[indexProduto] = salvo;
+
+    renderizarHistoricoProdutoDetalhe(produtoId, document.getElementById("historicoProdutoBusca")?.value || "");
+    renderizarProdutos();
+    atualizarDashboard(produtos);
+  }
+}
+
+function selecionarHistoricoFiltradoProduto(marcar = true) {
+  document.querySelectorAll(".historico-produto-check").forEach(input => {
+    input.checked = marcar;
+  });
+}
+
 function abrirDetalheProduto(id) {
   const p = produtos.find(produto => produto.id === id);
   if (!p) return;
@@ -1214,18 +1413,40 @@ function abrirDetalheProduto(id) {
     </div>
 
     <div class="subpanel produto-historico-compacto">
-      <h3>Histórico</h3>
-      ${historico.length ? historico.slice().reverse().map(h => `
-        <div class="historico-produto-linha">
-          <strong>${formatarData(h.data)}</strong>
-          <span>${h.colaborador || "-"}</span>
-          <span>${h.alteracao || "Alteração realizada"}</span>
-          <span class="historico-obs">Obs: ${h.observacao || "-"}</span>
-        </div>`).join("") : `<p class="empty">Sem histórico.</p>`}
+      <div class="historico-produto-topo">
+        <div>
+          <h3>Histórico</h3>
+          <span id="historicoProdutoContador" class="historico-produto-contador"></span>
+        </div>
+
+        <div class="historico-produto-acoes">
+          <input id="historicoProdutoBusca" type="search" placeholder="Buscar serviço, alteração, colaborador ou observação...">
+          <button type="button" class="btn-outline" id="selecionarHistoricoFiltrado">Selecionar filtrados</button>
+          <button type="button" class="btn-outline" id="limparSelecaoHistorico">Limpar seleção</button>
+          <button type="button" class="btn-outline danger" id="excluirHistoricoSelecionado">Excluir selecionados</button>
+        </div>
+      </div>
+
+      <div id="historicoProdutoLista"></div>
     </div>
   `;
 
   document.getElementById("produtoDetalheDialog").showModal();
+
+  renderizarHistoricoProdutoDetalhe(p.id);
+
+  const buscaHistorico = document.getElementById("historicoProdutoBusca");
+  if (buscaHistorico) {
+    buscaHistorico.addEventListener("input", () => {
+      renderizarHistoricoProdutoDetalhe(p.id, buscaHistorico.value);
+    });
+  }
+
+  document.getElementById("selecionarHistoricoFiltrado")?.addEventListener("click", () => selecionarHistoricoFiltradoProduto(true));
+  document.getElementById("limparSelecaoHistorico")?.addEventListener("click", () => selecionarHistoricoFiltradoProduto(false));
+  document.getElementById("excluirHistoricoSelecionado")?.addEventListener("click", () => {
+    excluirHistoricoProduto(p.id, indicesHistoricoSelecionados());
+  });
 }
 
 
@@ -1239,5 +1460,20 @@ document.addEventListener("click", event => {
     abrirDetalheEvento(eventoId);
   } else {
     alert("Abra o setor de Eventos para visualizar este evento.");
+  }
+});
+
+
+/* Atualiza badges de disponibilidade quando Eventos/Rotas mudarem */
+window.addEventListener("riotendas:eventos-atualizados", async () => {
+  try {
+    if (typeof carregarEventosDisponibilidadeProduto === "function") {
+      await carregarEventosDisponibilidadeProduto();
+    }
+    if (typeof renderizarProdutos === "function") {
+      renderizarProdutos();
+    }
+  } catch (erro) {
+    console.warn("Erro ao atualizar badges de produtos:", erro);
   }
 });

@@ -159,15 +159,13 @@ function renderizarClientes() {
 
   tbody.innerHTML = lista.map(c => `
     <tr>
-      <td><button class="code-link" data-action="detalhe" data-id="${c.id}">${c.nome || "-"}</button></td>
+      <td class="clientes-actions"><div class="clientes-actions-row"><button class="code-link" data-action="detalhe" data-id="${c.id}">${c.nome || "-"}</button></td>
       <td>${c.documento || "-"}</td>
       <td>${c.telefone || "-"}</td>
       <td>${c.endereco || "-"}</td>
       <td>${c.colaborador || "-"}</td>
-      <td class="actions">
-        <button data-action="editar" data-id="${c.id}">Editar</button>
-        <button class="btn-outline" data-action="excluir" data-id="${c.id}">Excluir</button>
-      </td>
+      <td class="actions clientes-actions"><div class="clientes-actions-row"><button data-action="editar" data-id="${c.id}">Editar</button>
+        <button class="btn-outline" data-action="excluir" data-id="${c.id}">Excluir</button></div></td>
     </tr>
   `).join("");
 

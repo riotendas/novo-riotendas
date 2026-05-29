@@ -55,6 +55,9 @@ async function buscarUsuariosSistemaBanco() {
 }
 
 async function salvarUsuarioSistemaBanco(usuario) {
+  const usuarioAntesLog = Array.isArray(usuariosSistema)
+    ? usuariosSistema.find(u => String(u.id) === String(usuario.id))
+    : null;
   const usuarioLogin = String(usuario.usuario || "").trim();
 
   if (!usuarioLogin) {
@@ -87,6 +90,17 @@ async function salvarUsuarioSistemaBanco(usuario) {
         return null;
       }
 
+      if (typeof registrarLogSistema === "function") {
+        registrarLogSistema({
+          modulo: "Usuários",
+          acao: "Usuário editado",
+          registro_id: data.id,
+          registro_nome: data.nome || data.usuario,
+          antes: usuarioAntesLog || null,
+          depois: data
+        });
+      }
+
       return data;
     }
 
@@ -101,6 +115,17 @@ async function salvarUsuarioSistemaBanco(usuario) {
     if (error) {
       alert("Erro ao salvar usuário: " + (error.message || ""));
       return null;
+    }
+
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({
+        modulo: "Usuários",
+        acao: usuario.id ? "Usuário editado" : "Usuário cadastrado",
+        registro_id: data.id,
+        registro_nome: data.nome || data.usuario,
+        antes: usuarioAntesLog || null,
+        depois: data
+      });
     }
 
     return data;
@@ -136,6 +161,10 @@ async function salvarUsuarioSistemaBanco(usuario) {
 }
 
 async function excluirUsuarioSistemaBanco(id) {
+  const usuarioAntesLog = Array.isArray(usuariosSistema)
+    ? usuariosSistema.find(u => String(u.id) === String(id))
+    : null;
+
   if (typeof supabaseClient !== "undefined" && supabaseClient) {
     const { error } = await supabaseClient
       .from("usuarios_sistema")
@@ -145,6 +174,17 @@ async function excluirUsuarioSistemaBanco(id) {
     if (error) {
       alert("Erro ao excluir usuário: " + (error.message || ""));
       return false;
+    }
+
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({
+        modulo: "Usuários",
+        acao: "Usuário excluído",
+        registro_id: id,
+        registro_nome: usuarioAntesLog?.nome || usuarioAntesLog?.usuario || "Usuário",
+        antes: usuarioAntesLog || null,
+        depois: null
+      });
     }
 
     return true;
@@ -387,7 +427,7 @@ async function renderizarUsuariosSistema() {
 
   tbody.innerHTML = usuariosSistema.map(u => `
     <tr>
-      <td>${u.nome || "-"}</td>
+      <td class="clientes-actions"><div class="clientes-actions-row">${u.nome || "-"}</td>
       <td>${u.usuario || "-"}</td>
       <td>${perfilUsuarioLabel(u.perfil)}</td>
       <td>${u.ativo === false ? "Inativo" : "Ativo"}</td>
@@ -395,8 +435,7 @@ async function renderizarUsuariosSistema() {
       <td>${resumoPermissoesUsuario(u)}</td>
       <td>
         <button type="button" class="btn-outline" data-editar-usuario="${u.id}">Editar</button>
-        <button type="button" class="btn-outline danger" data-excluir-usuario="${u.id}">Excluir</button>
-      </td>
+        <button type="button" class="btn-outline danger" data-excluir-usuario="${u.id}">Excluir</button></div></td>
     </tr>
   `).join("");
 
@@ -668,7 +707,7 @@ async function renderizarUsuariosSistemaConfig() {
 
   tbody.innerHTML = usuariosSistema.map(u => `
     <tr>
-      <td>${u.nome || "-"}</td>
+      <td class="clientes-actions"><div class="clientes-actions-row">${u.nome || "-"}</td>
       <td>${u.usuario || "-"}</td>
       <td>${perfilUsuarioLabel(u.perfil)}</td>
       <td>${u.ativo === false ? "Inativo" : "Ativo"}</td>
@@ -676,8 +715,7 @@ async function renderizarUsuariosSistemaConfig() {
       <td>${resumoPermissoesUsuario(u)}</td>
       <td>
         <button type="button" class="btn-outline" data-editar-usuario-config="${u.id}">Editar</button>
-        <button type="button" class="btn-outline danger" data-excluir-usuario-config="${u.id}">Excluir</button>
-      </td>
+        <button type="button" class="btn-outline danger" data-excluir-usuario-config="${u.id}">Excluir</button></div></td>
     </tr>
   `).join("");
 

@@ -278,7 +278,7 @@ function classePagamentoRota(evento) {
 }
 
 function montarListaMateriais(evento) {
-  const tendas = (evento.tendas || []).map(p => {
+  const tendas = (evento.tendas || []).map((p, index) => {
     const nome = [p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - ");
     return nome || "Produto com código";
   });
@@ -288,6 +288,326 @@ function montarListaMateriais(evento) {
   const extras = (evento.produtos_extras || []).map(i => `${i.descricao} (${i.quantidade})`);
 
   return [...tendas, ...apoio, ...extras];
+}
+
+function montarMateriaisRotaDetalhados(evento) {
+  const materiais = [];
+
+  (evento.tendas || []).forEach((p, index) => {
+    const nome = [p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - ");
+
+    materiais.push({
+      tipo: "produto",
+      index,
+      id: p.id,
+      categoria: p.categoria || p.tipo || "",
+      tamanho: p.tamanho || "",
+      texto: nome || "Produto com código"
+    });
+  });
+
+  (evento.itens_apoio || []).forEach((i, index) => {
+    materiais.push({
+      tipo: "apoio",
+      index,
+      texto: `${i.nome} (${i.quantidade})`
+    });
+  });
+
+  (evento.produtos_extras || []).forEach((i, index) => {
+    materiais.push({
+      tipo: "extra",
+      index,
+      texto: `${i.descricao} (${i.quantidade})`
+    });
+  });
+
+  return materiais;
+}
+
+function renderizarMateriaisRotaClicaveis(rota) {
+  const evento = rota.evento || {};
+  const materiais = montarMateriaisRotaDetalhados(evento);
+
+  if (!materiais.length) {
+    return `<span>Sem materiais informados</span>`;
+  }
+
+  return materiais.map(item => {
+    if (item.tipo !== "produto") {
+      return `<span>${item.texto}</span>`;
+    }
+
+    return `
+      <button
+        type="button"
+        class="rota-material-click"
+        title="Clique para substituir este produto"
+        data-rota-trocar-produto="1"
+        data-evento-id="${evento.id || rota.evento_id || ""}"
+        data-produto-index="${item.index}"
+        data-produto-id="${item.id || ""}"
+      >${item.texto}</button>
+    `;
+  }).join("");
+}
+
+function produtoDescricaoRota(produto) {
+  return [produto.codigo, produto.categoria || produto.tipo, produto.tamanho, produto.cor]
+    .filter(Boolean)
+    .join(" - ") || "Produto com código";
+}
+
+
+function intervaloEventoRotaDisponibilidade(evento) {
+  if (!evento) return { inicio: null, fim: null };
+
+  let inicio = evento.montagem || null;
+  let fim = evento.desmontagem || null;
+
+  if (!inicio || !fim) {
+    const data = String(evento.data_evento || "").slice(0, 10);
+    if (!data) return { inicio: null, fim: null };
+
+    inicio = `${data}T${String(evento.hora_inicio || evento.hora_evento || "00:00").slice(0, 5)}`;
+    fim = `${data}T${String(evento.hora_termino || "23:59").slice(0, 5)}`;
+  }
+
+  return { inicio, fim };
+}
+
+function eventoUsaProdutoRotaPorIdOuCodigo(evento, produto) {
+  if (!evento || !Array.isArray(evento.tendas) || !produto) return false;
+
+  const id = String(produto.id || "");
+  const codigo = String(produto.codigo || "").trim();
+
+  return evento.tendas.some(item => {
+    return (id && String(item.id || "") === id)
+      || (codigo && String(item.codigo || "").trim() === codigo);
+  });
+}
+
+function produtoDisponivelParaTrocaRota(produto, evento) {
+  if (!produto || !evento) return { livre: false, texto: "Produto inválido" };
+
+  const intervaloAtual = intervaloEventoRotaDisponibilidade(evento);
+  if (!intervaloAtual.inicio || !intervaloAtual.fim) return { livre: true, texto: "Sem data definida" };
+
+  const conflito = (Array.isArray(eventos) ? eventos : []).find(outro => {
+    if (String(outro.id) === String(evento.id)) return false;
+    if (!eventoUsaProdutoRotaPorIdOuCodigo(outro, produto)) return false;
+
+    const intervaloOutro = intervaloEventoRotaDisponibilidade(outro);
+    return new Date(intervaloAtual.inicio).getTime() < new Date(intervaloOutro.fim).getTime()
+      && new Date(intervaloAtual.fim).getTime() > new Date(intervaloOutro.inicio).getTime();
+  });
+
+  if (conflito) {
+    return { livre: false, texto: `Indisponível: ${conflito.nome || "cliente"}` };
+  }
+
+  return { livre: true, texto: "Disponível" };
+}
+
+function produtosDisponiveisParaTrocaRota(produtoAtual, evento) {
+  if (!Array.isArray(produtos)) return [];
+
+  const categoriaAtual = produtoAtual?.categoria || produtoAtual?.tipo || "";
+  const tamanhoAtual = produtoAtual?.tamanho || "";
+  const idsEvento = new Set((evento?.tendas || []).map(p => String(p.id || "")));
+  const codigosEvento = new Set((evento?.tendas || []).map(p => String(p.codigo || "").trim()).filter(Boolean));
+
+  return produtos.filter(p => {
+    if (!p || !p.id) return false;
+    if (String(p.id || "") === String(produtoAtual?.id || "")) return false;
+    if (String(p.codigo || "").trim() && String(p.codigo || "").trim() === String(produtoAtual?.codigo || "").trim()) return false;
+    if (idsEvento.has(String(p.id || ""))) return false;
+    if (String(p.codigo || "").trim() && codigosEvento.has(String(p.codigo || "").trim())) return false;
+
+    const mesmaCategoria = String(p.categoria || p.tipo || "") === String(categoriaAtual);
+    const mesmoTamanho = String(p.tamanho || "") === String(tamanhoAtual);
+    if (!mesmaCategoria || !mesmoTamanho) return false;
+
+    return produtoDisponivelParaTrocaRota(p, evento).livre;
+  });
+}
+
+function garantirModalTrocaProdutoRota() {
+  let modal = document.getElementById("rotaTrocaProdutoDialog");
+
+  if (modal) return modal;
+
+  modal = document.createElement("dialog");
+  modal.id = "rotaTrocaProdutoDialog";
+  modal.className = "modal large-modal rota-troca-produto-dialog";
+
+  modal.innerHTML = `
+    <div class="modal-header">
+      <h2>Trocar produto da rota</h2>
+      <button type="button" class="icon-btn" id="fecharTrocaProdutoRota">×</button>
+    </div>
+
+    <div class="rota-troca-produto-body">
+      <input type="hidden" id="trocaRotaEventoId">
+      <input type="hidden" id="trocaRotaProdutoIndex">
+
+      <div class="troca-produto-atual">
+        <span>Produto atual</span>
+        <strong id="trocaRotaProdutoAtual">-</strong>
+      </div>
+
+      <label class="troca-produto-select-label">
+        Novo produto da mesma categoria/tamanho
+        <select id="trocaRotaProdutoSelect"></select>
+      </label>
+
+      <p class="troca-produto-info">
+        A troca será salva no evento e refletirá automaticamente em rotas, agenda e disponibilidade.
+      </p>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-outline" id="cancelarTrocaProdutoRota">Cancelar</button>
+        <button type="button" class="btn-primary" id="confirmarTrocaProdutoRota">Confirmar troca</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  document.getElementById("fecharTrocaProdutoRota")?.addEventListener("click", () => modal.close());
+  document.getElementById("cancelarTrocaProdutoRota")?.addEventListener("click", () => modal.close());
+  document.getElementById("confirmarTrocaProdutoRota")?.addEventListener("click", confirmarTrocaProdutoRota);
+
+  return modal;
+}
+
+async function abrirTrocaProdutoRota(eventoId, produtoIndex) {
+  if (typeof carregarProdutos === "function") {
+    try { await carregarProdutos(); } catch {}
+  }
+
+  const evento = (Array.isArray(eventos) ? eventos : []).find(e => String(e.id) === String(eventoId));
+  if (!evento) {
+    alert("Evento não encontrado para troca de produto.");
+    return;
+  }
+
+  const index = Number(produtoIndex);
+  const produtoAtual = evento.tendas?.[index];
+
+  if (!produtoAtual) {
+    alert("Produto não encontrado neste evento.");
+    return;
+  }
+
+  const opcoes = produtosDisponiveisParaTrocaRota(produtoAtual, evento);
+  const modal = garantirModalTrocaProdutoRota();
+
+  document.getElementById("trocaRotaEventoId").value = evento.id;
+  document.getElementById("trocaRotaProdutoIndex").value = String(index);
+  document.getElementById("trocaRotaProdutoAtual").textContent = produtoDescricaoRota(produtoAtual);
+
+  const select = document.getElementById("trocaRotaProdutoSelect");
+
+  if (!opcoes.length) {
+    select.innerHTML = `<option value="">Nenhum produto compatível disponível</option>`;
+    document.getElementById("confirmarTrocaProdutoRota").disabled = true;
+  } else {
+    select.innerHTML = `
+      <option value="">Selecione o produto substituto</option>
+      ${opcoes.map(p => `<option value="${p.id}">${produtoDescricaoRota(p)} | ${p.status || "-"}</option>`).join("")}
+    `;
+    document.getElementById("confirmarTrocaProdutoRota").disabled = false;
+  }
+
+  modal.showModal();
+}
+
+async function confirmarTrocaProdutoRota() {
+  const eventoId = document.getElementById("trocaRotaEventoId")?.value;
+  const produtoIndex = Number(document.getElementById("trocaRotaProdutoIndex")?.value);
+  const novoProdutoId = document.getElementById("trocaRotaProdutoSelect")?.value;
+
+  if (!eventoId || !Number.isFinite(produtoIndex) || !novoProdutoId) {
+    alert("Selecione um produto para realizar a troca.");
+    return;
+  }
+
+  const evento = (Array.isArray(eventos) ? eventos : []).find(e => String(e.id) === String(eventoId));
+  const novoProduto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(novoProdutoId));
+
+  if (!evento || !novoProduto) {
+    alert("Não foi possível localizar o evento ou o produto selecionado.");
+    return;
+  }
+
+  const produtoAntigo = evento.tendas?.[produtoIndex];
+
+  if (!produtoAntigo) {
+    alert("Produto antigo não encontrado no evento.");
+    return;
+  }
+
+  if (String(produtoAntigo.id || "") === String(novoProduto.id || "") ||
+      (String(produtoAntigo.codigo || "").trim() && String(produtoAntigo.codigo || "").trim() === String(novoProduto.codigo || "").trim())) {
+    alert("O produto escolhido é o mesmo produto atual.");
+    return;
+  }
+
+  const validacaoTroca = produtoDisponivelParaTrocaRota(novoProduto, evento);
+  if (!validacaoTroca.livre) {
+    alert(validacaoTroca.texto || "Este produto não está disponível para este evento.");
+    return;
+  }
+
+  evento.tendas[produtoIndex] = {
+    id: novoProduto.id,
+    codigo: novoProduto.codigo || "",
+    categoria: novoProduto.categoria || novoProduto.tipo || "",
+    tipo: novoProduto.tipo || novoProduto.categoria || "",
+    tamanho: novoProduto.tamanho || "",
+    cor: novoProduto.cor || ""
+  };
+
+  evento.atualizado_em = new Date().toISOString();
+  evento.colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : evento.colaborador;
+
+  const salvo = typeof salvarEventoBanco === "function"
+    ? await salvarEventoBanco(evento)
+    : null;
+
+  if (!salvo) {
+    alert("Não foi possível salvar a troca no evento.");
+    return;
+  }
+
+  const idx = eventos.findIndex(e => String(e.id) === String(evento.id));
+  if (idx >= 0) eventos[idx] = salvo;
+
+  document.getElementById("rotaTrocaProdutoDialog")?.close();
+
+  if (typeof carregarEventos === "function") await carregarEventos();
+  if (typeof renderizarEventos === "function") renderizarEventos();
+  if (typeof renderizarCalendario === "function") renderizarCalendario();
+
+  renderizarRotas();
+
+  window.dispatchEvent(new CustomEvent("riotendas:eventos-atualizados"));
+
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Rotas",
+      acao: "Troca rápida de produto",
+      registro_id: evento.id,
+      registro_nome: evento.nome || "Evento",
+      antes: produtoAntigo,
+      depois: evento.tendas[produtoIndex],
+      detalhes: `${produtoDescricaoRota(produtoAntigo)} → ${produtoDescricaoRota(novoProduto)}`
+    });
+  }
+
+  alert(`Produto trocado:\n${produtoDescricaoRota(produtoAntigo)}\n→ ${produtoDescricaoRota(novoProduto)}`);
 }
 
 function criarRotasDosEventos() {
@@ -472,10 +792,31 @@ function renderizarRotas() {
     });
   });
 
+
+  container.querySelectorAll("[data-rota-trocar-produto]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      abrirTrocaProdutoRota(btn.dataset.eventoId, btn.dataset.produtoIndex);
+    });
+  });
+
+
   container.querySelectorAll("select[data-rota-carro]").forEach(select => {
     select.addEventListener("change", () => {
+      const carroAnterior = rotasCarros[select.dataset.rotaCarro] || "Sem carro";
       rotasCarros[select.dataset.rotaCarro] = select.value || "Sem carro";
       salvarRotasCarrosLocal();
+
+      if (typeof registrarLogSistema === "function") {
+        registrarLogSistema({
+          modulo: "Rotas",
+          acao: "Carro da rota alterado",
+          registro_id: select.dataset.rotaCarro,
+          registro_nome: select.dataset.rotaCarro,
+          antes: { carro: carroAnterior },
+          depois: { carro: rotasCarros[select.dataset.rotaCarro] }
+        });
+      }
+
       renderizarRotas();
     });
   });
@@ -493,19 +834,43 @@ function rotaEhDesmontagem(rota) {
 }
 
 function listaMateriaisRotas(listaRotas = []) {
-  const materiais = [];
+  const materiaisComCodigo = [];
+  const materiaisSemCodigo = {};
 
   listaRotas.forEach(rota => {
     // No resumo ao lado do carro, listar somente materiais que serão levados
     // para montagem/entrega. Desmontagens/retiradas não entram nessa soma.
     if (rotaEhDesmontagem(rota)) return;
 
-    if (Array.isArray(rota.materiais)) {
-      rota.materiais.forEach(item => materiais.push(item));
-    }
+    const evento = rota.evento || {};
+
+    // Produtos com código continuam item a item.
+    (evento.tendas || []).forEach(p => {
+      const nome = [p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - ");
+      materiaisComCodigo.push(nome || "Produto com código");
+    });
+
+    // Materiais sem código, como mesas e cadeiras, são somados por nome.
+    (evento.itens_apoio || []).forEach(item => {
+      const nome = String(item.nome || "Item sem código").trim();
+      const quantidade = Number(item.quantidade || item.qtd || item.quantidade_total || 0);
+
+      if (!materiaisSemCodigo[nome]) materiaisSemCodigo[nome] = 0;
+      materiaisSemCodigo[nome] += Number.isFinite(quantidade) ? quantidade : 0;
+    });
+
+    // Extras continuam item a item, pois podem ser serviços ou descrições livres.
+    (evento.produtos_extras || []).forEach(item => {
+      const texto = `${item.descricao || "Extra"} (${item.quantidade || 1})`;
+      materiaisComCodigo.push(texto);
+    });
   });
 
-  return materiais;
+  const resumoSemCodigo = Object.entries(materiaisSemCodigo)
+    .filter(([, quantidade]) => Number(quantidade) > 0)
+    .map(([nome, quantidade]) => `${nome} (${quantidade})`);
+
+  return [...materiaisComCodigo, ...resumoSemCodigo];
 }
 
 function totalMateriaisRotas(listaRotas = []) {
@@ -744,7 +1109,7 @@ function renderizarCardRota(rota, index = 0, total = 0) {
         <div class="rota-materiais-lista">
           <strong>Materiais:</strong>
           <div>
-            ${materiais.map(item => `<span>${item}</span>`).join("")}
+            ${renderizarMateriaisRotaClicaveis(rota)}
           </div>
         </div>
 

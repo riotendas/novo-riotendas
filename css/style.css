@@ -6516,3 +6516,656 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 #usuariosSection table thead th:last-child{
     border-top-right-radius:14px !important;
 }
+
+
+/* =====================================================
+   Histórico do produto - busca e exclusão
+===================================================== */
+
+.produto-historico-compacto .historico-produto-topo {
+  display: flex !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  align-items: flex-start !important;
+  margin-bottom: 10px !important;
+}
+
+.produto-historico-compacto .historico-produto-topo h3 {
+  margin: 0 !important;
+}
+
+.historico-produto-contador {
+  display: block !important;
+  margin-top: 3px !important;
+  font-size: 0.75rem !important;
+  color: #64788c !important;
+}
+
+.historico-produto-acoes {
+  display: flex !important;
+  gap: 6px !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-end !important;
+}
+
+.historico-produto-acoes input[type="search"] {
+  width: 320px !important;
+  max-width: 100% !important;
+  height: 34px !important;
+  padding: 6px 10px !important;
+  border: 1px solid #cfdbe8 !important;
+  border-radius: 10px !important;
+  font-size: 0.78rem !important;
+}
+
+.historico-produto-acoes button {
+  min-height: 34px !important;
+  padding: 6px 9px !important;
+  font-size: 0.72rem !important;
+  border-radius: 9px !important;
+  white-space: nowrap !important;
+}
+
+.historico-produto-acoes .danger {
+  color: #b00020 !important;
+  border-color: #f1b8c0 !important;
+}
+
+.historico-produto-check-linha {
+  display: grid !important;
+  grid-template-columns: 28px 1fr !important;
+  gap: 8px !important;
+  align-items: center !important;
+  cursor: pointer !important;
+}
+
+.historico-produto-check {
+  width: 16px !important;
+  height: 16px !important;
+  margin: 0 auto !important;
+}
+
+.historico-produto-conteudo {
+  display: grid !important;
+  grid-template-columns: 140px 110px 1fr 1fr !important;
+  gap: 8px !important;
+  align-items: center !important;
+  min-width: 0 !important;
+}
+
+.historico-produto-conteudo span,
+.historico-produto-conteudo strong {
+  min-width: 0 !important;
+  overflow-wrap: anywhere !important;
+}
+
+@media (max-width: 900px) {
+  .produto-historico-compacto .historico-produto-topo {
+    flex-direction: column !important;
+  }
+
+  .historico-produto-acoes {
+    justify-content: flex-start !important;
+    width: 100% !important;
+  }
+
+  .historico-produto-acoes input[type="search"] {
+    width: 100% !important;
+  }
+
+  .historico-produto-conteudo {
+    grid-template-columns: 1fr !important;
+    gap: 3px !important;
+  }
+}
+
+
+/* =====================================================
+   Rota - troca rápida de produto
+===================================================== */
+
+.rota-material-click {
+  display: inline-flex !important;
+  align-items: center !important;
+  border: 1px solid #b9d3ea !important;
+  background: #eef7ff !important;
+  color: #0f4f86 !important;
+  border-radius: 999px !important;
+  padding: 4px 9px !important;
+  font-size: 0.76rem !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  line-height: 1.1 !important;
+}
+
+.rota-material-click:hover {
+  background: #dcefff !important;
+  border-color: #7fb1dc !important;
+}
+
+.rota-troca-produto-dialog {
+  width: min(720px, 94vw) !important;
+}
+
+.rota-troca-produto-body {
+  display: grid !important;
+  gap: 14px !important;
+  padding: 4px 2px 0 !important;
+}
+
+.troca-produto-atual {
+  border: 1px solid #d8e5f2 !important;
+  border-radius: 12px !important;
+  padding: 10px 12px !important;
+  background: #f7fbff !important;
+}
+
+.troca-produto-atual span,
+.troca-produto-select-label {
+  display: block !important;
+  font-size: 0.78rem !important;
+  font-weight: 800 !important;
+  color: #52677d !important;
+}
+
+.troca-produto-atual strong {
+  display: block !important;
+  margin-top: 4px !important;
+  color: #102f4a !important;
+}
+
+.troca-produto-select-label select {
+  width: 100% !important;
+  margin-top: 6px !important;
+  min-height: 40px !important;
+  border: 1px solid #cfdbe8 !important;
+  border-radius: 10px !important;
+  padding: 8px 10px !important;
+}
+
+.troca-produto-info {
+  margin: 0 !important;
+  color: #607589 !important;
+  font-size: 0.82rem !important;
+}
+
+
+/* Troca rápida discreta */
+.rota-material-click{
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  color: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  border-radius: 0 !important;
+  cursor: pointer !important;
+  text-align: left !important;
+}
+
+.rota-material-click:hover{
+  background: transparent !important;
+  border: none !important;
+  text-decoration: underline !important;
+}
+
+.rota-material-click::after{
+  content: " ✎";
+  font-size: 0.75em;
+  opacity: .55;
+}
+
+
+/* Uniformizar tendas, mesas e cadeiras na área Materiais das Rotas */
+.rota-materiais-lista div span,
+.rota-materiais-lista div .rota-material-click{
+    font-size: inherit !important;
+    font-weight: 400 !important;
+    color: inherit !important;
+    line-height: 1.4 !important;
+    font-family: inherit !important;
+}
+
+
+/* Fundo azul suave para TODOS os materiais da rota (tendas, mesas e cadeiras) */
+.rota-materiais-lista div span,
+.rota-materiais-lista div .rota-material-click{
+    background: #eef7ff !important;
+    border: 1px solid #d9eaf8 !important;
+    border-radius: 8px !important;
+    padding: 3px 8px !important;
+    display: inline-block !important;
+    margin: 2px 4px 2px 0 !important;
+}
+
+
+/* =====================================================
+   Log do Sistema
+===================================================== */
+
+.logs-sistema-box {
+  margin-top: 16px !important;
+  padding: 14px !important;
+  border: 1px solid #d7e5f2 !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+}
+
+.logs-contador {
+  display: block !important;
+  margin-top: 4px !important;
+  color: #64788c !important;
+  font-size: 0.78rem !important;
+}
+
+.logs-filtros {
+  display: grid !important;
+  grid-template-columns: 1.8fr 1fr 1fr 150px 150px auto !important;
+  gap: 8px !important;
+  margin: 12px 0 !important;
+  align-items: center !important;
+}
+
+.logs-filtros input,
+.logs-filtros select {
+  min-height: 36px !important;
+  border: 1px solid #cfdbe8 !important;
+  border-radius: 10px !important;
+  padding: 7px 9px !important;
+  font-size: 0.78rem !important;
+}
+
+.logs-table-wrapper {
+  max-height: 460px !important;
+  overflow: auto !important;
+}
+
+.logs-sistema-table {
+  width: 100% !important;
+  min-width: 980px !important;
+  border-collapse: collapse !important;
+}
+
+.logs-sistema-table th {
+  position: sticky !important;
+  top: 0 !important;
+  background: #0f4f86 !important;
+  color: #fff !important;
+  z-index: 1 !important;
+  padding: 9px 10px !important;
+  font-size: 0.78rem !important;
+  text-align: left !important;
+}
+
+.logs-sistema-table td {
+  padding: 8px 10px !important;
+  border-bottom: 1px solid #dbe7f1 !important;
+  vertical-align: top !important;
+  font-size: 0.75rem !important;
+}
+
+.logs-sistema-table .log-detalhes {
+  max-width: 420px !important;
+  overflow-wrap: anywhere !important;
+}
+
+@media (max-width: 900px) {
+  .logs-filtros {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+
+
+/* =====================================================
+   Clientes - tabela mais compacta e alinhada
+===================================================== */
+
+#clientesSection .table-wrapper,
+#clientesSection .table-responsive {
+  width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+#clientesSection table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+#clientesSection table th,
+#clientesSection table td {
+  padding: 8px 10px !important;
+  font-size: 0.82rem !important;
+  line-height: 1.15 !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Nome */
+#clientesSection table th:nth-child(1),
+#clientesSection table td:nth-child(1) {
+  width: 16% !important;
+}
+
+/* CPF/CNPJ */
+#clientesSection table th:nth-child(2),
+#clientesSection table td:nth-child(2) {
+  width: 8% !important;
+}
+
+/* Telefone */
+#clientesSection table th:nth-child(3),
+#clientesSection table td:nth-child(3) {
+  width: 12% !important;
+}
+
+/* Endereço */
+#clientesSection table th:nth-child(4),
+#clientesSection table td:nth-child(4) {
+  width: 44% !important;
+}
+
+/* Colaborador */
+#clientesSection table th:nth-child(5),
+#clientesSection table td:nth-child(5) {
+  width: 8% !important;
+}
+
+/* Ações */
+#clientesSection table th:nth-child(6),
+#clientesSection table td:nth-child(6) {
+  width: 12% !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+}
+
+/* botões lado a lado */
+#clientesSection table td.actions,
+#clientesSection table td:nth-child(6) {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+#clientesSection table td.actions button,
+#clientesSection table td:nth-child(6) button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 30px !important;
+  height: 30px !important;
+  padding: 5px 10px !important;
+  font-size: 0.78rem !important;
+  border-radius: 9px !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* cabeçalho compacto */
+#clientesSection table thead th {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+/* nomes continuam clicáveis sem quebrar linha */
+#clientesSection table td:nth-child(1) a,
+#clientesSection table td:nth-child(1) button {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  display: inline-block !important;
+  max-width: 100% !important;
+}
+
+/* linhas mais baixas */
+#clientesSection table tbody tr {
+  height: 44px !important;
+}
+
+
+/* Ajuste definitivo da tabela de clientes */
+#clientesSection table{
+    width:100% !important;
+    table-layout:fixed !important;
+}
+
+#clientesSection table th:nth-child(1),
+#clientesSection table td:nth-child(1){width:15% !important;}
+
+#clientesSection table th:nth-child(2),
+#clientesSection table td:nth-child(2){width:15% !important;}
+
+#clientesSection table th:nth-child(3),
+#clientesSection table td:nth-child(3){width:15% !important;}
+
+#clientesSection table th:nth-child(4),
+#clientesSection table td:nth-child(4){width:30% !important;}
+
+#clientesSection table th:nth-child(5),
+#clientesSection table td:nth-child(5){width:15% !important;}
+
+#clientesSection table th:nth-child(6),
+#clientesSection table td:nth-child(6){width:10% !important;}
+
+#clientesSection table td{
+    white-space:nowrap !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
+}
+
+#clientesSection table td:nth-child(6){
+    display:flex !important;
+    align-items:center !important;
+    gap:6px !important;
+}
+
+#clientesSection table td:nth-child(6) button{
+    margin:0 !important;
+}
+
+
+/* =====================================================
+   Clientes - colunas novas e linhas mínimas
+===================================================== */
+
+#clientesSection .table-wrapper,
+#clientesSection .table-responsive {
+  width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+#clientesSection table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+/* Larguras solicitadas */
+#clientesSection table th:nth-child(1),
+#clientesSection table td:nth-child(1) {
+  width: 15% !important;
+}
+
+#clientesSection table th:nth-child(2),
+#clientesSection table td:nth-child(2) {
+  width: 10% !important;
+}
+
+#clientesSection table th:nth-child(3),
+#clientesSection table td:nth-child(3) {
+  width: 10% !important;
+}
+
+#clientesSection table th:nth-child(4),
+#clientesSection table td:nth-child(4) {
+  width: 35% !important;
+}
+
+#clientesSection table th:nth-child(5),
+#clientesSection table td:nth-child(5) {
+  width: 15% !important;
+}
+
+#clientesSection table th:nth-child(6),
+#clientesSection table td:nth-child(6) {
+  width: 15% !important;
+}
+
+/* Altura mínima possível da linha */
+#clientesSection table th,
+#clientesSection table td {
+  padding: 4px 8px !important;
+  font-size: 0.78rem !important;
+  line-height: 1.05 !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+#clientesSection table tbody tr {
+  height: 34px !important;
+  min-height: 34px !important;
+}
+
+/* Cabeçalho compacto */
+#clientesSection table thead th {
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
+}
+
+/* Ações lado a lado */
+#clientesSection table td:nth-child(6),
+#clientesSection table td.actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+
+/* Botões compactos */
+#clientesSection table td:nth-child(6) button,
+#clientesSection table td.actions button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 4px 9px !important;
+  font-size: 0.74rem !important;
+  line-height: 1 !important;
+  border-radius: 8px !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* Nome clicável sem quebrar linha */
+#clientesSection table td:nth-child(1) a,
+#clientesSection table td:nth-child(1) button {
+  max-width: 100% !important;
+  display: inline-block !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+
+/* Força os botões da coluna Ações a ficarem na horizontal */
+#clientesSection table td:last-child{
+    white-space: nowrap !important;
+}
+
+#clientesSection table td:last-child > *{
+    display:inline-flex !important;
+    vertical-align:middle !important;
+    margin-right:6px !important;
+}
+
+#clientesSection table td:last-child br{
+    display:none !important;
+}
+
+#clientesSection table td:last-child div,
+#clientesSection table td:last-child span{
+    display:inline-flex !important;
+    margin-right:6px !important;
+}
+
+
+/* =====================================================
+   Clientes - ações horizontais definitivo
+===================================================== */
+
+#clientesSection table td.clientes-actions,
+#clientesSection table td.actions,
+#clientesSection table td:last-child {
+  overflow: visible !important;
+  white-space: nowrap !important;
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+}
+
+#clientesSection .clientes-actions-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  flex-wrap: nowrap !important;
+  width: max-content !important;
+  max-width: 100% !important;
+}
+
+#clientesSection .clientes-actions-row button,
+#clientesSection table td.clientes-actions button,
+#clientesSection table td.actions button,
+#clientesSection table td:last-child button {
+  display: inline-flex !important;
+  width: auto !important;
+  min-width: auto !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 4px 9px !important;
+  margin: 0 !important;
+  font-size: 0.74rem !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+#clientesSection .clientes-actions-row br,
+#clientesSection table td:last-child br {
+  display: none !important;
+}
+
+
+/* =====================================================
+   v19-dev - otimização visual segura
+===================================================== */
+
+.section {
+  contain: layout style !important;
+}
+
+.table-wrapper,
+.table-responsive {
+  contain: content !important;
+}
+
+#produtosSection table,
+#eventosSection table,
+#clientesSection table,
+#usuariosSection table {
+  will-change: auto !important;
+}
+
+dialog {
+  contain: layout style !important;
+}

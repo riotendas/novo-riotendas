@@ -1,4 +1,41 @@
 
+
+function obterTimestampOrdenacaoEvento(evento) {
+  const data = evento?.data_evento || evento?.data || evento?.montagem || evento?.inicio || "";
+  const hora = evento?.hora_evento || evento?.hora_inicio || evento?.horario || "00:00";
+
+  if (!data) return Number.MAX_SAFE_INTEGER;
+
+  const dataNormalizada = String(data).includes("T")
+    ? String(data)
+    : `${String(data).slice(0, 10)}T${String(hora || "00:00").slice(0, 5) || "00:00"}`;
+
+  const ts = new Date(dataNormalizada).getTime();
+  return Number.isFinite(ts) ? ts : Number.MAX_SAFE_INTEGER;
+}
+
+function ordenarEventosPorData(listaEventos) {
+  if (!Array.isArray(listaEventos)) return [];
+
+  return [...listaEventos].sort((a, b) => {
+    const dataA = obterTimestampOrdenacaoEvento(a);
+    const dataB = obterTimestampOrdenacaoEvento(b);
+
+    if (dataA !== dataB) return dataA - dataB;
+
+    const nomeA = String(a?.nome || a?.cliente || "").toLowerCase();
+    const nomeB = String(b?.nome || b?.cliente || "").toLowerCase();
+
+    return nomeA.localeCompare(nomeB, "pt-BR");
+  });
+}
+
+function normalizarOrdemEventosGlobal() {
+  if (Array.isArray(eventos)) {
+    eventos = ordenarEventosPorData(eventos);
+  }
+}
+
 function dataCompactaComDiaRecorrente(dataISO) {
   if (!dataISO) return "-";
 
@@ -246,11 +283,28 @@ async function buscarEventosBanco() {
 }
 
 async function salvarEventoBanco(evento) {
+  const eventoAntesLog = Array.isArray(eventos)
+    ? eventos.find(e => String(e.id) === String(evento.id))
+    : null;
+  const acaoLogEvento = eventoAntesLog ? "Evento editado" : "Evento cadastrado";
+
   if (!supabaseClient) {
     const i = eventos.findIndex(e => e.id === evento.id);
     if (i >= 0) eventos[i] = evento;
     else eventos.push(evento);
     localStorage.setItem(storageEventosKey, JSON.stringify(eventos));
+
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({
+        modulo: "Eventos",
+        acao: acaoLogEvento,
+        registro_id: evento.id,
+        registro_nome: evento.nome || "Evento",
+        antes: eventoAntesLog || null,
+        depois: evento
+      });
+    }
+
     return evento;
   }
 
@@ -301,13 +355,40 @@ async function salvarEventoBanco(evento) {
     return null;
   }
 
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Eventos",
+      acao: acaoLogEvento,
+      registro_id: data.id,
+      registro_nome: data.nome || "Evento",
+      antes: eventoAntesLog || null,
+      depois: data
+    });
+  }
+
   return data;
 }
 
 async function excluirEventoBanco(id) {
+  const eventoAntesLog = Array.isArray(eventos)
+    ? eventos.find(e => String(e.id) === String(id))
+    : null;
+
   if (!supabaseClient) {
     eventos = eventos.filter(e => e.id !== id);
     localStorage.setItem(storageEventosKey, JSON.stringify(eventos));
+
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({
+        modulo: "Eventos",
+        acao: "Evento excluído",
+        registro_id: id,
+        registro_nome: eventoAntesLog?.nome || "Evento",
+        antes: eventoAntesLog || null,
+        depois: null
+      });
+    }
+
     return true;
   }
 
@@ -316,6 +397,17 @@ async function excluirEventoBanco(id) {
   if (error) {
     alert("Erro ao excluir evento: " + (error.message || ""));
     return false;
+  }
+
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Eventos",
+      acao: "Evento excluído",
+      registro_id: id,
+      registro_nome: eventoAntesLog?.nome || "Evento",
+      antes: eventoAntesLog || null,
+      depois: null
+    });
   }
 
   return true;
@@ -363,6 +455,7 @@ async function garantirClienteDoEvento(evento) {
 
 async function carregarEventos() {
   eventos = await buscarEventosBanco();
+  normalizarOrdemEventosGlobal();
   renderizarEventos();
 }
 
@@ -748,9 +841,108 @@ function intervaloEventoAtual() {
   return { inicio: null, fim: null };
 }
 
+
+function dataISOEventoSeguro(valor) {
+  if (!valor) return "";
+  return String(valor).slice(0, 10);
+}
+
+function intervaloDeEventoParaDisponibilidade(evento) {
+  if (!evento) return { inicio: null, fim: null };
+
+  let inicio = evento.montagem || null;
+  let fim = evento.desmontagem || null;
+
+  if (!inicio || !fim) {
+    const data = dataISOEventoSeguro(evento.data_evento);
+    if (!data) return { inicio: null, fim: null };
+
+    inicio = `${data}T${String(evento.hora_inicio || evento.hora_evento || "00:00").slice(0, 5)}`;
+    fim = `${data}T${String(evento.hora_termino || "23:59").slice(0, 5)}`;
+  }
+
+  return { inicio, fim };
+}
+
+function eventoUsaProdutoPorIdOuCodigo(evento, produto) {
+  if (!evento || !Array.isArray(evento.tendas) || !produto) return false;
+
+  const id = String(produto.id || "");
+  const codigo = String(produto.codigo || "").trim();
+
+  return evento.tendas.some(item => {
+    return (id && String(item.id || "") === id)
+      || (codigo && String(item.codigo || "").trim() === codigo);
+  });
+}
+
+function produtoJaSelecionadoNoEvento(lista, produto, ignorarIndex = -1) {
+  const id = String(produto?.id || "");
+  const codigo = String(produto?.codigo || "").trim();
+
+  return (lista || []).some((item, index) => {
+    if (Number(index) === Number(ignorarIndex)) return false;
+
+    return (id && String(item.id || "") === id)
+      || (codigo && String(item.codigo || "").trim() === codigo);
+  });
+}
+
+function produtoEstaDisponivelNoEvento(produto, evento, ignorarIndex = -1) {
+  if (!produto || !evento) return { livre: false, texto: "Produto inválido", classe: "busy" };
+
+  if (produtoJaSelecionadoNoEvento(produtosRapidoAtual || evento.tendas || [], produto, ignorarIndex)) {
+    return { livre: false, texto: "Já selecionado neste evento", classe: "busy" };
+  }
+
+  const intervaloAtual = intervaloDeEventoParaDisponibilidade(evento);
+
+  if (!intervaloAtual.inicio || !intervaloAtual.fim) {
+    return { livre: true, texto: "Sem data definida", classe: "neutral" };
+  }
+
+  const conflito = eventos.find(outro => {
+    if (String(outro.id) === String(evento.id)) return false;
+    if (!eventoUsaProdutoPorIdOuCodigo(outro, produto)) return false;
+
+    const intervaloOutro = intervaloDeEventoParaDisponibilidade(outro);
+    return periodosConflitam(intervaloAtual.inicio, intervaloAtual.fim, intervaloOutro.inicio, intervaloOutro.fim);
+  });
+
+  if (conflito) {
+    return {
+      livre: false,
+      texto: `Indisponível: ${conflito.nome || "cliente"} em ${dataBR(conflito.data_evento)}`,
+      classe: "busy"
+    };
+  }
+
+  return { livre: true, texto: "Livre para a data", classe: "free" };
+}
+
+function textoHorarioOperacaoSeguro(tipoSalvo, datetimeValor) {
+  if (!datetimeValor) return "-";
+
+  const tipo = tipoHorarioBase(tipoSalvo);
+  const fim = tipoHorarioFim(tipoSalvo);
+  const data = dataBR(String(datetimeValor).slice(0, 10));
+  const hora = String(datetimeValor || "").includes("T") ? String(datetimeValor).slice(11, 16) : "";
+  const dataHora = `${data}${hora ? " " + hora : ""}`;
+
+  if (tipo === "Exatamente") return `Exatamente ${dataHora}`;
+  if (tipo === "A partir de") return `A partir de ${dataHora}`;
+  if (tipo === "Até") return `Até ${dataHora}`;
+  if (tipo === "Intervalo") return fim ? `Entre ${dataHora} e ${fim}` : `Intervalo a partir de ${dataHora}`;
+  if (tipo === "Horário comercial") return `${data} — Horário comercial`;
+  if (tipo === "Livre / combinar") return `${data} — Livre / combinar`;
+
+  return `${tipo} ${dataHora}`;
+}
+
 function disponibilidadeProdutoParaEvento(produtoId) {
   const eventoAtualId = document.getElementById("eventoId")?.value || "";
   const intervaloAtual = intervaloEventoAtual();
+  const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(produtoId)) || { id: produtoId };
 
   if (!intervaloAtual.inicio || !intervaloAtual.fim) {
     return { livre: true, texto: "Defina a data para verificar", classe: "neutral" };
@@ -758,20 +950,10 @@ function disponibilidadeProdutoParaEvento(produtoId) {
 
   const conflito = eventos.find(evento => {
     if (String(evento.id) === String(eventoAtualId)) return false;
+    if (!eventoUsaProdutoPorIdOuCodigo(evento, produto)) return false;
 
-    const usaProduto = Array.isArray(evento.tendas) && evento.tendas.some(p => String(p.id) === String(produtoId));
-    if (!usaProduto) return false;
-
-    let inicioEvento = evento.montagem;
-    let fimEvento = evento.desmontagem;
-
-    if (!inicioEvento || !fimEvento) {
-      if (!evento.data_evento) return false;
-      inicioEvento = `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_inicio || evento.hora_evento || "00:00"}`;
-      fimEvento = `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_termino || "23:59"}`;
-    }
-
-    return periodosConflitam(intervaloAtual.inicio, intervaloAtual.fim, inicioEvento, fimEvento);
+    const intervalo = intervaloDeEventoParaDisponibilidade(evento);
+    return periodosConflitam(intervaloAtual.inicio, intervaloAtual.fim, intervalo.inicio, intervalo.fim);
   });
 
   if (conflito) {
@@ -1099,6 +1281,7 @@ async function salvarEventoForm(event) {
     }
 
     fecharEventoModal();
+    normalizarOrdemEventosGlobal();
     renderizarEventos();
     return;
   }
@@ -1121,6 +1304,7 @@ async function salvarEventoForm(event) {
   else eventos.push(salvo);
 
   fecharEventoModal();
+  normalizarOrdemEventosGlobal();
   renderizarEventos();
 }
 
@@ -1228,6 +1412,8 @@ function resumoProdutosEvento(e) {
 }
 
 function renderizarEventos() {
+  normalizarOrdemEventosGlobal();
+
   const tbody = document.getElementById("eventosTbody");
   const tbodyRec = document.getElementById("eventosRecorrentesTbody");
 
@@ -1257,8 +1443,7 @@ function renderizarEventos() {
   } else {
     tbody.innerHTML = lista.map(e => `
       <tr class="${e.pagamento_quitado ? "" : "payment-open"}">
-        <td>
-          ${dataEventoCompactaVisual(e.data_evento)}
+        <td class="clientes-actions"><div class="clientes-actions-row">${dataEventoCompactaVisual(e.data_evento)}
           <small class="weekday-badge">${typeof diaSemanaTexto === "function" ? diaSemanaTexto(e.data_evento) : diaSemana(e.data_evento)}</small>
           <small class="event-hour-under">${horarioEventoAbaixoData(e) || "-"}</small>
         </td>
@@ -1278,10 +1463,8 @@ function renderizarEventos() {
         <td>${dinheiro(e.valor_restante)}</td>
         <td>${e.pagamento_quitado ? "Quitado" : "Em aberto"}</td>
         <td>${e.colaborador || "-"}</td>
-        <td class="actions">
-          <button data-action="editar" data-id="${e.id}">Editar</button>
-          <button class="btn-outline" data-action="excluir" data-id="${e.id}">Excluir</button>
-        </td>
+        <td class="actions clientes-actions"><div class="clientes-actions-row"><button data-action="editar" data-id="${e.id}">Editar</button>
+          <button class="btn-outline" data-action="excluir" data-id="${e.id}">Excluir</button></div></td>
       </tr>
     `).join("");
   }
@@ -1297,7 +1480,7 @@ function renderizarEventos() {
 
   tbodyRec.innerHTML = recorrentes.map(e => `
     <tr class="recurring-row ${e.pagamento_quitado ? "" : "payment-open"}">
-      <td>${dataCompactaComDiaRecorrente(e.data_evento)}</td>
+      <td class="clientes-actions"><div class="clientes-actions-row">${dataCompactaComDiaRecorrente(e.data_evento)}</td>
       <td>${periodoRecorrenciaTexto(e)}</td>
       <td>${recorrenciaLabel(e.recorrencia_tipo, e.recorrencia_dias)}</td>
       <td><button class="code-link" data-action="detalhe" data-id="${e.id}">${e.nome || "-"}</button></td>
@@ -1313,10 +1496,8 @@ function renderizarEventos() {
       <td>${dinheiro(e.valor_total)}</td>
       <td>${e.pagamento_quitado ? "Quitado" : "Em aberto"}</td>
       <td>${e.colaborador || "-"}</td>
-      <td class="actions">
-        <button data-action="editar" data-id="${e.id}">Editar</button>
-        <button class="btn-outline" data-action="excluir" data-id="${e.id}">Excluir</button>
-      </td>
+      <td class="actions clientes-actions"><div class="clientes-actions-row"><button data-action="editar" data-id="${e.id}">Editar</button>
+        <button class="btn-outline" data-action="excluir" data-id="${e.id}">Excluir</button></div></td>
     </tr>
   `).join("");
 
@@ -1339,6 +1520,7 @@ async function lidarAcaoEvento(event) {
     if (!ok) return;
 
     eventos = eventos.filter(x => x.id !== id);
+    normalizarOrdemEventosGlobal();
     renderizarEventos();
   }
 }
@@ -1367,15 +1549,21 @@ function descricaoProdutoCompacta(produto) {
 
 function abrirTrocaRapidaProduto(index) {
   const atual = produtosRapidoAtual[index];
-  if (!atual) return;
+  const evento = eventoProdutosRapidoAtual();
+
+  if (!atual || !evento) return;
 
   const opcoes = (produtos || []).filter(p => {
-    if (String(p.id) === String(atual.id)) return false;
-    return produtoMesmoModelo(p, atual);
+    if (String(p.id || "") === String(atual.id || "")) return false;
+    if (String(p.codigo || "").trim() && String(p.codigo || "").trim() === String(atual.codigo || "").trim()) return false;
+    if (!produtoMesmoModelo(p, atual)) return false;
+
+    const disp = produtoEstaDisponivelNoEvento(p, evento, index);
+    return disp.livre;
   });
 
   if (!opcoes.length) {
-    alert("Não há outro produto cadastrado com a mesma categoria e tamanho.");
+    alert("Não há outro produto disponível com a mesma categoria e tamanho para este período.");
     return;
   }
 
@@ -1402,7 +1590,7 @@ function abrirTrocaRapidaProduto(index) {
     <label class="troca-rapida-select-label">
       Substituir por
       <select id="trocaRapidaProdutoSelect">
-        <option value="">Selecione um produto compatível</option>
+        <option value="">Selecione um produto compatível disponível</option>
         ${opcoes.map(p => `
           <option value="${p.id}">
             ${descricaoProdutoCompacta(p)}
@@ -1415,7 +1603,7 @@ function abrirTrocaRapidaProduto(index) {
       ${opcoes.map(p => `
         <button type="button" class="troca-rapida-opcao" data-troca-produto-id="${p.id}">
           <strong>${p.codigo || "-"}</strong>
-          <span>${[p.categoria, p.tamanho, p.cor].filter(Boolean).join(" ")}</span>
+          <span>${[p.categoria || p.tipo, p.tamanho, p.cor].filter(Boolean).join(" ")}</span>
         </button>
       `).join("")}
     </div>
@@ -1434,8 +1622,23 @@ function abrirTrocaRapidaProduto(index) {
       return;
     }
 
-    produtosRapidoAtual[index] = novoProduto;
+    const validacao = produtoEstaDisponivelNoEvento(novoProduto, evento, index);
+    if (!validacao.livre) {
+      alert(validacao.texto || "Este produto não está disponível para este evento.");
+      return;
+    }
+
+    produtosRapidoAtual[index] = {
+      id: novoProduto.id,
+      codigo: novoProduto.codigo || "",
+      categoria: novoProduto.categoria || novoProduto.tipo || "",
+      tipo: novoProduto.tipo || novoProduto.categoria || "",
+      tamanho: novoProduto.tamanho || "",
+      cor: novoProduto.cor || ""
+    };
+
     dialog.close();
+    popularSelectProdutosRapido();
     renderizarProdutosRapido();
   }
 
@@ -1483,32 +1686,8 @@ function disponibilidadeProdutoRapido(produtoId) {
   const evento = eventoProdutosRapidoAtual();
   if (!evento) return { livre: true, texto: "Livre", classe: "free" };
 
-  const inicio = evento.montagem || (evento.data_evento ? `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_inicio || evento.hora_evento || "00:00"}` : null);
-  const fim = evento.desmontagem || (evento.data_evento ? `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_termino || "23:59"}` : null);
-
-  if (!inicio || !fim) return { livre: true, texto: "Sem data definida", classe: "neutral" };
-
-  const conflito = eventos.find(outro => {
-    if (String(outro.id) === String(evento.id)) return false;
-
-    const usaProduto = Array.isArray(outro.tendas) && outro.tendas.some(p => String(p.id) === String(produtoId));
-    if (!usaProduto) return false;
-
-    const inicioOutro = outro.montagem || (outro.data_evento ? `${outro.data_evento}T${outro.hora_inicio || outro.hora_evento || "00:00"}` : null);
-    const fimOutro = outro.desmontagem || (outro.data_evento ? `${outro.data_evento}T${outro.hora_termino || "23:59"}` : null);
-
-    return periodosConflitam(inicio, fim, inicioOutro, fimOutro);
-  });
-
-  if (conflito) {
-    return {
-      livre: false,
-      texto: `Indisponível: ${conflito.nome || "cliente"} em ${dataBR(conflito.data_evento)}`,
-      classe: "busy"
-    };
-  }
-
-  return { livre: true, texto: "Livre para a data", classe: "free" };
+  const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(produtoId)) || { id: produtoId };
+  return produtoEstaDisponivelNoEvento(produto, evento, -1);
 }
 
 function popularSelectProdutosRapido() {
@@ -1745,7 +1924,10 @@ async function salvarProdutosRapido() {
   if (index >= 0) eventos[index] = salvo;
 
   fecharProdutosRapido();
+  normalizarOrdemEventosGlobal();
   renderizarEventos();
+
+  window.dispatchEvent(new CustomEvent("riotendas:eventos-atualizados"));
 }
 
 function abrirDetalheEvento(id) {
@@ -1774,11 +1956,11 @@ function abrirDetalheEvento(id) {
       </div>
       <div class="info-box linha-montagem">
         <span>Montagem</span>
-        <strong>${textoHorarioOperacao(e.montagem_tipo, e.montagem)}</strong>
+        <strong>${textoHorarioOperacaoSeguro(e.montagem_tipo, e.montagem)}</strong>
       </div>
       <div class="info-box linha-desmontagem">
         <span>Desmontagem</span>
-        <strong>${textoHorarioOperacao(e.desmontagem_tipo, e.desmontagem)}</strong>
+        <strong>${textoHorarioOperacaoSeguro(e.desmontagem_tipo, e.desmontagem)}</strong>
       </div>
 
       <div class="info-box linha-cliente">
