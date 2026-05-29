@@ -1345,9 +1345,16 @@ async function excluirHistoricoProduto(produtoId, indices) {
 
   if (!confirm(`Excluir ${unicos.length} registro(s) do histórico deste produto?`)) return;
 
+  const produtoAntesLog = JSON.parse(JSON.stringify(produto));
+  const historicosRemovidos = [];
+
   unicos.forEach(index => {
     if (index >= 0 && index < produto.historico.length) {
-      produto.historico.splice(index, 1);
+      const removido = produto.historico.splice(index, 1)[0];
+      historicosRemovidos.push({
+        index,
+        ...removido
+      });
     }
   });
 
@@ -1359,6 +1366,36 @@ async function excluirHistoricoProduto(produtoId, indices) {
   if (salvo) {
     const indexProduto = produtos.findIndex(p => String(p.id) === String(produtoId));
     if (indexProduto >= 0) produtos[indexProduto] = salvo;
+
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({
+        modulo: "Produtos",
+        acao: historicosRemovidos.length > 1 ? "Histórico do produto excluído em massa" : "Histórico do produto excluído",
+        registro_id: salvo.id,
+        registro_nome: salvo.codigo || salvo.categoria || salvo.tipo || "Produto",
+        antes: {
+          produto: {
+            id: produtoAntesLog.id,
+            codigo: produtoAntesLog.codigo,
+            categoria: produtoAntesLog.categoria || produtoAntesLog.tipo,
+            tamanho: produtoAntesLog.tamanho,
+            status: produtoAntesLog.status
+          },
+          historicos_removidos: historicosRemovidos
+        },
+        depois: {
+          produto: {
+            id: salvo.id,
+            codigo: salvo.codigo,
+            categoria: salvo.categoria || salvo.tipo,
+            tamanho: salvo.tamanho,
+            status: salvo.status
+          },
+          quantidade_removida: historicosRemovidos.length
+        },
+        detalhes: `${historicosRemovidos.length} registro(s) removido(s) do histórico do produto ${salvo.codigo || ""}`
+      });
+    }
 
     renderizarHistoricoProdutoDetalhe(produtoId, document.getElementById("historicoProdutoBusca")?.value || "");
     renderizarProdutos();

@@ -1036,9 +1036,51 @@ async function atualizarHorarioRotaEvento(rotaId, novoValor) {
   renderizarRotas();
 }
 
+
+function limparTelefoneRota(telefone) {
+  return String(telefone || "").replace(/\D/g, "");
+}
+
+function googleMapsSearchUrl(endereco) {
+  const query = encodeURIComponent(String(endereco || "").trim());
+  return query ? `https://www.google.com/maps/search/?api=1&query=${query}` : "#";
+}
+
+function googleMapsNavigateUrl(endereco) {
+  const query = encodeURIComponent(String(endereco || "").trim());
+  return query ? `https://www.google.com/maps/dir/?api=1&destination=${query}` : "#";
+}
+
+function renderizarLinksEnderecoRota(rota) {
+  const endereco = String(rota.endereco || "").trim();
+  const telefone = limparTelefoneRota(rota.telefone);
+
+  if (!endereco && !telefone) return "";
+
+  return `
+    <div class="rota-links-endereco">
+      ${endereco ? `
+        <a href="${googleMapsSearchUrl(endereco)}" target="_blank" rel="noopener" title="Abrir endereço no Google Maps">📍 Mapa</a>
+        <a href="${googleMapsNavigateUrl(endereco)}" target="_blank" rel="noopener" title="Navegar até o endereço">🧭 Navegar</a>
+      ` : ""}
+      ${telefone ? `<a href="tel:${telefone}" title="Ligar para o cliente">📞 Ligar</a>` : ""}
+    </div>
+  `;
+}
+
 function valorDatetimeLocal(valor) {
   if (!valor) return "";
   return String(valor).slice(0, 16);
+}
+
+
+function linkGoogleMapsEndereco(endereco) {
+  const texto = String(endereco || "").trim();
+  if (!texto || texto === "-") return "-";
+
+  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(texto)}`;
+
+  return `<a class="rota-endereco-link" href="${url}" target="_blank" rel="noopener" title="Abrir no Google Maps">${texto}</a>`;
 }
 
 function renderizarCardRota(rota, index = 0, total = 0) {
@@ -1081,7 +1123,7 @@ function renderizarCardRota(rota, index = 0, total = 0) {
         </div>
         <div class="rota-col rota-endereco">
           <span>Endereço</span>
-          <strong>${rota.endereco}</strong>
+          <strong>${linkGoogleMapsEndereco(rota.endereco)}</strong>
         </div>
         <div class="rota-col">
           <span>Total</span>

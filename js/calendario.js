@@ -15,11 +15,34 @@ function calendarioDataBR(dataISO) {
   return `${dia}/${mes}/${ano}`;
 }
 
-function calendarioHoraDeDatetime(valor) {
+function calendarioHoraDeDatetime(valor, evento = null, tipo = "") {
   if (!valor) return "";
+
   const texto = String(valor);
-  if (texto.includes("T")) return texto.slice(11, 16);
-  return "";
+  let hora = "";
+
+  if (texto.includes("T")) {
+    hora = texto.slice(11, 16);
+  }
+
+  // Se estiver salvo como 00:00, provavelmente veio de data sem horário real.
+  // Usa fallback do horário do evento para não exibir horário falso no calendário.
+  if ((!hora || hora === "00:00") && evento) {
+    if (tipo === "montagem") {
+      hora = evento.hora_montagem || evento.montagem_hora || evento.hora_inicio || evento.hora_evento || "";
+    } else if (tipo === "desmontagem") {
+      hora = evento.hora_desmontagem || evento.desmontagem_hora || evento.hora_termino || "";
+    } else {
+      hora = evento.hora_inicio || evento.hora_evento || "";
+    }
+  }
+
+  hora = String(hora || "").slice(0, 5);
+
+  // Se ainda assim for 00:00, não mostra horário para evitar informação errada.
+  if (hora === "00:00") return "";
+
+  return hora;
 }
 
 function calendarioMesAnoTexto(data) {
@@ -70,7 +93,7 @@ function calendarioItensEvento(evento) {
       eventoId: evento.id,
       tipo: "montagem",
       data: String(evento.montagem).slice(0, 10),
-      hora: calendarioHoraDeDatetime(evento.montagem),
+      hora: calendarioHoraDeDatetime(evento.montagem, evento, "montagem"),
       titulo: evento.nome || "Montagem",
       evento
     });
@@ -82,7 +105,7 @@ function calendarioItensEvento(evento) {
       eventoId: evento.id,
       tipo: "desmontagem",
       data: String(evento.desmontagem).slice(0, 10),
-      hora: calendarioHoraDeDatetime(evento.desmontagem),
+      hora: calendarioHoraDeDatetime(evento.desmontagem, evento, "desmontagem"),
       titulo: evento.nome || "Desmontagem",
       evento
     });
