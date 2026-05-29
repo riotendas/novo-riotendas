@@ -1,955 +1,1195 @@
 
-const storageConfigKey = "novoRioTendasConfiguracoesV1";
 
-function configPadrao() {
-  return {
-    carros: ["Saveiro", "Dupla", "Caminhão"],
-    categorias: {
-      "Tenda Sanfonada": ["3x3", "4.5x3", "4x4", "6x3"],
-      "Tenda Piramidal": ["5x5", "6x6", "8x8", "10x10"],
-      "Ombrelone": ["2,40"],
-      "Mesas/Cadeiras": ["Sem código individual"]
-    },
-    cores: ["Branca", "Cristal", "Preta"],
-    fotosPadrao: {},
-    nomeEmpresa: "RioTendas",
-    logoEmpresa: "https://riotendas.smartwebinfo.com.br/webapp/public/img/logo.png",
-    periodoRotas: "30"
-  };
+function tipoHorarioBaseRota(valor) {
+  return String(valor || "A partir de").split("|")[0] || "A partir de";
 }
 
-function carregarConfiguracoes() {
-  const salvas = JSON.parse(localStorage.getItem(storageConfigKey) || "null");
-  return { ...configPadrao(), ...(salvas || {}) };
+function tipoHorarioFimRota(valor) {
+  const partes = String(valor || "").split("|");
+  return partes.length > 1 ? partes[1] : "";
 }
 
+function textoHorarioRota(tipoSalvo, horario, dataISO) {
+  const tipo = tipoHorarioBaseRota(tipoSalvo);
+  const fim = tipoHorarioFimRota(tipoSalvo);
 
-async function carregarConfiguracoesNuvem() {
+  if (tipo === "Exatamente") return horario ? `Exatamente às ${horario}` : "Exatamente";
+  if (tipo === "A partir de") return horario ? `A partir das ${horario}` : "A partir de";
+  if (tipo === "Até") return horario ? `Até ${horario}` : "Até";
+  if (tipo === "Intervalo") {
+    if (horario && fim) return `Entre ${horario} e ${fim}`;
+    if (horario) return `Intervalo a partir das ${horario}`;
+    return "Intervalo";
+  }
+  if (tipo === "Horário comercial") return "Horário comercial";
+  if (tipo === "Livre / combinar") return "Livre / combinar";
+  return horario ? `${tipo} ${horario}` : tipo;
+}
+
+let rotasCarros = {};
+const storageRotasCarrosKey = "novoRioTendasRotasCarrosV1";
+
+
+async function carregarRotasCarrosNuvem() {
   if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
 
   try {
     const { data, error } = await supabaseClient
       .from("app_config")
       .select("valor")
-      .eq("chave", "configuracoes")
+      .eq("chave", "rotas_carros")
       .maybeSingle();
 
     if (error) {
-      console.warn("Não foi possível carregar configurações da nuvem:", error);
+      console.warn("Não foi possível carregar carros das rotas na nuvem:", error);
       return null;
     }
 
     return data?.valor || null;
   } catch (erro) {
-    console.warn("Erro ao carregar configurações da nuvem:", erro);
+    console.warn("Erro ao carregar carros das rotas na nuvem:", erro);
     return null;
   }
 }
 
-async function salvarConfiguracoesNuvem(config) {
+async function salvarRotasCarrosNuvem() {
   if (typeof supabaseClient === "undefined" || !supabaseClient) return;
 
   try {
     const { error } = await supabaseClient
       .from("app_config")
       .upsert({
-        chave: "configuracoes",
-        valor: config,
+        chave: "rotas_carros",
+        valor: rotasCarros || {},
         atualizado_em: new Date().toISOString()
       }, { onConflict: "chave" });
 
-    if (error) console.warn("Não foi possível salvar configurações na nuvem:", error);
+    if (error) console.warn("Não foi possível salvar carros das rotas na nuvem:", error);
   } catch (erro) {
-    console.warn("Erro ao salvar configurações na nuvem:", erro);
+    console.warn("Erro ao salvar carros das rotas na nuvem:", erro);
   }
 }
 
-async function sincronizarConfiguracoesNuvem() {
-  const configNuvem = await carregarConfiguracoesNuvem();
+async function sincronizarRotasCarrosNuvem() {
+  const nuvem = await carregarRotasCarrosNuvem();
 
-  if (configNuvem) {
-    const configLocal = carregarConfiguracoes();
-    const configFinal = { ...configLocal, ...configNuvem };
-    localStorage.setItem(storageConfigKey, JSON.stringify(configFinal));
-    aplicarConfiguracoesNoSistema();
-
-    if (typeof renderizarProdutos === "function") renderizarProdutos();
-    if (typeof renderizarRotas === "function") renderizarRotas();
-    if (typeof renderizarFotosPadraoConfig === "function") renderizarFotosPadraoConfig();
-    if (typeof renderizarCarrosConfig === "function") renderizarCarrosConfig();
-    return configFinal;
-  }
-
-  const configAtual = carregarConfiguracoes();
-  await salvarConfiguracoesNuvem(configAtual);
-  return configAtual;
-}
-
-function salvarConfiguracoes(config) {
-  localStorage.setItem(storageConfigKey, JSON.stringify(config));
-  aplicarConfiguracoesNoSistema();
-
-  // Em nuvem, mantém configurações compartilhadas entre computadores/celulares.
-  salvarConfiguracoesNuvem(config);
-}
-
-function aplicarConfiguracoesNoSistema() {
-  const config = carregarConfiguracoes();
-
-  window.configRioTendas = config;
-
-  if (Array.isArray(config.carros)) {
-    window.carrosEmpresa = config.carros;
-  }
-
-  if (config.categorias && typeof config.categorias === "object") {
-    window.categoriasProdutosConfig = config.categorias;
-
-    // Atualiza a variável global usada pelo cadastro de produtos, se ela existir.
-    try {
-      if (typeof categoriasProdutos !== "undefined") {
-        Object.keys(categoriasProdutos).forEach(k => delete categoriasProdutos[k]);
-        Object.entries(config.categorias).forEach(([categoria, tamanhos]) => {
-          categoriasProdutos[categoria] = tamanhos;
-        });
-      }
-    } catch (erro) {
-      console.warn("Não foi possível atualizar categoriasProdutos diretamente.", erro);
-    }
-  }
-
-  if (config.fotosPadrao && typeof config.fotosPadrao === "object") {
-    window.fotosPadraoProdutosConfig = config.fotosPadrao;
-  }
-
-  if (Array.isArray(config.cores)) {
-    window.coresProdutosConfig = config.cores;
-
-    // Atualiza a variável global usada pelo cadastro de produtos, se ela existir.
-    try {
-      if (typeof coresProdutos !== "undefined") {
-        coresProdutos.length = 0;
-        config.cores.forEach(cor => coresProdutos.push(cor));
-      }
-    } catch (erro) {
-      console.warn("Não foi possível atualizar coresProdutos diretamente.", erro);
-    }
-  }
-
-  const rotaPeriodo = document.getElementById("rotaPeriodo");
-  if (rotaPeriodo && config.periodoRotas) {
-    rotaPeriodo.value = config.periodioRotas || config.periodoRotas;
-  }
-
-  // Recarrega opções visuais sem apagar dados digitados.
-  try {
-    if (typeof preencherFiltrosProdutos === "function") preencherFiltrosProdutos();
-  } catch {}
-
-  try {
-    if (typeof atualizarOpcoesProduto === "function") atualizarOpcoesProduto();
-  } catch {}
-
-  try {
-    if (typeof renderizarRotas === "function") renderizarRotas();
-  } catch {}
-}
-
-function iniciarConfiguracoes() {
-  if (!document.getElementById("configSection")) return;
-
-  aplicarConfiguracoesNoSistema();
-  sincronizarConfiguracoesNuvem().then(() => {
-    preencherPreferenciasConfig();
-    renderizarCarrosConfig();
-    renderizarCategoriasConfig();
-    preencherSelectsFotoPadrao();
-    renderizarCoresConfig();
-    renderizarFotosPadraoConfig();
-  });
-  preencherPreferenciasConfig();
-  renderizarCarrosConfig();
-  renderizarCategoriasConfig();
-  preencherSelectsFotoPadrao();
-  renderizarCoresConfig();
-  preencherSelectsFotoPadrao();
-  renderizarFotosPadraoConfig();
-
-  document.getElementById("exportarProdutosExcel").addEventListener("click", () => exportarProdutosExcel());
-  document.getElementById("importarProdutosExcel").addEventListener("change", importarProdutosExcel);
-
-  document.getElementById("exportarEventosExcel").addEventListener("click", exportarEventosExcel);
-  document.getElementById("importarEventosExcel").addEventListener("change", importarEventosExcel);
-
-  document.getElementById("adicionarCarroConfig").addEventListener("click", adicionarCarroConfig);
-  document.getElementById("adicionarCategoriaConfig").addEventListener("click", adicionarCategoriaConfig);
-  document.getElementById("adicionarCorConfig").addEventListener("click", adicionarCorConfig);
-  const categoriaFotoPadrao = document.getElementById("fotoPadraoCategoria");
-  if (categoriaFotoPadrao) categoriaFotoPadrao.addEventListener("change", preencherTamanhosFotoPadrao);
-
-  const btnFotoPadrao = document.getElementById("adicionarFotoPadraoConfig");
-  if (btnFotoPadrao) btnFotoPadrao.addEventListener("click", adicionarFotoPadraoConfig);
-  document.getElementById("salvarPreferenciasConfig").addEventListener("click", salvarPreferenciasConfig);
-}
-
-function garantirXLSX() {
-  if (typeof XLSX === "undefined") {
-    alert("Biblioteca de Excel não carregada. Verifique a conexão com a internet ou o CDN do SheetJS.");
-    return false;
-  }
-  return true;
-}
-
-function baixarCSVCompatExcel(nomeArquivo, linhas) {
-  if (!linhas || !linhas.length) {
-    alert("Nenhum dado encontrado para exportar.");
+  if (nuvem && typeof nuvem === "object") {
+    rotasCarros = { ...rotasCarros, ...nuvem };
+    localStorage.setItem(storageRotasCarrosKey, JSON.stringify(rotasCarros));
+    renderizarRotas();
     return;
   }
 
-  const colunas = Object.keys(linhas[0]);
-
-  const escapar = valor => {
-    const texto = String(valor ?? "").replace(/"/g, '""');
-    return `"${texto}"`;
-  };
-
-  const csv = [
-    colunas.map(escapar).join(";"),
-    ...linhas.map(linha => colunas.map(coluna => escapar(linha[coluna])).join(";"))
-  ].join("\n");
-
-  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = nomeArquivo.replace(/\.xlsx$/i, ".csv");
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-
-  URL.revokeObjectURL(url);
+  await salvarRotasCarrosNuvem();
 }
 
-function baixarPlanilha(nomeArquivo, linhas, nomeAba = "Dados") {
-  if (!linhas || !linhas.length) {
-    alert("Nenhum dado encontrado para exportar.");
-    return;
-  }
+function carregarRotasCarrosLocal() {
+  return JSON.parse(localStorage.getItem(storageRotasCarrosKey) || "{}");
+}
 
-  if (typeof XLSX === "undefined") {
-    console.warn("XLSX não carregou. Exportando CSV compatível com Excel.");
-    baixarCSVCompatExcel(nomeArquivo, linhas);
-    return;
-  }
+function salvarRotasCarrosLocal() {
+  localStorage.setItem(storageRotasCarrosKey, JSON.stringify(rotasCarros));
+  salvarRotasCarrosNuvem();
+}
+
+async function carregarRotasOrdemNuvem() {
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
 
   try {
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(linhas);
-    XLSX.utils.book_append_sheet(wb, ws, nomeAba);
-    XLSX.writeFile(wb, nomeArquivo);
+    const { data, error } = await supabaseClient
+      .from("app_config")
+      .select("valor")
+      .eq("chave", "rotas_ordem_manual")
+      .maybeSingle();
+
+    if (error) {
+      console.warn("Não foi possível carregar ordem das rotas na nuvem:", error);
+      return null;
+    }
+
+    return data?.valor || null;
   } catch (erro) {
-    console.error("Erro ao gerar XLSX. Exportando CSV.", erro);
-    baixarCSVCompatExcel(nomeArquivo, linhas);
+    console.warn("Erro ao carregar ordem das rotas na nuvem:", erro);
+    return null;
   }
 }
 
-function lerPlanilhaArquivo(file, callback) {
-  if (!garantirXLSX()) return;
+async function salvarRotasOrdemNuvem() {
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return;
 
-  const reader = new FileReader();
-
-  reader.onload = e => {
-    const data = new Uint8Array(e.target.result);
-    const wb = XLSX.read(data, { type: "array" });
-    const primeiraAba = wb.SheetNames[0];
-    const ws = wb.Sheets[primeiraAba];
-    const linhas = XLSX.utils.sheet_to_json(ws, { defval: "" });
-    callback(linhas);
-  };
-
-  reader.readAsArrayBuffer(file);
-}
-
-async function exportarProdutosExcel() {
   try {
-    if (typeof XLSX === "undefined") {
-      alert("A biblioteca de Excel ainda não carregou. Aguarde alguns segundos e tente novamente.");
-      return;
-    }
-
-    let listaProdutos = [];
-
-    if (typeof buscarProdutosBanco === "function") {
-      try {
-        const dadosBanco = await buscarProdutosBanco();
-        if (Array.isArray(dadosBanco)) listaProdutos = dadosBanco;
-      } catch (erro) {
-        console.warn("buscarProdutosBanco falhou:", erro);
-      }
-    }
-
-    if (!listaProdutos.length && typeof supabaseClient !== "undefined" && supabaseClient) {
-      for (const tabela of ["produtos", "tendas"]) {
-        try {
-          const { data, error } = await supabaseClient.from(tabela).select("*");
-          if (!error && Array.isArray(data) && data.length) {
-            listaProdutos = data;
-            break;
-          }
-        } catch (erro) {
-          console.warn("Erro ao consultar tabela", tabela, erro);
-        }
-      }
-    }
-
-    if (!listaProdutos.length && typeof produtos !== "undefined" && Array.isArray(produtos)) {
-      listaProdutos = produtos;
-    }
-
-    if (!listaProdutos.length) {
-      alert("Nenhum produto encontrado para exportar.");
-      return;
-    }
-
-    const limitarCelulaExcel = (valor, limite = 32000) => {
-      const texto = String(valor ?? "");
-      return texto.length > limite ? texto.slice(0, limite) + "..." : texto;
-    };
-
-    const chaveFotoPadraoProduto = produto => `${produto.categoria || produto.tipo || ""}|${produto.tamanho || ""}`;
-
-    const obterResumoFotoExcel = produto => {
-      const config = carregarConfiguracoes();
-      const chave = chaveFotoPadraoProduto(produto);
-      const fotoPadrao = config.fotosPadrao?.[chave] || "";
-      const fotoPropria = String(produto.foto || "");
-
-      if (fotoPropria && fotoPropria.startsWith("data:image")) return "Foto própria cadastrada";
-      if (fotoPropria && fotoPropria.length <= 500) return fotoPropria;
-      if (fotoPropria) return "Foto própria cadastrada";
-
-      if (fotoPadrao && String(fotoPadrao).startsWith("data:image")) return "Foto padrão cadastrada";
-      if (fotoPadrao && String(fotoPadrao).length <= 500) return fotoPadrao;
-      if (fotoPadrao) return "Foto padrão cadastrada";
-
-      return "";
-    };
-
-    const linhas = listaProdutos.map(p => ({
-      "Código": limitarCelulaExcel(p.codigo || ""),
-      "Categoria": limitarCelulaExcel(p.categoria || p.tipo || ""),
-      "Tamanho": limitarCelulaExcel(p.tamanho || ""),
-      "Cor": limitarCelulaExcel(p.cor || ""),
-      "Status": limitarCelulaExcel(p.status || ""),
-      "Observação": limitarCelulaExcel(p.observacao || ""),
-      "Grau de usabilidade": limitarCelulaExcel(p.grau_usabilidade || ""),
-      "Foto": obterResumoFotoExcel(p),
-      "Chave foto padrão": chaveFotoPadraoProduto(p),
-      "Colaborador": limitarCelulaExcel(p.colaborador || ""),
-      "Cadastro": limitarCelulaExcel(p.criado_em || p.data_cadastro || p.data_compra || ""),
-      "Atualizado em": limitarCelulaExcel(p.atualizado_em || ""),
-      "ID": limitarCelulaExcel(p.id || "")
-    }));
-
-    const cabecalhos = [
-      "Código",
-      "Categoria",
-      "Tamanho",
-      "Cor",
-      "Status",
-      "Observação",
-      "Grau de usabilidade",
-      "Foto",
-      "Chave foto padrão",
-      "Colaborador",
-      "Cadastro",
-      "Atualizado em",
-      "ID"
-    ];
-
-    const ws = XLSX.utils.json_to_sheet(linhas, { header: cabecalhos });
-
-    ws["!cols"] = [
-      { wch: 12 },
-      { wch: 22 },
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 18 },
-      { wch: 35 },
-      { wch: 20 },
-      { wch: 26 },
-      { wch: 28 },
-      { wch: 18 },
-      { wch: 22 },
-      { wch: 22 },
-      { wch: 36 }
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Produtos");
-
-    const arrayBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([arrayBuffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    });
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "produtos-riotendas.xlsx";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-  } catch (erro) {
-    console.error("Erro geral ao exportar produtos em XLSX:", erro);
-    alert("Erro ao exportar produtos em XLSX: " + (erro.message || erro));
-  }
-}
-
-async function importarProdutosExcel(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  if (!confirm("Importar produtos do Excel? Produtos com o mesmo código serão atualizados, evitando duplicidade.")) return;
-
-  const normalizarCodigoProduto = valor => String(valor || "").trim().toLowerCase();
-
-  const fotoValidaImportacao = valor => {
-    const texto = String(valor || "").trim();
-
-    if (!texto) return "";
-    if (texto === "Foto própria cadastrada") return "";
-    if (texto === "Foto padrão cadastrada") return "";
-    if (texto === "Foto própria cadastrada no sistema") return "";
-    if (texto === "Foto padrão cadastrada no sistema") return "";
-    if (texto === "Foto padrão enviada por upload") return "";
-
-    if (texto.startsWith("http://") || texto.startsWith("https://") || texto.startsWith("data:image")) return texto;
-
-    return "";
-  };
-
-  lerPlanilhaArquivo(file, async linhasOriginais => {
-    const linhas = [];
-    const codigosNaPlanilha = new Set();
-    let ignoradosSemCodigo = 0;
-    let duplicadosNaPlanilha = 0;
-
-    for (const linha of linhasOriginais) {
-      const codigo = linha["Código"] || linha.codigo || "";
-      const codigoNormalizado = normalizarCodigoProduto(codigo);
-
-      if (!codigoNormalizado) {
-        ignoradosSemCodigo++;
-        continue;
-      }
-
-      // Se a própria planilha tiver o mesmo código repetido,
-      // fica valendo a última linha encontrada.
-      const existenteIndex = linhas.findIndex(l => normalizarCodigoProduto(l["Código"] || l.codigo || "") === codigoNormalizado);
-
-      if (existenteIndex >= 0) {
-        linhas[existenteIndex] = linha;
-        duplicadosNaPlanilha++;
-      } else {
-        linhas.push(linha);
-      }
-
-      codigosNaPlanilha.add(codigoNormalizado);
-    }
-
-    const produtosAtuais = typeof buscarProdutosBanco === "function"
-      ? await buscarProdutosBanco()
-      : (Array.isArray(produtos) ? produtos : []);
-
-    let atualizados = 0;
-    let criados = 0;
-
-    for (const linha of linhas) {
-      const codigo = linha["Código"] || linha.codigo || "";
-      const codigoNormalizado = normalizarCodigoProduto(codigo);
-
-      const existente = Array.isArray(produtosAtuais)
-        ? produtosAtuais.find(p => normalizarCodigoProduto(p.codigo) === codigoNormalizado)
-        : null;
-
-      const id = existente?.id || linha.ID || linha.id || gerarId();
-
-      const fotoImportada = fotoValidaImportacao(linha["Foto"] || linha.foto || "");
-      const fotoPreservada = fotoImportada || existente?.foto || "";
-
-      const produto = {
-        ...(existente || {}),
-        id,
-        codigo: codigo,
-        categoria: linha["Categoria"] || linha.categoria || linha.tipo || existente?.categoria || existente?.tipo || "",
-        tipo: linha["Categoria"] || linha.tipo || linha.categoria || existente?.tipo || existente?.categoria || "",
-        tamanho: linha["Tamanho"] || linha.tamanho || existente?.tamanho || "",
-        cor: linha["Cor"] || linha.cor || existente?.cor || "",
-        status: linha["Status"] || linha.status || existente?.status || "Livre",
-        observacao: linha["Observação"] || linha.observacao || linha["observação"] || existente?.observacao || "",
-        foto: fotoPreservada,
-        grau_usabilidade: linha["Grau de usabilidade"] || linha.grau_usabilidade || linha.usabilidade || existente?.grau_usabilidade || "Bom",
-        colaborador: linha["Colaborador"] || linha.colaborador || existente?.colaborador || getColaboradorLogado(),
-        criado_em: existente?.criado_em || linha["Cadastro"] || linha.criado_em || new Date().toISOString(),
-        atualizado_em: new Date().toISOString(),
-        historico: existente?.historico || [],
-        locacoes: existente?.locacoes || []
-      };
-
-      if (typeof salvarProdutoBanco === "function") {
-        await salvarProdutoBanco(produto);
-      }
-
-      if (existente) atualizados++;
-      else criados++;
-    }
-
-    if (typeof carregarProdutos === "function") await carregarProdutos();
-
-    alert(
-      `Importação concluída.\n\n` +
-      `Criados: ${criados}\n` +
-      `Atualizados: ${atualizados}\n` +
-      `Duplicados na planilha ignorados/mesclados: ${duplicadosNaPlanilha}\n` +
-      `Linhas sem código ignoradas: ${ignoradosSemCodigo}`
-    );
-  });
-
-  event.target.value = "";
-}
-
-function filtrarEventosExportacao() {
-  const inicio = document.getElementById("exportEventoInicio").value;
-  const fim = document.getElementById("exportEventoFim").value;
-
-  return (Array.isArray(eventos) ? eventos : []).filter(e => {
-    return (!inicio || e.data_evento >= inicio) && (!fim || e.data_evento <= fim);
-  });
-}
-
-function textoProdutosEventoConfig(evento) {
-  const tendas = (evento.tendas || []).map(p => [p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - "));
-  const apoio = (evento.itens_apoio || []).map(i => `${i.nome} (${i.quantidade})`);
-  const extras = (evento.produtos_extras || []).map(i => `${i.descricao} (${i.quantidade})`);
-  return [...tendas, ...apoio, ...extras].join(" | ");
-}
-
-function exportarEventosExcel() {
-  const linhas = filtrarEventosExportacao().map(e => ({
-    id: e.id || "",
-    nome: e.nome || "",
-    documento: e.documento || "",
-    telefone: e.telefone || "",
-    endereco: e.endereco || "",
-    data_evento: e.data_evento || "",
-    hora_inicio: e.hora_inicio || e.hora_evento || "",
-    hora_termino: e.hora_termino || "",
-    montagem_tipo: e.montagem_tipo || "",
-    montagem: e.montagem || "",
-    desmontagem_tipo: e.desmontagem_tipo || "",
-    desmontagem: e.desmontagem || "",
-    produtos_resumo: textoProdutosEventoConfig(e),
-    tendas_json: JSON.stringify(e.tendas || []),
-    itens_apoio_json: JSON.stringify(e.itens_apoio || []),
-    produtos_extras_json: JSON.stringify(e.produtos_extras || []),
-    valor_total: Number(e.valor_total || 0),
-    valor_sinal: Number(e.valor_sinal || 0),
-    valor_restante: Number(e.valor_restante || 0),
-    forma_pagamento: e.forma_pagamento || "",
-    pagamento_quitado: e.pagamento_quitado ? "Sim" : "Não",
-    colaborador: e.colaborador || "",
-    criado_em: e.criado_em || "",
-    atualizado_em: e.atualizado_em || ""
-  }));
-
-  baixarPlanilha("eventos-riotendas.xlsx", linhas, "Eventos");
-}
-
-async function importarEventosExcel(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  if (!confirm("Importar eventos do Excel? Eventos com o mesmo ID serão atualizados.")) return;
-
-  lerPlanilhaArquivo(file, async linhas => {
-    for (const linha of linhas) {
-      const evento = {
-        id: linha.id || gerarId(),
-        nome: linha.nome || "",
-        documento: linha.documento || "",
-        telefone: linha.telefone || "",
-        endereco: linha.endereco || "",
-        data_evento: linha.data_evento || null,
-        hora_inicio: linha.hora_inicio || linha.hora_evento || null,
-        hora_termino: linha.hora_termino || null,
-        hora_evento: linha.hora_inicio || linha.hora_evento || null,
-        montagem_tipo: linha.montagem_tipo || "A partir de",
-        montagem: linha.montagem || null,
-        desmontagem_tipo: linha.desmontagem_tipo || "A partir de",
-        desmontagem: linha.desmontagem || null,
-        tendas: parseJSONSeguro(linha.tendas_json, []),
-        itens_apoio: parseJSONSeguro(linha.itens_apoio_json, []),
-        produtos_extras: parseJSONSeguro(linha.produtos_extras_json, []),
-        valor_total: Number(linha.valor_total || 0),
-        valor_sinal: Number(linha.valor_sinal || 0),
-        valor_restante: Number(linha.valor_restante || 0),
-        forma_pagamento: linha.forma_pagamento || "",
-        pagamento_quitado: String(linha.pagamento_quitado || "").toLowerCase().startsWith("s") || linha.pagamento_quitado === true,
-        colaborador: linha.colaborador || getColaboradorLogado(),
-        criado_em: linha.criado_em || new Date().toISOString(),
+    const { error } = await supabaseClient
+      .from("app_config")
+      .upsert({
+        chave: "rotas_ordem_manual",
+        valor: rotasOrdemManual || {},
         atualizado_em: new Date().toISOString()
-      };
+      }, { onConflict: "chave" });
 
-      if (typeof salvarEventoBanco === "function") {
-        await salvarEventoBanco(evento);
-      }
-    }
-
-    if (typeof carregarEventos === "function") await carregarEventos();
-    alert("Eventos importados com sucesso.");
-  });
-
-  event.target.value = "";
-}
-
-function parseJSONSeguro(valor, fallback) {
-  try {
-    if (!valor) return fallback;
-    if (typeof valor !== "string") return fallback;
-    return JSON.parse(valor);
-  } catch {
-    return fallback;
+    if (error) console.warn("Não foi possível salvar ordem das rotas na nuvem:", error);
+  } catch (erro) {
+    console.warn("Erro ao salvar ordem das rotas na nuvem:", erro);
   }
 }
 
-function preencherPreferenciasConfig() {
-  const config = carregarConfiguracoes();
+async function sincronizarRotasOrdemNuvem() {
+  const nuvem = await carregarRotasOrdemNuvem();
 
-  document.getElementById("configNomeEmpresa").value = config.nomeEmpresa || "";
-  document.getElementById("configLogoEmpresa").value = config.logoEmpresa || "";
-  document.getElementById("configPeriodoRotas").value = config.periodoRotas || "30";
-}
-
-function renderizarCarrosConfig() {
-  const config = carregarConfiguracoes();
-  const lista = document.getElementById("listaCarrosConfig");
-
-  lista.innerHTML = config.carros.map(carro => `
-    <div class="config-list-item">
-      <span>${carro}</span>
-      <button type="button" class="btn-outline" data-remover-carro="${carro}">Excluir</button>
-    </div>
-  `).join("");
-
-  lista.querySelectorAll("[data-remover-carro]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const config = carregarConfiguracoes();
-      config.carros = config.carros.filter(c => c !== btn.dataset.removerCarro);
-      salvarConfiguracoes(config);
-      renderizarCarrosConfig();
-    });
-  });
-}
-
-function adicionarCarroConfig() {
-  const input = document.getElementById("novoCarroNome");
-  const nome = input.value.trim();
-  if (!nome) return;
-
-  const config = carregarConfiguracoes();
-  if (!config.carros.includes(nome)) config.carros.push(nome);
-
-  input.value = "";
-  salvarConfiguracoes(config);
-  aplicarConfiguracoesNoSistema();
-  renderizarCarrosConfig();
-}
-
-function renderizarCategoriasConfig() {
-  const config = carregarConfiguracoes();
-  const lista = document.getElementById("listaCategoriasConfig");
-
-  lista.innerHTML = Object.entries(config.categorias).map(([categoria, tamanhos]) => `
-    <div class="config-list-item config-list-item-column">
-      <div>
-        <strong>${categoria}</strong>
-        <small>${(tamanhos || []).join(", ")}</small>
-      </div>
-      <button type="button" class="btn-outline" data-remover-categoria="${categoria}">Excluir</button>
-    </div>
-  `).join("");
-
-  lista.querySelectorAll("[data-remover-categoria]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const config = carregarConfiguracoes();
-      delete config.categorias[btn.dataset.removerCategoria];
-      salvarConfiguracoes(config);
-      renderizarCategoriasConfig();
-  preencherSelectsFotoPadrao();
-    });
-  });
-}
-
-function adicionarCategoriaConfig() {
-  const nomeInput = document.getElementById("novaCategoriaNome");
-  const tamanhosInput = document.getElementById("novaCategoriaTamanhos");
-
-  const nome = nomeInput.value.trim();
-  const tamanhos = tamanhosInput.value.split(",").map(t => t.trim()).filter(Boolean);
-
-  if (!nome) return;
-
-  const config = carregarConfiguracoes();
-  config.categorias[nome] = tamanhos.length ? tamanhos : ["Padrão"];
-
-  nomeInput.value = "";
-  tamanhosInput.value = "";
-
-  salvarConfiguracoes(config);
-  aplicarConfiguracoesNoSistema();
-  renderizarCategoriasConfig();
-  preencherSelectsFotoPadrao();
-}
-
-function renderizarCoresConfig() {
-  const config = carregarConfiguracoes();
-  const lista = document.getElementById("listaCoresConfig");
-
-  lista.innerHTML = config.cores.map(cor => `
-    <div class="config-list-item">
-      <span>${cor}</span>
-      <button type="button" class="btn-outline" data-remover-cor="${cor}">Excluir</button>
-    </div>
-  `).join("");
-
-  lista.querySelectorAll("[data-remover-cor]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const config = carregarConfiguracoes();
-      config.cores = config.cores.filter(c => c !== btn.dataset.removerCor);
-      salvarConfiguracoes(config);
-      renderizarCoresConfig();
-  preencherSelectsFotoPadrao();
-  renderizarFotosPadraoConfig();
-    });
-  });
-}
-
-function adicionarCorConfig() {
-  const input = document.getElementById("novaCorNome");
-  const nome = input.value.trim();
-
-  if (!nome) return;
-
-  const config = carregarConfiguracoes();
-  if (!config.cores.includes(nome)) config.cores.push(nome);
-
-  input.value = "";
-  salvarConfiguracoes(config);
-  aplicarConfiguracoesNoSistema();
-  renderizarCoresConfig();
-  preencherSelectsFotoPadrao();
-  renderizarFotosPadraoConfig();
-}
-
-
-
-function arquivoFotoPadraoParaDataURL(file, maxWidth = 900, qualidade = 0.78) {
-  return new Promise((resolve, reject) => {
-    if (!file) {
-      resolve("");
-      return;
-    }
-
-    const reader = new FileReader();
-
-    reader.onload = event => {
-      const img = new Image();
-
-      img.onload = () => {
-        const escala = Math.min(1, maxWidth / img.width);
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(img.width * escala);
-        canvas.height = Math.round(img.height * escala);
-
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        resolve(canvas.toDataURL("image/jpeg", qualidade));
-      };
-
-      img.onerror = reject;
-      img.src = event.target.result;
-    };
-
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-function chaveFotoPadrao(categoria, tamanho) {
-  return `${String(categoria || "").trim()}|${String(tamanho || "").trim()}`;
-}
-
-
-function preencherSelectsFotoPadrao() {
-  const categoriaSelect = document.getElementById("fotoPadraoCategoria");
-  const tamanhoSelect = document.getElementById("fotoPadraoTamanho");
-
-  if (!categoriaSelect || !tamanhoSelect) return;
-
-  const config = carregarConfiguracoes();
-  const categorias = config.categorias || {};
-
-  const categoriaAtual = categoriaSelect.value;
-
-  categoriaSelect.innerHTML = `
-    <option value="">Selecione uma categoria</option>
-    ${Object.keys(categorias).map(categoria => `
-      <option value="${categoria}" ${categoriaAtual === categoria ? "selected" : ""}>${categoria}</option>
-    `).join("")}
-  `;
-
-  preencherTamanhosFotoPadrao();
-}
-
-function preencherTamanhosFotoPadrao() {
-  const categoriaSelect = document.getElementById("fotoPadraoCategoria");
-  const tamanhoSelect = document.getElementById("fotoPadraoTamanho");
-
-  if (!categoriaSelect || !tamanhoSelect) return;
-
-  const config = carregarConfiguracoes();
-  const categoria = categoriaSelect.value;
-  const tamanhos = (config.categorias && config.categorias[categoria]) ? config.categorias[categoria] : [];
-
-  tamanhoSelect.innerHTML = `
-    <option value="">Selecione um tamanho</option>
-    ${tamanhos.map(tamanho => `<option value="${tamanho}">${tamanho}</option>`).join("")}
-  `;
-}
-
-function renderizarFotosPadraoConfig() {
-  const lista = document.getElementById("listaFotosPadraoConfig");
-  if (!lista) return;
-
-  const config = carregarConfiguracoes();
-  const fotos = config.fotosPadrao || {};
-  const entradas = Object.entries(fotos);
-
-  if (!entradas.length) {
-    lista.innerHTML = `<p class="empty">Nenhuma foto padrão cadastrada.</p>`;
+  if (nuvem && typeof nuvem === "object") {
+    rotasOrdemManual = { ...rotasOrdemManual, ...nuvem };
+    localStorage.setItem("rotas_ordem_manual", JSON.stringify(rotasOrdemManual));
+    renderizarRotas();
     return;
   }
 
-  lista.innerHTML = entradas.map(([chave, url]) => {
-    const [categoria, tamanho] = chave.split("|");
+  await salvarRotasOrdemNuvem();
+}
+
+
+function atualizarFiltroCarrosRotas() {
+  const select = document.getElementById("rotaCarroFiltro");
+  if (!select) return;
+
+  const valorAtual = select.value;
+  select.innerHTML = `
+    <option value="">Todos</option>
+    ${carrosDisponiveisRotas().map(carro => `<option value="${carro}">${carro}</option>`).join("")}
+    <option value="Sem carro">Sem carro</option>
+  `;
+  select.value = valorAtual;
+}
+
+
+let ultimaSincronizacaoOrdemRotas = 0;
+
+async function atualizarOrdemRotasDaNuvemSeNecessario() {
+  const agora = Date.now();
+  if (agora - ultimaSincronizacaoOrdemRotas < 15000) return;
+
+  ultimaSincronizacaoOrdemRotas = agora;
+  const nuvem = await carregarRotasOrdemNuvem();
+
+  if (nuvem && typeof nuvem === "object") {
+    const atual = JSON.stringify(rotasOrdemManual || {});
+    const novo = JSON.stringify({ ...rotasOrdemManual, ...nuvem });
+
+    if (atual !== novo) {
+      rotasOrdemManual = { ...rotasOrdemManual, ...nuvem };
+      localStorage.setItem("rotas_ordem_manual", JSON.stringify(rotasOrdemManual));
+      renderizarRotas();
+    }
+  }
+}
+
+function iniciarRotas() {
+  if (!document.getElementById("rotasConteudo")) return;
+
+  rotasCarros = carregarRotasCarrosLocal();
+  atualizarFiltroCarrosRotas();
+  sincronizarRotasCarrosNuvem();
+  sincronizarRotasOrdemNuvem();
+
+  const hoje = new Date();
+  const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+  document.getElementById("rotaMes").value = mesAtual;
+
+  ["rotaPeriodo", "rotaMes", "rotaData", "rotaTipoFiltro", "rotaCarroFiltro"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener("input", renderizarRotas);
+      el.addEventListener("change", renderizarRotas);
+    }
+  });
+
+  document.getElementById("atualizarRotasBtn").addEventListener("click", async () => {
+    if (typeof carregarEventos === "function") await carregarEventos();
+    renderizarRotas();
+  });
+
+  setTimeout(renderizarRotas, 400);
+  setTimeout(renderizarRotas, 1200);
+
+  setInterval(() => {
+    atualizarOrdemRotasDaNuvemSeNecessario();
+    renderizarRotas();
+  }, 30000);
+}
+
+function dataLocalISO(data) {
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, "0");
+  const dia = String(data.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
+function somarDiasDataISO(dias) {
+  const data = new Date();
+  data.setDate(data.getDate() + dias);
+  return dataLocalISO(data);
+}
+
+function dataKeyDeDateTime(valor) {
+  if (!valor) return "";
+  return String(valor).slice(0, 10);
+}
+
+function horaDeDateTime(valor) {
+  if (!valor) return "";
+  const texto = String(valor);
+  if (texto.includes("T")) return texto.slice(11, 16);
+  return texto.slice(0, 5);
+}
+
+
+
+function formatarDataCurtaDisponibilidade(dataISO) {
+  if (!dataISO) return "-";
+
+  const partes = String(dataISO).split("-");
+  if (partes.length !== 3) return dataISO;
+
+  return `${partes[2]}/${partes[1]}/${partes[0].slice(-2)}`;
+}
+
+function formatarDataRota(dataISO) {
+  if (!dataISO) return "-";
+  const partes = dataISO.split("-");
+  if (partes.length !== 3) return dataISO;
+  return `${partes[2]}/${partes[1]}/${partes[0].slice(-2)}`;
+}
+
+function diaSemanaRota(dataISO) {
+  if (!dataISO) return "";
+  const d = new Date(dataISO + "T12:00:00");
+  return d.toLocaleDateString("pt-BR", { weekday: "long" });
+}
+
+
+function dinheiroRota(valor) {
+  return Number(valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function statusPagamentoRota(evento) {
+  return evento.pagamento_quitado ? "Quitado" : "Em aberto";
+}
+
+function classePagamentoRota(evento) {
+  return evento.pagamento_quitado ? "pagamento-ok" : "pagamento-aberto";
+}
+
+function montarListaMateriais(evento) {
+  const tendas = (evento.tendas || []).map(p => {
+    const nome = [p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - ");
+    return nome || "Produto com código";
+  });
+
+  const apoio = (evento.itens_apoio || []).map(i => `${i.nome} (${i.quantidade})`);
+
+  const extras = (evento.produtos_extras || []).map(i => `${i.descricao} (${i.quantidade})`);
+
+  return [...tendas, ...apoio, ...extras];
+}
+
+function criarRotasDosEventos() {
+  const listaEventos = Array.isArray(eventos) ? eventos : [];
+
+  const rotas = [];
+
+  listaEventos.forEach(evento => {
+    if (evento.montagem) {
+      rotas.push({
+        id: `${evento.id}-montagem`,
+        evento_id: evento.id,
+        tipo: "Montagem",
+        data: dataKeyDeDateTime(evento.montagem),
+        horario: horaDeDateTime(evento.montagem),
+        tipoHorario: evento.montagem_tipo || "A partir de",
+        cliente: evento.nome || "-",
+        telefone: evento.telefone || "-",
+        endereco: evento.endereco || "-",
+        materiais: montarListaMateriais(evento),
+        evento
+      });
+    }
+
+    if (evento.desmontagem) {
+      rotas.push({
+        id: `${evento.id}-desmontagem`,
+        evento_id: evento.id,
+        tipo: "Desmontagem",
+        data: dataKeyDeDateTime(evento.desmontagem),
+        horario: horaDeDateTime(evento.desmontagem),
+        tipoHorario: evento.desmontagem_tipo || "A partir de",
+        cliente: evento.nome || "-",
+        telefone: evento.telefone || "-",
+        endereco: evento.endereco || "-",
+        materiais: montarListaMateriais(evento),
+        evento
+      });
+    }
+  });
+
+  return rotas;
+}
+
+function filtrarRotas(rotas) {
+  const periodo = document.getElementById("rotaPeriodo")?.value || "30";
+  const mes = document.getElementById("rotaMes").value;
+  const data = document.getElementById("rotaData").value;
+  const tipo = document.getElementById("rotaTipoFiltro").value;
+  const carro = document.getElementById("rotaCarroFiltro").value;
+
+  const hoje = dataLocalISO(new Date());
+  const limite7 = somarDiasDataISO(7);
+  const limite15 = somarDiasDataISO(15);
+  const limite30 = somarDiasDataISO(30);
+
+  return rotas.filter(rota => {
+    const carroRota = rotasCarros[rota.id] || "Sem carro";
+
+    let passaPeriodo = true;
+
+    if (periodo === "7") {
+      passaPeriodo = rota.data >= hoje && rota.data <= limite7;
+    } else if (periodo === "15") {
+      passaPeriodo = rota.data >= hoje && rota.data <= limite15;
+    } else if (periodo === "30") {
+      passaPeriodo = rota.data >= hoje && rota.data <= limite30;
+    } else if (periodo === "mes") {
+      passaPeriodo = !mes || rota.data.startsWith(mes);
+    } else if (periodo === "data") {
+      passaPeriodo = !data || rota.data === data;
+    }
+
+    return passaPeriodo
+      && (!tipo || rota.tipo === tipo)
+      && (!carro || carroRota === carro);
+  });
+}
+
+function agruparPorDataECarro(rotas) {
+  const grupos = {};
+
+  rotas.forEach(rota => {
+    const carro = rotasCarros[rota.id] || "Sem carro";
+
+    if (!grupos[rota.data]) grupos[rota.data] = {};
+    if (!grupos[rota.data][carro]) grupos[rota.data][carro] = [];
+
+    grupos[rota.data][carro].push(rota);
+  });
+
+  Object.values(grupos).forEach(grupoCarros => {
+    Object.values(grupoCarros).forEach(lista => {
+      lista.sort((a, b) => String(a.horario || "").localeCompare(String(b.horario || "")));
+    });
+  });
+
+  return grupos;
+}
+
+function renderizarRotas() {
+  const container = document.getElementById("rotasConteudo");
+  if (!container) return;
+
+  const todas = criarRotasDosEventos();
+  const filtradas = filtrarRotas(todas);
+
+  document.getElementById("rotasTotal").textContent = filtradas.length;
+  document.getElementById("rotasMontagens").textContent = filtradas.filter(r => r.tipo === "Montagem").length;
+  document.getElementById("rotasDesmontagens").textContent = filtradas.filter(r => r.tipo === "Desmontagem").length;
+
+  if (!filtradas.length) {
+    container.innerHTML = `<p class="empty">Nenhuma montagem ou desmontagem encontrada para o filtro selecionado.</p>`;
+    return;
+  }
+
+  const grupos = agruparPorDataECarro(filtradas);
+  const datas = Object.keys(grupos).sort();
+
+  container.innerHTML = datas.map(data => {
+    const carros = Object.keys(grupos[data]).sort((a, b) => ordemCarro(a) - ordemCarro(b));
+
     return `
-      <div class="config-list-item config-list-item-column foto-padrao-item">
-        <div>
-          <strong>${categoria || "-"}</strong>
-          <small>${tamanho || "-"}</small>
-          <small class="foto-padrao-link">${String(url).startsWith("data:image") ? "Foto enviada por upload" : url}</small>
+      <div class="rota-dia">
+        <div class="rota-dia-header">
+          <h3>${formatarDataRota(data)} <span>${diaSemanaRota(data)}</span></h3>
+          <button type="button" class="btn-outline rota-print-btn" data-print-date="${data}">Gerar PDF/Imprimir</button>
         </div>
-        <div class="foto-padrao-preview">
-          <img src="${url}" alt="Foto padrão">
-          <button type="button" class="btn-outline" data-editar-foto-padrao="${chave}">Alterar</button>
-          <button type="button" class="btn-outline btn-danger-soft" data-remover-foto-padrao="${chave}">Excluir link</button>
-        </div>
+
+        ${carros.map(carro => {
+          inicializarOrdemManualRotas(grupos[data][carro]);
+
+          const rotasOrdenadas = ordenarRotasPorOrdemManual(grupos[data][carro]);
+
+          return `
+          <div class="rota-carro">
+            <div class="rota-carro-header">
+              <h4>${carro}</h4>
+              <div class="rota-carro-materiais">
+                ${listaMateriaisRotas(rotasOrdenadas).map(item => `<span>${item}</span>`).join("")}
+              </div>
+            </div>
+            <div class="rota-lista">
+              ${rotasOrdenadas.map((rota, idx) => renderizarCardRota(rota, idx, rotasOrdenadas.length)).join("")}
+            </div>
+          </div>
+        `;
+        }).join("")}
       </div>
     `;
   }).join("");
 
-  lista.querySelectorAll("[data-remover-foto-padrao]").forEach(btn => {
+
+  container.querySelectorAll("button[data-rota-move]").forEach(btn => {
     btn.addEventListener("click", () => {
-      const config = carregarConfiguracoes();
-      delete config.fotosPadrao[btn.dataset.removerFotoPadrao];
-      salvarConfiguracoes(config);
-      preencherSelectsFotoPadrao();
-  renderizarFotosPadraoConfig();
-      if (typeof renderizarProdutos === "function") renderizarProdutos();
+      const data = btn.dataset.rotaData;
+      const carro = btn.dataset.rotaCarroGrupo;
+
+      const todas = criarRotasDosEventos();
+      const grupos = agruparPorDataECarro(todas);
+
+      const lista = (grupos[data] && grupos[data][carro])
+        ? ordenarRotasPorOrdemManual(grupos[data][carro])
+        : [];
+
+      moverOrdemRota(btn.dataset.rotaMove, btn.dataset.direction, lista);
+      renderizarRotas();
     });
+  });
+
+
+  container.querySelectorAll("button[data-rota-edit-evento]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const eventoId = btn.dataset.rotaEditEvento;
+      if (!eventoId) return;
+
+      if (typeof abrirEditarEvento === "function") {
+        abrirEditarEvento(eventoId);
+      } else {
+        alert("Abra o setor de Eventos para editar este evento.");
+      }
+    });
+  });
+
+  container.querySelectorAll("select[data-rota-carro]").forEach(select => {
+    select.addEventListener("change", () => {
+      rotasCarros[select.dataset.rotaCarro] = select.value || "Sem carro";
+      salvarRotasCarrosLocal();
+      renderizarRotas();
+    });
+  });
+
+  container.querySelectorAll("[data-print-date]").forEach(btn => {
+    btn.addEventListener("click", () => imprimirRotaData(btn.dataset.printDate));
   });
 }
 
-async function adicionarFotoPadraoConfig() {
-  const categoriaInput = document.getElementById("fotoPadraoCategoria");
-  const tamanhoInput = document.getElementById("fotoPadraoTamanho");
-  const arquivoInput = document.getElementById("fotoPadraoArquivo");
-  const hiddenAtual = document.getElementById("fotoPadraoUrl");
 
-  const categoria = categoriaInput.value.trim();
-  const tamanho = tamanhoInput.value.trim();
-  const arquivo = arquivoInput?.files?.[0] || null;
-  const fotoAtual = hiddenAtual?.value || "";
 
-  if (!categoria || !tamanho) {
-    alert("Selecione a categoria e o tamanho.");
-    return;
-  }
+function rotaEhDesmontagem(rota) {
+  const tipo = String(rota?.tipo || "").toLowerCase();
+  return tipo.includes("desmont") || tipo.includes("retirada");
+}
 
-  if (!arquivo && !fotoAtual) {
-    alert("Selecione uma foto para enviar.");
-    return;
-  }
+function listaMateriaisRotas(listaRotas = []) {
+  const materiais = [];
 
-  let fotoFinal = fotoAtual;
+  listaRotas.forEach(rota => {
+    // No resumo ao lado do carro, listar somente materiais que serão levados
+    // para montagem/entrega. Desmontagens/retiradas não entram nessa soma.
+    if (rotaEhDesmontagem(rota)) return;
 
-  if (arquivo) {
-    try {
-      fotoFinal = await arquivoFotoPadraoParaDataURL(arquivo);
-    } catch (erro) {
-      console.error("Erro ao processar foto:", erro);
-      alert("Não foi possível processar a foto selecionada.");
-      return;
+    if (Array.isArray(rota.materiais)) {
+      rota.materiais.forEach(item => materiais.push(item));
     }
+  });
+
+  return materiais;
+}
+
+function totalMateriaisRotas(listaRotas = []) {
+  return listaRotas.reduce((total, rota) => {
+    if (rotaEhDesmontagem(rota)) return total;
+    return total + (Array.isArray(rota.materiais) ? rota.materiais.length : 0);
+  }, 0);
+}
+
+function carrosDisponiveisRotas() {
+  const config = window.configRioTendas || {};
+  return Array.isArray(config.carros) && config.carros.length
+    ? config.carros
+    : ["Saveiro", "Dupla", "Caminhão"];
+}
+
+function ordemCarro(carro) {
+  if (carro === "Sem carro") return 999;
+
+  const carros = carrosDisponiveisRotas();
+  const index = carros.indexOf(carro);
+
+  return index >= 0 ? index + 1 : 99;
+}
+
+
+function tipoHorarioFlexivelRota(rota) {
+  const tipo = String(rota?.tipoHorario || "").toLowerCase();
+
+  return (
+    tipo.includes("horário comercial") ||
+    tipo.includes("horario comercial") ||
+    tipo.includes("livre") ||
+    tipo.includes("combinar")
+  );
+}
+
+function minutosRota(horario) {
+  if (!horario) return null;
+
+  const partes = String(horario).slice(0, 5).split(":");
+  if (partes.length < 2) return null;
+
+  const h = Number(partes[0]);
+  const m = Number(partes[1]);
+
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+
+  return h * 60 + m;
+}
+
+function intervaloConflitoRota(rota) {
+  if (!rota || tipoHorarioFlexivelRota(rota)) return null;
+
+  const tipo = String(rota.tipoHorario || "").toLowerCase();
+  const inicio = minutosRota(rota.horario);
+
+  if (inicio === null) return null;
+
+  // Intervalo salvo como "Intervalo|22:00" ou similar
+  if (tipo.includes("intervalo")) {
+    const fimTexto = String(rota.tipoHorario || "").split("|")[1] || "";
+    const fim = minutosRota(fimTexto);
+
+    if (fim !== null) {
+      return {
+        inicio: Math.min(inicio, fim),
+        fim: Math.max(inicio, fim)
+      };
+    }
+
+    // Se não tiver final, trata como uma janela curta de atenção
+    return { inicio, fim: inicio + 30 };
   }
 
-  const config = carregarConfiguracoes();
-  config.fotosPadrao = config.fotosPadrao || {};
-  config.fotosPadrao[chaveFotoPadrao(categoria, tamanho)] = fotoFinal;
+  // Horário exato: janela pequena para detectar choque real
+  if (tipo.includes("exato") || tipo.includes("exatamente")) {
+    return { inicio, fim: inicio + 30 };
+  }
 
-  categoriaInput.value = "";
-  preencherTamanhosFotoPadrao();
-  if (arquivoInput) arquivoInput.value = "";
-  if (hiddenAtual) hiddenAtual.value = "";
+  // "A partir de" e "Até" são flexíveis, então não geram conflito duro.
+  // Mantemos fora do conflito automático para evitar falso positivo.
+  if (tipo.includes("a partir") || tipo.includes("até")) {
+    return null;
+  }
 
-  salvarConfiguracoes(config);
-  renderizarFotosPadraoConfig();
-
-  if (typeof renderizarProdutos === "function") renderizarProdutos();
+  // Se houver horário mas tipo indefinido, usa janela curta conservadora
+  return { inicio, fim: inicio + 30 };
 }
 
-function salvarPreferenciasConfig() {
-  const config = carregarConfiguracoes();
-
-  config.nomeEmpresa = document.getElementById("configNomeEmpresa").value.trim() || "RioTendas";
-  config.logoEmpresa = document.getElementById("configLogoEmpresa").value.trim() || configPadrao().logoEmpresa;
-  config.periodoRotas = document.getElementById("configPeriodoRotas").value || "30";
-
-  salvarConfiguracoes(config);
-  alert("Preferências salvas.");
+function intervalosSobrepoemRota(a, b) {
+  if (!a || !b) return false;
+  return a.inicio < b.fim && b.inicio < a.fim;
 }
 
-let configuracoesInicializadas = false;
+function rotasComConflito(rotas) {
+  const mapa = {};
 
-function iniciarConfiguracoesUmaVez() {
-  if (configuracoesInicializadas) return;
-  if (!document.getElementById("configSection")) return;
-  iniciarConfiguracoes();
-  configuracoesInicializadas = true;
-}
+  rotas.forEach(rota => {
+    const carro = rotasCarros[rota.id] || "Sem carro";
+    if (carro === "Sem carro") return;
 
-document.addEventListener("DOMContentLoaded", () => {
-  sincronizarConfiguracoesNuvem();
-  iniciarConfiguracoesUmaVez();
+    const intervalo = intervaloConflitoRota(rota);
+    if (!intervalo) return;
 
-  document.querySelectorAll("[data-section='configSection']").forEach(btn => {
-    btn.addEventListener("click", () => {
-      setTimeout(iniciarConfiguracoesUmaVez, 50);
+    const chave = `${rota.data}|${carro}`;
+    if (!mapa[chave]) mapa[chave] = [];
+
+    mapa[chave].push({
+      id: rota.id,
+      intervalo
     });
   });
-});
+
+  const conflitos = new Set();
+
+  Object.values(mapa).forEach(lista => {
+    for (let i = 0; i < lista.length; i++) {
+      for (let j = i + 1; j < lista.length; j++) {
+        if (intervalosSobrepoemRota(lista[i].intervalo, lista[j].intervalo)) {
+          conflitos.add(lista[i].id);
+          conflitos.add(lista[j].id);
+        }
+      }
+    }
+  });
+
+  return conflitos;
+}
+
+function rotaTemConflito(rota) {
+  const todas = filtrarRotas(criarRotasDosEventos());
+  return rotasComConflito(todas).has(rota.id);
+}
+
+
+async function atualizarHorarioRotaEvento(rotaId, novoValor) {
+  const rota = criarRotasDosEventos().find(r => r.id === rotaId);
+  if (!rota || !rota.evento) return;
+
+  const evento = eventos.find(e => String(e.id) === String(rota.evento_id));
+  if (!evento) return;
+
+  if (rota.tipo === "Montagem") {
+    evento.montagem = novoValor || null;
+  } else {
+    evento.desmontagem = novoValor || null;
+  }
+
+  evento.atualizado_em = new Date().toISOString();
+
+  if (typeof salvarEventoBanco === "function") {
+    const salvo = await salvarEventoBanco(evento);
+    if (salvo) {
+      const index = eventos.findIndex(e => String(e.id) === String(evento.id));
+      if (index >= 0) eventos[index] = salvo;
+    }
+  } else {
+    const index = eventos.findIndex(e => String(e.id) === String(evento.id));
+    if (index >= 0) eventos[index] = evento;
+  }
+
+  renderizarRotas();
+}
+
+function valorDatetimeLocal(valor) {
+  if (!valor) return "";
+  return String(valor).slice(0, 16);
+}
+
+function renderizarCardRota(rota, index = 0, total = 0) {
+  const carroAtual = rotasCarros[rota.id] || "Sem carro";
+  const materiais = rota.materiais && rota.materiais.length ? rota.materiais : ["Sem materiais informados"];
+  const conflito = rotaTemConflito(rota);
+  const evento = rota.evento || {};
+
+  return `
+    <div class="rota-card tipo-${rota.tipo.toLowerCase()} ${conflito ? "rota-conflito" : ""}">
+      <div class="rota-tipo-vertical tipo-${rota.tipo.toLowerCase()}">
+        <span>${rota.tipo}</span>
+      </div>
+
+      <div class="rota-card-conteudo">
+        <div class="rota-card-top rota-card-top-refinado">
+          <div class="rota-identificacao">
+            ${conflito ? '<b class="rota-alerta">Conflito</b>' : ''}
+          </div>
+
+
+      </div>
+
+      <div class="rota-grid-info">
+        <div class="rota-col rota-evento-data">
+          <span>Data do evento</span>
+          <strong>${dataHoraEventoPrintCurta(evento, rota)}</strong>
+        </div>
+        <div class="rota-col rota-operacao-data">
+          <span>${rota.tipo}</span>
+          <strong>${textoHorarioRota(rota.tipoHorario, rota.horario, rota.data)}</strong>
+        </div>
+        <div class="rota-col">
+          <span>Cliente</span>
+          <strong>${rota.cliente}</strong>
+        </div>
+        <div class="rota-col">
+          <span>Telefone</span>
+          <strong>${rota.telefone}</strong>
+        </div>
+        <div class="rota-col rota-endereco">
+          <span>Endereço</span>
+          <strong>${rota.endereco}</strong>
+        </div>
+        <div class="rota-col">
+          <span>Total</span>
+          <strong>${dinheiroRota(evento.valor_total)}</strong>
+        </div>
+        <div class="rota-col">
+          <span>Sinal</span>
+          <strong>${dinheiroRota(evento.valor_sinal)}</strong>
+        </div>
+        <div class="rota-col">
+          <span>Restante</span>
+          <strong>${dinheiroRota(evento.valor_restante)}</strong>
+        </div>
+        <div class="rota-col">
+          <span>Pagamento</span>
+          <strong class="${classePagamentoRota(evento)}">${statusPagamentoRota(evento)}</strong>
+        </div>
+        <div class="rota-col rota-forma-pagamento">
+          <span>Forma pagamento</span>
+          <strong>${evento.forma_pagamento || "-"}</strong>
+        </div>
+      </div>
+
+      <div class="rota-materiais rota-materiais-com-controles">
+        <div class="rota-materiais-lista">
+          <strong>Materiais:</strong>
+          <div>
+            ${materiais.map(item => `<span>${item}</span>`).join("")}
+          </div>
+        </div>
+
+        <div class="rota-controles-baixo">
+          <div class="rota-controles-linha rota-controles-linha-baixo">
+            <label class="rota-carro-inline">Carro
+              <select data-rota-carro="${rota.id}">
+                <option value="Sem carro" ${carroAtual === "Sem carro" ? "selected" : ""}>Sem carro</option>
+                ${carrosDisponiveisRotas().map(carro => `<option value="${carro}" ${carroAtual === carro ? "selected" : ""}>${carro}</option>`).join("")}
+              </select>
+            </label>
+
+            <button type="button" class="btn-outline rota-edit-event-btn" data-rota-edit-evento="${evento.id || rota.evento_id || ""}">
+              Editar
+            </button>
+
+            <div class="rota-ordem-controls">
+              <button type="button" class="rota-order-btn" title="Subir" data-rota-move="${rota.id}" data-direction="up" data-rota-data="${rota.data}" data-rota-carro-grupo="${carroAtual}" ${index === 0 ? "disabled" : ""}>↑</button>
+              <button type="button" class="rota-order-btn" title="Descer" data-rota-move="${rota.id}" data-direction="down" data-rota-data="${rota.data}" data-rota-carro-grupo="${carroAtual}" ${index >= total - 1 ? "disabled" : ""}>↓</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+  `;
+}
+
+
+function dataEventoPrintCurta(valor) {
+  if (!valor) return "-";
+  const texto = String(valor).slice(0, 10);
+  const partes = texto.split("-");
+  if (partes.length !== 3) return texto;
+  return `${partes[2]}/${partes[1]}/${partes[0].slice(-2)}`;
+}
+
+function horaPrintCurta(valor) {
+  if (!valor) return "";
+  return String(valor).slice(0, 5);
+}
+
+function dataHoraEventoPrintCurta(evento, rota) {
+  const data = dataEventoPrintCurta(evento.data_evento || rota.data);
+  const inicio = horaPrintCurta(evento.hora_inicio || evento.hora_evento || "");
+  const fim = horaPrintCurta(evento.hora_termino || "");
+
+  if (inicio && fim) return `${data} ${inicio}-${fim}`;
+  if (inicio) return `${data} ${inicio}`;
+  return data;
+}
+
+function imprimirRotaData(data) {
+  const todas = criarRotasDosEventos();
+  const rotasData = todas.filter(r => r.data === data);
+
+  if (!rotasData.length) {
+    alert("Nenhuma rota encontrada para esta data.");
+    return;
+  }
+
+  const grupos = agruparPorDataECarro(rotasData);
+  const carros = Object.keys(grupos[data] || {}).sort((a, b) => ordemCarro(a) - ordemCarro(b));
+
+  const html = `
+    <html>
+      <head>
+        <title>Rota ${formatarDataRota(data)}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            font-size: 9px;
+            padding: 8px;
+            color: #1d2b3a;
+          }
+
+          .topo {
+            display:flex;
+            align-items:center;
+            gap:12px;
+            margin-bottom:4px;
+          }
+
+          .topo img {
+            height:36px;
+          }
+
+          h1 {
+            margin:0;
+            font-size:18px;
+          }
+
+          .subtitulo {
+            margin-top:2px;
+            color:#556677;
+          }
+
+          h2 {
+            margin-top:10px;
+            border-bottom:1px solid #d6e0ea;
+            padding-bottom:4px;
+            color:#0f3d66;
+          }
+
+          .carro-total {
+            display:inline-block;
+            margin-left:8px;
+            padding:2px 7px;
+            border-radius:999px;
+            background:#eef4ff;
+            color:#1d5fd1;
+            font-size:8px;
+            vertical-align:middle;
+          }
+
+          .carro-materiais {
+            display:flex;
+            flex-wrap:wrap;
+            gap:4px;
+            margin:4px 0 8px;
+          }
+
+          .carro-materiais span {
+            background:#f3f7fb;
+            border:1px solid #dce6f0;
+            color:#27445f;
+            border-radius:999px;
+            padding:1px 4px;
+            font-size:7px;
+          }
+
+          .card {
+            border:1px solid #dce5ee;
+            border-left:4px solid #2b7cff;
+            border-radius:7px;
+            padding:6px;
+            margin-bottom:6px;
+            background:#fbfdff;
+          }
+
+          .desmontagem {
+            border-left-color:#d97000;
+          }
+
+          .titulo {
+            display:flex;
+            justify-content:space-between;
+            margin-bottom:4px;
+          }
+
+          .titulo strong {
+            font-size:12px;
+          }
+
+          .grid {
+            display:grid;
+            grid-template-columns: 0.9fr 0.85fr 1fr 1.0fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr;
+            gap:4px;
+            margin-top:4px;
+          }
+
+          .col {
+            border:1px solid #e2eaf2;
+            border-radius:6px;
+            padding:3px 4px;
+            background:#fff;
+          }
+
+          .col span {
+            display:block;
+            font-size:7px;
+            color:#667788;
+            font-weight:bold;
+            text-transform:uppercase;
+            margin-bottom:2px;
+          }
+
+          .col strong {
+            display:block;
+            font-size:8px;
+            line-height:1.05;
+            word-break:break-word;
+          }
+
+          .materiais {
+            margin-top:4px;
+          }
+
+          .materiais-tags {
+            display:flex;
+            flex-wrap:wrap;
+            gap:4px;
+            margin-top:4px;
+          }
+
+          .materiais-tags span {
+            background:#eef4ff;
+            color:#1d5fd1;
+            border-radius:999px;
+            padding:1px 4px;
+            font-size:7px;
+          }
+
+          .quitado {
+            color:#0a7d00;
+          }
+
+          .aberto {
+            color:#b00020;
+          }
+
+          @page {
+            size: landscape;
+            margin: 6mm;
+          }
+        
+
+          /* Ajuste final: PDF/Imprimir com 10 campos na mesma linha */
+          .grid {
+            grid-template-columns: 0.9fr 0.85fr 1fr 1.0fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr !important;
+            gap:4px !important;
+          }
+
+          .col {
+            min-width:0 !important;
+            overflow:hidden !important;
+          }
+
+          .col span {
+            font-size:10px !important;
+            line-height:1 !important;
+          }
+
+          .col strong {
+            font-size:10px !important;
+            line-height:1.05 !important;
+          }
+
+          .card {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          @page {
+            size: A4 landscape;
+            margin: 6mm;
+          }
+
+        
+
+/* Refino final PDF: fonte maior, endereço maior, valores menores */
+.grid {
+  grid-template-columns: 0.9fr 0.85fr 1fr 1.0fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr !important;
+}
+
+.col span {
+  font-size: 9px !important;
+}
+
+.col strong {
+  font-size: 10px !important;
+  line-height: 1.08 !important;
+}
+
+/* valores: total, sinal e restante */
+.grid .col:nth-child(6) strong,
+.grid .col:nth-child(7) strong,
+.grid .col:nth-child(8) strong {
+  font-size: 9px !important;
+  white-space: nowrap !important;
+}
+
+/* endereço */
+.grid .col:nth-child(5) strong {
+  font-size: 10px !important;
+  line-height: 1.08 !important;
+}
+
+</style>
+      </head>
+      <body>
+        <div class="topo">
+          <img src="https://riotendas.smartwebinfo.com.br/webapp/public/img/logo.png">
+          <div>
+            <h1>Rota ${formatarDataRota(data)} - ${diaSemanaRota(data)}</h1>
+            <div class="subtitulo">Novo RioTendas — Operacional de montagem e desmontagem</div>
+          </div>
+        </div>
+
+        ${carros.map(carro => `
+          <h2>${carro}</h2>
+          <div class="carro-materiais">
+            ${listaMateriaisRotas(grupos[data][carro] || []).map(item => `<span>${item}</span>`).join("")}
+          </div>
+
+          ${(grupos[data][carro] || []).map(rota => {
+            const evento = rota.evento || {};
+            return `
+              <div class="card ${rota.tipo === "Desmontagem" ? "desmontagem" : ""}">
+                <div class="titulo">
+                  <strong>${rota.tipo}</strong>
+                  <span>${textoHorarioRota(rota.tipoHorario, rota.horario, rota.data)}</span>
+                </div>
+
+                <div class="grid">
+                  <div class="col">
+                    <span>Evento</span>
+                    <strong>${dataHoraEventoPrintCurta(evento, rota)}</strong>
+                  </div>
+
+                  <div class="col">
+                    <span>${rota.tipo}</span>
+                    <strong>${textoHorarioRota(rota.tipoHorario, rota.horario, rota.data)}</strong>
+                  </div>
+
+                  <div class="col">
+                    <span>Cliente</span>
+                    <strong>${rota.cliente}</strong>
+                  </div>
+
+                  <div class="col">
+                    <span>Telefone</span>
+                    <strong>${rota.telefone}</strong>
+                  </div>
+
+                  <div class="col">
+                    <span>Endereço</span>
+                    <strong>${rota.endereco}</strong>
+                  </div>
+
+                  <div class="col">
+                    <span>Total</span>
+                    <strong>${dinheiroRota(evento.valor_total)}</strong>
+                  </div>
+
+                  <div class="col">
+                    <span>Sinal</span>
+                    <strong>${dinheiroRota(evento.valor_sinal)}</strong>
+                  </div>
+
+                  <div class="col">
+                    <span>Restante</span>
+                    <strong>${dinheiroRota(evento.valor_restante)}</strong>
+                  </div>
+
+                  <div class="col">
+                    <span>Pagamento</span>
+                    <strong class="${classePagamentoRota(evento)}">${statusPagamentoRota(evento)}</strong>
+                  </div>
+
+                  <div class="col">
+                    <span>Forma</span>
+                    <strong>${evento.forma_pagamento || "-"}</strong>
+                  </div>
+                </div>
+
+                <div class="materiais">
+                  <strong>Materiais:</strong>
+
+                  <div class="materiais-tags">
+                    ${(rota.materiais || []).map(m => `<span>${m}</span>`).join("")}
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join("")}
+        `).join("")}
+      </body>
+    </html>
+  `;
+
+  const janela = window.open("", "_blank");
+  janela.document.write(html);
+  janela.document.close();
+  janela.focus();
+  janela.print();
+}
+
+document.addEventListener("DOMContentLoaded", iniciarRotas);
+let rotasOrdemManual = JSON.parse(localStorage.getItem("rotas_ordem_manual") || "{}");
+
+function salvarRotasOrdemManual() {
+  localStorage.setItem("rotas_ordem_manual", JSON.stringify(rotasOrdemManual));
+  salvarRotasOrdemNuvem();
+}
+
+function ordemManualRota(rota) {
+  const valor = Number(rotasOrdemManual[String(rota.id)]);
+  return Number.isFinite(valor) ? valor : 999999;
+}
+
+function ordenarRotasPorOrdemManual(listaRotas) {
+  return [...listaRotas].sort((a, b) => {
+    const ordemA = ordemManualRota(a);
+    const ordemB = ordemManualRota(b);
+
+    if (ordemA !== ordemB) return ordemA - ordemB;
+
+    const horaA = String(a.horario || "");
+    const horaB = String(b.horario || "");
+    if (horaA !== horaB) return horaA.localeCompare(horaB);
+
+    return String(a.id).localeCompare(String(b.id));
+  });
+}
+
+function inicializarOrdemManualRotas(listaRotas) {
+  const ordenada = ordenarRotasPorOrdemManual(listaRotas);
+
+  ordenada.forEach((rota, index) => {
+    const id = String(rota.id);
+
+    if (!Number.isFinite(Number(rotasOrdemManual[id]))) {
+      rotasOrdemManual[id] = index + 1;
+    }
+  });
+
+  // Normaliza a ordem do grupo atual para evitar empates/ordens duplicadas.
+  const normalizada = ordenarRotasPorOrdemManual(listaRotas);
+  normalizada.forEach((rota, index) => {
+    rotasOrdemManual[String(rota.id)] = index + 1;
+  });
+
+  salvarRotasOrdemManual();
+}
+
+function moverOrdemRota(rotaId, direcao, listaRotas) {
+  const ordenada = ordenarRotasPorOrdemManual(listaRotas);
+  const idProcurado = String(rotaId);
+
+  // Corrige o bug principal: rotaId vem do HTML como texto.
+  const atualIndex = ordenada.findIndex(r => String(r.id) === idProcurado);
+  if (atualIndex === -1) return;
+
+  const novoIndex = direcao === "up" ? atualIndex - 1 : atualIndex + 1;
+  if (novoIndex < 0 || novoIndex >= ordenada.length) return;
+
+  const temp = ordenada[atualIndex];
+  ordenada[atualIndex] = ordenada[novoIndex];
+  ordenada[novoIndex] = temp;
+
+  // Regrava a ordem completa do grupo, sem depender de troca de valores antigos.
+  ordenada.forEach((rota, index) => {
+    rotasOrdemManual[String(rota.id)] = index + 1;
+  });
+
+  salvarRotasOrdemManual();
+}

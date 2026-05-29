@@ -1,1195 +1,1844 @@
 
+function dataCompactaComDiaRecorrente(dataISO) {
+  if (!dataISO) return "-";
 
-function tipoHorarioBaseRota(valor) {
-  return String(valor || "A partir de").split("|")[0] || "A partir de";
+  const partes = String(dataISO).split("-");
+  if (partes.length < 3) return dataISO;
+
+  const data = new Date(`${dataISO}T12:00:00`);
+  const dias = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+  const dd = partes[2];
+  const mm = partes[1];
+  const aa = partes[0].slice(-2);
+
+  return `<span class="event-date-strong">${dd}/${mm}/${aa}</span> <span class="event-weekday-light">${dias[data.getDay()]}</span>`;
 }
 
-function tipoHorarioFimRota(valor) {
+
+
+/* =========================
+   Formatação global de data/hora
+========================= */
+
+
+function dataCompactaComDia(dataISO) {
+  if (!dataISO) return "-";
+
+  const partes = String(dataISO).split("-");
+  if (partes.length < 3) return dataISO;
+
+  const data = new Date(`${dataISO}T12:00:00`);
+
+  const dias = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+  const dd = partes[2];
+  const mm = partes[1];
+  const aa = partes[0].slice(-2);
+
+  return `
+    <span class="event-date-strong">${dd}/${mm}/${aa}</span>
+    <span class="event-weekday-light">${dias[data.getDay()]}</span>
+  `;
+}
+
+function formatarDataCurta(dataISO) {
+  if (!dataISO) return "-";
+
+  const texto = String(dataISO).slice(0,10);
+  const partes = texto.split("-");
+  if (partes.length < 3) return texto;
+
+  return `${partes[2]}/${partes[1]}/${partes[0].slice(-2)}`;
+}
+
+function formatarHoraCurta(valor) {
+  if (!valor) return "";
+
+  const texto = String(valor);
+
+  if (texto.includes("T")) {
+    return texto.slice(11,16);
+  }
+
+  return texto.slice(0,5);
+}
+
+function formatarDataHoraCurta(valor) {
+  if (!valor) return "-";
+
+  const texto = String(valor);
+
+  if (!texto.includes("T")) {
+    return texto;
+  }
+
+  const data = formatarDataCurta(texto.slice(0,10));
+  const hora = formatarHoraCurta(texto);
+
+  return `${data} ${hora}`;
+}
+
+
+
+let eventos = [];
+let produtosSelecionadosEventoAtual = [];
+let produtosExtrasEventoAtual = [];
+let produtosRapidoAtual = [];
+let apoioRapidoAtual = [];
+const storageEventosKey = "novoRioTendasEventosV2";
+
+function dinheiro(valor) {
+  return Number(valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+function moedaParaNumero(valor) {
+  if (typeof valor === "number") return valor;
+
+  let texto = String(valor || "")
+    .replace("R$", "")
+    .trim();
+
+  if (!texto) return 0;
+
+  // Se o usuário digitar 80, interpreta como R$ 80,00.
+  // Se digitar 80,50 ou 80.50, interpreta como R$ 80,50.
+  if (texto.includes(",") || texto.includes(".")) {
+    texto = texto.replace(/\./g, "").replace(",", ".");
+    const numero = Number(texto.replace(/[^\d.]/g, ""));
+    return Number.isNaN(numero) ? 0 : numero;
+  }
+
+  const numeroInteiro = Number(texto.replace(/\D/g, ""));
+  return Number.isNaN(numeroInteiro) ? 0 : numeroInteiro;
+}
+
+function numeroParaMoeda(valor) {
+  return dinheiro(Number(valor || 0));
+}
+
+function formatarCampoMoeda(input) {
+  input.value = numeroParaMoeda(moedaParaNumero(input.value));
+}
+
+function dataBR(dataISO) {
+  if (!dataISO) return "-";
+  const partes = String(dataISO).split("-");
+  if (partes.length !== 3) return dataISO;
+  return `${partes[2]}/${partes[1]}/${partes[0].slice(-2)}`;
+}
+
+
+function diaSemanaTexto(data) {
+  if (!data) return "";
+  const dias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const d = new Date(data + "T12:00:00");
+  return dias[d.getDay()] || "";
+}
+
+function diaSemana(dataISO) {
+  if (!dataISO) return "-";
+  const data = new Date(dataISO + "T12:00:00");
+  return data.toLocaleDateString("pt-BR", { weekday: "short" });
+}
+
+
+function tipoHorarioBase(valor) {
+  return String(valor || "Horário comercial").split("|")[0] || "Horário comercial";
+}
+
+function tipoHorarioFim(valor) {
   const partes = String(valor || "").split("|");
   return partes.length > 1 ? partes[1] : "";
 }
 
-function textoHorarioRota(tipoSalvo, horario, dataISO) {
-  const tipo = tipoHorarioBaseRota(tipoSalvo);
-  const fim = tipoHorarioFimRota(tipoSalvo);
+function montarTipoHorarioParaSalvar(selectId, fimId) {
+  const tipo = document.getElementById(selectId)?.value || "A partir de";
+  const fim = document.getElementById(fimId)?.value || "";
+  return tipo === "Intervalo" && fim ? `${tipo}|${fim}` : tipo;
+}
 
-  if (tipo === "Exatamente") return horario ? `Exatamente às ${horario}` : "Exatamente";
-  if (tipo === "A partir de") return horario ? `A partir das ${horario}` : "A partir de";
-  if (tipo === "Até") return horario ? `Até ${horario}` : "Até";
+function textoHorarioOperacao(tipoSalvo, datetimeValor) {
+  if (!datetimeValor) return "-";
+
+  const tipo = tipoHorarioBase(tipoSalvo);
+  const fim = tipoHorarioFim(tipoSalvo);
+  const dataTxt = formatarData(datetimeValor);
+  const hora = String(datetimeValor || "").slice(11, 16);
+
+  if (tipo === "Exatamente") return `Exatamente ${dataTxt}`;
+  if (tipo === "A partir de") return `A partir de ${dataTxt}`;
+  if (tipo === "Até") return `Até ${dataTxt}`;
   if (tipo === "Intervalo") {
-    if (horario && fim) return `Entre ${horario} e ${fim}`;
-    if (horario) return `Intervalo a partir das ${horario}`;
-    return "Intervalo";
+    return fim ? `Entre ${dataTxt} e ${fim}` : `Intervalo a partir de ${dataTxt}`;
   }
-  if (tipo === "Horário comercial") return "Horário comercial";
-  if (tipo === "Livre / combinar") return "Livre / combinar";
-  return horario ? `${tipo} ${horario}` : tipo;
+  if (tipo === "Horário comercial") return `${dataBR(String(datetimeValor).slice(0, 10))} — Horário comercial`;
+  if (tipo === "Livre / combinar") return `${dataBR(String(datetimeValor).slice(0, 10))} — Livre / combinar`;
+
+  return `${tipo} ${dataTxt}`;
 }
 
-let rotasCarros = {};
-const storageRotasCarrosKey = "novoRioTendasRotasCarrosV1";
+function atualizarCampoHoraFinalOperacao(prefixo) {
+  const select = document.getElementById(`evento${prefixo}Tipo`);
+  const box = document.getElementById(`evento${prefixo}FimBox`);
+  const input = document.getElementById(`evento${prefixo}Fim`);
+  const campoDataHora = document.getElementById(`evento${prefixo}`);
 
+  if (!select || !box || !input || !campoDataHora) return;
 
-async function carregarRotasCarrosNuvem() {
-  if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
+  const tipo = select.value;
 
-  try {
-    const { data, error } = await supabaseClient
-      .from("app_config")
-      .select("valor")
-      .eq("chave", "rotas_carros")
-      .maybeSingle();
+  const mostrarHoraFinal = tipo === "Intervalo";
+  box.style.display = mostrarHoraFinal ? "" : "none";
+  if (!mostrarHoraFinal) input.value = "";
 
-    if (error) {
-      console.warn("Não foi possível carregar carros das rotas na nuvem:", error);
-      return null;
-    }
+  const naoExigirHora =
+    tipo === "Horário comercial" ||
+    tipo === "Livre / combinar";
 
-    return data?.valor || null;
-  } catch (erro) {
-    console.warn("Erro ao carregar carros das rotas na nuvem:", erro);
-    return null;
-  }
-}
+  const valorAtual = campoDataHora.value || "";
+  const dataAtual = valorAtual.includes("T") ? valorAtual.split("T")[0] : valorAtual;
 
-async function salvarRotasCarrosNuvem() {
-  if (typeof supabaseClient === "undefined" || !supabaseClient) return;
-
-  try {
-    const { error } = await supabaseClient
-      .from("app_config")
-      .upsert({
-        chave: "rotas_carros",
-        valor: rotasCarros || {},
-        atualizado_em: new Date().toISOString()
-      }, { onConflict: "chave" });
-
-    if (error) console.warn("Não foi possível salvar carros das rotas na nuvem:", error);
-  } catch (erro) {
-    console.warn("Erro ao salvar carros das rotas na nuvem:", erro);
-  }
-}
-
-async function sincronizarRotasCarrosNuvem() {
-  const nuvem = await carregarRotasCarrosNuvem();
-
-  if (nuvem && typeof nuvem === "object") {
-    rotasCarros = { ...rotasCarros, ...nuvem };
-    localStorage.setItem(storageRotasCarrosKey, JSON.stringify(rotasCarros));
-    renderizarRotas();
+  // Para Horário comercial/Livre, o campo vira apenas DATA.
+  // Isso evita o erro nativo do navegador de "data incompleta" em datetime-local.
+  if (naoExigirHora) {
+    campoDataHora.required = false;
+    campoDataHora.type = "date";
+    campoDataHora.value = dataAtual || "";
     return;
   }
 
-  await salvarRotasCarrosNuvem();
+  // Para os demais tipos, volta a ser data + hora.
+  campoDataHora.type = "datetime-local";
+  campoDataHora.required = false;
+
+  if (dataAtual && !valorAtual.includes("T")) {
+    campoDataHora.value = `${dataAtual}T09:00`;
+  }
 }
 
-function carregarRotasCarrosLocal() {
-  return JSON.parse(localStorage.getItem(storageRotasCarrosKey) || "{}");
+function aplicarTipoHorarioNoFormulario(prefixo, valorSalvo) {
+  const select = document.getElementById(`evento${prefixo}Tipo`);
+  const input = document.getElementById(`evento${prefixo}Fim`);
+  if (!select || !input) return;
+
+  select.value = tipoHorarioBase(valorSalvo);
+  input.value = tipoHorarioFim(valorSalvo);
+  atualizarCampoHoraFinalOperacao(prefixo);
 }
 
-function salvarRotasCarrosLocal() {
-  localStorage.setItem(storageRotasCarrosKey, JSON.stringify(rotasCarros));
-  salvarRotasCarrosNuvem();
+async function buscarEventosBanco() {
+  if (!supabaseClient) {
+    return JSON.parse(localStorage.getItem(storageEventosKey) || "[]");
+  }
+
+  const { data, error } = await supabaseClient
+    .from("eventos")
+    .select("*")
+    .order("data_evento", { ascending: true });
+
+  if (error) {
+    console.error("Erro Supabase ao buscar eventos:", error);
+    alert("Erro ao buscar eventos no Supabase: " + (error.message || ""));
+    return [];
+  }
+
+  return data || [];
 }
 
-async function carregarRotasOrdemNuvem() {
-  if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
+async function salvarEventoBanco(evento) {
+  if (!supabaseClient) {
+    const i = eventos.findIndex(e => e.id === evento.id);
+    if (i >= 0) eventos[i] = evento;
+    else eventos.push(evento);
+    localStorage.setItem(storageEventosKey, JSON.stringify(eventos));
+    return evento;
+  }
 
-  try {
-    const { data, error } = await supabaseClient
-      .from("app_config")
-      .select("valor")
-      .eq("chave", "rotas_ordem_manual")
-      .maybeSingle();
+  const eventoSupabase = {
+    id: evento.id,
+    nome: evento.nome || "",
+    documento: evento.documento || null,
+    telefone: evento.telefone || null,
+    endereco: evento.endereco || null,
+    data_evento: evento.data_evento || null,
+    hora_evento: evento.hora_inicio || evento.hora_evento || null,
+    hora_inicio: evento.hora_inicio || evento.hora_evento || null,
+    hora_termino: evento.hora_termino || null,
+    montagem_tipo: evento.montagem_tipo || "A partir de",
+    montagem: evento.montagem || null,
+    desmontagem_tipo: evento.desmontagem_tipo || "A partir de",
+    desmontagem: evento.desmontagem || null,
+    tendas: evento.tendas || [],
+    itens_apoio: evento.itens_apoio || [],
+    produtos_extras: evento.produtos_extras || [],
+    valor_total: Number(evento.valor_total || 0),
+    valor_sinal: Number(evento.valor_sinal || 0),
+    valor_restante: Number(evento.valor_restante || 0),
+    forma_pagamento: evento.forma_pagamento || null,
+    pagamento_quitado: Boolean(evento.pagamento_quitado),
+    colaborador: evento.colaborador || getColaboradorLogado(),
+    criado_em: evento.criado_em || new Date().toISOString(),
+    atualizado_em: new Date().toISOString(),
+    tipo_evento: evento.tipo_evento || "pontual",
+    recorrente: Boolean(evento.recorrente),
+    recorrencia_grupo_id: evento.recorrencia_grupo_id || null,
+    recorrencia_tipo: evento.recorrencia_tipo || null,
+    recorrencia_dias: evento.recorrencia_dias || null,
+    recorrencia_inicio: evento.recorrencia_inicio || null,
+    recorrencia_fim: evento.recorrencia_fim || null,
+    recorrencia_ordem: evento.recorrencia_ordem || null
+  };
 
-    if (error) {
-      console.warn("Não foi possível carregar ordem das rotas na nuvem:", error);
-      return null;
-    }
+  const { data, error } = await supabaseClient
+    .from("eventos")
+    .upsert(eventoSupabase, { onConflict: "id" })
+    .select()
+    .single();
 
-    return data?.valor || null;
-  } catch (erro) {
-    console.warn("Erro ao carregar ordem das rotas na nuvem:", erro);
+  if (error) {
+    console.error("Erro Supabase ao salvar evento:", error);
+    alert("Erro ao salvar evento no Supabase: " + (error.message || ""));
     return null;
   }
+
+  return data;
 }
 
-async function salvarRotasOrdemNuvem() {
-  if (typeof supabaseClient === "undefined" || !supabaseClient) return;
-
-  try {
-    const { error } = await supabaseClient
-      .from("app_config")
-      .upsert({
-        chave: "rotas_ordem_manual",
-        valor: rotasOrdemManual || {},
-        atualizado_em: new Date().toISOString()
-      }, { onConflict: "chave" });
-
-    if (error) console.warn("Não foi possível salvar ordem das rotas na nuvem:", error);
-  } catch (erro) {
-    console.warn("Erro ao salvar ordem das rotas na nuvem:", erro);
-  }
-}
-
-async function sincronizarRotasOrdemNuvem() {
-  const nuvem = await carregarRotasOrdemNuvem();
-
-  if (nuvem && typeof nuvem === "object") {
-    rotasOrdemManual = { ...rotasOrdemManual, ...nuvem };
-    localStorage.setItem("rotas_ordem_manual", JSON.stringify(rotasOrdemManual));
-    renderizarRotas();
-    return;
+async function excluirEventoBanco(id) {
+  if (!supabaseClient) {
+    eventos = eventos.filter(e => e.id !== id);
+    localStorage.setItem(storageEventosKey, JSON.stringify(eventos));
+    return true;
   }
 
-  await salvarRotasOrdemNuvem();
-}
+  const { error } = await supabaseClient.from("eventos").delete().eq("id", id);
 
-
-function atualizarFiltroCarrosRotas() {
-  const select = document.getElementById("rotaCarroFiltro");
-  if (!select) return;
-
-  const valorAtual = select.value;
-  select.innerHTML = `
-    <option value="">Todos</option>
-    ${carrosDisponiveisRotas().map(carro => `<option value="${carro}">${carro}</option>`).join("")}
-    <option value="Sem carro">Sem carro</option>
-  `;
-  select.value = valorAtual;
-}
-
-
-let ultimaSincronizacaoOrdemRotas = 0;
-
-async function atualizarOrdemRotasDaNuvemSeNecessario() {
-  const agora = Date.now();
-  if (agora - ultimaSincronizacaoOrdemRotas < 15000) return;
-
-  ultimaSincronizacaoOrdemRotas = agora;
-  const nuvem = await carregarRotasOrdemNuvem();
-
-  if (nuvem && typeof nuvem === "object") {
-    const atual = JSON.stringify(rotasOrdemManual || {});
-    const novo = JSON.stringify({ ...rotasOrdemManual, ...nuvem });
-
-    if (atual !== novo) {
-      rotasOrdemManual = { ...rotasOrdemManual, ...nuvem };
-      localStorage.setItem("rotas_ordem_manual", JSON.stringify(rotasOrdemManual));
-      renderizarRotas();
-    }
+  if (error) {
+    alert("Erro ao excluir evento: " + (error.message || ""));
+    return false;
   }
+
+  return true;
 }
 
-function iniciarRotas() {
-  if (!document.getElementById("rotasConteudo")) return;
+async function garantirClienteDoEvento(evento) {
+  if (!evento.nome) return;
 
-  rotasCarros = carregarRotasCarrosLocal();
-  atualizarFiltroCarrosRotas();
-  sincronizarRotasCarrosNuvem();
-  sincronizarRotasOrdemNuvem();
+  const documento = evento.documento || "";
+  const telefone = evento.telefone || "";
 
-  const hoje = new Date();
-  const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
-  document.getElementById("rotaMes").value = mesAtual;
+  let existente = null;
 
-  ["rotaPeriodo", "rotaMes", "rotaData", "rotaTipoFiltro", "rotaCarroFiltro"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener("input", renderizarRotas);
-      el.addEventListener("change", renderizarRotas);
-    }
+  if (Array.isArray(clientes)) {
+    existente = clientes.find(c =>
+      (documento && c.documento === documento) ||
+      (telefone && c.telefone === telefone) ||
+      (String(c.nome || "").toLowerCase() === String(evento.nome || "").toLowerCase())
+    );
+  }
+
+  if (existente) return existente;
+
+  if (typeof salvarClienteBanco !== "function") return null;
+
+  const cliente = {
+    id: gerarId(),
+    nome: evento.nome,
+    documento: evento.documento || "",
+    telefone: evento.telefone || "",
+    endereco: evento.endereco || "",
+    colaborador: getColaboradorLogado(),
+    criado_em: new Date().toISOString()
+  };
+
+  const salvo = await salvarClienteBanco(cliente);
+
+  if (salvo && Array.isArray(clientes)) {
+    clientes.push(salvo);
+    if (typeof renderizarClientes === "function") renderizarClientes();
+  }
+
+  return salvo;
+}
+
+async function carregarEventos() {
+  eventos = await buscarEventosBanco();
+  renderizarEventos();
+}
+
+function onEventoSeguro(id, evento, funcao) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener(evento, funcao);
+}
+
+function iniciarEventos() {
+  if (!document.getElementById("eventosTbody")) return;
+
+  onEventoSeguro("novoEventoBtn", "click", abrirNovoEvento);
+  onEventoSeguro("fecharEventoModal", "click", fecharEventoModal);
+  onEventoSeguro("cancelarEvento", "click", fecharEventoModal);
+  onEventoSeguro("fecharEventoDetalheModal", "click", () => document.getElementById("eventoDetalheDialog").close());
+  onEventoSeguro("eventoForm", "submit", salvarEventoForm);
+
+  ["eventoValorTotal", "eventoValorSinal"].forEach(id => {
+    const campo = document.getElementById(id);
+    campo.addEventListener("input", calcularRestanteEvento);
+    campo.addEventListener("blur", () => { formatarCampoMoeda(campo); calcularRestanteEvento(); });
   });
+  onEventoSeguro("eventoBuscaCliente", "change", preencherClienteSelecionado);
+  onEventoSeguro("eventoMontagemTipo", "change", () => atualizarCampoHoraFinalOperacao("Montagem"));
+  onEventoSeguro("eventoDesmontagemTipo", "change", () => atualizarCampoHoraFinalOperacao("Desmontagem"));
+  onEventoSeguro("adicionarProdutoEvento", "click", adicionarProdutoSelecionadoAoEvento);
+  const btnExtraEvento = document.getElementById("adicionarExtraEvento");
+  if (btnExtraEvento) btnExtraEvento.addEventListener("click", adicionarExtraAoEvento);
+  document.getElementById("fecharEventoProdutosRapido").addEventListener("click", fecharProdutosRapido);
+  document.getElementById("cancelarEventoProdutosRapido").addEventListener("click", fecharProdutosRapido);
+  document.getElementById("adicionarProdutoRapido").addEventListener("click", adicionarProdutoRapido);
+  document.getElementById("salvarEventoProdutosRapido").addEventListener("click", salvarProdutosRapido);
 
-  document.getElementById("atualizarRotasBtn").addEventListener("click", async () => {
-    if (typeof carregarEventos === "function") await carregarEventos();
-    renderizarRotas();
-  });
-
-  setTimeout(renderizarRotas, 400);
-  setTimeout(renderizarRotas, 1200);
-
-  setInterval(() => {
-    atualizarOrdemRotasDaNuvemSeNecessario();
-    renderizarRotas();
-  }, 30000);
-}
-
-function dataLocalISO(data) {
-  const ano = data.getFullYear();
-  const mes = String(data.getMonth() + 1).padStart(2, "0");
-  const dia = String(data.getDate()).padStart(2, "0");
-  return `${ano}-${mes}-${dia}`;
-}
-
-function somarDiasDataISO(dias) {
-  const data = new Date();
-  data.setDate(data.getDate() + dias);
-  return dataLocalISO(data);
-}
-
-function dataKeyDeDateTime(valor) {
-  if (!valor) return "";
-  return String(valor).slice(0, 10);
-}
-
-function horaDeDateTime(valor) {
-  if (!valor) return "";
-  const texto = String(valor);
-  if (texto.includes("T")) return texto.slice(11, 16);
-  return texto.slice(0, 5);
-}
-
-
-
-function formatarDataCurtaDisponibilidade(dataISO) {
-  if (!dataISO) return "-";
-
-  const partes = String(dataISO).split("-");
-  if (partes.length !== 3) return dataISO;
-
-  return `${partes[2]}/${partes[1]}/${partes[0].slice(-2)}`;
-}
-
-function formatarDataRota(dataISO) {
-  if (!dataISO) return "-";
-  const partes = dataISO.split("-");
-  if (partes.length !== 3) return dataISO;
-  return `${partes[2]}/${partes[1]}/${partes[0].slice(-2)}`;
-}
-
-function diaSemanaRota(dataISO) {
-  if (!dataISO) return "";
-  const d = new Date(dataISO + "T12:00:00");
-  return d.toLocaleDateString("pt-BR", { weekday: "long" });
-}
-
-
-function dinheiroRota(valor) {
-  return Number(valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-function statusPagamentoRota(evento) {
-  return evento.pagamento_quitado ? "Quitado" : "Em aberto";
-}
-
-function classePagamentoRota(evento) {
-  return evento.pagamento_quitado ? "pagamento-ok" : "pagamento-aberto";
-}
-
-function montarListaMateriais(evento) {
-  const tendas = (evento.tendas || []).map(p => {
-    const nome = [p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - ");
-    return nome || "Produto com código";
-  });
-
-  const apoio = (evento.itens_apoio || []).map(i => `${i.nome} (${i.quantidade})`);
-
-  const extras = (evento.produtos_extras || []).map(i => `${i.descricao} (${i.quantidade})`);
-
-  return [...tendas, ...apoio, ...extras];
-}
-
-function criarRotasDosEventos() {
-  const listaEventos = Array.isArray(eventos) ? eventos : [];
-
-  const rotas = [];
-
-  listaEventos.forEach(evento => {
-    if (evento.montagem) {
-      rotas.push({
-        id: `${evento.id}-montagem`,
-        evento_id: evento.id,
-        tipo: "Montagem",
-        data: dataKeyDeDateTime(evento.montagem),
-        horario: horaDeDateTime(evento.montagem),
-        tipoHorario: evento.montagem_tipo || "A partir de",
-        cliente: evento.nome || "-",
-        telefone: evento.telefone || "-",
-        endereco: evento.endereco || "-",
-        materiais: montarListaMateriais(evento),
-        evento
-      });
-    }
-
-    if (evento.desmontagem) {
-      rotas.push({
-        id: `${evento.id}-desmontagem`,
-        evento_id: evento.id,
-        tipo: "Desmontagem",
-        data: dataKeyDeDateTime(evento.desmontagem),
-        horario: horaDeDateTime(evento.desmontagem),
-        tipoHorario: evento.desmontagem_tipo || "A partir de",
-        cliente: evento.nome || "-",
-        telefone: evento.telefone || "-",
-        endereco: evento.endereco || "-",
-        materiais: montarListaMateriais(evento),
-        evento
-      });
-    }
-  });
-
-  return rotas;
-}
-
-function filtrarRotas(rotas) {
-  const periodo = document.getElementById("rotaPeriodo")?.value || "30";
-  const mes = document.getElementById("rotaMes").value;
-  const data = document.getElementById("rotaData").value;
-  const tipo = document.getElementById("rotaTipoFiltro").value;
-  const carro = document.getElementById("rotaCarroFiltro").value;
-
-  const hoje = dataLocalISO(new Date());
-  const limite7 = somarDiasDataISO(7);
-  const limite15 = somarDiasDataISO(15);
-  const limite30 = somarDiasDataISO(30);
-
-  return rotas.filter(rota => {
-    const carroRota = rotasCarros[rota.id] || "Sem carro";
-
-    let passaPeriodo = true;
-
-    if (periodo === "7") {
-      passaPeriodo = rota.data >= hoje && rota.data <= limite7;
-    } else if (periodo === "15") {
-      passaPeriodo = rota.data >= hoje && rota.data <= limite15;
-    } else if (periodo === "30") {
-      passaPeriodo = rota.data >= hoje && rota.data <= limite30;
-    } else if (periodo === "mes") {
-      passaPeriodo = !mes || rota.data.startsWith(mes);
-    } else if (periodo === "data") {
-      passaPeriodo = !data || rota.data === data;
-    }
-
-    return passaPeriodo
-      && (!tipo || rota.tipo === tipo)
-      && (!carro || carroRota === carro);
-  });
-}
-
-function agruparPorDataECarro(rotas) {
-  const grupos = {};
-
-  rotas.forEach(rota => {
-    const carro = rotasCarros[rota.id] || "Sem carro";
-
-    if (!grupos[rota.data]) grupos[rota.data] = {};
-    if (!grupos[rota.data][carro]) grupos[rota.data][carro] = [];
-
-    grupos[rota.data][carro].push(rota);
-  });
-
-  Object.values(grupos).forEach(grupoCarros => {
-    Object.values(grupoCarros).forEach(lista => {
-      lista.sort((a, b) => String(a.horario || "").localeCompare(String(b.horario || "")));
+  ["eventoData", "eventoHoraInicio", "eventoHoraTermino", "eventoMontagem", "eventoDesmontagem", "eventoMontagemTipo", "eventoDesmontagemTipo", "eventoMontagemFim", "eventoDesmontagemFim"].forEach(id => {
+    const campo = document.getElementById(id);
+    if (!campo) return;
+    campo.addEventListener("change", () => {
+      popularSelectProdutosEvento();
+      renderizarProdutosSelecionadosEvento();
+      renderizarApoioEvento(obterApoioSelecionadoEvento());
     });
   });
 
-  return grupos;
+  ["buscaEvento", "filtroEventoData", "filtroEventoCliente", "filtroEventoTelefone", "filtroEventoPagamento"].forEach(id => {
+    const campo = document.getElementById(id);
+    if (!campo) return;
+    campo.addEventListener("input", renderizarEventos);
+    campo.addEventListener("change", renderizarEventos);
+  });
+
+
+  onEventoSeguro("eventoTipoEvento", "change", () => {
+    atualizarBoxRecorrencia();
+    preencherDatasRecorrenciaPadrao();
+  });
+  onEventoSeguro("eventoRecorrenciaTipo", "change", atualizarCampoDiasRecorrencia);
+  onEventoSeguro("eventoData", "change", preencherDatasRecorrenciaPadrao);
+
+  carregarEventos();
 }
 
-function renderizarRotas() {
-  const container = document.getElementById("rotasConteudo");
-  if (!container) return;
+function atualizarDatalistClientes() {
+  const datalist = document.getElementById("clientesDatalist");
+  if (!datalist || !Array.isArray(clientes)) return;
 
-  const todas = criarRotasDosEventos();
-  const filtradas = filtrarRotas(todas);
+  datalist.innerHTML = clientes.map(c => `
+    <option value="${c.nome || ""}" data-id="${c.id}">
+  `).join("");
+}
 
-  document.getElementById("rotasTotal").textContent = filtradas.length;
-  document.getElementById("rotasMontagens").textContent = filtradas.filter(r => r.tipo === "Montagem").length;
-  document.getElementById("rotasDesmontagens").textContent = filtradas.filter(r => r.tipo === "Desmontagem").length;
+function preencherClienteSelecionado() {
+  const nome = document.getElementById("eventoBuscaCliente").value.trim().toLowerCase();
+  const cliente = Array.isArray(clientes) ? clientes.find(c => String(c.nome || "").toLowerCase() === nome) : null;
+  if (!cliente) return;
 
-  if (!filtradas.length) {
-    container.innerHTML = `<p class="empty">Nenhuma montagem ou desmontagem encontrada para o filtro selecionado.</p>`;
+  document.getElementById("eventoNome").value = cliente.nome || "";
+  document.getElementById("eventoDocumento").value = cliente.documento || "";
+  document.getElementById("eventoTelefone").value = cliente.telefone || "";
+  document.getElementById("eventoEndereco").value = cliente.endereco || "";
+}
+
+function calcularRestanteEvento() {
+  const total = moedaParaNumero(document.getElementById("eventoValorTotal").value);
+  const sinal = moedaParaNumero(document.getElementById("eventoValorSinal").value);
+  document.getElementById("eventoValorRestante").value = numeroParaMoeda(Math.max(total - sinal, 0));
+}
+
+
+function isEventoRecorrente(evento) {
+  return Boolean(evento.recorrente || evento.tipo_evento === "recorrente" || evento.recorrencia_grupo_id);
+}
+
+function recorrenciaLabel(tipo, dias) {
+  if (tipo === "mensal") return "Mensal";
+  if (tipo === "quinzenal") return "A cada 15 dias";
+  if (tipo === "personalizado") return `A cada ${dias || 1} dias`;
+  return "-";
+}
+
+function addDiasISO(dataISO, dias) {
+  const d = new Date(`${dataISO}T12:00:00`);
+  d.setDate(d.getDate() + Number(dias || 0));
+  return d.toISOString().slice(0, 10);
+}
+
+function addMesISO(dataISO, meses) {
+  const d = new Date(`${dataISO}T12:00:00`);
+  d.setMonth(d.getMonth() + Number(meses || 0));
+  return d.toISOString().slice(0, 10);
+}
+
+function diffDiasISO(base, alvo) {
+  const b = new Date(`${base}T12:00:00`);
+  const a = new Date(`${alvo}T12:00:00`);
+  return Math.round((a.getTime() - b.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function ajustarDatetimePelaNovaData(datetimeOriginal, dataOriginal, dataNova) {
+  if (!datetimeOriginal || !dataOriginal || !dataNova) return datetimeOriginal || null;
+  return String(datetimeOriginal).replace(String(dataOriginal), String(dataNova));
+}
+
+function datasRecorrencia(inicio, fim, tipo, diasPersonalizado) {
+  if (!inicio || !fim) return [];
+
+  const datas = [];
+  let atual = inicio;
+  let seguranca = 0;
+
+  while (atual <= fim && seguranca < 120) {
+    datas.push(atual);
+
+    if (tipo === "mensal") atual = addMesISO(atual, 1);
+    else if (tipo === "quinzenal") atual = addDiasISO(atual, 15);
+    else atual = addDiasISO(atual, Math.max(Number(diasPersonalizado || 1), 1));
+
+    seguranca++;
+  }
+
+  return datas;
+}
+
+function atualizarBoxRecorrencia() {
+  const tipoEvento = document.getElementById("eventoTipoEvento")?.value || "pontual";
+  const box = document.getElementById("eventoRecorrenciaBox");
+  if (!box) return;
+
+  box.classList.toggle("hidden", tipoEvento !== "recorrente");
+}
+
+function atualizarCampoDiasRecorrencia() {
+  const tipo = document.getElementById("eventoRecorrenciaTipo")?.value || "mensal";
+  const campo = document.getElementById("eventoRecorrenciaDias");
+  if (!campo) return;
+
+  campo.disabled = tipo !== "personalizado";
+  if (tipo === "mensal") campo.value = 30;
+  if (tipo === "quinzenal") campo.value = 15;
+}
+
+function preencherDatasRecorrenciaPadrao() {
+  const dataEvento = document.getElementById("eventoData")?.value || "";
+  const inicio = document.getElementById("eventoRecorrenciaInicio");
+  const fim = document.getElementById("eventoRecorrenciaFim");
+
+  if (inicio && dataEvento && !inicio.value) inicio.value = dataEvento;
+  if (fim && dataEvento && !fim.value) fim.value = addMesISO(dataEvento, 6);
+}
+
+
+function valorOperacaoParaSalvar(campoId, tipoSelectId) {
+  const campo = document.getElementById(campoId);
+  const select = document.getElementById(tipoSelectId);
+  const valor = campo?.value || "";
+  const tipo = select?.value || "";
+
+  if (!valor) return null;
+
+  if (tipo === "Horário comercial" || tipo === "Livre / combinar") {
+    return valor.includes("T") ? valor : `${valor}T00:00`;
+  }
+
+  return valor;
+}
+
+function montarEventoRecorrenteBase(id, existente) {
+  return {
+    id,
+    nome: document.getElementById("eventoNome").value.trim(),
+    documento: document.getElementById("eventoDocumento").value.trim(),
+    telefone: document.getElementById("eventoTelefone").value.trim(),
+    endereco: document.getElementById("eventoEndereco").value.trim(),
+    data_evento: document.getElementById("eventoData").value || null,
+    hora_inicio: document.getElementById("eventoHoraInicio").value || null,
+    hora_termino: document.getElementById("eventoHoraTermino").value || null,
+    hora_evento: document.getElementById("eventoHoraInicio").value || null,
+    montagem_tipo: montarTipoHorarioParaSalvar("eventoMontagemTipo", "eventoMontagemFim"),
+    montagem: valorOperacaoParaSalvar("eventoMontagem", "eventoMontagemTipo"),
+    desmontagem_tipo: montarTipoHorarioParaSalvar("eventoDesmontagemTipo", "eventoDesmontagemFim"),
+    desmontagem: valorOperacaoParaSalvar("eventoDesmontagem", "eventoDesmontagemTipo"),
+    tendas: obterProdutosSelecionadosEvento(),
+    itens_apoio: obterApoioSelecionadoEvento(),
+    produtos_extras: produtosExtrasEventoAtual,
+    valor_total: moedaParaNumero(document.getElementById("eventoValorTotal").value),
+    valor_sinal: moedaParaNumero(document.getElementById("eventoValorSinal").value),
+    valor_restante: moedaParaNumero(document.getElementById("eventoValorRestante").value),
+    forma_pagamento: document.getElementById("eventoFormaPagamento").value.trim(),
+    pagamento_quitado: document.getElementById("eventoPagamentoQuitado").checked,
+    colaborador: getColaboradorLogado(),
+    criado_em: existente?.criado_em || new Date().toISOString(),
+    atualizado_em: new Date().toISOString()
+  };
+}
+
+function montarOcorrenciasRecorrentes(baseEvento) {
+  const tipo = document.getElementById("eventoRecorrenciaTipo")?.value || "mensal";
+  const dias = Number(document.getElementById("eventoRecorrenciaDias")?.value || 30);
+  const inicioRec = document.getElementById("eventoRecorrenciaInicio")?.value || baseEvento.data_evento;
+  const fimRec = document.getElementById("eventoRecorrenciaFim")?.value || baseEvento.data_evento;
+  const grupoId = gerarId();
+  const datas = datasRecorrencia(inicioRec, fimRec, tipo, dias);
+
+  return datas.map((dataOcorrencia, index) => {
+    const evento = {
+      ...baseEvento,
+      id: index === 0 ? baseEvento.id : gerarId(),
+      data_evento: dataOcorrencia,
+      montagem: ajustarDatetimePelaNovaData(baseEvento.montagem, baseEvento.data_evento, dataOcorrencia),
+      desmontagem: ajustarDatetimePelaNovaData(baseEvento.desmontagem, baseEvento.data_evento, dataOcorrencia),
+      criado_em: new Date().toISOString(),
+      atualizado_em: new Date().toISOString(),
+      tipo_evento: "recorrente",
+      recorrente: true,
+      recorrencia_grupo_id: grupoId,
+      recorrencia_tipo: tipo,
+      recorrencia_dias: tipo === "personalizado" ? dias : (tipo === "quinzenal" ? 15 : 30),
+      recorrencia_inicio: inicioRec,
+      recorrencia_fim: fimRec,
+      recorrencia_ordem: index + 1
+    };
+
+    return evento;
+  });
+}
+
+function periodoRecorrenciaTexto(e) {
+  if (!isEventoRecorrente(e)) return "-";
+  return `${dataBR(e.recorrencia_inicio || e.data_evento)} até ${dataBR(e.recorrencia_fim || e.data_evento)}`;
+}
+
+
+function prepararHorarioPadraoNovoEvento() {
+  aplicarTipoHorarioNoFormulario("Montagem", "Horário comercial");
+  aplicarTipoHorarioNoFormulario("Desmontagem", "Horário comercial");
+
+  const montagem = document.getElementById("eventoMontagem");
+  const desmontagem = document.getElementById("eventoDesmontagem");
+
+  if (montagem) {
+    montagem.type = "date";
+    montagem.required = false;
+  }
+
+  if (desmontagem) {
+    desmontagem.type = "date";
+    desmontagem.required = false;
+  }
+}
+
+function abrirNovoEvento() {
+  document.getElementById("eventoForm").reset();
+  prepararHorarioPadraoNovoEvento();
+  document.getElementById("eventoId").value = "";
+  document.getElementById("eventoModalTitulo").textContent = "Novo evento";
+
+  // Padrão para novo evento: horário comercial, sem exigir hora
+  aplicarTipoHorarioNoFormulario("Montagem", "Horário comercial");
+  aplicarTipoHorarioNoFormulario("Desmontagem", "Horário comercial");
+
+  document.getElementById("eventoValorTotal").value = numeroParaMoeda(0);
+  document.getElementById("eventoValorSinal").value = numeroParaMoeda(0);
+  document.getElementById("eventoValorRestante").value = numeroParaMoeda(0);
+  const tipoEvento = document.getElementById("eventoTipoEvento");
+  if (tipoEvento) tipoEvento.value = "pontual";
+  const tipoRec = document.getElementById("eventoRecorrenciaTipo");
+  if (tipoRec) tipoRec.value = "mensal";
+  const diasRec = document.getElementById("eventoRecorrenciaDias");
+  if (diasRec) diasRec.value = 30;
+  const inicioRec = document.getElementById("eventoRecorrenciaInicio");
+  if (inicioRec) inicioRec.value = "";
+  const fimRec = document.getElementById("eventoRecorrenciaFim");
+  if (fimRec) fimRec.value = "";
+  atualizarBoxRecorrencia();
+  atualizarCampoDiasRecorrencia();
+  produtosSelecionadosEventoAtual = [];
+  produtosExtrasEventoAtual = [];
+  atualizarDatalistClientes();
+  popularSelectProdutosEvento();
+  renderizarProdutosSelecionadosEvento();
+  renderizarExtrasEvento();
+  renderizarApoioEvento([]);
+  document.getElementById("eventoDialog").showModal();
+}
+
+function abrirEditarEvento(id) {
+  const e = eventos.find(x => x.id === id);
+  if (!e) return;
+
+  document.getElementById("eventoId").value = e.id;
+  document.getElementById("eventoBuscaCliente").value = e.nome || "";
+  document.getElementById("eventoNome").value = e.nome || "";
+  document.getElementById("eventoDocumento").value = e.documento || "";
+  document.getElementById("eventoTelefone").value = e.telefone || "";
+  document.getElementById("eventoEndereco").value = e.endereco || "";
+  document.getElementById("eventoData").value = e.data_evento || "";
+  document.getElementById("eventoHoraInicio").value = e.hora_inicio || e.hora_evento || "";
+  document.getElementById("eventoHoraTermino").value = e.hora_termino || "";
+  aplicarTipoHorarioNoFormulario("Montagem", e.montagem_tipo || "A partir de");
+  const campoMontagem = document.getElementById("eventoMontagem");
+  campoMontagem.value = e.montagem ? (campoMontagem.type === "date" ? String(e.montagem).slice(0,10) : String(e.montagem).slice(0,16)) : "";
+
+  aplicarTipoHorarioNoFormulario("Desmontagem", e.desmontagem_tipo || "A partir de");
+  const campoDesmontagem = document.getElementById("eventoDesmontagem");
+  campoDesmontagem.value = e.desmontagem ? (campoDesmontagem.type === "date" ? String(e.desmontagem).slice(0,10) : String(e.desmontagem).slice(0,16)) : "";
+  document.getElementById("eventoValorTotal").value = numeroParaMoeda(e.valor_total || 0);
+  document.getElementById("eventoValorSinal").value = numeroParaMoeda(e.valor_sinal || 0);
+  document.getElementById("eventoValorRestante").value = numeroParaMoeda(e.valor_restante || 0);
+  document.getElementById("eventoFormaPagamento").value = e.forma_pagamento || "";
+  document.getElementById("eventoPagamentoQuitado").checked = Boolean(e.pagamento_quitado);
+  const tipoEvento = document.getElementById("eventoTipoEvento");
+  if (tipoEvento) tipoEvento.value = isEventoRecorrente(e) ? "recorrente" : "pontual";
+  const tipoRec = document.getElementById("eventoRecorrenciaTipo");
+  if (tipoRec) tipoRec.value = e.recorrencia_tipo || "mensal";
+  const diasRec = document.getElementById("eventoRecorrenciaDias");
+  if (diasRec) diasRec.value = e.recorrencia_dias || (e.recorrencia_tipo === "quinzenal" ? 15 : 30);
+  const inicioRec = document.getElementById("eventoRecorrenciaInicio");
+  if (inicioRec) inicioRec.value = e.recorrencia_inicio || e.data_evento || "";
+  const fimRec = document.getElementById("eventoRecorrenciaFim");
+  if (fimRec) fimRec.value = e.recorrencia_fim || e.data_evento || "";
+  atualizarBoxRecorrencia();
+  atualizarCampoDiasRecorrencia();
+
+  produtosSelecionadosEventoAtual = Array.isArray(e.tendas) ? [...e.tendas] : [];
+  produtosExtrasEventoAtual = Array.isArray(e.produtos_extras) ? [...e.produtos_extras] : [];
+  atualizarDatalistClientes();
+  popularSelectProdutosEvento();
+  renderizarProdutosSelecionadosEvento();
+  renderizarExtrasEvento();
+  renderizarApoioEvento(e.itens_apoio || []);
+
+  document.getElementById("eventoModalTitulo").textContent = "Editar evento";
+  document.getElementById("eventoDialog").showModal();
+}
+
+function fecharEventoModal() {
+  document.getElementById("eventoDialog").close();
+}
+
+
+function periodosConflitam(inicioA, fimA, inicioB, fimB) {
+  if (!inicioA || !fimA || !inicioB || !fimB) return false;
+  return new Date(inicioA) <= new Date(fimB) && new Date(fimA) >= new Date(inicioB);
+}
+
+function intervaloEventoAtual() {
+  const data = document.getElementById("eventoData")?.value;
+  const inicio = document.getElementById("eventoHoraInicio")?.value || "00:00";
+  const termino = document.getElementById("eventoHoraTermino")?.value || "23:59";
+  const montagem = document.getElementById("eventoMontagem")?.value;
+  const desmontagem = document.getElementById("eventoDesmontagem")?.value;
+
+  if (montagem && desmontagem) {
+    return { inicio: montagem, fim: desmontagem };
+  }
+
+  if (data) {
+    return {
+      inicio: `${data}T${inicio}`,
+      fim: `${data}T${termino}`
+    };
+  }
+
+  return { inicio: null, fim: null };
+}
+
+function disponibilidadeProdutoParaEvento(produtoId) {
+  const eventoAtualId = document.getElementById("eventoId")?.value || "";
+  const intervaloAtual = intervaloEventoAtual();
+
+  if (!intervaloAtual.inicio || !intervaloAtual.fim) {
+    return { livre: true, texto: "Defina a data para verificar", classe: "neutral" };
+  }
+
+  const conflito = eventos.find(evento => {
+    if (String(evento.id) === String(eventoAtualId)) return false;
+
+    const usaProduto = Array.isArray(evento.tendas) && evento.tendas.some(p => String(p.id) === String(produtoId));
+    if (!usaProduto) return false;
+
+    let inicioEvento = evento.montagem;
+    let fimEvento = evento.desmontagem;
+
+    if (!inicioEvento || !fimEvento) {
+      if (!evento.data_evento) return false;
+      inicioEvento = `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_inicio || evento.hora_evento || "00:00"}`;
+      fimEvento = `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_termino || "23:59"}`;
+    }
+
+    return periodosConflitam(intervaloAtual.inicio, intervaloAtual.fim, inicioEvento, fimEvento);
+  });
+
+  if (conflito) {
+    return {
+      livre: false,
+      texto: `Indisponível: ${conflito.nome || "cliente"} em ${dataBR(conflito.data_evento)}`,
+      classe: "busy"
+    };
+  }
+
+  return { livre: true, texto: "Livre para a data", classe: "free" };
+}
+
+function popularSelectProdutosEvento() {
+  const select = document.getElementById("eventoProdutoSelect");
+  if (!select) return;
+  const ids = produtosSelecionadosEventoAtual.map(p => String(p.id));
+  const disponiveis = (Array.isArray(produtos) ? produtos : [])
+    .filter(p => (p.categoria || p.tipo) !== "Mesas/Cadeiras")
+    .filter(p => !ids.includes(String(p.id)));
+  select.innerHTML = `<option value="">Selecione um produto para adicionar</option>` + disponiveis.map(p => {
+    const disp = disponibilidadeProdutoParaEvento(p.id);
+    return `
+      <option value="${p.id}" ${disp.livre ? "" : "disabled"}>
+        ${p.codigo || "Sem código"} — ${p.categoria || p.tipo || "-"} ${p.tamanho || ""} ${p.cor || ""} | ${disp.texto}
+      </option>
+    `;
+  }).join("");
+}
+function adicionarProdutoSelecionadoAoEvento() {
+  const select = document.getElementById("eventoProdutoSelect");
+  const id = select.value;
+  if (!id) return;
+  const p = produtos.find(x => String(x.id) === String(id));
+  if (!p) return;
+
+  const disponibilidade = disponibilidadeProdutoParaEvento(p.id);
+  if (!disponibilidade.livre) {
+    alert(`Este produto está indisponível para a data/período selecionado.\n\n${disponibilidade.texto}`);
+    select.value = "";
     return;
   }
 
-  const grupos = agruparPorDataECarro(filtradas);
-  const datas = Object.keys(grupos).sort();
+  produtosSelecionadosEventoAtual.push({
+    id: p.id, codigo: p.codigo || "", categoria: p.categoria || p.tipo || "", tamanho: p.tamanho || "", cor: p.cor || ""
+  });
+  select.value = "";
+  popularSelectProdutosEvento();
+  renderizarProdutosSelecionadosEvento();
+}
+function removerProdutoDoEvento(id) {
+  produtosSelecionadosEventoAtual = produtosSelecionadosEventoAtual.filter(p => String(p.id) !== String(id));
+  popularSelectProdutosEvento();
+  renderizarProdutosSelecionadosEvento();
+}
+function renderizarProdutosSelecionadosEvento() {
+  const area = document.getElementById("eventoProdutosSelecionados");
+  if (!area) return;
+  if (!produtosSelecionadosEventoAtual.length) {
+    area.innerHTML = `<p class="empty">Nenhum produto com código selecionado.</p>`;
+    return;
+  }
+  area.innerHTML = produtosSelecionadosEventoAtual.map(p => {
+    const disp = disponibilidadeProdutoParaEvento(p.id);
+    return `
+      <div class="selected-item">
+        <span>
+          <strong>${p.codigo || "Sem código"}</strong> — ${p.categoria || ""} ${p.tamanho || ""} ${p.cor || ""}
+          <small class="availability-badge ${disp.classe}">${disp.texto}</small>
+        </span>
+        <button type="button" class="btn-outline" data-remove-produto="${p.id}">Remover</button>
+      </div>`;
+  }).join("");
+  area.querySelectorAll("[data-remove-produto]").forEach(btn => {
+    btn.addEventListener("click", () => removerProdutoDoEvento(btn.dataset.removeProduto));
+  });
+}
 
-  container.innerHTML = datas.map(data => {
-    const carros = Object.keys(grupos[data]).sort((a, b) => ordemCarro(a) - ordemCarro(b));
+
+function adicionarExtraAoEvento() {
+  const descricaoInput = document.getElementById("eventoExtraDescricao");
+  const quantidadeInput = document.getElementById("eventoExtraQuantidade");
+
+  if (!descricaoInput || !quantidadeInput) return;
+
+  const descricao = descricaoInput.value.trim();
+  const quantidade = Math.max(Number(quantidadeInput.value || 1), 1);
+
+  if (!descricao) {
+    alert("Informe a descrição do produto ou serviço extra.");
+    return;
+  }
+
+  produtosExtrasEventoAtual.push({
+    id: gerarId(),
+    descricao,
+    quantidade
+  });
+
+  descricaoInput.value = "";
+  quantidadeInput.value = 1;
+  renderizarExtrasEvento();
+}
+
+function removerExtraDoEvento(id) {
+  produtosExtrasEventoAtual = produtosExtrasEventoAtual.filter(item => String(item.id) !== String(id));
+  renderizarExtrasEvento();
+}
+
+function renderizarExtrasEvento() {
+  const area = document.getElementById("eventoExtrasSelecionados");
+  if (!area) return;
+
+  if (!produtosExtrasEventoAtual.length) {
+    area.innerHTML = `<p class="empty">Nenhum produto extra adicionado.</p>`;
+    return;
+  }
+
+  area.innerHTML = produtosExtrasEventoAtual.map(item => `
+    <div class="selected-item extra-selected">
+      <span><strong>${item.descricao}</strong> — Quantidade: ${item.quantidade}</span>
+      <button type="button" class="btn-outline" data-remove-extra="${item.id}">Remover</button>
+    </div>
+  `).join("");
+
+  area.querySelectorAll("[data-remove-extra]").forEach(btn => {
+    btn.addEventListener("click", () => removerExtraDoEvento(btn.dataset.removeExtra));
+  });
+}
+
+function renderizarApoioEvento(selecionados = []) {
+  const area = document.getElementById("eventoApoioLista");
+  if (!area) return;
+
+  if (!Array.isArray(estoqueApoio) || !estoqueApoio.length) {
+    area.innerHTML = `<p class="empty">Nenhum item de apoio cadastrado.</p>`;
+    return;
+  }
+
+  area.innerHTML = estoqueApoio.map(item => {
+    const selecionado = selecionados.find(s => String(s.id) === String(item.id) || s.nome === item.nome);
+    const total = Number(item.quantidade_total || 0);
+    const reservado = Number(item.quantidade_reservada || 0);
+    const disponibilidade = disponibilidadeApoioParaEvento(item, selecionado ? Number(selecionado.quantidade || 0) : 0);
+    const disponivel = disponibilidade.disponivel;
 
     return `
-      <div class="rota-dia">
-        <div class="rota-dia-header">
-          <h3>${formatarDataRota(data)} <span>${diaSemanaRota(data)}</span></h3>
-          <button type="button" class="btn-outline rota-print-btn" data-print-date="${data}">Gerar PDF/Imprimir</button>
+      <label class="apoio-evento-item">
+        <span>
+          <strong>${item.nome}</strong>
+          <small>Total: ${total} | Reservado na data: ${disponibilidade.reservadoNoPeriodo} | Disponível na data: ${disponivel}</small>
+        </span>
+        <input type="number" min="0" max="${disponivel}" step="1" data-id="${item.id}" data-nome="${item.nome}" value="${selecionado ? Number(selecionado.quantidade || 0) : 0}">
+      </label>
+    `;
+  }).join("");
+
+  area.querySelectorAll("input[type='number']").forEach(input => {
+    input.addEventListener("input", () => {
+      const max = Number(input.max || 0);
+      const valor = Number(input.value || 0);
+      if (valor > max) {
+        input.value = max;
+        alert(`Quantidade máxima disponível para esta data: ${max}`);
+      }
+      if (valor < 0) input.value = 0;
+    });
+  });
+}
+
+function obterProdutosSelecionadosEvento() {
+  return produtosSelecionadosEventoAtual.map(p => ({
+    id: p.id, codigo: p.codigo || "", categoria: p.categoria || "", tamanho: p.tamanho || "", cor: p.cor || ""
+  }));
+}
+
+function obterApoioSelecionadoEvento() {
+  const inputs = [...document.querySelectorAll("#eventoApoioLista input[type='number']")];
+
+  return inputs.map(input => {
+    const quantidade = Number(input.value || 0);
+    if (quantidade <= 0) return null;
+
+    return {
+      id: input.dataset.id,
+      nome: input.dataset.nome,
+      quantidade
+    };
+  }).filter(Boolean);
+}
+
+
+function quantidadeApoioReservadaNoPeriodo(itemId, eventoAtualId = "") {
+  const intervaloAtual = intervaloEventoAtual();
+  if (!intervaloAtual.inicio || !intervaloAtual.fim) return 0;
+
+  return eventos.reduce((total, evento) => {
+    if (String(evento.id) === String(eventoAtualId)) return total;
+
+    const itemEvento = Array.isArray(evento.itens_apoio)
+      ? evento.itens_apoio.find(i => String(i.id) === String(itemId))
+      : null;
+
+    if (!itemEvento) return total;
+
+    let inicioEvento = evento.montagem;
+    let fimEvento = evento.desmontagem;
+
+    if (!inicioEvento || !fimEvento) {
+      if (!evento.data_evento) return total;
+      inicioEvento = `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_inicio || evento.hora_evento || "00:00"}`;
+      fimEvento = `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_termino || "23:59"}`;
+    }
+
+    if (periodosConflitam(intervaloAtual.inicio, intervaloAtual.fim, inicioEvento, fimEvento)) {
+      return total + Number(itemEvento.quantidade || 0);
+    }
+
+    return total;
+  }, 0);
+}
+
+function disponibilidadeApoioParaEvento(item, quantidadeDesejada = 0) {
+  const eventoAtualId = document.getElementById("eventoId")?.value || "";
+  const total = Number(item.quantidade_total || 0);
+  const reservadoNoPeriodo = quantidadeApoioReservadaNoPeriodo(item.id, eventoAtualId);
+  const disponivel = Math.max(total - reservadoNoPeriodo, 0);
+  const quantidade = Number(quantidadeDesejada || 0);
+
+  return {
+    total,
+    reservadoNoPeriodo,
+    disponivel,
+    ok: quantidade <= disponivel,
+    texto: `Disponível na data: ${disponivel} de ${total}`
+  };
+}
+
+function validarProdutosDoEvento() {
+  const indisponiveis = produtosSelecionadosEventoAtual
+    .map(p => ({ produto: p, disponibilidade: disponibilidadeProdutoParaEvento(p.id) }))
+    .filter(item => !item.disponibilidade.livre);
+
+  if (indisponiveis.length) {
+    alert(
+      "Não é possível salvar este evento. Existem produtos indisponíveis para a data/período:\n\n" +
+      indisponiveis.map(item => `${item.produto.codigo || "Sem código"} — ${item.disponibilidade.texto}`).join("\n")
+    );
+    return false;
+  }
+
+  return true;
+}
+
+function validarApoioDoEvento() {
+  const itens = obterApoioSelecionadoEvento();
+  const problemas = [];
+
+  itens.forEach(itemSelecionado => {
+    const itemEstoque = estoqueApoio.find(item => String(item.id) === String(itemSelecionado.id));
+    if (!itemEstoque) return;
+
+    const disponibilidade = disponibilidadeApoioParaEvento(itemEstoque, itemSelecionado.quantidade);
+    if (!disponibilidade.ok) {
+      problemas.push(`${itemSelecionado.nome}: solicitado ${itemSelecionado.quantidade}, disponível ${disponibilidade.disponivel}`);
+    }
+  });
+
+  if (problemas.length) {
+    alert(
+      "Não é possível salvar este evento. Quantidade insuficiente em mesas/cadeiras para a data/período:\n\n" +
+      problemas.join("\n")
+    );
+    return false;
+  }
+
+  return true;
+}
+
+async function salvarEventoForm(event) {
+  event.preventDefault();
+
+  calcularRestanteEvento();
+
+  if (!validarProdutosDoEvento()) return;
+  if (!validarApoioDoEvento()) return;
+
+  const id = document.getElementById("eventoId").value || gerarId();
+  const existente = eventos.find(e => e.id === id);
+  const tipoEvento = document.getElementById("eventoTipoEvento")?.value || "pontual";
+
+  const evento = montarEventoRecorrenteBase(id, existente);
+
+  if (tipoEvento === "recorrente" && !existente) {
+    const inicioRec = document.getElementById("eventoRecorrenciaInicio")?.value || evento.data_evento;
+    const fimRec = document.getElementById("eventoRecorrenciaFim")?.value || evento.data_evento;
+
+    if (!inicioRec || !fimRec) {
+      alert("Informe o início e o fim da recorrência.");
+      return;
+    }
+
+    if (fimRec < inicioRec) {
+      alert("O fim da recorrência precisa ser maior ou igual ao início.");
+      return;
+    }
+
+    const ocorrencias = montarOcorrenciasRecorrentes(evento);
+
+    if (!ocorrencias.length) {
+      alert("Nenhuma ocorrência foi gerada para a recorrência informada.");
+      return;
+    }
+
+    if (!confirm(`Serão criadas ${ocorrencias.length} ocorrências recorrentes. Continuar?`)) return;
+
+    for (const ocorrencia of ocorrencias) {
+      await garantirClienteDoEvento(ocorrencia);
+      const salvo = await salvarEventoBanco(ocorrencia);
+      if (!salvo) return;
+
+      const i = eventos.findIndex(e => e.id === salvo.id);
+      if (i >= 0) eventos[i] = salvo;
+      else eventos.push(salvo);
+    }
+
+    fecharEventoModal();
+    renderizarEventos();
+    return;
+  }
+
+  evento.tipo_evento = tipoEvento;
+  evento.recorrente = tipoEvento === "recorrente";
+  evento.recorrencia_grupo_id = existente?.recorrencia_grupo_id || (tipoEvento === "recorrente" ? gerarId() : null);
+  evento.recorrencia_tipo = tipoEvento === "recorrente" ? (document.getElementById("eventoRecorrenciaTipo")?.value || "mensal") : null;
+  evento.recorrencia_dias = tipoEvento === "recorrente" ? Number(document.getElementById("eventoRecorrenciaDias")?.value || 30) : null;
+  evento.recorrencia_inicio = tipoEvento === "recorrente" ? (document.getElementById("eventoRecorrenciaInicio")?.value || evento.data_evento) : null;
+  evento.recorrencia_fim = tipoEvento === "recorrente" ? (document.getElementById("eventoRecorrenciaFim")?.value || evento.data_evento) : null;
+
+  await garantirClienteDoEvento(evento);
+
+  const salvo = await salvarEventoBanco(evento);
+  if (!salvo) return;
+
+  const i = eventos.findIndex(e => e.id === salvo.id);
+  if (i >= 0) eventos[i] = salvo;
+  else eventos.push(salvo);
+
+  fecharEventoModal();
+  renderizarEventos();
+}
+
+function filtrarEventos() {
+  const busca = document.getElementById("buscaEvento").value.trim().toLowerCase();
+  const data = document.getElementById("filtroEventoData").value;
+  const cliente = document.getElementById("filtroEventoCliente").value.trim().toLowerCase();
+  const telefone = document.getElementById("filtroEventoTelefone").value.trim().toLowerCase();
+  const pagamento = document.getElementById("filtroEventoPagamento").value;
+
+  return eventos.filter(e => {
+    if (isEventoRecorrente(e)) return false;
+
+    const produtosTxt = [...(e.tendas || []).map(p => `${p.codigo} ${p.categoria} ${p.tamanho}`), ...(e.itens_apoio || []).map(i => `${i.nome} ${i.quantidade}`)].join(" ");
+    const texto = `${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${produtosTxt}`.toLowerCase();
+
+    return (!busca || texto.includes(busca))
+      && (!data || e.data_evento === data)
+      && (!cliente || String(e.nome || "").toLowerCase().includes(cliente))
+      && (!telefone || String(e.telefone || "").toLowerCase().includes(telefone))
+      && (!pagamento || (pagamento === "quitado" ? e.pagamento_quitado : !e.pagamento_quitado));
+  });
+}
+
+
+function filtrarEventosRecorrentes() {
+  const busca = document.getElementById("buscaEvento").value.trim().toLowerCase();
+  const data = document.getElementById("filtroEventoData").value;
+  const cliente = document.getElementById("filtroEventoCliente").value.trim().toLowerCase();
+  const telefone = document.getElementById("filtroEventoTelefone").value.trim().toLowerCase();
+  const pagamento = document.getElementById("filtroEventoPagamento").value;
+
+  return eventos.filter(e => {
+    if (!isEventoRecorrente(e)) return false;
+
+    const produtosTxt = [...(e.tendas || []).map(p => `${p.codigo} ${p.categoria} ${p.tamanho}`), ...(e.itens_apoio || []).map(i => `${i.nome} ${i.quantidade}`)].join(" ");
+    const texto = `${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${produtosTxt}`.toLowerCase();
+
+    return (!busca || texto.includes(busca))
+      && (!data || e.data_evento === data)
+      && (!cliente || String(e.nome || "").toLowerCase().includes(cliente))
+      && (!telefone || String(e.telefone || "").toLowerCase().includes(telefone))
+      && (!pagamento || (pagamento === "quitado" ? e.pagamento_quitado : !e.pagamento_quitado));
+  }).sort((a, b) => String(a.data_evento || "").localeCompare(String(b.data_evento || "")));
+}
+
+
+
+
+function dataEventoCompactaVisual(dataISO) {
+  if (!dataISO) return "-";
+
+  const partes = String(dataISO).split("-");
+  if (partes.length < 3) return dataISO;
+
+  const data = new Date(`${dataISO}T12:00:00`);
+
+  const dias = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+  const dd = partes[2];
+  const mm = partes[1];
+  const aa = partes[0].slice(-2);
+
+  return `<span class="event-date-strong">${dd}/${mm}/${aa}</span> <span class="event-weekday-light">${dias[data.getDay()]}</span>`;
+}
+
+function horarioEventoAbaixoData(e) {
+  const inicio = formatarHoraCurta(e.hora_inicio || e.hora_evento || "");
+  const fim = formatarHoraCurta(e.hora_termino || "");
+
+  if (inicio && fim) return `${inicio} às ${fim}`;
+  return inicio || "";
+}
+
+function dataHoraCurtaEvento(valor) {
+  return formatarDataHoraCurta(valor);
+}
+
+function montagemDesmontagemCompacta(e) {
+  const montagem = dataHoraCurtaEvento(e.montagem);
+  const desmontagem = dataHoraCurtaEvento(e.desmontagem);
+
+  if (montagem && desmontagem) {
+    return `<span class="md-line"><b>M:</b> ${montagem}</span><span class="md-line"><b>D:</b> ${desmontagem}</span>`;
+  }
+
+  if (montagem) return `<span class="md-line"><b>M:</b> ${montagem}</span>`;
+  if (desmontagem) return `<span class="md-line"><b>D:</b> ${desmontagem}</span>`;
+
+  return "-";
+}
+
+function resumoProdutosEvento(e) {
+  const tendas = (e.tendas || []).map(p => {
+    const nome = [p.categoria, p.tamanho, p.cor].filter(Boolean).join(" ");
+    return `${p.codigo || "Sem código"}${nome ? " — " + nome : ""}`;
+  }).filter(Boolean);
+
+  const apoio = (e.itens_apoio || []).map(i => `${i.nome} (${i.quantidade})`);
+  const extras = (e.produtos_extras || []).map(i => `${i.descricao} (${i.quantidade})`);
+
+  const todos = [...tendas, ...apoio, ...extras];
+
+  return todos.length ? todos.join("<br>") : "-";
+}
+
+function renderizarEventos() {
+  const tbody = document.getElementById("eventosTbody");
+  const tbodyRec = document.getElementById("eventosRecorrentesTbody");
+
+  const tabelaPrincipalEventos = tbody ? tbody.closest("table") : null;
+  const tabelaRecorrentesEventos = tbodyRec ? tbodyRec.closest("table") : null;
+
+  if (tabelaPrincipalEventos) {
+    tabelaPrincipalEventos.classList.add("eventos-tabela-principal");
+    tabelaPrincipalEventos.classList.remove("eventos-tabela-recorrentes");
+  }
+
+  if (tabelaRecorrentesEventos) {
+    tabelaRecorrentesEventos.classList.add("eventos-tabela-recorrentes");
+    tabelaRecorrentesEventos.classList.remove("eventos-tabela-principal");
+  }
+
+  if (!tbody) return;
+
+  const lista = filtrarEventos();
+  const recorrentes = filtrarEventosRecorrentes();
+
+  document.getElementById("eventosTotal").textContent = lista.length + recorrentes.length;
+  document.getElementById("eventosEmAberto").textContent = [...lista, ...recorrentes].filter(e => !e.pagamento_quitado).length;
+
+  if (!lista.length) {
+    tbody.innerHTML = `<tr><td colspan="12" class="empty">Nenhum evento pontual cadastrado.</td></tr>`;
+  } else {
+    tbody.innerHTML = lista.map(e => `
+      <tr class="${e.pagamento_quitado ? "" : "payment-open"}">
+        <td>
+          ${dataEventoCompactaVisual(e.data_evento)}
+          <small class="weekday-badge">${typeof diaSemanaTexto === "function" ? diaSemanaTexto(e.data_evento) : diaSemana(e.data_evento)}</small>
+          <small class="event-hour-under">${horarioEventoAbaixoData(e) || "-"}</small>
+        </td>
+        <td class="mont-desm-cell">${montagemDesmontagemCompacta(e)}</td>
+        <td><button class="code-link" data-action="detalhe" data-id="${e.id}">${e.nome || "-"}</button></td>
+        <td>${e.telefone || "-"}</td>
+        <td><div class="cell-scroll cell-endereco">${e.endereco || "-"}</div></td>
+        <td>
+          <div class="cell-scroll cell-produtos">
+            <button class="product-list-button" data-action="editar-produtos" data-id="${e.id}">
+              ${resumoProdutosEvento(e)}
+            </button>
+          </div>
+        </td>
+        <td>${dinheiro(e.valor_total)}</td>
+        <td>${dinheiro(e.valor_sinal)}</td>
+        <td>${dinheiro(e.valor_restante)}</td>
+        <td>${e.pagamento_quitado ? "Quitado" : "Em aberto"}</td>
+        <td>${e.colaborador || "-"}</td>
+        <td class="actions">
+          <button data-action="editar" data-id="${e.id}">Editar</button>
+          <button class="btn-outline" data-action="excluir" data-id="${e.id}">Excluir</button>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  tbody.querySelectorAll("button[data-action]").forEach(btn => btn.addEventListener("click", lidarAcaoEvento));
+
+  if (!tbodyRec) return;
+
+  if (!recorrentes.length) {
+    tbodyRec.innerHTML = `<tr><td colspan="11" class="empty">Nenhum evento recorrente cadastrado.</td></tr>`;
+    return;
+  }
+
+  tbodyRec.innerHTML = recorrentes.map(e => `
+    <tr class="recurring-row ${e.pagamento_quitado ? "" : "payment-open"}">
+      <td>${dataCompactaComDiaRecorrente(e.data_evento)}</td>
+      <td>${periodoRecorrenciaTexto(e)}</td>
+      <td>${recorrenciaLabel(e.recorrencia_tipo, e.recorrencia_dias)}</td>
+      <td><button class="code-link" data-action="detalhe" data-id="${e.id}">${e.nome || "-"}</button></td>
+      <td>${e.telefone || "-"}</td>
+      <td><div class="cell-scroll cell-endereco">${e.endereco || "-"}</div></td>
+      <td>
+        <div class="cell-scroll cell-produtos">
+          <button class="product-list-button" data-action="editar-produtos" data-id="${e.id}">
+            ${resumoProdutosEvento(e)}
+          </button>
+        </div>
+      </td>
+      <td>${dinheiro(e.valor_total)}</td>
+      <td>${e.pagamento_quitado ? "Quitado" : "Em aberto"}</td>
+      <td>${e.colaborador || "-"}</td>
+      <td class="actions">
+        <button data-action="editar" data-id="${e.id}">Editar</button>
+        <button class="btn-outline" data-action="excluir" data-id="${e.id}">Excluir</button>
+      </td>
+    </tr>
+  `).join("");
+
+  tbodyRec.querySelectorAll("button[data-action]").forEach(btn => btn.addEventListener("click", lidarAcaoEvento));
+}
+
+async function lidarAcaoEvento(event) {
+  const action = event.currentTarget.dataset.action;
+  const id = event.currentTarget.dataset.id;
+
+  if (action === "editar") return abrirEditarEvento(id);
+  if (action === "editar-produtos") return abrirProdutosRapido(id);
+  if (action === "detalhe") return abrirDetalheEvento(id);
+
+  if (action === "excluir") {
+    const e = eventos.find(x => x.id === id);
+    if (!confirm(`Excluir o evento de ${e?.nome || ""}?`)) return;
+
+    const ok = await excluirEventoBanco(id);
+    if (!ok) return;
+
+    eventos = eventos.filter(x => x.id !== id);
+    renderizarEventos();
+  }
+}
+
+
+
+function produtoMesmoModelo(a, b) {
+  if (!a || !b) return false;
+
+  const catA = String(a.categoria || "").toLowerCase().trim();
+  const catB = String(b.categoria || "").toLowerCase().trim();
+  const tamA = String(a.tamanho || "").toLowerCase().trim();
+  const tamB = String(b.tamanho || "").toLowerCase().trim();
+
+  return catA === catB && tamA === tamB;
+}
+
+function descricaoProdutoCompacta(produto) {
+  return [
+    produto.codigo,
+    produto.categoria,
+    produto.tamanho,
+    produto.cor
+  ].filter(Boolean).join(" — ");
+}
+
+function abrirTrocaRapidaProduto(index) {
+  const atual = produtosRapidoAtual[index];
+  if (!atual) return;
+
+  const opcoes = (produtos || []).filter(p => {
+    if (String(p.id) === String(atual.id)) return false;
+    return produtoMesmoModelo(p, atual);
+  });
+
+  if (!opcoes.length) {
+    alert("Não há outro produto cadastrado com a mesma categoria e tamanho.");
+    return;
+  }
+
+  let dialog = document.getElementById("trocaRapidaProdutoDialog");
+
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "trocaRapidaProdutoDialog";
+    dialog.className = "troca-rapida-dialog";
+    document.body.appendChild(dialog);
+  }
+
+  dialog.innerHTML = `
+    <div class="troca-rapida-header">
+      <h3>Alterar produto</h3>
+      <button type="button" class="troca-rapida-fechar" aria-label="Fechar">×</button>
+    </div>
+
+    <div class="troca-rapida-atual">
+      <span>Produto atual</span>
+      <strong>${descricaoProdutoCompacta(atual)}</strong>
+    </div>
+
+    <label class="troca-rapida-select-label">
+      Substituir por
+      <select id="trocaRapidaProdutoSelect">
+        <option value="">Selecione um produto compatível</option>
+        ${opcoes.map(p => `
+          <option value="${p.id}">
+            ${descricaoProdutoCompacta(p)}
+          </option>
+        `).join("")}
+      </select>
+    </label>
+
+    <div class="troca-rapida-lista">
+      ${opcoes.map(p => `
+        <button type="button" class="troca-rapida-opcao" data-troca-produto-id="${p.id}">
+          <strong>${p.codigo || "-"}</strong>
+          <span>${[p.categoria, p.tamanho, p.cor].filter(Boolean).join(" ")}</span>
+        </button>
+      `).join("")}
+    </div>
+
+    <div class="troca-rapida-actions">
+      <button type="button" class="btn-outline troca-rapida-cancelar">Cancelar</button>
+      <button type="button" class="btn-primary troca-rapida-confirmar">Alterar</button>
+    </div>
+  `;
+
+  function confirmarTroca(produtoId) {
+    const novoProduto = opcoes.find(p => String(p.id) === String(produtoId));
+
+    if (!novoProduto) {
+      alert("Selecione um produto substituto.");
+      return;
+    }
+
+    produtosRapidoAtual[index] = novoProduto;
+    dialog.close();
+    renderizarProdutosRapido();
+  }
+
+  dialog.querySelector(".troca-rapida-fechar").addEventListener("click", () => dialog.close());
+  dialog.querySelector(".troca-rapida-cancelar").addEventListener("click", () => dialog.close());
+
+  dialog.querySelector(".troca-rapida-confirmar").addEventListener("click", () => {
+    confirmarTroca(dialog.querySelector("#trocaRapidaProdutoSelect").value);
+  });
+
+  dialog.querySelectorAll("[data-troca-produto-id]").forEach(btn => {
+    btn.addEventListener("click", () => confirmarTroca(btn.dataset.trocaProdutoId));
+  });
+
+  dialog.showModal();
+}
+
+function abrirProdutosRapido(id) {
+  const evento = eventos.find(e => String(e.id) === String(id));
+  if (!evento) return;
+
+  document.getElementById("eventoProdutosRapidoId").value = evento.id;
+  document.getElementById("eventoProdutosRapidoTitulo").textContent = `Alterar produtos — ${evento.nome || "Evento"}`;
+
+  produtosRapidoAtual = Array.isArray(evento.tendas) ? [...evento.tendas] : [];
+  apoioRapidoAtual = Array.isArray(evento.itens_apoio) ? [...evento.itens_apoio] : [];
+
+  popularSelectProdutosRapido();
+  renderizarProdutosRapido();
+  renderizarApoioRapido();
+
+  document.getElementById("eventoProdutosRapidoDialog").showModal();
+}
+
+function fecharProdutosRapido() {
+  document.getElementById("eventoProdutosRapidoDialog").close();
+}
+
+function eventoProdutosRapidoAtual() {
+  const id = document.getElementById("eventoProdutosRapidoId").value;
+  return eventos.find(e => String(e.id) === String(id));
+}
+
+function disponibilidadeProdutoRapido(produtoId) {
+  const evento = eventoProdutosRapidoAtual();
+  if (!evento) return { livre: true, texto: "Livre", classe: "free" };
+
+  const inicio = evento.montagem || (evento.data_evento ? `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_inicio || evento.hora_evento || "00:00"}` : null);
+  const fim = evento.desmontagem || (evento.data_evento ? `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_termino || "23:59"}` : null);
+
+  if (!inicio || !fim) return { livre: true, texto: "Sem data definida", classe: "neutral" };
+
+  const conflito = eventos.find(outro => {
+    if (String(outro.id) === String(evento.id)) return false;
+
+    const usaProduto = Array.isArray(outro.tendas) && outro.tendas.some(p => String(p.id) === String(produtoId));
+    if (!usaProduto) return false;
+
+    const inicioOutro = outro.montagem || (outro.data_evento ? `${outro.data_evento}T${outro.hora_inicio || outro.hora_evento || "00:00"}` : null);
+    const fimOutro = outro.desmontagem || (outro.data_evento ? `${outro.data_evento}T${outro.hora_termino || "23:59"}` : null);
+
+    return periodosConflitam(inicio, fim, inicioOutro, fimOutro);
+  });
+
+  if (conflito) {
+    return {
+      livre: false,
+      texto: `Indisponível: ${conflito.nome || "cliente"} em ${dataBR(conflito.data_evento)}`,
+      classe: "busy"
+    };
+  }
+
+  return { livre: true, texto: "Livre para a data", classe: "free" };
+}
+
+function popularSelectProdutosRapido() {
+  const select = document.getElementById("eventoProdutoRapidoSelect");
+  if (!select) return;
+
+  const selecionados = produtosRapidoAtual.map(p => String(p.id));
+  const disponiveis = (Array.isArray(produtos) ? produtos : [])
+    .filter(p => (p.categoria || p.tipo) !== "Mesas/Cadeiras")
+    .filter(p => !selecionados.includes(String(p.id)));
+
+  select.innerHTML = `<option value="">Selecione um produto para adicionar</option>` + disponiveis.map(p => {
+    const disp = disponibilidadeProdutoRapido(p.id);
+    return `
+      <option value="${p.id}" ${disp.livre ? "" : "disabled"}>
+        ${p.codigo || "Sem código"} — ${p.categoria || p.tipo || "-"} ${p.tamanho || ""} ${p.cor || ""} | ${disp.texto}
+      </option>
+    `;
+  }).join("");
+}
+
+function adicionarProdutoRapido() {
+  const select = document.getElementById("eventoProdutoRapidoSelect");
+  const id = select.value;
+  if (!id) return;
+
+  const produto = produtos.find(p => String(p.id) === String(id));
+  if (!produto) return;
+
+  const disp = disponibilidadeProdutoRapido(produto.id);
+  if (!disp.livre) {
+    alert("Este produto está indisponível para este evento.");
+    select.value = "";
+    return;
+  }
+
+  produtosRapidoAtual.push({
+    id: produto.id,
+    codigo: produto.codigo || "",
+    categoria: produto.categoria || produto.tipo || "",
+    tamanho: produto.tamanho || "",
+    cor: produto.cor || ""
+  });
+
+  select.value = "";
+  popularSelectProdutosRapido();
+  renderizarProdutosRapido();
+}
+
+function removerProdutoRapido(id) {
+  produtosRapidoAtual = produtosRapidoAtual.filter(p => String(p.id) !== String(id));
+  popularSelectProdutosRapido();
+  renderizarProdutosRapido();
+}
+
+function renderizarProdutosRapido() {
+  const container = document.getElementById("eventoProdutosRapidoSelecionados");
+  if (!container) return;
+
+  if (!produtosRapidoAtual.length) {
+    container.innerHTML = `<p class="empty">Nenhum produto selecionado.</p>`;
+    return;
+  }
+
+  container.innerHTML = produtosRapidoAtual.map((produto, index) => {
+    const disponibilidade = disponibilidadeProdutoRapido(produto.id);
+    const classe = disponibilidade.classe || "neutral";
+    const textoDisponibilidade = disponibilidade.texto || "Disponibilidade não verificada";
+
+    return `
+      <div class="produto-rapido-row">
+        <div class="produto-rapido-info">
+          <strong>${produto.codigo || "-"}</strong>
+          <span>${[produto.categoria, produto.tamanho, produto.cor].filter(Boolean).join(" ")}</span>
+          <em class="availability ${classe}">${textoDisponibilidade}</em>
         </div>
 
-        ${carros.map(carro => {
-          inicializarOrdemManualRotas(grupos[data][carro]);
-
-          const rotasOrdenadas = ordenarRotasPorOrdemManual(grupos[data][carro]);
-
-          return `
-          <div class="rota-carro">
-            <div class="rota-carro-header">
-              <h4>${carro}</h4>
-              <div class="rota-carro-materiais">
-                ${listaMateriaisRotas(rotasOrdenadas).map(item => `<span>${item}</span>`).join("")}
-              </div>
-            </div>
-            <div class="rota-lista">
-              ${rotasOrdenadas.map((rota, idx) => renderizarCardRota(rota, idx, rotasOrdenadas.length)).join("")}
-            </div>
-          </div>
-        `;
-        }).join("")}
+        <div class="produto-rapido-actions">
+          <button type="button" class="btn-outline produto-alterar-btn" data-produto-rapido-alterar="${index}">
+            Alterar
+          </button>
+          <button type="button" class="btn-outline produto-remover-btn" data-produto-rapido-remover="${index}">
+            Remover
+          </button>
+        </div>
       </div>
     `;
   }).join("");
 
-
-  container.querySelectorAll("button[data-rota-move]").forEach(btn => {
+  container.querySelectorAll("[data-produto-rapido-remover]").forEach(btn => {
     btn.addEventListener("click", () => {
-      const data = btn.dataset.rotaData;
-      const carro = btn.dataset.rotaCarroGrupo;
-
-      const todas = criarRotasDosEventos();
-      const grupos = agruparPorDataECarro(todas);
-
-      const lista = (grupos[data] && grupos[data][carro])
-        ? ordenarRotasPorOrdemManual(grupos[data][carro])
-        : [];
-
-      moverOrdemRota(btn.dataset.rotaMove, btn.dataset.direction, lista);
-      renderizarRotas();
+      produtosRapidoAtual.splice(Number(btn.dataset.produtoRapidoRemover), 1);
+      renderizarProdutosRapido();
     });
   });
 
-
-  container.querySelectorAll("button[data-rota-edit-evento]").forEach(btn => {
+  container.querySelectorAll("[data-produto-rapido-alterar]").forEach(btn => {
     btn.addEventListener("click", () => {
-      const eventoId = btn.dataset.rotaEditEvento;
-      if (!eventoId) return;
-
-      if (typeof abrirEditarEvento === "function") {
-        abrirEditarEvento(eventoId);
-      } else {
-        alert("Abra o setor de Eventos para editar este evento.");
-      }
+      abrirTrocaRapidaProduto(Number(btn.dataset.produtoRapidoAlterar));
     });
-  });
-
-  container.querySelectorAll("select[data-rota-carro]").forEach(select => {
-    select.addEventListener("change", () => {
-      rotasCarros[select.dataset.rotaCarro] = select.value || "Sem carro";
-      salvarRotasCarrosLocal();
-      renderizarRotas();
-    });
-  });
-
-  container.querySelectorAll("[data-print-date]").forEach(btn => {
-    btn.addEventListener("click", () => imprimirRotaData(btn.dataset.printDate));
   });
 }
 
+function intervaloDoEvento(evento) {
+  if (!evento) return { inicio: null, fim: null };
 
+  const inicio = evento.montagem || (evento.data_evento ? `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_inicio || evento.hora_evento || "00:00"}` : null);
+  const fim = evento.desmontagem || (evento.data_evento ? `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_termino || "23:59"}` : null);
 
-function rotaEhDesmontagem(rota) {
-  const tipo = String(rota?.tipo || "").toLowerCase();
-  return tipo.includes("desmont") || tipo.includes("retirada");
+  return { inicio, fim };
 }
 
-function listaMateriaisRotas(listaRotas = []) {
-  const materiais = [];
+function quantidadeApoioReservadaNoPeriodoDoEvento(itemId, eventoBase) {
+  const intervaloBase = intervaloDoEvento(eventoBase);
+  if (!intervaloBase.inicio || !intervaloBase.fim) return 0;
 
-  listaRotas.forEach(rota => {
-    // No resumo ao lado do carro, listar somente materiais que serão levados
-    // para montagem/entrega. Desmontagens/retiradas não entram nessa soma.
-    if (rotaEhDesmontagem(rota)) return;
+  return eventos.reduce((total, evento) => {
+    if (String(evento.id) === String(eventoBase.id)) return total;
 
-    if (Array.isArray(rota.materiais)) {
-      rota.materiais.forEach(item => materiais.push(item));
+    const itemEvento = Array.isArray(evento.itens_apoio)
+      ? evento.itens_apoio.find(i => String(i.id) === String(itemId))
+      : null;
+
+    if (!itemEvento) return total;
+
+    const intervaloOutro = intervaloDoEvento(evento);
+
+    if (periodosConflitam(intervaloBase.inicio, intervaloBase.fim, intervaloOutro.inicio, intervaloOutro.fim)) {
+      return total + Number(itemEvento.quantidade || 0);
     }
-  });
 
-  return materiais;
-}
-
-function totalMateriaisRotas(listaRotas = []) {
-  return listaRotas.reduce((total, rota) => {
-    if (rotaEhDesmontagem(rota)) return total;
-    return total + (Array.isArray(rota.materiais) ? rota.materiais.length : 0);
+    return total;
   }, 0);
 }
 
-function carrosDisponiveisRotas() {
-  const config = window.configRioTendas || {};
-  return Array.isArray(config.carros) && config.carros.length
-    ? config.carros
-    : ["Saveiro", "Dupla", "Caminhão"];
-}
+function renderizarApoioRapido() {
+  const area = document.getElementById("eventoApoioRapidoLista");
+  if (!area) return;
 
-function ordemCarro(carro) {
-  if (carro === "Sem carro") return 999;
+  const evento = eventoProdutosRapidoAtual();
 
-  const carros = carrosDisponiveisRotas();
-  const index = carros.indexOf(carro);
-
-  return index >= 0 ? index + 1 : 99;
-}
-
-
-function tipoHorarioFlexivelRota(rota) {
-  const tipo = String(rota?.tipoHorario || "").toLowerCase();
-
-  return (
-    tipo.includes("horário comercial") ||
-    tipo.includes("horario comercial") ||
-    tipo.includes("livre") ||
-    tipo.includes("combinar")
-  );
-}
-
-function minutosRota(horario) {
-  if (!horario) return null;
-
-  const partes = String(horario).slice(0, 5).split(":");
-  if (partes.length < 2) return null;
-
-  const h = Number(partes[0]);
-  const m = Number(partes[1]);
-
-  if (Number.isNaN(h) || Number.isNaN(m)) return null;
-
-  return h * 60 + m;
-}
-
-function intervaloConflitoRota(rota) {
-  if (!rota || tipoHorarioFlexivelRota(rota)) return null;
-
-  const tipo = String(rota.tipoHorario || "").toLowerCase();
-  const inicio = minutosRota(rota.horario);
-
-  if (inicio === null) return null;
-
-  // Intervalo salvo como "Intervalo|22:00" ou similar
-  if (tipo.includes("intervalo")) {
-    const fimTexto = String(rota.tipoHorario || "").split("|")[1] || "";
-    const fim = minutosRota(fimTexto);
-
-    if (fim !== null) {
-      return {
-        inicio: Math.min(inicio, fim),
-        fim: Math.max(inicio, fim)
-      };
-    }
-
-    // Se não tiver final, trata como uma janela curta de atenção
-    return { inicio, fim: inicio + 30 };
-  }
-
-  // Horário exato: janela pequena para detectar choque real
-  if (tipo.includes("exato") || tipo.includes("exatamente")) {
-    return { inicio, fim: inicio + 30 };
-  }
-
-  // "A partir de" e "Até" são flexíveis, então não geram conflito duro.
-  // Mantemos fora do conflito automático para evitar falso positivo.
-  if (tipo.includes("a partir") || tipo.includes("até")) {
-    return null;
-  }
-
-  // Se houver horário mas tipo indefinido, usa janela curta conservadora
-  return { inicio, fim: inicio + 30 };
-}
-
-function intervalosSobrepoemRota(a, b) {
-  if (!a || !b) return false;
-  return a.inicio < b.fim && b.inicio < a.fim;
-}
-
-function rotasComConflito(rotas) {
-  const mapa = {};
-
-  rotas.forEach(rota => {
-    const carro = rotasCarros[rota.id] || "Sem carro";
-    if (carro === "Sem carro") return;
-
-    const intervalo = intervaloConflitoRota(rota);
-    if (!intervalo) return;
-
-    const chave = `${rota.data}|${carro}`;
-    if (!mapa[chave]) mapa[chave] = [];
-
-    mapa[chave].push({
-      id: rota.id,
-      intervalo
-    });
-  });
-
-  const conflitos = new Set();
-
-  Object.values(mapa).forEach(lista => {
-    for (let i = 0; i < lista.length; i++) {
-      for (let j = i + 1; j < lista.length; j++) {
-        if (intervalosSobrepoemRota(lista[i].intervalo, lista[j].intervalo)) {
-          conflitos.add(lista[i].id);
-          conflitos.add(lista[j].id);
-        }
-      }
-    }
-  });
-
-  return conflitos;
-}
-
-function rotaTemConflito(rota) {
-  const todas = filtrarRotas(criarRotasDosEventos());
-  return rotasComConflito(todas).has(rota.id);
-}
-
-
-async function atualizarHorarioRotaEvento(rotaId, novoValor) {
-  const rota = criarRotasDosEventos().find(r => r.id === rotaId);
-  if (!rota || !rota.evento) return;
-
-  const evento = eventos.find(e => String(e.id) === String(rota.evento_id));
-  if (!evento) return;
-
-  if (rota.tipo === "Montagem") {
-    evento.montagem = novoValor || null;
-  } else {
-    evento.desmontagem = novoValor || null;
-  }
-
-  evento.atualizado_em = new Date().toISOString();
-
-  if (typeof salvarEventoBanco === "function") {
-    const salvo = await salvarEventoBanco(evento);
-    if (salvo) {
-      const index = eventos.findIndex(e => String(e.id) === String(evento.id));
-      if (index >= 0) eventos[index] = salvo;
-    }
-  } else {
-    const index = eventos.findIndex(e => String(e.id) === String(evento.id));
-    if (index >= 0) eventos[index] = evento;
-  }
-
-  renderizarRotas();
-}
-
-function valorDatetimeLocal(valor) {
-  if (!valor) return "";
-  return String(valor).slice(0, 16);
-}
-
-function renderizarCardRota(rota, index = 0, total = 0) {
-  const carroAtual = rotasCarros[rota.id] || "Sem carro";
-  const materiais = rota.materiais && rota.materiais.length ? rota.materiais : ["Sem materiais informados"];
-  const conflito = rotaTemConflito(rota);
-  const evento = rota.evento || {};
-
-  return `
-    <div class="rota-card tipo-${rota.tipo.toLowerCase()} ${conflito ? "rota-conflito" : ""}">
-      <div class="rota-tipo-vertical tipo-${rota.tipo.toLowerCase()}">
-        <span>${rota.tipo}</span>
-      </div>
-
-      <div class="rota-card-conteudo">
-        <div class="rota-card-top rota-card-top-refinado">
-          <div class="rota-identificacao">
-            ${conflito ? '<b class="rota-alerta">Conflito</b>' : ''}
-          </div>
-
-
-      </div>
-
-      <div class="rota-grid-info">
-        <div class="rota-col rota-evento-data">
-          <span>Data do evento</span>
-          <strong>${dataHoraEventoPrintCurta(evento, rota)}</strong>
-        </div>
-        <div class="rota-col rota-operacao-data">
-          <span>${rota.tipo}</span>
-          <strong>${textoHorarioRota(rota.tipoHorario, rota.horario, rota.data)}</strong>
-        </div>
-        <div class="rota-col">
-          <span>Cliente</span>
-          <strong>${rota.cliente}</strong>
-        </div>
-        <div class="rota-col">
-          <span>Telefone</span>
-          <strong>${rota.telefone}</strong>
-        </div>
-        <div class="rota-col rota-endereco">
-          <span>Endereço</span>
-          <strong>${rota.endereco}</strong>
-        </div>
-        <div class="rota-col">
-          <span>Total</span>
-          <strong>${dinheiroRota(evento.valor_total)}</strong>
-        </div>
-        <div class="rota-col">
-          <span>Sinal</span>
-          <strong>${dinheiroRota(evento.valor_sinal)}</strong>
-        </div>
-        <div class="rota-col">
-          <span>Restante</span>
-          <strong>${dinheiroRota(evento.valor_restante)}</strong>
-        </div>
-        <div class="rota-col">
-          <span>Pagamento</span>
-          <strong class="${classePagamentoRota(evento)}">${statusPagamentoRota(evento)}</strong>
-        </div>
-        <div class="rota-col rota-forma-pagamento">
-          <span>Forma pagamento</span>
-          <strong>${evento.forma_pagamento || "-"}</strong>
-        </div>
-      </div>
-
-      <div class="rota-materiais rota-materiais-com-controles">
-        <div class="rota-materiais-lista">
-          <strong>Materiais:</strong>
-          <div>
-            ${materiais.map(item => `<span>${item}</span>`).join("")}
-          </div>
-        </div>
-
-        <div class="rota-controles-baixo">
-          <div class="rota-controles-linha rota-controles-linha-baixo">
-            <label class="rota-carro-inline">Carro
-              <select data-rota-carro="${rota.id}">
-                <option value="Sem carro" ${carroAtual === "Sem carro" ? "selected" : ""}>Sem carro</option>
-                ${carrosDisponiveisRotas().map(carro => `<option value="${carro}" ${carroAtual === carro ? "selected" : ""}>${carro}</option>`).join("")}
-              </select>
-            </label>
-
-            <button type="button" class="btn-outline rota-edit-event-btn" data-rota-edit-evento="${evento.id || rota.evento_id || ""}">
-              Editar
-            </button>
-
-            <div class="rota-ordem-controls">
-              <button type="button" class="rota-order-btn" title="Subir" data-rota-move="${rota.id}" data-direction="up" data-rota-data="${rota.data}" data-rota-carro-grupo="${carroAtual}" ${index === 0 ? "disabled" : ""}>↑</button>
-              <button type="button" class="rota-order-btn" title="Descer" data-rota-move="${rota.id}" data-direction="down" data-rota-data="${rota.data}" data-rota-carro-grupo="${carroAtual}" ${index >= total - 1 ? "disabled" : ""}>↓</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      </div>
-    </div>
-  `;
-}
-
-
-function dataEventoPrintCurta(valor) {
-  if (!valor) return "-";
-  const texto = String(valor).slice(0, 10);
-  const partes = texto.split("-");
-  if (partes.length !== 3) return texto;
-  return `${partes[2]}/${partes[1]}/${partes[0].slice(-2)}`;
-}
-
-function horaPrintCurta(valor) {
-  if (!valor) return "";
-  return String(valor).slice(0, 5);
-}
-
-function dataHoraEventoPrintCurta(evento, rota) {
-  const data = dataEventoPrintCurta(evento.data_evento || rota.data);
-  const inicio = horaPrintCurta(evento.hora_inicio || evento.hora_evento || "");
-  const fim = horaPrintCurta(evento.hora_termino || "");
-
-  if (inicio && fim) return `${data} ${inicio}-${fim}`;
-  if (inicio) return `${data} ${inicio}`;
-  return data;
-}
-
-function imprimirRotaData(data) {
-  const todas = criarRotasDosEventos();
-  const rotasData = todas.filter(r => r.data === data);
-
-  if (!rotasData.length) {
-    alert("Nenhuma rota encontrada para esta data.");
+  if (!Array.isArray(estoqueApoio) || !estoqueApoio.length) {
+    area.innerHTML = `<p class="empty">Nenhum item de apoio cadastrado.</p>`;
     return;
   }
 
-  const grupos = agruparPorDataECarro(rotasData);
-  const carros = Object.keys(grupos[data] || {}).sort((a, b) => ordemCarro(a) - ordemCarro(b));
+  area.innerHTML = estoqueApoio.map(item => {
+    const selecionado = apoioRapidoAtual.find(s => String(s.id) === String(item.id) || s.nome === item.nome);
+    const total = Number(item.quantidade_total || 0);
+    const reservadoNoPeriodo = evento ? quantidadeApoioReservadaNoPeriodoDoEvento(item.id, evento) : 0;
+    const disponivelNaData = Math.max(total - reservadoNoPeriodo, 0);
+    const valorOriginal = selecionado ? Number(selecionado.quantidade || 0) : 0;
+    const maxPermitido = disponivelNaData;
+    const valor = Math.min(valorOriginal, maxPermitido);
 
-  const html = `
-    <html>
-      <head>
-        <title>Rota ${formatarDataRota(data)}</title>
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            font-size: 9px;
-            padding: 8px;
-            color: #1d2b3a;
-          }
+    return `
+      <label class="apoio-evento-item apoio-rapido-item">
+        <span>
+          <strong>${item.nome}</strong>
+          <small>Total: ${total} | Já reservado na data: ${reservadoNoPeriodo} | Máximo para este evento: ${maxPermitido}</small>
+        </span>
+        <input type="number" min="0" max="${maxPermitido}" step="1" data-apoio-rapido-id="${item.id}" data-apoio-rapido-nome="${item.nome}" value="${valor}">
+      </label>
+    `;
+  }).join("");
 
-          .topo {
-            display:flex;
-            align-items:center;
-            gap:12px;
-            margin-bottom:4px;
-          }
+  area.querySelectorAll("input[type='number']").forEach(input => {
+    input.addEventListener("input", () => {
+      const max = Number(input.max || 0);
+      const valor = Number(input.value || 0);
 
-          .topo img {
-            height:36px;
-          }
+      if (valor > max) {
+        input.value = max;
+        alert(`Quantidade máxima disponível para este evento: ${max}`);
+      }
 
-          h1 {
-            margin:0;
-            font-size:18px;
-          }
-
-          .subtitulo {
-            margin-top:2px;
-            color:#556677;
-          }
-
-          h2 {
-            margin-top:10px;
-            border-bottom:1px solid #d6e0ea;
-            padding-bottom:4px;
-            color:#0f3d66;
-          }
-
-          .carro-total {
-            display:inline-block;
-            margin-left:8px;
-            padding:2px 7px;
-            border-radius:999px;
-            background:#eef4ff;
-            color:#1d5fd1;
-            font-size:8px;
-            vertical-align:middle;
-          }
-
-          .carro-materiais {
-            display:flex;
-            flex-wrap:wrap;
-            gap:4px;
-            margin:4px 0 8px;
-          }
-
-          .carro-materiais span {
-            background:#f3f7fb;
-            border:1px solid #dce6f0;
-            color:#27445f;
-            border-radius:999px;
-            padding:1px 4px;
-            font-size:7px;
-          }
-
-          .card {
-            border:1px solid #dce5ee;
-            border-left:4px solid #2b7cff;
-            border-radius:7px;
-            padding:6px;
-            margin-bottom:6px;
-            background:#fbfdff;
-          }
-
-          .desmontagem {
-            border-left-color:#d97000;
-          }
-
-          .titulo {
-            display:flex;
-            justify-content:space-between;
-            margin-bottom:4px;
-          }
-
-          .titulo strong {
-            font-size:12px;
-          }
-
-          .grid {
-            display:grid;
-            grid-template-columns: 0.9fr 0.85fr 1fr 1.0fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr;
-            gap:4px;
-            margin-top:4px;
-          }
-
-          .col {
-            border:1px solid #e2eaf2;
-            border-radius:6px;
-            padding:3px 4px;
-            background:#fff;
-          }
-
-          .col span {
-            display:block;
-            font-size:7px;
-            color:#667788;
-            font-weight:bold;
-            text-transform:uppercase;
-            margin-bottom:2px;
-          }
-
-          .col strong {
-            display:block;
-            font-size:8px;
-            line-height:1.05;
-            word-break:break-word;
-          }
-
-          .materiais {
-            margin-top:4px;
-          }
-
-          .materiais-tags {
-            display:flex;
-            flex-wrap:wrap;
-            gap:4px;
-            margin-top:4px;
-          }
-
-          .materiais-tags span {
-            background:#eef4ff;
-            color:#1d5fd1;
-            border-radius:999px;
-            padding:1px 4px;
-            font-size:7px;
-          }
-
-          .quitado {
-            color:#0a7d00;
-          }
-
-          .aberto {
-            color:#b00020;
-          }
-
-          @page {
-            size: landscape;
-            margin: 6mm;
-          }
-        
-
-          /* Ajuste final: PDF/Imprimir com 10 campos na mesma linha */
-          .grid {
-            grid-template-columns: 0.9fr 0.85fr 1fr 1.0fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr !important;
-            gap:4px !important;
-          }
-
-          .col {
-            min-width:0 !important;
-            overflow:hidden !important;
-          }
-
-          .col span {
-            font-size:10px !important;
-            line-height:1 !important;
-          }
-
-          .col strong {
-            font-size:10px !important;
-            line-height:1.05 !important;
-          }
-
-          .card {
-            page-break-inside: avoid;
-            break-inside: avoid;
-          }
-
-          @page {
-            size: A4 landscape;
-            margin: 6mm;
-          }
-
-        
-
-/* Refino final PDF: fonte maior, endereço maior, valores menores */
-.grid {
-  grid-template-columns: 0.9fr 0.85fr 1fr 1.0fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr !important;
-}
-
-.col span {
-  font-size: 9px !important;
-}
-
-.col strong {
-  font-size: 10px !important;
-  line-height: 1.08 !important;
-}
-
-/* valores: total, sinal e restante */
-.grid .col:nth-child(6) strong,
-.grid .col:nth-child(7) strong,
-.grid .col:nth-child(8) strong {
-  font-size: 9px !important;
-  white-space: nowrap !important;
-}
-
-/* endereço */
-.grid .col:nth-child(5) strong {
-  font-size: 10px !important;
-  line-height: 1.08 !important;
-}
-
-</style>
-      </head>
-      <body>
-        <div class="topo">
-          <img src="https://riotendas.smartwebinfo.com.br/webapp/public/img/logo.png">
-          <div>
-            <h1>Rota ${formatarDataRota(data)} - ${diaSemanaRota(data)}</h1>
-            <div class="subtitulo">Novo RioTendas — Operacional de montagem e desmontagem</div>
-          </div>
-        </div>
-
-        ${carros.map(carro => `
-          <h2>${carro}</h2>
-          <div class="carro-materiais">
-            ${listaMateriaisRotas(grupos[data][carro] || []).map(item => `<span>${item}</span>`).join("")}
-          </div>
-
-          ${(grupos[data][carro] || []).map(rota => {
-            const evento = rota.evento || {};
-            return `
-              <div class="card ${rota.tipo === "Desmontagem" ? "desmontagem" : ""}">
-                <div class="titulo">
-                  <strong>${rota.tipo}</strong>
-                  <span>${textoHorarioRota(rota.tipoHorario, rota.horario, rota.data)}</span>
-                </div>
-
-                <div class="grid">
-                  <div class="col">
-                    <span>Evento</span>
-                    <strong>${dataHoraEventoPrintCurta(evento, rota)}</strong>
-                  </div>
-
-                  <div class="col">
-                    <span>${rota.tipo}</span>
-                    <strong>${textoHorarioRota(rota.tipoHorario, rota.horario, rota.data)}</strong>
-                  </div>
-
-                  <div class="col">
-                    <span>Cliente</span>
-                    <strong>${rota.cliente}</strong>
-                  </div>
-
-                  <div class="col">
-                    <span>Telefone</span>
-                    <strong>${rota.telefone}</strong>
-                  </div>
-
-                  <div class="col">
-                    <span>Endereço</span>
-                    <strong>${rota.endereco}</strong>
-                  </div>
-
-                  <div class="col">
-                    <span>Total</span>
-                    <strong>${dinheiroRota(evento.valor_total)}</strong>
-                  </div>
-
-                  <div class="col">
-                    <span>Sinal</span>
-                    <strong>${dinheiroRota(evento.valor_sinal)}</strong>
-                  </div>
-
-                  <div class="col">
-                    <span>Restante</span>
-                    <strong>${dinheiroRota(evento.valor_restante)}</strong>
-                  </div>
-
-                  <div class="col">
-                    <span>Pagamento</span>
-                    <strong class="${classePagamentoRota(evento)}">${statusPagamentoRota(evento)}</strong>
-                  </div>
-
-                  <div class="col">
-                    <span>Forma</span>
-                    <strong>${evento.forma_pagamento || "-"}</strong>
-                  </div>
-                </div>
-
-                <div class="materiais">
-                  <strong>Materiais:</strong>
-
-                  <div class="materiais-tags">
-                    ${(rota.materiais || []).map(m => `<span>${m}</span>`).join("")}
-                  </div>
-                </div>
-              </div>
-            `;
-          }).join("")}
-        `).join("")}
-      </body>
-    </html>
-  `;
-
-  const janela = window.open("", "_blank");
-  janela.document.write(html);
-  janela.document.close();
-  janela.focus();
-  janela.print();
-}
-
-document.addEventListener("DOMContentLoaded", iniciarRotas);
-let rotasOrdemManual = JSON.parse(localStorage.getItem("rotas_ordem_manual") || "{}");
-
-function salvarRotasOrdemManual() {
-  localStorage.setItem("rotas_ordem_manual", JSON.stringify(rotasOrdemManual));
-  salvarRotasOrdemNuvem();
-}
-
-function ordemManualRota(rota) {
-  const valor = Number(rotasOrdemManual[String(rota.id)]);
-  return Number.isFinite(valor) ? valor : 999999;
-}
-
-function ordenarRotasPorOrdemManual(listaRotas) {
-  return [...listaRotas].sort((a, b) => {
-    const ordemA = ordemManualRota(a);
-    const ordemB = ordemManualRota(b);
-
-    if (ordemA !== ordemB) return ordemA - ordemB;
-
-    const horaA = String(a.horario || "");
-    const horaB = String(b.horario || "");
-    if (horaA !== horaB) return horaA.localeCompare(horaB);
-
-    return String(a.id).localeCompare(String(b.id));
+      if (valor < 0) input.value = 0;
+    });
   });
 }
 
-function inicializarOrdemManualRotas(listaRotas) {
-  const ordenada = ordenarRotasPorOrdemManual(listaRotas);
+function obterApoioRapidoSelecionado() {
+  return [...document.querySelectorAll("#eventoApoioRapidoLista input[type='number']")]
+    .map(input => {
+      const quantidade = Number(input.value || 0);
+      if (quantidade <= 0) return null;
 
-  ordenada.forEach((rota, index) => {
-    const id = String(rota.id);
+      return {
+        id: input.dataset.apoioRapidoId,
+        nome: input.dataset.apoioRapidoNome,
+        quantidade
+      };
+    })
+    .filter(Boolean);
+}
 
-    if (!Number.isFinite(Number(rotasOrdemManual[id]))) {
-      rotasOrdemManual[id] = index + 1;
+async function salvarProdutosRapido() {
+  const id = document.getElementById("eventoProdutosRapidoId").value;
+  const evento = eventos.find(e => String(e.id) === String(id));
+  if (!evento) return;
+
+  const apoioSelecionado = obterApoioRapidoSelecionado();
+  const problemas = [];
+
+  apoioSelecionado.forEach(itemSelecionado => {
+    const itemEstoque = estoqueApoio.find(item => String(item.id) === String(itemSelecionado.id));
+    if (!itemEstoque) return;
+
+    const total = Number(itemEstoque.quantidade_total || 0);
+    const reservadoNoPeriodo = quantidadeApoioReservadaNoPeriodoDoEvento(itemEstoque.id, evento);
+    const disponivelParaEsteEvento = Math.max(total - reservadoNoPeriodo, 0);
+
+    if (Number(itemSelecionado.quantidade || 0) > disponivelParaEsteEvento) {
+      problemas.push(`${itemSelecionado.nome}: solicitado ${itemSelecionado.quantidade}, disponível ${disponivelParaEsteEvento}`);
     }
   });
 
-  // Normaliza a ordem do grupo atual para evitar empates/ordens duplicadas.
-  const normalizada = ordenarRotasPorOrdemManual(listaRotas);
-  normalizada.forEach((rota, index) => {
-    rotasOrdemManual[String(rota.id)] = index + 1;
-  });
+  if (problemas.length) {
+    alert(
+      "Não é possível salvar. Quantidade insuficiente para este período:\\n\\n" +
+      problemas.join("\\n")
+    );
+    return;
+  }
 
-  salvarRotasOrdemManual();
+  evento.tendas = produtosRapidoAtual;
+  evento.itens_apoio = apoioSelecionado;
+  evento.atualizado_em = new Date().toISOString();
+
+  const salvo = await salvarEventoBanco(evento);
+  if (!salvo) return;
+
+  const index = eventos.findIndex(e => String(e.id) === String(id));
+  if (index >= 0) eventos[index] = salvo;
+
+  fecharProdutosRapido();
+  renderizarEventos();
 }
 
-function moverOrdemRota(rotaId, direcao, listaRotas) {
-  const ordenada = ordenarRotasPorOrdemManual(listaRotas);
-  const idProcurado = String(rotaId);
+function abrirDetalheEvento(id) {
+  const e = eventos.find(x => x.id === id);
+  if (!e) return;
 
-  // Corrige o bug principal: rotaId vem do HTML como texto.
-  const atualIndex = ordenada.findIndex(r => String(r.id) === idProcurado);
-  if (atualIndex === -1) return;
+  document.getElementById("eventoDetalheTitulo").textContent = `Evento — ${e.nome || ""}`;
 
-  const novoIndex = direcao === "up" ? atualIndex - 1 : atualIndex + 1;
-  if (novoIndex < 0 || novoIndex >= ordenada.length) return;
+  document.getElementById("eventoDetalheConteudo").innerHTML = `
+    <div class="detail-actions-top">
+      <button type="button" class="btn-primary detalhe-editar-btn" data-detalhe-editar="${e.id}">Editar evento</button>
+    </div>
 
-  const temp = ordenada[atualIndex];
-  ordenada[atualIndex] = ordenada[novoIndex];
-  ordenada[novoIndex] = temp;
+    <div class="info-grid detalhe-compacto">
+      <div class="info-box linha-data">
+        <span>Data</span>
+        <strong>${formatarDataCurta(e.data_evento)}</strong>
+      </div>
+      <div class="info-box linha-inicio">
+        <span>Início</span>
+        <strong>${formatarHoraCurta(e.hora_inicio || e.hora_evento || '-')}</strong>
+      </div>
+      <div class="info-box linha-termino">
+        <span>Término</span>
+        <strong>${formatarHoraCurta(e.hora_termino || '-')}</strong>
+      </div>
+      <div class="info-box linha-montagem">
+        <span>Montagem</span>
+        <strong>${textoHorarioOperacao(e.montagem_tipo, e.montagem)}</strong>
+      </div>
+      <div class="info-box linha-desmontagem">
+        <span>Desmontagem</span>
+        <strong>${textoHorarioOperacao(e.desmontagem_tipo, e.desmontagem)}</strong>
+      </div>
 
-  // Regrava a ordem completa do grupo, sem depender de troca de valores antigos.
-  ordenada.forEach((rota, index) => {
-    rotasOrdemManual[String(rota.id)] = index + 1;
-  });
+      <div class="info-box linha-cliente">
+        <span>Cliente</span>
+        <strong>${e.nome || "-"}</strong>
+      </div>
+      <div class="info-box linha-tipo">
+        <span>Tipo</span>
+        <strong>${isEventoRecorrente(e) ? "Recorrente" : "Pontual"}</strong>
+      </div>
+      <div class="info-box linha-telefone">
+        <span>Telefone</span>
+        <strong>${e.telefone || "-"}</strong>
+      </div>
 
-  salvarRotasOrdemManual();
+      <div class="info-box linha-endereco">
+        <span>Endereço</span>
+        <strong>${e.endereco || "-"}</strong>
+      </div>
+
+      <div class="info-box linha-pagamento">
+        <span>Pagamento</span>
+        <strong>${e.pagamento_quitado ? "Quitado" : "Em aberto"}</strong>
+      </div>
+      <div class="info-box linha-total">
+        <span>Total</span>
+        <strong>${dinheiro(e.valor_total)}</strong>
+      </div>
+      <div class="info-box linha-sinal">
+        <span>Sinal</span>
+        <strong>${dinheiro(e.valor_sinal)}</strong>
+      </div>
+      <div class="info-box linha-restante">
+        <span>Restante</span>
+        <strong>${dinheiro(e.valor_restante)}</strong>
+      </div>
+      <div class="info-box linha-colaborador">
+        <span>Colaborador</span>
+        <strong>${e.colaborador || "-"}</strong>
+      </div>
+    </div>
+
+    <h4>Produtos</h4>
+    <div class="detail-products">${resumoProdutosEvento(e)}</div>
+
+    <div class="subpanel detalhe-pagamento-forma">
+      <h3>Forma de pagamento</h3>
+      <p>${e.forma_pagamento || "-"}</p>
+    </div>
+  `;
+
+  const btnEditar = document.querySelector("[data-detalhe-editar]");
+  if (btnEditar) {
+    btnEditar.addEventListener("click", () => {
+      document.getElementById("eventoDetalheDialog").close();
+      abrirEditarEvento(btnEditar.dataset.detalheEditar);
+    });
+  }
+
+  document.getElementById("eventoDetalheDialog").showModal();
 }
+
+document.addEventListener("DOMContentLoaded", iniciarEventos);

@@ -1,405 +1,1231 @@
-function atualizarDashboard(produtos = []) {
-  const total = produtos.length;
-  const livres = produtos.filter(p => p.status === "Livre").length;
-  const problema = produtos.filter(p => p.status !== "Livre").length;
 
-  document.getElementById("dashTotalProdutos").textContent = total;
-  document.getElementById("dashLivres").textContent = livres;
-  document.getElementById("dashManutencao").textContent = problema;
-  document.getElementById("dashPagamentos").textContent = "0";
+let usuarioLogadoSistema = null;
+let usuariosSistema = [];
 
-  const lista = document.getElementById("dashboardProdutosProblema");
-  const produtosProblema = produtos.filter(p => p.status !== "Livre");
+const storageSessaoUsuarioKey = "novoRioTendasUsuarioSessaoV1";
+const storageUsuariosLocalKey = "novoRioTendasUsuariosSistemaV1";
 
-  if (!produtosProblema.length) {
-    lista.className = "compact-list empty";
-    lista.textContent = "Nenhum produto encontrado.";
+function perfilUsuarioLabel(perfil) {
+  if (perfil === "administrador") return "Administrador";
+  if (perfil === "operacional") return "Operacional";
+  if (perfil === "manutencao") return "Manutenção";
+  return perfil || "-";
+}
+
+function getUsuarioLogado() {
+  if (usuarioLogadoSistema) return usuarioLogadoSistema;
+
+  try {
+    return JSON.parse(localStorage.getItem(storageSessaoUsuarioKey) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function getColaboradorLogado() {
+  const usuario = getUsuarioLogado();
+
+  if (usuario && (usuario.nome || usuario.usuario)) {
+    return usuario.nome || usuario.usuario;
+  }
+
+  return localStorage.getItem("novoRioTendasColaborador") || "";
+}
+
+window.getColaboradorLogado = getColaboradorLogado;
+
+function usuarioEhAdministrador() {
+  const usuario = getUsuarioLogado();
+  return usuario && usuario.perfil === "administrador";
+}
+
+async function buscarUsuariosSistemaBanco() {
+  if (typeof supabaseClient !== "undefined" && supabaseClient) {
+    const { data, error } = await supabaseClient
+      .from("usuarios_sistema")
+      .select("*")
+      .order("nome", { ascending: true });
+
+    if (!error && Array.isArray(data)) return data;
+
+    console.warn("Erro ao buscar usuários:", error);
+  }
+
+  return JSON.parse(localStorage.getItem(storageUsuariosLocalKey) || "[]");
+}
+
+async function salvarUsuarioSistemaBanco(usuario) {
+  const usuarioLogin = String(usuario.usuario || "").trim();
+
+  if (!usuarioLogin) {
+    alert("Informe o usuário/login.");
+    return null;
+  }
+
+  const payload = {
+    nome: usuario.nome || "",
+    usuario: usuarioLogin,
+    senha: usuario.senha || "",
+    perfil: usuario.perfil || "operacional",
+    ativo: usuario.ativo !== false,
+    permissoes: usuario.permissoes || normalizarPermissoesUsuario(usuario.perfil || "operacional", null),
+    atualizado_em: new Date().toISOString()
+  };
+
+  if (typeof supabaseClient !== "undefined" && supabaseClient) {
+    // EDIÇÃO: atualiza pelo ID do usuário selecionado
+    if (usuario.id) {
+      const { data, error } = await supabaseClient
+        .from("usuarios_sistema")
+        .update(payload)
+        .eq("id", usuario.id)
+        .select()
+        .single();
+
+      if (error) {
+        alert("Erro ao editar usuário: " + (error.message || ""));
+        return null;
+      }
+
+      return data;
+    }
+
+    // CRIAÇÃO: usa upsert pelo campo usuario.
+    // Se o login já existir, atualiza o cadastro existente em vez de travar com erro de duplicidade.
+    const { data, error } = await supabaseClient
+      .from("usuarios_sistema")
+      .upsert(payload, { onConflict: "usuario" })
+      .select()
+      .single();
+
+    if (error) {
+      alert("Erro ao salvar usuário: " + (error.message || ""));
+      return null;
+    }
+
+    return data;
+  }
+
+  const lista = await buscarUsuariosSistemaBanco();
+
+  if (usuario.id) {
+    const idx = lista.findIndex(u => String(u.id) === String(usuario.id));
+    const atualizado = { ...payload, id: usuario.id };
+
+    if (idx >= 0) lista[idx] = atualizado;
+    else lista.push(atualizado);
+
+    localStorage.setItem(storageUsuariosLocalKey, JSON.stringify(lista));
+    return atualizado;
+  }
+
+  const existenteIndex = lista.findIndex(u =>
+    String(u.usuario || "").trim().toLowerCase() === usuarioLogin.toLowerCase()
+  );
+
+  const salvo = {
+    ...payload,
+    id: existenteIndex >= 0 ? lista[existenteIndex].id : (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()))
+  };
+
+  if (existenteIndex >= 0) lista[existenteIndex] = salvo;
+  else lista.push(salvo);
+
+  localStorage.setItem(storageUsuariosLocalKey, JSON.stringify(lista));
+  return salvo;
+}
+
+async function excluirUsuarioSistemaBanco(id) {
+  if (typeof supabaseClient !== "undefined" && supabaseClient) {
+    const { error } = await supabaseClient
+      .from("usuarios_sistema")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      alert("Erro ao excluir usuário: " + (error.message || ""));
+      return false;
+    }
+
+    return true;
+  }
+
+  const lista = await buscarUsuariosSistemaBanco();
+  localStorage.setItem(storageUsuariosLocalKey, JSON.stringify(lista.filter(u => String(u.id) !== String(id))));
+  return true;
+}
+
+async function garantirAdminPadrao() {
+  const lista = await buscarUsuariosSistemaBanco();
+
+  if (lista.length) return;
+
+  await salvarUsuarioSistemaBanco({
+    nome: "Administrador",
+    usuario: "admin",
+    senha: "admin123",
+    perfil: "administrador",
+    ativo: true
+  });
+}
+
+async function autenticarUsuarioSistema(usuario, senha) {
+  const lista = await buscarUsuariosSistemaBanco();
+
+  return lista.find(u =>
+    u.ativo !== false &&
+    String(u.usuario || "").trim().toLowerCase() === String(usuario || "").trim().toLowerCase() &&
+    String(u.senha || "") === String(senha || "")
+  ) || null;
+}
+
+function esconderAba(sectionId) {
+  const tab = document.querySelector(`[data-section="${sectionId}"]`);
+  const section = document.getElementById(sectionId);
+
+  if (tab) tab.style.display = "none";
+  if (section) section.style.display = "none";
+}
+
+function aplicarPermissoesUsuario() {
+  const usuario = getUsuarioLogado();
+  if (!usuario) return;
+
+  document.body.classList.remove(
+    "perfil-admin",
+    "perfil-operacional",
+    "perfil-manutencao"
+  );
+
+  document.body.classList.add(`perfil-${usuario.perfil}`);
+
+  document.querySelectorAll(".admin-only").forEach(el => {
+    el.style.display = usuario.perfil === "administrador" ? "" : "none";
+  });
+
+  // ADMINISTRADOR = acesso TOTAL
+  if (usuario.perfil === "administrador") {
+
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.style.display = "";
+      btn.disabled = false;
+    });
+
+    document.querySelectorAll(".section").forEach(sec => {
+      sec.style.display = "";
+    });
+
+    document.querySelectorAll(".admin-only").forEach(el => {
+      el.style.display = "";
+    });
+
     return;
   }
 
-  lista.className = "compact-list dash-produtos-problema-lista";
-  lista.innerHTML = produtosProblema.map(p => `
-    <div class="dash-produto-problema-linha">
-      <strong>${p.codigo || "Sem código"}</strong>
-      <span>${p.categoria || "-"} ${p.tamanho || ""}</span>
-      <span class="dash-produto-status">${p.status || "-"}</span>
-      <span class="dash-produto-obs">${p.observacao || "-"}</span>
-    </div>
+  // OPERACIONAL
+  if (usuario.perfil === "operacional") {
+    esconderAba("usuariosSection");
+    esconderAba("configSection");
+
+    // esconder botões críticos
+    document.querySelectorAll(
+      ".btn-danger, .danger, [data-excluir], .delete-btn"
+    ).forEach(el => {
+      el.style.display = "none";
+    });
+
+    return;
+  }
+
+  // MANUTENÇÃO
+  if (usuario.perfil === "manutencao") {
+
+    const permitidas = ["produtosSection"];
+
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      const section = btn.dataset.section;
+
+      if (!permitidas.includes(section)) {
+        btn.style.display = "none";
+      }
+    });
+
+    document.querySelectorAll(".section").forEach(sec => {
+      if (!permitidas.includes(sec.id)) {
+        sec.style.display = "none";
+      }
+    });
+
+    const produtosBtn = document.querySelector('[data-section="produtosSection"]');
+    const produtosSection = document.getElementById("produtosSection");
+
+    if (produtosBtn) produtosBtn.classList.add("active");
+
+    document.querySelectorAll(".section").forEach(sec => {
+      sec.classList.remove("active");
+    });
+
+    if (produtosSection) {
+      produtosSection.style.display = "";
+      produtosSection.classList.add("active");
+    }
+
+    esconderAba("usuariosSection");
+    esconderAba("configSection");
+  }
+}
+
+function mostrarAppUsuario(usuario) {
+  usuarioLogadoSistema = usuario;
+  window.usuarioLogadoSistema = usuario;
+
+  localStorage.setItem(storageSessaoUsuarioKey, JSON.stringify(usuario));
+  localStorage.setItem("novoRioTendasColaborador", usuario.nome || usuario.usuario || "");
+  localStorage.setItem("colaboradorLogado", usuario.nome || usuario.usuario || "");
+
+  const loginScreen = document.getElementById("loginScreen");
+  const appScreen = document.getElementById("appScreen");
+  const colaboradorNome = document.getElementById("colaboradorNome");
+
+  if (colaboradorNome) {
+    colaboradorNome.textContent = `${usuario.nome || usuario.usuario} (${perfilUsuarioLabel(usuario.perfil)})`;
+  }
+
+  if (loginScreen) loginScreen.classList.add("hidden");
+  if (appScreen) appScreen.classList.remove("hidden");
+
+  aplicarPermissoesUsuario();
+  aplicarPermissoesUsuarioIndividual();
+  aplicarPermissoesUsuarioIndividual();
+  montarEditorPermissoesPerfil();
+  garantirEstruturaUsuariosAdmin();
+
+  if (typeof carregarProdutos === "function") carregarProdutos();
+  if (typeof carregarClientes === "function") carregarClientes();
+  if (typeof carregarEventos === "function") carregarEventos();
+
+  setTimeout(() => {
+    if (typeof renderizarUsuariosSistema === "function") renderizarUsuariosSistema();
+  }, 300);
+}
+
+function sairUsuarioSistema() {
+  localStorage.removeItem(storageSessaoUsuarioKey);
+  localStorage.removeItem("novoRioTendasColaborador");
+  localStorage.removeItem("colaboradorLogado");
+  location.reload();
+}
+
+async function iniciarAuth() {
+  const loginScreen = document.getElementById("loginScreen");
+  const appScreen = document.getElementById("appScreen");
+  const loginForm = document.getElementById("loginForm");
+  const usuarioInput = document.getElementById("usuarioInput") || document.getElementById("colaboradorInput");
+  const senhaInput = document.getElementById("senhaInput");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const loginError = document.getElementById("loginError");
+
+  await garantirAdminPadrao();
+
+  const sessao = getUsuarioLogado();
+
+  if (sessao) {
+    mostrarAppUsuario(sessao);
+  } else {
+    if (loginScreen) loginScreen.classList.remove("hidden");
+    if (appScreen) appScreen.classList.add("hidden");
+  }
+
+  if (loginForm) {
+    loginForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const usuario = usuarioInput ? usuarioInput.value.trim() : "";
+      const senha = senhaInput ? senhaInput.value : "";
+
+      const autenticado = await autenticarUsuarioSistema(usuario, senha);
+
+      if (!autenticado) {
+        if (loginError) loginError.textContent = "Usuário ou senha inválidos.";
+        return;
+      }
+
+      if (loginError) loginError.textContent = "";
+
+      mostrarAppUsuario({
+        id: autenticado.id,
+        nome: autenticado.nome,
+        usuario: autenticado.usuario,
+        perfil: autenticado.perfil,
+        permissoes: autenticado.permissoes || null
+      });
+    });
+  }
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", sairUsuarioSistema);
+  }
+}
+
+async function carregarUsuariosSistema() {
+  usuariosSistema = await buscarUsuariosSistemaBanco();
+  return usuariosSistema;
+}
+
+async function renderizarUsuariosSistema() {
+  const tbody = document.getElementById("usuariosTbody");
+  if (!tbody) return;
+
+  if (!usuarioEhAdministrador()) {
+    tbody.innerHTML = `<tr><td colspan="5">Acesso restrito ao administrador.</td></tr>`;
+    return;
+  }
+
+  await carregarUsuariosSistema();
+
+  garantirColunaPermissoesUsuarios();
+
+  tbody.innerHTML = usuariosSistema.map(u => `
+    <tr>
+      <td>${u.nome || "-"}</td>
+      <td>${u.usuario || "-"}</td>
+      <td>${perfilUsuarioLabel(u.perfil)}</td>
+      <td>${u.ativo === false ? "Inativo" : "Ativo"}</td>
+      <td>${resumoPermissoesUsuario(u)}</td>
+      <td>${resumoPermissoesUsuario(u)}</td>
+      <td>
+        <button type="button" class="btn-outline" data-editar-usuario="${u.id}">Editar</button>
+        <button type="button" class="btn-outline danger" data-excluir-usuario="${u.id}">Excluir</button>
+      </td>
+    </tr>
   `).join("");
-}
 
-
-
-async function garantirCarrosRotasDashboard() {
-  try {
-    if (typeof rotasCarros !== "undefined" && rotasCarros && Object.keys(rotasCarros).length) return;
-
-    const local = JSON.parse(localStorage.getItem("novoRioTendasRotasCarrosV1") || "{}");
-
-    if (typeof rotasCarros !== "undefined") {
-      rotasCarros = local || {};
-    }
-
-    if (typeof carregarRotasCarrosNuvem === "function") {
-      const nuvem = await carregarRotasCarrosNuvem();
-
-      if (nuvem && typeof nuvem === "object") {
-        if (typeof rotasCarros !== "undefined") {
-          rotasCarros = { ...(rotasCarros || {}), ...nuvem };
-        }
-        localStorage.setItem("novoRioTendasRotasCarrosV1", JSON.stringify(nuvem));
-      }
-    }
-  } catch (erro) {
-    console.warn("Não foi possível carregar carros das rotas no Dashboard:", erro);
-  }
-}
-
-async function garantirEventosDashboard() {
-  try {
-    if (typeof supabaseClient !== "undefined" && supabaseClient) {
-      for (const tabela of ["eventos", "eventos_cadastro"]) {
-        try {
-          const { data, error } = await supabaseClient.from(tabela).select("*");
-
-          if (!error && Array.isArray(data)) {
-            console.log(`[Dashboard] eventos carregados de ${tabela}:`, data.length);
-            window.eventos = data;
-            try { if (typeof eventos !== "undefined") eventos = data; } catch (e) {}
-            return data;
-          }
-
-          if (error) console.warn(`[Dashboard] erro ao buscar ${tabela}:`, error);
-        } catch (erroTabela) {
-          console.warn(`[Dashboard] falha ao consultar ${tabela}:`, erroTabela);
-        }
-      }
-    }
-
-    if (typeof buscarEventosBanco === "function") {
-      const lista = await buscarEventosBanco();
-      if (Array.isArray(lista)) {
-        console.log("[Dashboard] eventos via buscarEventosBanco:", lista.length);
-        window.eventos = lista;
-        try { if (typeof eventos !== "undefined") eventos = lista; } catch (e) {}
-        return lista;
-      }
-    }
-
-    if (typeof carregarEventos === "function") {
-      await carregarEventos();
-      if (typeof eventos !== "undefined" && Array.isArray(eventos)) return eventos;
-      if (Array.isArray(window.eventos)) return window.eventos;
-    }
-
-    if (typeof eventos !== "undefined" && Array.isArray(eventos)) return eventos;
-    if (Array.isArray(window.eventos)) return window.eventos;
-  } catch (erro) {
-    console.warn("Não foi possível carregar eventos no Dashboard:", erro);
-  }
-
-  return [];
-}
-
-
-function obterCampoDashboardEvento(evento, nomes, padrao = "") {
-  for (const nome of nomes) {
-    if (evento && evento[nome] !== undefined && evento[nome] !== null && String(evento[nome]).trim() !== "") {
-      return evento[nome];
-    }
-  }
-  return padrao;
-}
-
-function dataEventoDashboard(evento) {
-  return normalizarDataDashboard(obterCampoDashboardEvento(evento, [
-    "data_evento", "dataEvento", "data", "evento_data", "dia_evento"
-  ]));
-}
-
-function montagemEventoDashboard(evento) {
-  return obterCampoDashboardEvento(evento, [
-    "montagem", "data_montagem", "montagem_data", "data_hora_montagem", "dataMontagem"
-  ]);
-}
-
-function desmontagemEventoDashboard(evento) {
-  return obterCampoDashboardEvento(evento, [
-    "desmontagem", "data_desmontagem", "desmontagem_data", "data_hora_desmontagem", "dataDesmontagem"
-  ]);
-}
-
-function nomeClienteDashboard(evento) {
-  return obterCampoDashboardEvento(evento, ["nome", "cliente", "nome_cliente", "cliente_nome"], "-");
-}
-
-function enderecoDashboard(evento) {
-  return obterCampoDashboardEvento(evento, ["endereco", "endereço", "local", "local_evento"], "-");
-}
-
-function telefoneDashboard(evento) {
-  return obterCampoDashboardEvento(evento, ["telefone", "celular", "whatsapp", "contato"], "-");
-}
-
-function horaEventoDashboard(evento) {
-  return obterCampoDashboardEvento(evento, ["hora_inicio", "hora_evento", "horario", "hora"], "");
-}
-
-function normalizarDataDashboard(valor) {
-  if (!valor) return "";
-  return String(valor).slice(0, 10);
-}
-
-function compararDataDashboard(dataA, dataB) {
-  const a = normalizarDataDashboard(dataA);
-  const b = normalizarDataDashboard(dataB);
-  if (!a || !b) return 0;
-  return a.localeCompare(b);
-}
-
-function dataISOHojeDashboard() {
-  const hoje = new Date();
-  const ano = hoje.getFullYear();
-  const mes = String(hoje.getMonth() + 1).padStart(2, "0");
-  const dia = String(hoje.getDate()).padStart(2, "0");
-  return `${ano}-${mes}-${dia}`;
-}
-
-function formatarDataDashboard(dataISO) {
-  if (!dataISO) return "-";
-  const partes = String(dataISO).slice(0,10).split("-");
-  if (partes.length !== 3) return dataISO;
-  return `${partes[2]}/${partes[1]}`;
-}
-
-function horaDashboard(valor) {
-  if (!valor) return "";
-  const texto = String(valor);
-  if (texto.includes("T")) return texto.slice(11,16);
-  return texto.slice(0,5);
-}
-
-function statusPagamentoDashboard(evento) {
-  if (
-    evento.pagamento_quitado ||
-    evento.status_pagamento === "Pago" ||
-    evento.status_pagamento === "Quitado"
-  ) {
-    return {
-      texto: "Pago",
-      classe: "ok"
-    };
-  }
-
-  const sinal = Number(evento.sinal || 0);
-  const total = Number(evento.total || evento.valor_total || 0);
-
-  if (sinal > 0 && sinal < total) {
-    return {
-      texto: "Parcial",
-      classe: "partial"
-    };
-  }
-
-  return {
-    texto: "Pendente",
-    classe: "pending"
-  };
-}
-
-function carroEventoDashboard(evento, tipos = []) {
-  try {
-    const mapa = (typeof rotasCarros !== "undefined" && rotasCarros)
-      ? rotasCarros
-      : JSON.parse(localStorage.getItem("novoRioTendasRotasCarrosV1") || "{}");
-
-    const id = evento?.id;
-    if (!id || !mapa) return "Sem carro";
-
-    const chaves = [];
-
-    if (tipos.includes("montagem")) chaves.push(`${id}-montagem`);
-    if (tipos.includes("desmontagem")) chaves.push(`${id}-desmontagem`);
-
-    chaves.push(`${id}-montagem`, `${id}-desmontagem`, id);
-
-    const carrosEncontrados = chaves
-      .map(chave => mapa[chave])
-      .filter(carro => carro && carro !== "Sem carro");
-
-    const unicos = [...new Set(carrosEncontrados)];
-
-    if (unicos.length) return unicos.join(" / ");
-
-    return "Sem carro";
-  } catch (e) {
-    return "Sem carro";
-  }
-}
-
-function operacaoDashboard(evento, tipo) {
-  const montagem = montagemEventoDashboard(evento);
-  const desmontagem = desmontagemEventoDashboard(evento);
-  const dataEvento = dataEventoDashboard(evento);
-
-  const dataBase = tipo === "montagem" ? montagem : tipo === "desmontagem" ? desmontagem : dataEvento;
-
-  const dataTexto = formatarDataDashboard(dataBase);
-  const horaTexto = tipo === "montagem"
-    ? horaDashboard(montagem)
-    : tipo === "desmontagem"
-    ? horaDashboard(desmontagem)
-    : horaEventoDashboard(evento);
-
-  const tipoTexto = tipo === "montagem" ? "Montagem" : tipo === "desmontagem" ? "Desmontagem" : "Evento";
-
-  return `
-    <span class="dash-op dash-op-${tipo}">
-      <strong>${tipoTexto}</strong>
-      ${dataTexto} ${horaTexto || ""}
-    </span>
-  `;
-}
-
-function cardEventoDashboardAgrupado(evento, tipos = ["evento"]) {
-  const pagamento = statusPagamentoDashboard(evento);
-  const tiposUnicos = [...new Set(tipos)];
-
-  return `
-    <div class="dash-event-card dash-event-card-compacto">
-      <div class="dash-event-top compacto">
-        <div>
-          <strong>${nomeClienteDashboard(evento)}</strong>
-          <span>${enderecoDashboard(evento)}</span>
-        </div>
-
-        <div class="dash-event-actions">
-          <span class="dash-pay-badge ${pagamento.classe}">
-            ${pagamento.texto}
-          </span>
-          <button
-            type="button"
-            class="btn-outline dash-open-event-btn"
-            data-dashboard-evento="${evento.id}"
-          >
-            Abrir
-          </button>
-        </div>
-      </div>
-
-      <div class="dash-ops-line">
-        ${tiposUnicos.map(tipo => operacaoDashboard(evento, tipo)).join("")}
-      </div>
-
-      <div class="dash-event-middle compacto">
-        <span>🚚 ${carroEventoDashboard(evento, tiposUnicos)}</span>
-        <span>☎ ${telefoneDashboard(evento)}</span>
-      </div>
-    </div>
-  `;
-}
-
-async function renderizarDashboardEventos() {
-  const hojeBox = document.getElementById("dashboardEventosHoje");
-  const futurosBox = document.getElementById("dashboardProximosEventos");
-
-  if (!hojeBox || !futurosBox) return;
-
-  await garantirCarrosRotasDashboard();
-
-  const eventosLista = await garantirEventosDashboard();
-  const hojeISO = dataISOHojeDashboard();
-
-  console.log("[Dashboard] renderizando eventos. Hoje:", hojeISO, "Quantidade:", eventosLista.length);
-
-  const hojePorEvento = new Map();
-  const futurosPorEvento = new Map();
-
-  const adicionarOperacao = (mapa, evento, tipo, data, hora = "") => {
-    data = normalizarDataDashboard(data);
-    if (!evento || !data) return;
-
-    const chave = evento.id || evento.evento_id || `${nomeClienteDashboard(evento)}-${data}`;
-
-    if (!mapa.has(chave)) {
-      mapa.set(chave, { evento, tipos: [], primeiraData: data, primeiraHora: hora || "" });
-    }
-
-    const item = mapa.get(chave);
-    if (!item.tipos.includes(tipo)) item.tipos.push(tipo);
-
-    const atual = `${data} ${hora || ""}`;
-    const primeiro = `${item.primeiraData} ${item.primeiraHora || ""}`;
-
-    if (atual < primeiro) {
-      item.primeiraData = data;
-      item.primeiraHora = hora || "";
-    }
-  };
-
-  eventosLista.forEach(evento => {
-    const dataEvento = dataEventoDashboard(evento);
-    const montagemValor = montagemEventoDashboard(evento);
-    const desmontagemValor = desmontagemEventoDashboard(evento);
-
-    const montagemData = normalizarDataDashboard(montagemValor);
-    const desmontagemData = normalizarDataDashboard(desmontagemValor);
-
-    const horaEvento = horaEventoDashboard(evento);
-    const horaMontagem = horaDashboard(montagemValor);
-    const horaDesmontagem = horaDashboard(desmontagemValor);
-
-    if (dataEvento === hojeISO) adicionarOperacao(hojePorEvento, evento, "evento", dataEvento, horaEvento);
-    if (montagemData === hojeISO) adicionarOperacao(hojePorEvento, evento, "montagem", montagemData, horaMontagem);
-    if (desmontagemData === hojeISO) adicionarOperacao(hojePorEvento, evento, "desmontagem", desmontagemData, horaDesmontagem);
-
-    if (dataEvento && dataEvento > hojeISO) adicionarOperacao(futurosPorEvento, evento, "evento", dataEvento, horaEvento);
-    if (montagemData && montagemData > hojeISO) adicionarOperacao(futurosPorEvento, evento, "montagem", montagemData, horaMontagem);
-    if (desmontagemData && desmontagemData > hojeISO) adicionarOperacao(futurosPorEvento, evento, "desmontagem", desmontagemData, horaDesmontagem);
-
-    if (!dataEvento && !montagemData && !desmontagemData) console.warn("[Dashboard] evento sem data reconhecida:", evento);
+  tbody.querySelectorAll("[data-editar-usuario]").forEach(btn => {
+    btn.addEventListener("click", () => abrirUsuarioModal(btn.dataset.editarUsuario));
   });
 
-  const ordenar = (a, b) => `${a.primeiraData} ${a.primeiraHora || ""}`.localeCompare(`${b.primeiraData} ${b.primeiraHora || ""}`);
+  tbody.querySelectorAll("[data-excluir-usuario]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Excluir este usuário?")) return;
+      await excluirUsuarioSistemaBanco(btn.dataset.excluirUsuario);
+      renderizarUsuariosSistema();
+      renderizarUsuariosSistemaConfig();
+    });
+  });
+}
 
-  const hojeItens = [...hojePorEvento.values()].sort(ordenar);
-  const futurosItens = [...futurosPorEvento.values()].sort(ordenar);
+function abrirUsuarioModal(id = null) {
+  if (!usuarioEhAdministrador()) {
+    alert("Apenas administrador pode gerenciar usuários.");
+    return;
+  }
 
-  console.log("[Dashboard] hoje:", hojeItens.length, "futuros:", futurosItens.length);
+  const modal = document.getElementById("usuarioModal");
+  if (!modal) return;
 
-  document.getElementById("dashEventosHojeQtd").textContent = hojeItens.length;
-  document.getElementById("dashEventosFuturosQtd").textContent = futurosItens.length;
+  const usuario = id ? usuariosSistema.find(u => String(u.id) === String(id)) : null;
 
-  hojeBox.classList.remove("empty");
-  futurosBox.classList.remove("empty");
+  document.getElementById("usuarioModalTitulo").textContent = usuario ? "Editar usuário" : "Novo usuário";
+  document.getElementById("usuarioId").value = usuario?.id || "";
+  document.getElementById("usuarioNome").value = usuario?.nome || "";
+  document.getElementById("usuarioLogin").value = usuario?.usuario || "";
+  document.getElementById("usuarioSenha").value = usuario?.senha || "";
+  document.getElementById("usuarioPerfil").value = usuario?.perfil || "operacional";
+  document.getElementById("usuarioAtivo").value = String(usuario?.ativo !== false);
 
-  hojeBox.innerHTML = hojeItens.length
-    ? hojeItens.slice(0, 8).map(item => cardEventoDashboardAgrupado(item.evento, item.tipos)).join("")
-    : `<div class="empty">Nenhum evento hoje.</div>`;
+  montarPermissoesNoModalUsuario(usuario);
 
-  futurosBox.innerHTML = futurosItens.length
-    ? futurosItens.slice(0, 10).map(item => cardEventoDashboardAgrupado(item.evento, item.tipos)).join("")
-    : `<div class="empty">Nenhum próximo evento. Verifique no console se os eventos estão sendo carregados.</div>`;
+  modal.showModal();
+}
 
-  document.querySelectorAll("[data-dashboard-evento]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.dashboardEvento;
-      if (typeof abrirDetalheEvento === "function") abrirDetalheEvento(id);
-      else alert("Abra o setor Eventos para visualizar este evento.");
+function fecharUsuarioModal() {
+  const modal = document.getElementById("usuarioModal");
+  if (modal) modal.close();
+}
+
+function iniciarUsuariosSistema() {
+  const novoBtn = document.getElementById("novoUsuarioBtn");
+  const fecharBtn = document.getElementById("fecharUsuarioModal");
+  const cancelarBtn = document.getElementById("cancelarUsuario");
+  const form = document.getElementById("usuarioForm");
+
+  if (novoBtn) novoBtn.addEventListener("click", () => abrirUsuarioModal());
+  if (fecharBtn) fecharBtn.addEventListener("click", fecharUsuarioModal);
+  if (cancelarBtn) cancelarBtn.addEventListener("click", fecharUsuarioModal);
+
+  if (form) {
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+
+      const salvo = await salvarUsuarioSistemaBanco({
+        id: document.getElementById("usuarioId").value || undefined,
+        nome: document.getElementById("usuarioNome").value.trim(),
+        usuario: document.getElementById("usuarioLogin").value.trim(),
+        senha: document.getElementById("usuarioSenha").value,
+        perfil: document.getElementById("usuarioPerfil").value,
+        ativo: document.getElementById("usuarioAtivo").value === "true",
+        permissoes: coletarPermissoesDoModalUsuario()
+      });
+
+      if (!salvo) return;
+
+      fecharUsuarioModal();
+      renderizarUsuariosSistema();
+      renderizarUsuariosSistemaConfig();
+    });
+  }
+
+  setTimeout(renderizarUsuariosSistema, 500);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  iniciarAuth();
+  iniciarUsuariosSistema();
+});
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  setTimeout(() => {
+
+    const usuario = getUsuarioLogado();
+
+    if (usuario && usuario.perfil === "administrador") {
+
+      document.querySelectorAll(".admin-only").forEach(el => {
+        el.style.display = "";
+      });
+
+      const usuariosBtn = document.querySelector('[data-section="usuariosSection"]');
+      const usuariosSection = document.getElementById("usuariosSection");
+
+      if (usuariosBtn) {
+        usuariosBtn.style.display = "";
+        usuariosBtn.disabled = false;
+      }
+
+      if (usuariosSection) {
+        usuariosSection.style.display = "";
+      }
+    }
+
+  }, 300);
+});
+
+
+function garantirEstruturaUsuariosAdmin() {
+  const usuario = getUsuarioLogado ? getUsuarioLogado() : null;
+  if (!usuario || usuario.perfil !== "administrador") return;
+
+  let btn = document.querySelector('[data-section="usuariosSection"]');
+
+  if (!btn) {
+    const tabs = document.querySelector(".tabs, nav");
+    if (tabs) {
+      btn = document.createElement("button");
+      btn.className = "tab-btn admin-only";
+      btn.dataset.section = "usuariosSection";
+      btn.type = "button";
+      btn.textContent = "Usuários";
+
+      const configBtn = tabs.querySelector('[data-section="configSection"]');
+      if (configBtn) tabs.insertBefore(btn, configBtn);
+      else tabs.appendChild(btn);
+    }
+  }
+
+  let section = document.getElementById("usuariosSection");
+
+  if (!section) {
+    section = document.createElement("section");
+    section.id = "usuariosSection";
+    section.className = "section";
+    section.innerHTML = `
+      <div class="section-header">
+        <div>
+          <h2>Usuários</h2>
+          <p>Gerencie usuários, senhas e perfis de acesso.</p>
+        </div>
+        <button id="novoUsuarioBtn" class="btn-primary" type="button">Novo usuário</button>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Usuário</th>
+              <th>Perfil</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="usuariosTbody"></tbody>
+        </table>
+      </div>
+    `;
+
+    const appScreen = document.getElementById("appScreen") || document.querySelector("main") || document.body;
+    const configSection = document.getElementById("configSection");
+
+    if (configSection && configSection.parentNode) {
+      configSection.parentNode.insertBefore(section, configSection);
+    } else {
+      appScreen.appendChild(section);
+    }
+  }
+
+  if (btn) {
+    btn.style.display = "";
+    btn.hidden = false;
+    btn.disabled = false;
+
+    if (!btn.dataset.usuariosListener) {
+      btn.dataset.usuariosListener = "1";
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
+
+        btn.classList.add("active");
+        section.classList.add("active");
+        section.style.display = "";
+
+        if (typeof renderizarUsuariosSistema === "function") renderizarUsuariosSistema();
+      });
+    }
+  }
+
+  section.style.display = "";
+  section.hidden = false;
+
+  if (typeof iniciarUsuariosSistema === "function") iniciarUsuariosSistema();
+  if (typeof renderizarUsuariosSistema === "function") renderizarUsuariosSistema();
+}
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  setTimeout(garantirEstruturaUsuariosAdmin, 500);
+  setTimeout(garantirEstruturaUsuariosAdmin, 1200);
+});
+
+
+function garantirUsuariosDentroConfiguracoes() {
+  const usuario = typeof getUsuarioLogado === "function" ? getUsuarioLogado() : null;
+  if (!usuario || usuario.perfil !== "administrador") return;
+
+  const config = document.getElementById("configSection") || document.querySelector('[data-section-id="configSection"]');
+  if (!config) return;
+
+  if (document.getElementById("usuariosAdminConfigBox")) return;
+
+  const box = document.createElement("div");
+  box.id = "usuariosAdminConfigBox";
+  box.className = "config-card usuarios-admin-box";
+  box.innerHTML = `
+    <div class="section-header">
+      <div>
+        <h2>Usuários</h2>
+        <p>Gerencie usuários, senhas e perfis de acesso.</p>
+      </div>
+      <button id="novoUsuarioBtnConfig" class="btn-primary" type="button">Novo usuário</button>
+    </div>
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Usuário</th>
+            <th>Perfil</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="usuariosTbodyConfig"></tbody>
+      </table>
+    </div>
+  `;
+
+  config.prepend(box);
+
+  const novo = document.getElementById("novoUsuarioBtnConfig");
+  if (novo) novo.addEventListener("click", () => abrirUsuarioModal());
+
+  renderizarUsuariosSistemaConfig();
+}
+
+async function renderizarUsuariosSistemaConfig() {
+  const tbody = document.getElementById("usuariosTbodyConfig");
+  if (!tbody) return;
+
+  if (!usuarioEhAdministrador()) {
+    tbody.innerHTML = `<tr><td colspan="5">Acesso restrito ao administrador.</td></tr>`;
+    return;
+  }
+
+  await carregarUsuariosSistema();
+
+  garantirColunaPermissoesUsuarios();
+
+  tbody.innerHTML = usuariosSistema.map(u => `
+    <tr>
+      <td>${u.nome || "-"}</td>
+      <td>${u.usuario || "-"}</td>
+      <td>${perfilUsuarioLabel(u.perfil)}</td>
+      <td>${u.ativo === false ? "Inativo" : "Ativo"}</td>
+      <td>${resumoPermissoesUsuario(u)}</td>
+      <td>${resumoPermissoesUsuario(u)}</td>
+      <td>
+        <button type="button" class="btn-outline" data-editar-usuario-config="${u.id}">Editar</button>
+        <button type="button" class="btn-outline danger" data-excluir-usuario-config="${u.id}">Excluir</button>
+      </td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll("[data-editar-usuario-config]").forEach(btn => {
+    btn.addEventListener("click", () => abrirUsuarioModal(btn.dataset.editarUsuarioConfig));
+  });
+
+  tbody.querySelectorAll("[data-excluir-usuario-config]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Excluir este usuário?")) return;
+      await excluirUsuarioSistemaBanco(btn.dataset.excluirUsuarioConfig);
+      renderizarUsuariosSistemaConfig();
+      if (typeof renderizarUsuariosSistema === "function") renderizarUsuariosSistema();
     });
   });
 }
 
 
-// dashboard-render-fix
 document.addEventListener("DOMContentLoaded", () => {
-  setTimeout(renderizarDashboardEventos, 800);
-  setTimeout(renderizarDashboardEventos, 1800);
-  setTimeout(renderizarDashboardEventos, 3000);
+  setTimeout(garantirUsuariosDentroConfiguracoes, 600);
+  setTimeout(garantirUsuariosDentroConfiguracoes, 1500);
 
-  document.querySelectorAll("[data-section='dashboardSection']").forEach(btn => {
+  document.querySelectorAll('[data-section="configSection"]').forEach(btn => {
     btn.addEventListener("click", () => {
-      setTimeout(renderizarDashboardEventos, 200);
+      setTimeout(garantirUsuariosDentroConfiguracoes, 100);
     });
   });
 });
+
+
+
+/* =====================================================
+   Permissões por Perfil / Página
+===================================================== */
+
+const paginasSistemaPermissoes = [
+  { id: "dashboardSection", label: "Dashboard" },
+  { id: "produtosSection", label: "Produtos" },
+  { id: "clientesSection", label: "Clientes" },
+  { id: "eventosSection", label: "Eventos" },
+  { id: "calendarioSection", label: "Agenda" },
+  { id: "rotasSection", label: "Rotas" },
+  { id: "usuariosSection", label: "Usuários" },
+  { id: "configSection", label: "Configurações" }
+];
+
+const perfisSistemaPermissoes = [
+  { id: "administrador", label: "Administrador" },
+  { id: "operacional", label: "Operacional" },
+  { id: "manutencao", label: "Manutenção" }
+];
+
+const permissoesPadraoPerfil = {
+  administrador: {
+    dashboardSection: true,
+    produtosSection: true,
+    clientesSection: true,
+    eventosSection: true,
+    calendarioSection: true,
+    rotasSection: true,
+    usuariosSection: true,
+    configSection: true
+  },
+  operacional: {
+    dashboardSection: true,
+    produtosSection: true,
+    clientesSection: true,
+    eventosSection: true,
+    calendarioSection: true,
+    rotasSection: true,
+    usuariosSection: false,
+    configSection: false
+  },
+  manutencao: {
+    dashboardSection: false,
+    produtosSection: true,
+    clientesSection: false,
+    eventosSection: false,
+    calendarioSection: false,
+    rotasSection: false,
+    usuariosSection: false,
+    configSection: false
+  }
+};
+
+let permissoesPerfilSistemaCache = null;
+
+function normalizarPermissoesPerfil(permissoes = {}) {
+  const final = JSON.parse(JSON.stringify(permissoesPadraoPerfil));
+
+  Object.entries(permissoes || {}).forEach(([perfil, paginas]) => {
+    if (!final[perfil]) final[perfil] = {};
+    Object.entries(paginas || {}).forEach(([pagina, permitido]) => {
+      final[perfil][pagina] = Boolean(permitido);
+    });
+  });
+
+  // Segurança: administrador sempre acessa Usuários e Configurações.
+  if (final.administrador) {
+    paginasSistemaPermissoes.forEach(p => final.administrador[p.id] = true);
+  }
+
+  return final;
+}
+
+async function carregarPermissoesPerfilSistema() {
+  if (permissoesPerfilSistemaCache) return permissoesPerfilSistemaCache;
+
+  if (typeof supabaseClient !== "undefined" && supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from("app_config")
+        .select("valor")
+        .eq("chave", "permissoes_perfil")
+        .maybeSingle();
+
+      if (!error && data?.valor) {
+        permissoesPerfilSistemaCache = normalizarPermissoesPerfil(data.valor);
+        localStorage.setItem("novoRioTendasPermissoesPerfil", JSON.stringify(permissoesPerfilSistemaCache));
+        return permissoesPerfilSistemaCache;
+      }
+    } catch (erro) {
+      console.warn("Não foi possível carregar permissões da nuvem:", erro);
+    }
+  }
+
+  try {
+    permissoesPerfilSistemaCache = normalizarPermissoesPerfil(
+      JSON.parse(localStorage.getItem("novoRioTendasPermissoesPerfil") || "null") || {}
+    );
+  } catch {
+    permissoesPerfilSistemaCache = normalizarPermissoesPerfil({});
+  }
+
+  return permissoesPerfilSistemaCache;
+}
+
+async function salvarPermissoesPerfilSistema(permissoes) {
+  permissoesPerfilSistemaCache = normalizarPermissoesPerfil(permissoes);
+  localStorage.setItem("novoRioTendasPermissoesPerfil", JSON.stringify(permissoesPerfilSistemaCache));
+
+  if (typeof supabaseClient !== "undefined" && supabaseClient) {
+    try {
+      const { error } = await supabaseClient
+        .from("app_config")
+        .upsert({
+          chave: "permissoes_perfil",
+          valor: permissoesPerfilSistemaCache,
+          atualizado_em: new Date().toISOString()
+        }, { onConflict: "chave" });
+
+      if (error) {
+        alert("Não foi possível salvar permissões na nuvem: " + (error.message || ""));
+        return false;
+      }
+    } catch (erro) {
+      alert("Erro ao salvar permissões: " + (erro.message || erro));
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function usuarioPodeAcessarPagina(sectionId) {
+  const usuario = typeof getUsuarioLogado === "function" ? getUsuarioLogado() : null;
+  if (!usuario) return false;
+
+  const permissoes = permissoesPerfilSistemaCache || normalizarPermissoesPerfil({});
+  const perfil = usuario.perfil || "operacional";
+
+  if (perfil === "administrador") return true;
+
+  return Boolean(permissoes?.[perfil]?.[sectionId]);
+}
+
+async function aplicarPermissoesPorPagina() {
+  const usuario = typeof getUsuarioLogado === "function" ? getUsuarioLogado() : null;
+  if (!usuario) return;
+
+  const permissoes = await carregarPermissoesPerfilSistema();
+  const perfil = usuario.perfil || "operacional";
+
+  document.querySelectorAll(".tab-btn[data-section]").forEach(btn => {
+    const sectionId = btn.dataset.section;
+    const permitido = perfil === "administrador" || Boolean(permissoes?.[perfil]?.[sectionId]);
+
+    btn.style.display = permitido ? "" : "none";
+    btn.disabled = !permitido;
+  });
+
+  document.querySelectorAll(".section").forEach(sec => {
+    const sectionId = sec.id;
+    const permitido = perfil === "administrador" || Boolean(permissoes?.[perfil]?.[sectionId]);
+
+    if (!permitido) {
+      sec.classList.remove("active");
+      sec.style.display = "none";
+    }
+  });
+
+  const activeBtn = document.querySelector(".tab-btn.active[data-section]");
+  if (!activeBtn || activeBtn.style.display === "none") {
+    const primeiro = Array.from(document.querySelectorAll(".tab-btn[data-section]"))
+      .find(btn => btn.style.display !== "none" && !btn.disabled);
+
+    if (primeiro) {
+      primeiro.click();
+    }
+  }
+
+  document.querySelectorAll(".admin-only").forEach(el => {
+    el.style.display = perfil === "administrador" ? "" : "none";
+  });
+}
+
+function montarEditorPermissoesPerfil() {
+  const usuario = typeof getUsuarioLogado === "function" ? getUsuarioLogado() : null;
+  if (!usuario || usuario.perfil !== "administrador") return;
+
+  const destino =
+    document.getElementById("usuariosAdminConfigBox") ||
+    document.getElementById("usuariosSection") ||
+    document.getElementById("configSection");
+
+  if (!destino || document.getElementById("permissoesPerfilBox")) return;
+
+  const box = document.createElement("div");
+  box.id = "permissoesPerfilBox";
+  box.className = "config-card permissoes-perfil-box";
+
+  box.innerHTML = `
+    <div class="section-header">
+      <div>
+        <h2>Permissões por perfil</h2>
+        <p>Marque quais páginas cada perfil pode acessar.</p>
+      </div>
+      <button id="salvarPermissoesPerfilBtn" class="btn-primary" type="button">Salvar permissões</button>
+    </div>
+
+    <div class="permissoes-grid-wrap">
+      <table class="permissoes-grid-table">
+        <thead>
+          <tr>
+            <th>Perfil</th>
+            ${paginasSistemaPermissoes.map(p => `<th>${p.label}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          ${perfisSistemaPermissoes.map(perfil => `
+            <tr>
+              <td><strong>${perfil.label}</strong></td>
+              ${paginasSistemaPermissoes.map(pagina => `
+                <td>
+                  <label class="perm-check">
+                    <input
+                      type="checkbox"
+                      data-perfil="${perfil.id}"
+                      data-pagina="${pagina.id}"
+                      ${perfil.id === "administrador" ? "checked disabled" : ""}
+                    >
+                  </label>
+                </td>
+              `).join("")}
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  destino.appendChild(box);
+
+  preencherEditorPermissoesPerfil();
+
+  const salvar = document.getElementById("salvarPermissoesPerfilBtn");
+  if (salvar) {
+    salvar.addEventListener("click", salvarPermissoesPerfilDoEditor);
+  }
+}
+
+async function preencherEditorPermissoesPerfil() {
+  const permissoes = await carregarPermissoesPerfilSistema();
+
+  document.querySelectorAll("#permissoesPerfilBox input[data-perfil][data-pagina]").forEach(input => {
+    const perfil = input.dataset.perfil;
+    const pagina = input.dataset.pagina;
+
+    input.checked = Boolean(permissoes?.[perfil]?.[pagina]);
+
+    if (perfil === "administrador") {
+      input.checked = true;
+      input.disabled = true;
+    }
+  });
+}
+
+async function salvarPermissoesPerfilDoEditor() {
+  const permissoes = await carregarPermissoesPerfilSistema();
+  const novas = normalizarPermissoesPerfil(permissoes);
+
+  document.querySelectorAll("#permissoesPerfilBox input[data-perfil][data-pagina]").forEach(input => {
+    const perfil = input.dataset.perfil;
+    const pagina = input.dataset.pagina;
+
+    if (!novas[perfil]) novas[perfil] = {};
+    novas[perfil][pagina] = input.checked;
+  });
+
+  const salvo = await salvarPermissoesPerfilSistema(novas);
+
+  if (salvo) {
+    alert("Permissões salvas com sucesso.");
+    await aplicarPermissoesUsuarioIndividual();
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  setTimeout(async () => {
+    await carregarPermissoesPerfilSistema();
+    await aplicarPermissoesUsuarioIndividual();
+    montarEditorPermissoesPerfil();
+  }, 800);
+
+  document.querySelectorAll('[data-section="usuariosSection"], [data-section="configSection"]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      setTimeout(() => {
+        montarEditorPermissoesPerfil();
+        preencherEditorPermissoesPerfil();
+      }, 150);
+    });
+  });
+});
+
+
+
+
+/* =====================================================
+   Permissões por usuário
+===================================================== */
+
+const paginasPermissaoUsuario = [
+  { id: "dashboardSection", label: "Dashboard" },
+  { id: "produtosSection", label: "Produtos" },
+  { id: "clientesSection", label: "Clientes" },
+  { id: "eventosSection", label: "Eventos" },
+  { id: "calendarioSection", label: "Agenda" },
+  { id: "rotasSection", label: "Rotas" },
+  { id: "usuariosSection", label: "Usuários" },
+  { id: "configSection", label: "Configurações" }
+];
+
+const permissoesPadraoPorPerfilUsuario = {
+  administrador: {
+    dashboardSection: true,
+    produtosSection: true,
+    clientesSection: true,
+    eventosSection: true,
+    calendarioSection: true,
+    rotasSection: true,
+    usuariosSection: true,
+    configSection: true
+  },
+  operacional: {
+    dashboardSection: true,
+    produtosSection: true,
+    clientesSection: true,
+    eventosSection: true,
+    calendarioSection: true,
+    rotasSection: true,
+    usuariosSection: false,
+    configSection: false
+  },
+  manutencao: {
+    dashboardSection: false,
+    produtosSection: true,
+    clientesSection: false,
+    eventosSection: false,
+    calendarioSection: false,
+    rotasSection: false,
+    usuariosSection: false,
+    configSection: false
+  }
+};
+
+function normalizarPermissoesUsuario(perfil, permissoes = null) {
+  const base = {
+    ...(permissoesPadraoPorPerfilUsuario[perfil || "operacional"] || permissoesPadraoPorPerfilUsuario.operacional)
+  };
+
+  Object.entries(permissoes || {}).forEach(([pagina, permitido]) => {
+    base[pagina] = Boolean(permitido);
+  });
+
+  if (perfil === "administrador") {
+    paginasPermissaoUsuario.forEach(p => base[p.id] = true);
+  }
+
+  return base;
+}
+
+function permissoesDoUsuarioLogado() {
+  const usuario = typeof getUsuarioLogado === "function" ? getUsuarioLogado() : null;
+  if (!usuario) return {};
+
+  return normalizarPermissoesUsuario(usuario.perfil, usuario.permissoes || null);
+}
+
+function usuarioPodeAcessarPaginaUsuario(sectionId) {
+  const usuario = typeof getUsuarioLogado === "function" ? getUsuarioLogado() : null;
+  if (!usuario) return false;
+  if (usuario.perfil === "administrador") return true;
+
+  const permissoes = permissoesDoUsuarioLogado();
+  return Boolean(permissoes[sectionId]);
+}
+
+async function aplicarPermissoesUsuarioIndividual() {
+  const usuario = typeof getUsuarioLogado === "function" ? getUsuarioLogado() : null;
+  if (!usuario) return;
+
+  const permissoes = permissoesDoUsuarioLogado();
+
+  document.querySelectorAll(".tab-btn[data-section]").forEach(btn => {
+    const sectionId = btn.dataset.section;
+    const permitido = usuario.perfil === "administrador" || Boolean(permissoes[sectionId]);
+
+    btn.style.display = permitido ? "" : "none";
+    btn.disabled = !permitido;
+  });
+
+  document.querySelectorAll(".section").forEach(sec => {
+    const sectionId = sec.id;
+    const permitido = usuario.perfil === "administrador" || Boolean(permissoes[sectionId]);
+
+    if (!permitido) {
+      sec.classList.remove("active");
+      sec.style.display = "none";
+    }
+  });
+
+  document.querySelectorAll(".admin-only").forEach(el => {
+    el.style.display = usuario.perfil === "administrador" ? "" : "none";
+  });
+
+  const ativo = document.querySelector(".tab-btn.active[data-section]");
+  if (!ativo || ativo.style.display === "none" || ativo.disabled) {
+    const primeiro = Array.from(document.querySelectorAll(".tab-btn[data-section]"))
+      .find(btn => btn.style.display !== "none" && !btn.disabled);
+
+    if (primeiro) primeiro.click();
+  }
+}
+
+function montarPermissoesNoModalUsuario(usuario = null) {
+  const form = document.getElementById("usuarioForm");
+  if (!form) return;
+
+  let box = document.getElementById("usuarioPermissoesBox");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "usuarioPermissoesBox";
+    box.className = "usuario-permissoes-box";
+    box.innerHTML = `
+      <h3>Permissões deste usuário</h3>
+      <p>Marque quais páginas este usuário poderá acessar.</p>
+      <div class="usuario-permissoes-grid">
+        ${paginasPermissaoUsuario.map(p => `
+          <label class="usuario-permissao-check">
+            <input type="checkbox" data-user-perm="${p.id}">
+            <span>${p.label}</span>
+          </label>
+        `).join("")}
+      </div>
+    `;
+
+    const actions = form.querySelector(".form-actions");
+    if (actions) form.insertBefore(box, actions);
+    else form.appendChild(box);
+  }
+
+  preencherPermissoesNoModalUsuario(usuario);
+
+  const perfilSelect = document.getElementById("usuarioPerfil");
+  if (perfilSelect && !perfilSelect.dataset.permListener) {
+    perfilSelect.dataset.permListener = "1";
+    perfilSelect.addEventListener("change", () => {
+      preencherPermissoesNoModalUsuario({
+        perfil: perfilSelect.value,
+        permissoes: null
+      });
+    });
+  }
+}
+
+function preencherPermissoesNoModalUsuario(usuario = null) {
+  const perfil = usuario?.perfil || document.getElementById("usuarioPerfil")?.value || "operacional";
+  const permissoes = normalizarPermissoesUsuario(perfil, usuario?.permissoes || null);
+
+  document.querySelectorAll("#usuarioPermissoesBox input[data-user-perm]").forEach(input => {
+    const pagina = input.dataset.userPerm;
+    input.checked = Boolean(permissoes[pagina]);
+
+    if (perfil === "administrador") {
+      input.checked = true;
+      input.disabled = true;
+    } else {
+      input.disabled = false;
+    }
+  });
+}
+
+function coletarPermissoesDoModalUsuario() {
+  const perfil = document.getElementById("usuarioPerfil")?.value || "operacional";
+  const permissoes = {};
+
+  document.querySelectorAll("#usuarioPermissoesBox input[data-user-perm]").forEach(input => {
+    permissoes[input.dataset.userPerm] = input.checked;
+  });
+
+  return normalizarPermissoesUsuario(perfil, permissoes);
+}
+
+function garantirColunaPermissoesUsuarios() {
+  const tabela = document.querySelector("#usuariosSection table, #usuariosAdminConfigBox table");
+  if (!tabela) return;
+
+  const headRow = tabela.querySelector("thead tr");
+  if (headRow && !headRow.querySelector("[data-col-permissoes]")) {
+    const th = document.createElement("th");
+    th.dataset.colPermissoes = "1";
+    th.textContent = "Permissões";
+    const acoes = Array.from(headRow.children).find(th => th.textContent.trim().toLowerCase() === "ações");
+    if (acoes) headRow.insertBefore(th, acoes);
+    else headRow.appendChild(th);
+  }
+}
+
+function resumoPermissoesUsuario(usuario) {
+  const permissoes = normalizarPermissoesUsuario(usuario.perfil, usuario.permissoes || null);
+  const liberadas = paginasPermissaoUsuario
+    .filter(p => permissoes[p.id])
+    .map(p => p.label);
+
+  if (usuario.perfil === "administrador") return "Acesso total";
+  if (!liberadas.length) return "Sem páginas";
+  if (liberadas.length <= 3) return liberadas.join(", ");
+
+  return `${liberadas.slice(0, 3).join(", ")} +${liberadas.length - 3}`;
+}
+

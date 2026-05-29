@@ -1,21 +1,965 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Novo RioTendas | Controle de Locação</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <section id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <img src="https://riotendas.smartwebinfo.com.br/webapp/public/img/logo.png" alt="Novo RioTendas" class="login-logo" />
+      <h1>Sistema Novo RioTendas</h1>
+      <p>Entre com usuário e senha para acessar o sistema.</p>
+      <form id="loginForm">
+        <input id="usuarioInput" type="text" placeholder="Usuário" autocomplete="username" required />
+        <input id="senhaInput" type="password" placeholder="Senha" autocomplete="current-password" required />
+        <button type="submit">Entrar</button>
+      </form>
+      <small id="loginError"></small>
+    </div>
+  </section>
 
-document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.querySelector('[data-section="calendarioSection"]');
-  const section = document.getElementById("calendarioSection");
+  <main id="appScreen" class="app hidden">
+    <header class="topbar">
+      <div class="brand">
+        <img src="https://riotendas.smartwebinfo.com.br/webapp/public/img/logo.png" alt="Novo RioTendas" />
+        <div>
+          <h1>Novo RioTendas</h1>
+          <span>Controle de Produtos, Eventos e Rotas</span>
+        </div>
+      </div>
+      <div class="user-box">
+        <span>Usuário: <strong id="colaboradorNome"></strong></span>
+        <button id="logoutBtn" class="btn-outline">Sair</button>
+      </div>
+    </header>
 
-  if (!btn || !section) return;
+    <nav class="tabs">
+      <button class="tab-btn active" data-section="dashboardSection">Dashboard</button>
+      <button class="tab-btn" data-section="produtosSection">Produtos</button>
+      <button class="tab-btn" data-section="clientesSection">Clientes</button>
+      <button class="tab-btn" data-section="eventosSection">Eventos</button>
+      <button class="tab-btn" data-section="calendarioSection">Calendário</button>
+      <button class="tab-btn" data-section="rotasSection">Rotas</button>
+      <button class="tab-btn admin-only" data-section="usuariosSection">Usuários</button>
+      <button class="tab-btn" data-section="configSection">Configurações</button>
+    </nav>
 
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".section").forEach(sec => {
-      sec.classList.remove("active-section");
-      sec.classList.remove("active");
-    });
+    <section id="dashboardSection" class="section active-section">
+      <div class="section-header">
+        <h2>Dashboard</h2>
+        <p>Resumo rápido do sistema.</p>
+      </div>
+      <div class="cards-grid">
+        <div class="dash-card"><span>Total de produtos</span><strong id="dashTotalProdutos">0</strong></div>
+        <div class="dash-card"><span>Livres</span><strong id="dashLivres">0</strong></div>
+        <div class="dash-card warning"><span>Manutenção/Bloqueados</span><strong id="dashManutencao">0</strong></div>
+        <div class="dash-card danger"><span>Pagamentos em aberto</span><strong id="dashPagamentos">0</strong></div>
+      </div>
 
-    section.classList.add("active-section");
+      <div class="panel">
+        <h3>Produtos em manutenção ou bloqueados</h3>
+        <div id="dashboardProdutosProblema" class="compact-list empty">Nenhum produto encontrado.</div>
+      </div>
 
-    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
+      <div class="dashboard-grid-2">
+        <div class="panel">
+          <div class="panel-title-row">
+            <h3>Eventos de Hoje</h3>
+            <span class="dash-mini-badge" id="dashEventosHojeQtd">0</span>
+          </div>
+          <div id="dashboardEventosHoje" class="dashboard-events-list empty">
+            Nenhum evento hoje.
+          </div>
+        </div>
 
-    if (typeof renderizarCalendario === "function") renderizarCalendario();
-  });
-});
+        <div class="panel">
+          <div class="panel-title-row">
+            <h3>Próximos Eventos</h3>
+            <span class="dash-mini-badge" id="dashEventosFuturosQtd">0</span>
+          </div>
+          <div id="dashboardProximosEventos" class="dashboard-events-list empty">
+            Nenhum evento futuro encontrado.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="produtosSection" class="section">
+      <div class="section-header split">
+        <div>
+          <h2>Produtos</h2>
+          <p>Cadastro e controle de tendas, ombrelones, mesas e cadeiras.</p>
+        </div>
+        <button id="novoProdutoBtn">Novo produto</button>
+      </div>
+
+      <div class="filters-bar">
+        <label>Categoria
+          <select id="filtroCategoria"><option value="">Todas</option></select>
+        </label>
+        <label>Tamanho
+          <select id="filtroTamanho"><option value="">Todos</option></select>
+        </label>
+        <label>Status
+          <select id="filtroStatus"><option value="">Todos</option></select>
+        </label>
+        <label>Busca
+          <input id="buscaProduto" type="search" placeholder="Código, cor, observação..." />
+        </label>
+      </div>
+
+      <div class="availability-filter-panel">
+        <h3>Verificar disponibilidade por período</h3>
+        <div class="availability-filter-grid">
+          <label>Início
+            <input id="dispProdutoInicio" type="datetime-local">
+          </label>
+          <label>Fim
+            <input id="dispProdutoFim" type="datetime-local">
+          </label>
+          <label class="checkbox-line">
+            <input id="mostrarSomenteDisponiveis" type="checkbox">
+            Mostrar somente disponíveis
+          </label>
+          <button type="button" id="limparDisponibilidadeProdutos" class="btn-outline">Limpar período</button>
+        </div>
+        <p class="hint">A disponibilidade considera montagem/entrega até desmontagem/retirada.</p>
+      </div>
+
+      <div class="summary-row">
+        <span>Total: <strong id="prodTotal">0</strong></span>
+        <span>Livres: <strong id="prodLivres">0</strong></span>
+        <span>Manutenção/Bloqueados: <strong id="prodProblema">0</strong></span>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Foto</th>
+              <th>Código</th>
+              <th>Categoria</th>
+              <th>Tamanho</th>
+              <th>Cor</th>
+              <th>Usabilidade</th>
+              <th>Status</th>
+              <th>Observação</th>
+              <th>Disponibilidade</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="produtosTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+
+    <section id="clientesSection" class="section">
+      <div class="section-header">
+        <div>
+          <h2>Clientes</h2>
+          <p>Cadastro, filtros e consulta de clientes.</p>
+        </div>
+        <button id="novoClienteBtn">Novo cliente</button>
+      </div>
+
+      <div class="filters-grid">
+        <label>Busca geral
+          <input id="buscaCliente" type="search" placeholder="Nome, CPF/CNPJ, telefone ou endereço">
+        </label>
+        <label>Nome
+          <input id="filtroClienteNome" type="search">
+        </label>
+        <label>CPF/CNPJ
+          <input id="filtroClienteDocumento" type="search">
+        </label>
+        <label>Telefone
+          <input id="filtroClienteTelefone" type="search">
+        </label>
+        <label>Endereço
+          <input id="filtroClienteEndereco" type="search">
+        </label>
+      </div>
+
+      <div class="summary-line">
+        <span>Total de clientes: <strong id="clientesTotal">0</strong></span>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>CPF/CNPJ</th>
+              <th>Telefone</th>
+              <th>Endereço</th>
+              <th>Colaborador</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="clientesTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="eventosSection" class="section">
+      <div class="section-header">
+        <div>
+          <h2>Eventos</h2>
+          <p>Cadastro de eventos, financeiro e produtos alugados.</p>
+        </div>
+        <button id="novoEventoBtn">Novo evento</button>
+      </div>
+
+      <div class="filters-grid">
+        <label>Busca geral
+          <input id="buscaEvento" type="search" placeholder="Cliente, telefone, endereço, produto...">
+        </label>
+        <label>Data
+          <input id="filtroEventoData" type="date">
+        </label>
+        <label>Cliente
+          <input id="filtroEventoCliente" type="search">
+        </label>
+        <label>Telefone
+          <input id="filtroEventoTelefone" type="search">
+        </label>
+        <label>Pagamento
+          <select id="filtroEventoPagamento">
+            <option value="">Todos</option>
+            <option value="aberto">Em aberto</option>
+            <option value="quitado">Quitado</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="summary-line">
+        <span>Total de eventos: <strong id="eventosTotal">0</strong></span>
+        <span>Em aberto: <strong id="eventosEmAberto">0</strong></span>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              
+              <th>Mont./Desm.</th>
+              <th>Cliente</th>
+              <th>Telefone</th>
+              <th>Endereço</th>
+              <th>Produtos</th>
+              <th>Total</th>
+              <th>Sinal</th>
+              <th>Restante</th>
+              <th>Pagamento</th>
+              <th>Colaborador</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="eventosTbody"></tbody>
+        </table>
+      </div>
+
+      <div class="recurring-events-panel">
+        <div class="section-header compact-header">
+          <div>
+            <h3>Eventos recorrentes</h3>
+            <p>Eventos gerados por recorrência, separados da listagem normal.</p>
+          </div>
+        </div>
+
+        <div class="table-wrapper recurring-table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Período da recorrência</th>
+                <th>Frequência</th>
+                <th>Cliente</th>
+                <th>Telefone</th>
+                <th>Endereço</th>
+                <th>Produtos</th>
+                <th>Total</th>
+                <th>Pagamento</th>
+                <th>Colaborador</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="eventosRecorrentesTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    
+    <section id="calendarioSection" class="section">
+      <div class="section-header split">
+        <div>
+          <h2>Calendário Visual</h2>
+          <p>Visão mensal de eventos, montagens e desmontagens.</p>
+        </div>
+        <div class="calendar-actions">
+          <button type="button" id="calendarioHojeBtn" class="btn-outline">Hoje</button>
+          <button type="button" id="calendarioAnteriorBtn" class="btn-outline">‹</button>
+          <button type="button" id="calendarioProximoBtn" class="btn-outline">›</button>
+        </div>
+      </div>
+
+      <div class="calendar-toolbar">
+        <div>
+          <h3 id="calendarioTituloMes">Mês</h3>
+          <p id="calendarioResumoMes">Resumo do mês</p>
+        </div>
+
+        <div class="calendar-filters">
+          <label>Mostrar
+            <select id="calendarioFiltroTipo">
+              <option value="">Tudo</option>
+              <option value="evento">Eventos</option>
+              <option value="montagem">Montagens</option>
+              <option value="desmontagem">Desmontagens</option>
+            </select>
+          </label>
+
+          <label>Pagamento
+            <select id="calendarioFiltroPagamento">
+              <option value="">Todos</option>
+              <option value="quitado">Quitado</option>
+              <option value="aberto">Em aberto</option>
+            </select>
+          </label>
+
+          <label>Cliente
+            <input id="calendarioFiltroCliente" type="search" placeholder="Buscar cliente">
+          </label>
+        </div>
+      </div>
+
+      <div class="calendar-layout">
+        <div class="calendar-main">
+          <div class="calendar-weekdays">
+            <span>Dom</span>
+            <span>Seg</span>
+            <span>Ter</span>
+            <span>Qua</span>
+            <span>Qui</span>
+            <span>Sex</span>
+            <span>Sáb</span>
+          </div>
+          <div id="calendarioGrid" class="calendar-grid"></div>
+        </div>
+
+        <aside class="calendar-day-panel">
+          <h3 id="calendarioDiaTitulo">Selecione um dia</h3>
+          <div class="calendar-day-summary">
+            <span>Eventos: <strong id="calDiaEventos">0</strong></span>
+            <span>Montagens: <strong id="calDiaMontagens">0</strong></span>
+            <span>Desmontagens: <strong id="calDiaDesmontagens">0</strong></span>
+          </div>
+          <div id="calendarioDiaLista" class="calendar-day-list">
+            <p class="empty">Clique em um dia para ver os detalhes.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="rotasSection" class="section">
+      <div class="section-header">
+        <div>
+          <h2>Rotas</h2>
+          <p>Montagens e desmontagens organizadas por data e carro.</p>
+        </div>
+        <button id="atualizarRotasBtn" class="btn-outline">Atualizar rotas</button>
+      </div>
+
+      <div class="filters-grid">
+        <label>Período
+          <select id="rotaPeriodo">
+            <option value="30" selected>Próximos 30 dias</option>
+            <option value="7">Próximos 7 dias</option>
+            <option value="15">Próximos 15 dias</option>
+            <option value="mes">Mês selecionado</option>
+            <option value="data">Data específica</option>
+          </select>
+        </label>
+        <label>Mês
+          <input id="rotaMes" type="month">
+        </label>
+        <label>Data específica
+          <input id="rotaData" type="date">
+        </label>
+        <label>Tipo
+          <select id="rotaTipoFiltro">
+            <option value="">Montagens e desmontagens</option>
+            <option value="Montagem">Montagens</option>
+            <option value="Desmontagem">Desmontagens</option>
+          </select>
+        </label>
+        <label>Carro
+          <select id="rotaCarroFiltro">
+            <option value="">Todos</option>
+            <option value="Saveiro">Saveiro</option>
+            <option value="Dupla">Dupla</option>
+            <option value="Caminhão">Caminhão</option>
+            <option value="Sem carro">Sem carro</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="summary-line">
+        <span>Total de rotas: <strong id="rotasTotal">0</strong></span>
+        <span>Montagens: <strong id="rotasMontagens">0</strong></span>
+        <span>Desmontagens: <strong id="rotasDesmontagens">0</strong></span>
+      </div>
+
+      <div id="rotasConteudo" class="rotas-container">
+        <p class="empty">Nenhuma rota encontrada.</p>
+      </div>
+    </section>
+  
+    <section id="usuariosSection" class="section">
+        <div class="section-header">
+          <div>
+            <h2>Usuários</h2>
+            <p>Gerencie os acessos ao sistema.</p>
+          </div>
+          <button id="novoUsuarioBtn" class="btn-primary" type="button">Novo usuário</button>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Usuário</th>
+                <th>Perfil</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="usuariosTbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="configSection" class="section">
+      <div class="section-header">
+        <div>
+          <h2>Configurações</h2>
+          <p>Importação, exportação e ajustes personalizados do sistema.</p>
+        </div>
+      </div>
+
+      <div class="config-grid">
+        <div class="config-card">
+          <h3>Produtos</h3>
+          <p>Exportar ou importar todas as informações dos produtos cadastrados.</p>
+
+          <div class="config-actions">
+            <button id="exportarProdutosExcel">Exportar produtos Excel</button>
+            <label class="file-button">
+              Importar produtos Excel
+              <input id="importarProdutosExcel" type="file" accept=".xlsx,.xls,.csv">
+            </label>
+          </div>
+
+          <small>Colunas: código, categoria, tamanho, cor, status, observação, foto, usabilidade e colaborador.</small>
+        </div>
+
+        <div class="config-card">
+          <h3>Eventos</h3>
+          <p>Exportar ou importar eventos por período.</p>
+
+          <div class="form-row config-date-row">
+            <label>Data inicial
+              <input id="exportEventoInicio" type="date">
+            </label>
+            <label>Data final
+              <input id="exportEventoFim" type="date">
+            </label>
+          </div>
+
+          <div class="config-actions">
+            <button id="exportarEventosExcel">Exportar eventos Excel</button>
+            <label class="file-button">
+              Importar eventos Excel
+              <input id="importarEventosExcel" type="file" accept=".xlsx,.xls,.csv">
+            </label>
+          </div>
+
+          <small>Inclui cliente, datas, produtos, mesas/cadeiras, financeiro e pagamento.</small>
+        </div>
+
+        <div class="config-card">
+          <h3>Carros da empresa</h3>
+          <p>Editar os veículos disponíveis para uso nas rotas.</p>
+
+          <div class="config-inline-form">
+            <input id="novoCarroNome" type="text" placeholder="Nome do carro">
+            <button id="adicionarCarroConfig" type="button">Adicionar carro</button>
+          </div>
+
+          <div id="listaCarrosConfig" class="config-list"></div>
+        </div>
+
+        <div class="config-card">
+          <h3>Categorias de produtos</h3>
+          <p>Editar categorias e tamanhos disponíveis no cadastro de produtos.</p>
+
+          <div class="config-inline-form">
+            <input id="novaCategoriaNome" type="text" placeholder="Categoria">
+            <input id="novaCategoriaTamanhos" type="text" placeholder="Tamanhos separados por vírgula">
+            <button id="adicionarCategoriaConfig" type="button">Adicionar categoria</button>
+          </div>
+
+          <div id="listaCategoriasConfig" class="config-list"></div>
+        </div>
+
+        <div class="config-card">
+          <h3>Cores dos produtos</h3>
+          <p>Editar cores disponíveis no cadastro de produtos.</p>
+
+          <div class="config-inline-form">
+            <input id="novaCorNome" type="text" placeholder="Nova cor">
+            <button id="adicionarCorConfig" type="button">Adicionar cor</button>
+          </div>
+
+          <div id="listaCoresConfig" class="config-list"></div>
+        </div>
+
+        <div class="config-card">
+          <h3>Fotos padrão por produto</h3>
+          <p>Defina ou altere uma foto padrão por categoria e tamanho usando upload.</p>
+
+          <div class="foto-padrao-form">
+            <label>Categoria
+              <select id="fotoPadraoCategoria">
+                <option value="">Selecione uma categoria</option>
+              </select>
+            </label>
+
+            <label>Tamanho
+              <select id="fotoPadraoTamanho">
+                <option value="">Selecione um tamanho</option>
+              </select>
+            </label>
+
+            <label>Foto
+              <input id="fotoPadraoArquivo" type="file" accept="image/*">
+            </label>
+            <input id="fotoPadraoUrl" type="hidden">
+
+            <button id="adicionarFotoPadraoConfig" type="button">Salvar/alterar foto</button>
+          </div>
+
+          <div id="listaFotosPadraoConfig" class="config-list"></div>
+        </div>
+
+        <div class="config-card">
+          <h3>Preferências do aplicativo</h3>
+          <p>Configurações visuais e operacionais.</p>
+
+          <div class="form-grid">
+            <label>Nome da empresa
+              <input id="configNomeEmpresa" type="text" placeholder="RioTendas">
+            </label>
+            <label>Logo da empresa
+              <input id="configLogoEmpresa" type="url" placeholder="https://...">
+            </label>
+            <label>Período padrão das rotas
+              <select id="configPeriodoRotas">
+                <option value="7">Próximos 7 dias</option>
+                <option value="15">Próximos 15 dias</option>
+                <option value="30">Próximos 30 dias</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="config-actions">
+            <button id="salvarPreferenciasConfig">Salvar preferências</button>
+          </div>
+        </div>
+
+        <div class="config-card config-card-sugestoes">
+          <h3>Outras sugestões futuras</h3>
+          <ul>
+            <li>Backup completo do sistema em Excel.</li>
+            <li>Restaurar backup completo.</li>
+            <li>Usuários com permissões diferentes.</li>
+            <li>Configurar formas de pagamento padrão.</li>
+            <li>Configurar status personalizados.</li>
+            <li>Numeração automática de contratos/orçamentos.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+</main>
+
+
+  <dialog id="clienteDialog" class="modal">
+    <form id="clienteForm" method="dialog">
+      <div class="modal-header">
+        <h2 id="clienteModalTitulo">Novo cliente</h2>
+        <button type="button" class="icon-btn" id="fecharClienteModal">×</button>
+      </div>
+      <input type="hidden" id="clienteId">
+      <div class="form-grid">
+        <label>Nome <input id="clienteNome" type="text" required></label>
+        <label>CPF/CNPJ <input id="clienteDocumento" type="text"></label>
+        <label>Telefone <input id="clienteTelefone" type="text"></label>
+        <label>Endereço <input id="clienteEndereco" type="text"></label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-outline" id="cancelarCliente">Cancelar</button>
+        <button type="submit">Salvar cliente</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="clienteDetalheDialog" class="modal large-modal">
+    <div class="modal-header">
+      <h2 id="clienteDetalheTitulo">Cliente</h2>
+      <button type="button" class="icon-btn" id="fecharClienteDetalheModal">×</button>
+    </div>
+    <div id="clienteDetalheConteudo"></div>
+  </dialog>
+
+
+  <dialog id="eventoDialog" class="modal large-modal">
+    <form id="eventoForm" method="dialog">
+      <div class="modal-header">
+        <h2 id="eventoModalTitulo">Novo evento</h2>
+        <button type="button" class="icon-btn" id="fecharEventoModal">×</button>
+      </div>
+
+      <input type="hidden" id="eventoId">
+
+      <div class="subpanel">
+        <h3>Dados do cliente</h3>
+        <div class="form-grid compact-client-grid">
+          <label>Buscar cliente
+            <input id="eventoBuscaCliente" type="search" list="clientesDatalist" placeholder="Digite para buscar cliente já cadastrado">
+            <datalist id="clientesDatalist"></datalist>
+          </label>
+          <label>Nome
+            <input id="eventoNome" type="text" required>
+          </label>
+          <label>CPF/CNPJ
+            <input id="eventoDocumento" type="text">
+          </label>
+          <label>Telefone
+            <input id="eventoTelefone" type="text">
+          </label>
+          <label>Endereço
+            <input id="eventoEndereco" type="text">
+          </label>
+        </div>
+        <p class="hint">Se o cliente ainda não existir, ele será cadastrado automaticamente ao salvar o evento.</p>
+      </div>
+
+      <div class="subpanel">
+        <h3>Dados do evento</h3>
+        <div class="form-row recurrence-type-row">
+          <label>Tipo de evento
+            <select id="eventoTipoEvento">
+              <option value="pontual">Pontual</option>
+              <option value="recorrente">Recorrente</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="eventoRecorrenciaBox" class="recurrence-box hidden">
+          <div class="form-row recurrence-row">
+            <label>Recorrência
+              <select id="eventoRecorrenciaTipo">
+                <option value="mensal">Mensal</option>
+                <option value="quinzenal">A cada 15 dias</option>
+                <option value="personalizado">Personalizado</option>
+              </select>
+            </label>
+            <label>Dias do período personalizado
+              <input id="eventoRecorrenciaDias" type="number" min="1" step="1" value="30">
+            </label>
+            <label>Início da recorrência
+              <input id="eventoRecorrenciaInicio" type="date">
+            </label>
+            <label>Fim da recorrência
+              <input id="eventoRecorrenciaFim" type="date">
+            </label>
+          </div>
+          <p class="hint">O sistema criará uma ocorrência para cada período dentro das datas informadas, mantendo os mesmos dados do evento.</p>
+        </div>
+
+        <div class="event-lines">
+          <div class="form-row event-date-row">
+            <label>Data do evento
+              <input id="eventoData" type="date" required>
+            </label>
+            <label>Início
+              <input id="eventoHoraInicio" type="time">
+            </label>
+            <label>Término
+              <input id="eventoHoraTermino" type="time">
+            </label>
+          </div>
+
+          <div class="form-row event-operation-row">
+            <label>Montagem
+              <input id="eventoMontagem" type="datetime-local">
+            </label>
+            <label>Tipo da montagem
+              <select id="eventoMontagemTipo">
+                <option value="A partir de">A partir de</option>
+                <option value="Até">Até</option>
+                <option value="Exatamente">Exatamente</option>
+                <option value="Intervalo">Intervalo</option>
+                <option value="Horário comercial" selected>Horário comercial</option>
+                <option value="Livre / combinar">Livre / combinar</option>
+              </select>
+            </label>
+            <label class="campo-hora-final" id="eventoMontagemFimBox">Hora final
+              <input id="eventoMontagemFim" type="time">
+            </label>
+          </div>
+
+          <div class="form-row event-operation-row">
+            <label>Desmontagem
+              <input id="eventoDesmontagem" type="datetime-local">
+            </label>
+            <label>Tipo da desmontagem
+              <select id="eventoDesmontagemTipo">
+                <option value="A partir de">A partir de</option>
+                <option value="Até">Até</option>
+                <option value="Exatamente">Exatamente</option>
+                <option value="Intervalo">Intervalo</option>
+                <option value="Horário comercial" selected>Horário comercial</option>
+                <option value="Livre / combinar">Livre / combinar</option>
+              </select>
+            </label>
+            <label class="campo-hora-final" id="eventoDesmontagemFimBox">Hora final
+              <input id="eventoDesmontagemFim" type="time">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="subpanel">
+        <h3>Financeiro</h3>
+        <div class="form-row finance-row">
+          <label>Valor total
+            <input id="eventoValorTotal" class="money-input" type="text" inputmode="decimal" value="R$ 0,00">
+          </label>
+          <label>Sinal
+            <input id="eventoValorSinal" class="money-input" type="text" inputmode="decimal" value="R$ 0,00">
+          </label>
+          <label>Restante
+            <input id="eventoValorRestante" class="money-input" type="text" readonly value="R$ 0,00">
+          </label>
+        </div>
+
+        <div class="form-row payment-row">
+          <label>Forma de pagamento
+            <textarea id="eventoFormaPagamento" rows="2" placeholder="Ex: Pix, dinheiro, cartão..."></textarea>
+          </label>
+          <label class="checkbox-line">
+            <input id="eventoPagamentoQuitado" type="checkbox">
+            Pagamento quitado
+          </label>
+        </div>
+      </div>
+
+      <div class="subpanel">
+        <h3>Produtos com código</h3>
+        <div class="produto-adder">
+          <select id="eventoProdutoSelect">
+            <option value="">Selecione um produto para adicionar</option>
+          </select>
+          <button type="button" id="adicionarProdutoEvento" class="btn-outline">Adicionar produto</button>
+        </div>
+        <div id="eventoProdutosSelecionados" class="selected-list"></div>
+      </div>
+
+      <div class="subpanel">
+        <h3>Mesas e cadeiras</h3>
+        <div id="eventoApoioLista" class="apoio-evento-lista"></div>
+      </div>
+
+      <div class="subpanel">
+        <h3>Produtos/serviços extras não catalogados</h3>
+        <div class="form-row extra-row">
+          <input id="eventoExtraDescricao" type="text" placeholder="Ex: frete, lona avulsa, balcão, serviço extra...">
+          <input id="eventoExtraQuantidade" type="number" min="1" step="1" value="1" title="Quantidade">
+          <button type="button" id="adicionarExtraEvento" class="btn-outline">Adicionar extra</button>
+        </div>
+        <div id="eventoExtrasSelecionados" class="selected-list extras-list"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-outline" id="cancelarEvento">Cancelar</button>
+        <button type="submit">Salvar evento</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="eventoDetalheDialog" class="modal large-modal">
+    <div class="modal-header">
+      <h2 id="eventoDetalheTitulo">Evento</h2>
+      <button type="button" class="icon-btn" id="fecharEventoDetalheModal">×</button>
+    </div>
+    <div id="eventoDetalheConteudo"></div>
+  </dialog>
+
+
+  <dialog id="eventoProdutosRapidoDialog" class="modal large-modal">
+    <div class="modal-header">
+      <h2 id="eventoProdutosRapidoTitulo">Alterar produtos do evento</h2>
+      <button type="button" class="icon-btn" id="fecharEventoProdutosRapido">×</button>
+    </div>
+
+    <input type="hidden" id="eventoProdutosRapidoId">
+
+    <div class="subpanel">
+      <h3>Produtos com código</h3>
+      <div class="produto-adder">
+        <select id="eventoProdutoRapidoSelect">
+          <option value="">Selecione um produto para adicionar</option>
+        </select>
+        <button type="button" id="adicionarProdutoRapido" class="btn-outline">Adicionar produto</button>
+      </div>
+      <div id="eventoProdutosRapidoSelecionados" class="selected-list"></div>
+    </div>
+
+    <div class="subpanel">
+      <h3>Mesas e cadeiras</h3>
+      <div id="eventoApoioRapidoLista" class="apoio-evento-lista"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-outline" id="cancelarEventoProdutosRapido">Cancelar</button>
+      <button type="button" id="salvarEventoProdutosRapido">Salvar produtos</button>
+    </div>
+  </dialog>
+
+  <dialog id="produtoDialog" class="modal">
+    <form id="produtoForm" method="dialog">
+      <div class="modal-header">
+        <h2 id="produtoModalTitulo">Novo produto</h2>
+        <button type="button" class="icon-btn" id="fecharProdutoModal">×</button>
+      </div>
+
+      <input type="hidden" id="produtoId" />
+      <div class="form-grid">
+        <label>Código
+          <input id="produtoCodigo" type="text" placeholder="Ex: 001" required />
+        </label>
+        <label>Categoria
+          <select id="produtoCategoria" required></select>
+        </label>
+        <label>Tamanho
+          <select id="produtoTamanho" required></select>
+        </label>
+        <label>Cor
+          <select id="produtoCor" required></select>
+        </label>
+        <label>Status
+          <select id="produtoStatus" required></select>
+        </label>
+        <label>Grau de Usabilidade
+          <select id="produtoUsabilidade" required></select>
+        </label>
+        <input id="produtoFoto" type="hidden" value="">
+      </div>
+
+      <label>Observação
+        <textarea id="produtoObservacao" rows="3" placeholder="Ex: precisa trocar lona, limpar antes da locação..."></textarea>
+      </label>
+
+      <div class="preview-box">
+        <img id="fotoPreview" alt="Prévia da foto" />
+        <span>Prévia da foto</span>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-outline" id="cancelarProduto">Cancelar</button>
+        <button type="submit">Salvar produto</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="produtoDetalheDialog" class="modal large-modal">
+    <div class="modal-header">
+      <h2 id="detalheTitulo">Produto</h2>
+      <button type="button" class="icon-btn" id="fecharDetalheModal">×</button>
+    </div>
+    <div id="produtoDetalheConteudo"></div>
+  </dialog>
+
+
+  <dialog id="usuarioModal" class="modal">
+    <div class="modal-header">
+      <h2 id="usuarioModalTitulo">Usuário</h2>
+      <button type="button" class="icon-btn" id="fecharUsuarioModal">×</button>
+    </div>
+
+    <form id="usuarioForm" class="form-grid">
+      <input type="hidden" id="usuarioId" />
+
+      <label>
+        Nome
+        <input id="usuarioNome" type="text" required />
+      </label>
+
+      <label>
+        Usuário
+        <input id="usuarioLogin" type="text" required />
+      </label>
+
+      <label>
+        Senha
+        <input id="usuarioSenha" type="text" required />
+      </label>
+
+      <label>
+        Perfil
+        <select id="usuarioPerfil" required>
+          <option value="administrador">Administrador</option>
+          <option value="operacional">Operacional</option>
+          <option value="manutencao">Manutenção</option>
+        </select>
+      </label>
+
+      <label>
+        Status
+        <select id="usuarioAtivo">
+          <option value="true">Ativo</option>
+          <option value="false">Inativo</option>
+        </select>
+      </label>
+
+      <div class="form-actions">
+        <button type="button" class="btn-outline" id="cancelarUsuario">Cancelar</button>
+        <button type="submit" class="btn-primary">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/produtos.js"></script>
+  <script src="js/clientes.js"></script>
+  <script src="js/eventos.js"></script>
+  <script src="js/rotas.js"></script>
+  <script src="js/calendario.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="js/configuracoes.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/calendario-nav-fix.js"></script>
+</body>
+</html>
