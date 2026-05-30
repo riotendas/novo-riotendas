@@ -1,6 +1,7 @@
 
 let calendarioDataAtual = new Date();
 let calendarioDataSelecionada = null;
+let calendarioModoVisual = "mes";
 
 function calendarioISODate(date) {
   const d = new Date(date);
@@ -48,6 +49,34 @@ function calendarioHoraDeDatetime(valor, evento = null, tipo = "") {
 function calendarioMesAnoTexto(data) {
   return data.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 }
+
+function calendarioInicioSemana(data) {
+  const d = new Date(data);
+  d.setHours(12, 0, 0, 0);
+  // Semana operacional: terça-feira até segunda-feira.
+  // getDay(): domingo=0, segunda=1, terça=2...
+  const deslocamento = (d.getDay() + 5) % 7;
+  d.setDate(d.getDate() - deslocamento);
+  return d;
+}
+
+function calendarioIntervaloSemanaTexto(inicio) {
+  const fim = new Date(inicio);
+  fim.setDate(inicio.getDate() + 6);
+  const ini = inicio.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  const fimTxt = fim.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return `${ini} a ${fimTxt}`;
+}
+
+function calendarioResumoItens(itens) {
+  return `${itens.filter(i => i.tipo === "evento").length} eventos • ${itens.filter(i => i.tipo === "montagem").length} montagens • ${itens.filter(i => i.tipo === "desmontagem").length} desmontagens`;
+}
+
+function calendarioAtualizarBotoesModo() {
+  document.getElementById("calendarioModoMesBtn")?.classList.toggle("active", calendarioModoVisual === "mes");
+  document.getElementById("calendarioModoSemanaBtn")?.classList.toggle("active", calendarioModoVisual === "semana");
+}
+
 
 function calendarioEventosBase() {
   if (typeof eventos !== "undefined" && Array.isArray(eventos)) return eventos;
@@ -144,6 +173,11 @@ function calendarioLabelTipo(tipo) {
 function renderizarCalendario() {
   const grid = document.getElementById("calendarioGrid");
   if (!grid) return;
+  calendarioAtualizarBotoesModo();
+  if (calendarioModoVisual === "semana") {
+    renderizarCalendarioSemana();
+    return;
+  }
 
   const ano = calendarioDataAtual.getFullYear();
   const mes = calendarioDataAtual.getMonth();
@@ -151,7 +185,9 @@ function renderizarCalendario() {
   const primeiro = new Date(ano, mes, 1);
   const ultimo = new Date(ano, mes + 1, 0);
   const inicioGrade = new Date(primeiro);
-  inicioGrade.setDate(primeiro.getDate() - primeiro.getDay());
+  // Grade mensal começa na terça-feira e termina na segunda-feira.
+  const deslocamentoInicioMes = (primeiro.getDay() + 5) % 7;
+  inicioGrade.setDate(primeiro.getDate() - deslocamentoInicioMes);
 
   const itens = calendarioTodosItens();
   const hojeISO = calendarioISODate(new Date());
@@ -161,8 +197,7 @@ function renderizarCalendario() {
     const d = new Date(`${i.data}T12:00:00`);
     return d.getFullYear() === ano && d.getMonth() === mes;
   });
-  document.getElementById("calendarioResumoMes").textContent =
-    `${itensMes.filter(i => i.tipo === "evento").length} eventos • ${itensMes.filter(i => i.tipo === "montagem").length} montagens • ${itensMes.filter(i => i.tipo === "desmontagem").length} desmontagens`;
+  document.getElementById("calendarioResumoMes").textContent = calendarioResumoItens(itensMes);
 
   const dias = [];
 
@@ -189,11 +224,71 @@ function renderizarCalendario() {
     `);
   }
 
+  grid.classList.remove("calendar-grid-week");
   grid.innerHTML = dias.join("");
 
   grid.querySelectorAll("[data-cal-dia]").forEach(btn => {
     btn.addEventListener("click", () => {
       calendarioDataSelecionada = btn.dataset.calDia;
+      renderizarCalendario();
+      renderizarPainelDiaCalendario();
+    });
+  });
+
+  if (!calendarioDataSelecionada) {
+    calendarioDataSelecionada = hojeISO;
+  }
+
+  renderizarPainelDiaCalendario();
+}
+
+
+function renderizarCalendarioSemana() {
+  const grid = document.getElementById("calendarioGrid");
+  if (!grid) return;
+
+  const inicioSemana = calendarioInicioSemana(calendarioDataAtual);
+  const itens = calendarioTodosItens();
+  const hojeISO = calendarioISODate(new Date());
+  const dias = [];
+  const itensSemana = [];
+
+  for (let i = 0; i < 7; i++) {
+    const data = new Date(inicioSemana);
+    data.setDate(inicioSemana.getDate() + i);
+    const iso = calendarioISODate(data);
+    const selecionado = calendarioDataSelecionada === iso;
+    const itensDia = itens
+      .filter(item => item.data === iso)
+      .sort((a, b) => String(a.hora || "99:99").localeCompare(String(b.hora || "99:99")));
+
+    itensSemana.push(...itensDia);
+
+    dias.push(`
+      <button type="button" class="calendar-day calendar-week-day ${iso === hojeISO ? "today" : ""} ${selecionado ? "selected" : ""}" data-cal-dia="${iso}">
+        <div class="calendar-day-number">${data.getDate()} <small>${data.toLocaleDateString("pt-BR", { weekday: "short" })}</small></div>
+        <div class="calendar-day-items">
+          ${itensDia.slice(0, 8).map(item => `
+            <span class="${calendarioClasseItem(item)}" title="${calendarioLabelTipo(item.tipo)} — ${item.titulo}">
+              ${item.hora ? item.hora + " • " : ""}${calendarioLabelTipo(item.tipo)} ${item.titulo}
+            </span>
+          `).join("")}
+          ${itensDia.length > 8 ? `<span class="cal-more">+${itensDia.length - 8}</span>` : ""}
+        </div>
+      </button>
+    `);
+  }
+
+  document.getElementById("calendarioTituloMes").textContent = `Semana: ${calendarioIntervaloSemanaTexto(inicioSemana)}`;
+  document.getElementById("calendarioResumoMes").textContent = calendarioResumoItens(itensSemana);
+
+  grid.classList.add("calendar-grid-week");
+  grid.innerHTML = dias.join("");
+
+  grid.querySelectorAll("[data-cal-dia]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      calendarioDataSelecionada = btn.dataset.calDia;
+      calendarioDataAtual = new Date(`${calendarioDataSelecionada}T12:00:00`);
       renderizarCalendario();
       renderizarPainelDiaCalendario();
     });
@@ -281,12 +376,32 @@ function iniciarCalendarioVisual() {
   });
 
   document.getElementById("calendarioAnteriorBtn")?.addEventListener("click", () => {
-    calendarioDataAtual.setMonth(calendarioDataAtual.getMonth() - 1);
+    if (calendarioModoVisual === "semana") {
+      calendarioDataAtual.setDate(calendarioDataAtual.getDate() - 7);
+    } else {
+      calendarioDataAtual.setMonth(calendarioDataAtual.getMonth() - 1);
+    }
     renderizarCalendario();
   });
 
   document.getElementById("calendarioProximoBtn")?.addEventListener("click", () => {
-    calendarioDataAtual.setMonth(calendarioDataAtual.getMonth() + 1);
+    if (calendarioModoVisual === "semana") {
+      calendarioDataAtual.setDate(calendarioDataAtual.getDate() + 7);
+    } else {
+      calendarioDataAtual.setMonth(calendarioDataAtual.getMonth() + 1);
+    }
+    renderizarCalendario();
+  });
+
+
+  document.getElementById("calendarioModoMesBtn")?.addEventListener("click", () => {
+    calendarioModoVisual = "mes";
+    renderizarCalendario();
+  });
+
+  document.getElementById("calendarioModoSemanaBtn")?.addEventListener("click", () => {
+    calendarioModoVisual = "semana";
+    calendarioDataAtual = calendarioDataSelecionada ? new Date(`${calendarioDataSelecionada}T12:00:00`) : new Date();
     renderizarCalendario();
   });
 
@@ -301,3 +416,67 @@ function iniciarCalendarioVisual() {
 }
 
 document.addEventListener("DOMContentLoaded", iniciarCalendarioVisual);
+
+
+// v19-dev-lista-combinada-scroll-4
+function aplicarScrollListaCombinadaCalendario() {
+  const seletores = [
+    '#listaEventosDia',
+    '#listaEventosMontagens',
+    '#eventosMontagensDesmontagens',
+    '#calendarioListaDia',
+    '.calendario-lista-dia',
+    '.calendario-lista-combinada',
+    '.lista-eventos-dia',
+    '.lista-eventos-montagens',
+    '.eventos-montagens-desmontagens'
+  ];
+
+  seletores.forEach((sel) => {
+    document.querySelectorAll(sel).forEach((el) => {
+      el.classList.add('calendario-lista-combinada');
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', aplicarScrollListaCombinadaCalendario);
+
+
+// v19-dev: aplica rolagem no bloco de cards do dia selecionado do calendário
+function rtAplicarScrollDetalheDiaCalendario() {
+  const paineis = Array.from(document.querySelectorAll('section, aside, div'))
+    .filter((el) => {
+      const texto = (el.textContent || '').trim();
+      return /^Dia\s+\d{2}\/\d{2}\/\d{4}/.test(texto);
+    });
+
+  paineis.forEach((painel) => {
+    if (painel.dataset.rtScrollDetalheDia === '1') return;
+
+    const cards = Array.from(painel.children).filter((child) => {
+      const txt = (child.textContent || '').trim();
+      return /^(Evento|Mont\.|Desm\.)/.test(txt);
+    });
+
+    if (cards.length < 1) return;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'rt-detalhe-dia-scroll-lista';
+    wrapper.style.maxHeight = '665px';
+    wrapper.style.overflowY = 'auto';
+    wrapper.style.overflowX = 'hidden';
+    wrapper.style.paddingRight = '6px';
+    wrapper.style.scrollbarGutter = 'stable';
+
+    cards[0].parentNode.insertBefore(wrapper, cards[0]);
+    cards.forEach((card) => wrapper.appendChild(card));
+
+    painel.style.overflow = 'hidden';
+    painel.dataset.rtScrollDetalheDia = '1';
+  });
+}
+
+document.addEventListener('DOMContentLoaded', rtAplicarScrollDetalheDiaCalendario);
+document.addEventListener('click', () => setTimeout(rtAplicarScrollDetalheDiaCalendario, 50));
+document.addEventListener('input', () => setTimeout(rtAplicarScrollDetalheDiaCalendario, 50));
+setInterval(rtAplicarScrollDetalheDiaCalendario, 800);

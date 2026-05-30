@@ -403,3 +403,27 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 });
+
+
+// v19-dev-lista-combinada-scroll-4
+function aplicarScrollListaCombinadaCalendario() {
+  const seletores = [
+    '#listaEventosDia',
+    '#listaEventosMontagens',
+    '#eventosMontagensDesmontagens',
+    '#calendarioListaDia',
+    '.calendario-lista-dia',
+    '.calendario-lista-combinada',
+    '.lista-eventos-dia',
+    '.lista-eventos-montagens',
+    '.eventos-montagens-desmontagens'
+  ];
+
+  seletores.forEach((sel) => {
+    document.querySelectorAll(sel).forEach((el) => {
+      el.classList.add('calendario-lista-combinada');
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', aplicarScrollListaCombinadaCalendario);

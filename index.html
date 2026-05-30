@@ -300,9 +300,11 @@
       <div class="section-header split">
         <div>
           <h2>Calendário Visual</h2>
-          <p>Visão mensal de eventos, montagens e desmontagens.</p>
+          <p>Visão mensal ou semanal de eventos, montagens e desmontagens.</p>
         </div>
         <div class="calendar-actions">
+          <button type="button" id="calendarioModoMesBtn" class="btn-outline active">Mês</button>
+          <button type="button" id="calendarioModoSemanaBtn" class="btn-outline">Semana</button>
           <button type="button" id="calendarioHojeBtn" class="btn-outline">Hoje</button>
           <button type="button" id="calendarioAnteriorBtn" class="btn-outline">‹</button>
           <button type="button" id="calendarioProximoBtn" class="btn-outline">›</button>
@@ -342,13 +344,13 @@
       <div class="calendar-layout">
         <div class="calendar-main">
           <div class="calendar-weekdays">
-            <span>Dom</span>
-            <span>Seg</span>
             <span>Ter</span>
             <span>Qua</span>
             <span>Qui</span>
             <span>Sex</span>
             <span>Sáb</span>
+            <span>Dom</span>
+            <span>Seg</span>
           </div>
           <div id="calendarioGrid" class="calendar-grid"></div>
         </div>
@@ -884,6 +886,7 @@
       </div>
 
       <div class="modal-actions">
+        <button type="button" class="btn-outline" id="duplicarProdutoBtn" style="display:none;">Duplicar produto</button>
         <button type="button" class="btn-outline" id="cancelarProduto">Cancelar</button>
         <button type="submit">Salvar produto</button>
       </div>
@@ -964,5 +967,51 @@
   <script src="js/logs.js"></script>
   <script src="js/sync-produtos-disponibilidade.js"></script>
   <script src="js/performance-safe.js"></script>
+
+  <dialog id="previewImportarEventosDialog" class="modal large-modal import-preview-dialog">
+    <div class="modal-header">
+      <h2>Prévia da importação de eventos</h2>
+      <button type="button" class="icon-btn" id="fecharPreviewImportarEventos">×</button>
+    </div>
+
+    <div class="import-preview-summary" id="previewImportarEventosResumo"></div>
+
+    <div class="table-wrapper import-preview-table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th><label class="import-check-all"><input type="checkbox" id="selecionarTodosImportarEventos" checked> Importar</label></th>
+            <th>#</th>
+            <th>Data</th>
+            <th>Horário</th>
+            <th>Montagem</th>
+            <th>Desmontagem</th>
+            <th>Colab.</th>
+            <th>Cliente</th>
+            <th>Telefone</th>
+            <th>Endereço</th>
+            <th>Produtos</th>
+            <th>Total</th>
+            <th>Sinal</th>
+            <th>Restante</th>
+            <th>Pagamento</th>
+            <th>CPF/CNPJ</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="previewImportarEventosTbody"></tbody>
+      </table>
+    </div>
+
+    <p class="import-preview-note">
+      Esta versão faz somente a prévia. Nenhum evento é salvo automaticamente.
+    </p>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-outline" id="cancelarPreviewImportarEventos">Fechar</button>
+      <button type="button" class="btn-primary" id="confirmarPreviewImportarEventos">Confirmar importação</button>
+    </div>
+  </dialog>
+
 </body>
 </html>

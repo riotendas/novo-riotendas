@@ -1,6 +1,7 @@
 let produtos = [];
 let estoqueApoio = [];
 let fotoAtual = "";
+const produtoDetalheCache = new Map();
 
 const storageProdutosKey = "novoRioTendasProdutosV1";
 const storageApoioKey = "novoRioTendasEstoqueApoioV1";
@@ -21,7 +22,7 @@ async function buscarProdutosBanco() {
 
   const { data, error } = await supabaseClient
     .from("produtos")
-    .select("*")
+    .select("id,codigo,tipo,categoria,tamanho,status,cor,observacao,foto,grau_usabilidade,colaborador,atualizado_em,criado_em")
     .order("codigo", { ascending: true });
 
   if (error) {
@@ -35,6 +36,50 @@ async function buscarProdutosBanco() {
     return [];
   }
   return data || [];
+}
+
+async function buscarProdutoDetalheBanco(id, usarCache = true) {
+  const chave = String(id || "");
+
+  if (usarCache && produtoDetalheCache.has(chave)) {
+    return produtoDetalheCache.get(chave);
+  }
+
+  if (!supabaseClient) {
+    const local = produtos.find(p => String(p.id) === chave) || null;
+    if (local) produtoDetalheCache.set(chave, local);
+    return local;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("produtos")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    console.error("Erro ao buscar detalhe do produto:", error);
+    const fallback = produtos.find(p => String(p.id) === chave) || null;
+    return fallback;
+  }
+
+  if (data) {
+    const index = produtos.findIndex(p => String(p.id) === chave);
+    if (index >= 0) produtos[index] = { ...produtos[index], ...data };
+    else produtos.push(data);
+    produtoDetalheCache.set(chave, data);
+  }
+
+  return data || null;
+}
+
+function limparCacheDetalheProduto(id) {
+  if (id) produtoDetalheCache.delete(String(id));
+  else produtoDetalheCache.clear();
+}
+
+async function carregarProdutoDetalheParaUso(id) {
+  return await buscarProdutoDetalheBanco(id, true);
 }
 
 async function salvarProdutoBanco(produto) {
@@ -79,6 +124,11 @@ async function salvarProdutoBanco(produto) {
       "Verifique se você executou o arquivo SQL atualizado no Supabase."
     );
     return null;
+  }
+
+  if (data) {
+    limparCacheDetalheProduto(data.id);
+    produtoDetalheCache.set(String(data.id), data);
   }
 
   return data;
@@ -185,11 +235,50 @@ async function salvarItemApoioBanco(item) {
   return data;
 }
 
-async function carregarProdutos() {
-  produtos = await buscarProdutosBanco();
-  estoqueApoio = await buscarEstoqueApoioBanco();
+// v19-dev: cache global de produtos para reduzir delay em rotas/calendário/troca
+let produtosCacheGlobalEmCarregamento = null;
+let produtosCacheGlobalTimestamp = 0;
+const PRODUTOS_CACHE_GLOBAL_TTL_MS = 5 * 60 * 1000;
+
+function invalidarCacheProdutosGlobal() {
+  produtosCacheGlobalEmCarregamento = null;
+  produtosCacheGlobalTimestamp = 0;
+}
+
+function produtosCacheGlobalValido() {
+  return Array.isArray(produtos) && produtos.length > 0 && (Date.now() - produtosCacheGlobalTimestamp) < PRODUTOS_CACHE_GLOBAL_TTL_MS;
+}
+
+async function carregarProdutos(forceReload = false) {
+  if (!forceReload && produtosCacheGlobalValido()) {
+    renderizarProdutos();
+    atualizarDashboard(produtos);
+    return produtos;
+  }
+
+  if (!forceReload && produtosCacheGlobalEmCarregamento) {
+    await produtosCacheGlobalEmCarregamento;
+    renderizarProdutos();
+    atualizarDashboard(produtos);
+    return produtos;
+  }
+
+  produtosCacheGlobalEmCarregamento = (async () => {
+    produtos = await buscarProdutosBanco();
+    estoqueApoio = await buscarEstoqueApoioBanco();
+    produtosCacheGlobalTimestamp = Date.now();
+    return produtos;
+  })();
+
+  try {
+    await produtosCacheGlobalEmCarregamento;
+  } finally {
+    produtosCacheGlobalEmCarregamento = null;
+  }
+
   renderizarProdutos();
   atualizarDashboard(produtos);
+  return produtos;
 }
 
 function iniciarProdutos() {
@@ -246,6 +335,7 @@ function iniciarProdutos() {
   document.getElementById("cancelarProduto").addEventListener("click", fecharProdutoModal);
   document.getElementById("fecharDetalheModal").addEventListener("click", () => document.getElementById("produtoDetalheDialog").close());
   document.getElementById("produtoForm").addEventListener("submit", salvarProdutoForm);
+  document.getElementById("duplicarProdutoBtn")?.addEventListener("click", duplicarProdutoAtual);
 
   document.getElementById("produtoFoto").addEventListener("change", async (event) => {
     const file = event.target.files[0];
@@ -272,6 +362,7 @@ function abrirNovoProduto() {
   document.getElementById("produtoForm").reset();
   document.getElementById("produtoId").value = "";
   document.getElementById("produtoModalTitulo").textContent = "Novo produto";
+  document.getElementById("duplicarProdutoBtn").style.display = "none";
   atualizarTamanhos();
   document.getElementById("produtoUsabilidade").value = "Bom";
   document.getElementById("produtoDialog").showModal();
@@ -293,8 +384,53 @@ function abrirEditarProduto(id) {
   document.getElementById("produtoObservacao").value = produto.observacao || "";
   document.getElementById("fotoPreview").src = fotoAtual || "";
   document.getElementById("produtoModalTitulo").textContent = `Editar ${produto.codigo || "produto"}`;
+  document.getElementById("duplicarProdutoBtn").style.display = "inline-flex";
   document.getElementById("produtoDialog").showModal();
 }
+
+
+function sugerirProximoCodigoProduto(categoriaBase = "") {
+  const categoriaNormalizada = String(categoriaBase || "").trim().toLowerCase();
+
+  const codigosNumericos = (Array.isArray(produtos) ? produtos : [])
+    .filter(p => String(p.categoria || p.tipo || "").trim().toLowerCase() === categoriaNormalizada)
+    .map(p => String(p.codigo || "").trim())
+    .filter(c => /^\d+$/.test(c))
+    .map(c => Number(c));
+
+  const proximo = codigosNumericos.length ? Math.max(...codigosNumericos) + 1 : 1;
+  const largura = Math.max(3, String(Math.max(...codigosNumericos, proximo)).length);
+  return String(proximo).padStart(largura, "0");
+}
+
+function duplicarProdutoAtual() {
+  const idAtual = document.getElementById("produtoId").value;
+  const produtoAtual = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(idAtual));
+
+  if (!produtoAtual) {
+    alert("Abra um produto existente para duplicar.");
+    return;
+  }
+
+  const novoCodigo = sugerirProximoCodigoProduto(produtoAtual.categoria || produtoAtual.tipo || "");
+
+  document.getElementById("produtoId").value = "";
+  document.getElementById("produtoCodigo").value = novoCodigo;
+  document.getElementById("produtoCategoria").value = produtoAtual.categoria || produtoAtual.tipo || "";
+  atualizarTamanhos();
+  document.getElementById("produtoTamanho").value = produtoAtual.tamanho || "";
+  document.getElementById("produtoCor").value = produtoAtual.cor || "";
+  document.getElementById("produtoStatus").value = produtoAtual.status || "Livre";
+  document.getElementById("produtoUsabilidade").value = produtoAtual.grau_usabilidade || "Bom";
+  document.getElementById("produtoObservacao").value = produtoAtual.observacao || "";
+  fotoAtual = produtoAtual.foto || "";
+  document.getElementById("fotoPreview").src = fotoAtual || "";
+  document.getElementById("produtoModalTitulo").textContent = `Duplicar produto - novo código ${novoCodigo}`;
+  document.getElementById("duplicarProdutoBtn").style.display = "none";
+  document.getElementById("produtoCodigo").focus();
+  document.getElementById("produtoCodigo").select();
+}
+
 
 function fecharProdutoModal() {
   document.getElementById("produtoDialog").close();
@@ -1043,8 +1179,12 @@ async function lidarAcaoProduto(event) {
     return;
   }
 
-  const produto = produtos.find(p => p.id === id);
+  let produto = produtos.find(p => p.id === id);
   if (!produto) return;
+
+  if (["status", "usabilidade", "obs"].includes(action)) {
+    produto = await carregarProdutoDetalheParaUso(id) || produto;
+  }
 
   if (action === "editar") abrirEditarProduto(id);
   if (action === "detalhe") abrirDetalheProduto(id);
@@ -1123,7 +1263,8 @@ async function lidarAcaoProduto(event) {
     produto.historico = produto.historico || [];
     produto.historico.push({ data: new Date().toISOString(), colaborador: produto.colaborador, alteracao: `Usabilidade alterada para ${produto.grau_usabilidade}`, observacao: produto.observacao || "-" });
     await salvarProdutoBanco(produto);
-    await carregarProdutos();
+    invalidarCacheProdutosGlobal();
+  await carregarProdutos(true);
   }
 
   if (action === "obs") {
@@ -1243,15 +1384,18 @@ function classePagamentoAgenda(evento) {
   return evento.pagamento_quitado ? "agenda-pagamento-ok" : "agenda-pagamento-aberto";
 }
 
-function renderizarAgendaProduto(produtoId) {
+const LIMITE_LINHAS_DETALHE_PRODUTO = 7;
+const LIMITE_LINHAS_AGENDA_PRODUTO = 2;
+
+function renderizarAgendaProduto(produtoId, pagina = 1) {
   const agenda = eventosProdutoAgenda(produtoId);
 
   if (!agenda.length) {
-    return `<p class="empty">Nenhum evento encontrado para este produto.</p>`;
+    return `<p class="empty agenda-produto-vazia">Nenhum evento encontrado para este produto.</p>`;
   }
 
   return `
-    <div class="agenda-produto-lista agenda-produto-compacta">
+    <div class="agenda-produto-lista agenda-produto-compacta" data-agenda-limite="${LIMITE_LINHAS_AGENDA_PRODUTO}">
       ${agenda.map(evento => `
         <div class="agenda-produto-linha ${classePagamentoAgenda(evento)}">
           <strong>${evento.nome || "-"}</strong>
@@ -1264,6 +1408,12 @@ function renderizarAgendaProduto(produtoId) {
       `).join("")}
     </div>
   `;
+}
+
+function mudarPaginaAgendaProduto(produtoId, pagina) {
+  const area = document.getElementById("agendaProdutoConteudo");
+  if (!area) return;
+  area.innerHTML = renderizarAgendaProduto(produtoId, pagina);
 }
 
 
@@ -1304,26 +1454,55 @@ function renderizarHistoricoProdutoDetalhe(produtoId, termo = "") {
     return normalizarTextoBuscaHistorico(texto).includes(termoNormalizado);
   });
 
+  const paginaSalva = Number(area.dataset.pagina || 1);
+  const totalPaginas = Math.max(1, Math.ceil(filtrado.length / LIMITE_LINHAS_DETALHE_PRODUTO));
+  const paginaAtual = Math.min(Math.max(paginaSalva, 1), totalPaginas);
+  const inicio = (paginaAtual - 1) * LIMITE_LINHAS_DETALHE_PRODUTO;
+  const exibidos = filtrado.slice(inicio, inicio + LIMITE_LINHAS_DETALHE_PRODUTO);
+  area.dataset.pagina = String(paginaAtual);
+
   if (contador) {
-    contador.textContent = `${filtrado.length} de ${historico.length} registro(s)`;
+    contador.textContent = filtrado.length > LIMITE_LINHAS_DETALHE_PRODUTO
+      ? `Mostrando ${inicio + 1}-${Math.min(inicio + LIMITE_LINHAS_DETALHE_PRODUTO, filtrado.length)} de ${filtrado.length} registro(s)`
+      : `${filtrado.length} de ${historico.length} registro(s)`;
   }
 
+  const precisaPaginacao = filtrado.length > LIMITE_LINHAS_DETALHE_PRODUTO;
+  const paginacaoHtml = `
+    <div class="produto-detalhe-paginacao ${precisaPaginacao ? "" : "produto-detalhe-paginacao-reservada"}">
+      <button type="button" class="btn-outline" onclick="mudarPaginaHistoricoProduto('${produtoId}', ${paginaAtual - 1})" ${paginaAtual <= 1 || !precisaPaginacao ? "disabled" : ""}>Anterior</button>
+      <button type="button" class="btn-outline" onclick="mudarPaginaHistoricoProduto('${produtoId}', ${paginaAtual + 1})" ${paginaAtual >= totalPaginas || !precisaPaginacao ? "disabled" : ""}>Próxima</button>
+    </div>
+  `;
+
   if (!filtrado.length) {
-    area.innerHTML = `<p class="empty">Nenhum histórico encontrado.</p>`;
+    area.innerHTML = `<p class="empty">Nenhum histórico encontrado.</p>${paginacaoHtml}`;
     return;
   }
 
-  area.innerHTML = filtrado.map(h => `
-    <label class="historico-produto-linha historico-produto-check-linha">
-      <input type="checkbox" class="historico-produto-check" data-historico-index="${h.indexOriginal}">
-      <div class="historico-produto-conteudo">
-        <strong>${formatarData(h.data)}</strong>
-        <span>${h.colaborador || "-"}</span>
-        <span>${h.alteracao || "Alteração realizada"}</span>
-        <span class="historico-obs">Obs: ${h.observacao || "-"}</span>
-      </div>
-    </label>
-  `).join("");
+  area.innerHTML = `
+    <div class="historico-produto-lista-interna">
+      ${exibidos.map(h => `
+        <label class="historico-produto-linha historico-produto-check-linha">
+          <input type="checkbox" class="historico-produto-check" data-historico-index="${h.indexOriginal}">
+          <div class="historico-produto-conteudo">
+            <strong>${formatarData(h.data)}</strong>
+            <span>${h.colaborador || "-"}</span>
+            <span>${h.alteracao || "Alteração realizada"}</span>
+            <span class="historico-obs">Obs: ${h.observacao || "-"}</span>
+          </div>
+        </label>
+      `).join("")}
+    </div>
+    ${paginacaoHtml}
+  `;
+}
+
+function mudarPaginaHistoricoProduto(produtoId, pagina) {
+  const area = document.getElementById("historicoProdutoLista");
+  if (!area) return;
+  area.dataset.pagina = String(Math.max(Number(pagina) || 1, 1));
+  renderizarHistoricoProdutoDetalhe(produtoId, document.getElementById("historicoProdutoBusca")?.value || "");
 }
 
 function indicesHistoricoSelecionados() {
@@ -1409,9 +1588,15 @@ function selecionarHistoricoFiltradoProduto(marcar = true) {
   });
 }
 
-function abrirDetalheProduto(id) {
-  const p = produtos.find(produto => produto.id === id);
-  if (!p) return;
+async function abrirDetalheProduto(id) {
+  const resumo = produtos.find(produto => produto.id === id);
+  if (!resumo) return;
+
+  document.getElementById("detalheTitulo").textContent = `${resumo.categoria || resumo.tipo || "Produto"} ${resumo.codigo || ""}`;
+  document.getElementById("produtoDetalheConteudo").innerHTML = `<div class="subpanel"><p class="empty">Carregando histórico e agenda do produto...</p></div>`;
+  document.getElementById("produtoDetalheDialog").showModal();
+
+  const p = await buscarProdutoDetalheBanco(id, true) || resumo;
 
   document.getElementById("detalheTitulo").textContent = `${p.categoria || p.tipo || "Produto"} ${p.codigo || ""}`;
 
@@ -1425,28 +1610,30 @@ function abrirDetalheProduto(id) {
       </div>
 
       <div class="produto-ficha-info">
-        <div class="produto-info-compact-grid">
-          <div><span>Código</span><strong>${p.codigo || "-"}</strong></div>
-          <div><span>Categoria</span><strong>${p.categoria || p.tipo || "-"}</strong></div>
-          <div><span>Tamanho</span><strong>${p.tamanho || "-"}</strong></div>
-          <div><span>Cor</span><strong>${p.cor || "-"}</strong></div>
-          <div><span>Status</span><strong>${p.status || "-"}</strong></div>
-          <div><span>Usabilidade</span><strong>${p.grau_usabilidade || "Bom"}</strong></div>
-          <div><span>Colaborador</span><strong>${p.colaborador || "-"}</strong></div>
-          <div><span>Cadastro</span><strong>${formatarData(p.criado_em || p.data_cadastro || p.data_compra)}</strong></div>
-          <div><span>Atualizado</span><strong>${formatarData(p.atualizado_em)}</strong></div>
-        </div>
-
-        <div class="produto-observacao-compacta">
-          <span>Observação</span>
-          <strong>${p.observacao || "-"}</strong>
+        <div class="produto-dados-3linhas">
+          <div class="produto-dados-linha produto-dados-linha-4">
+            <div><span>Código</span><strong>${p.codigo || "-"}</strong></div>
+            <div><span>Categoria</span><strong>${p.categoria || p.tipo || "-"}</strong></div>
+            <div><span>Tamanho</span><strong>${p.tamanho || "-"}</strong></div>
+            <div><span>Cor</span><strong>${p.cor || "-"}</strong></div>
+          </div>
+          <div class="produto-dados-linha produto-dados-linha-4">
+            <div><span>Status</span><strong>${p.status || "-"}</strong></div>
+            <div><span>Usabilidade</span><strong>${p.grau_usabilidade || "Bom"}</strong></div>
+            <div><span>Colaborador</span><strong>${p.colaborador || "-"}</strong></div>
+            <div><span>Cadastro</span><strong>${formatarData(p.criado_em || p.data_cadastro || p.data_compra)}</strong></div>
+          </div>
+          <div class="produto-dados-linha produto-dados-linha-2">
+            <div><span>Observação</span><strong>${p.observacao || "-"}</strong></div>
+            <div><span>Atualizado</span><strong>${formatarData(p.atualizado_em)}</strong></div>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="subpanel produto-agenda">
       <h3>Agenda do produto</h3>
-      ${renderizarAgendaProduto(p.id)}
+      <div id="agendaProdutoConteudo">${renderizarAgendaProduto(p.id)}</div>
     </div>
 
     <div class="subpanel produto-historico-compacto">
@@ -1468,13 +1655,13 @@ function abrirDetalheProduto(id) {
     </div>
   `;
 
-  document.getElementById("produtoDetalheDialog").showModal();
-
   renderizarHistoricoProdutoDetalhe(p.id);
 
   const buscaHistorico = document.getElementById("historicoProdutoBusca");
   if (buscaHistorico) {
     buscaHistorico.addEventListener("input", () => {
+      const areaHistorico = document.getElementById("historicoProdutoLista");
+      if (areaHistorico) areaHistorico.dataset.pagina = "1";
       renderizarHistoricoProdutoDetalhe(p.id, buscaHistorico.value);
     });
   }
@@ -1514,3 +1701,27 @@ window.addEventListener("riotendas:eventos-atualizados", async () => {
     console.warn("Erro ao atualizar badges de produtos:", erro);
   }
 });
+
+
+// v19-dev-lista-combinada-scroll-4
+function aplicarScrollListaCombinadaCalendario() {
+  const seletores = [
+    '#listaEventosDia',
+    '#listaEventosMontagens',
+    '#eventosMontagensDesmontagens',
+    '#calendarioListaDia',
+    '.calendario-lista-dia',
+    '.calendario-lista-combinada',
+    '.lista-eventos-dia',
+    '.lista-eventos-montagens',
+    '.eventos-montagens-desmontagens'
+  ];
+
+  seletores.forEach((sel) => {
+    document.querySelectorAll(sel).forEach((el) => {
+      el.classList.add('calendario-lista-combinada');
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', aplicarScrollListaCombinadaCalendario);

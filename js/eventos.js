@@ -1547,25 +1547,85 @@ function descricaoProdutoCompacta(produto) {
   ].filter(Boolean).join(" — ");
 }
 
+function statusProdutoBloqueiaTrocaRapida(produto) {
+  const status = String(produto?.status || "").toLowerCase().trim();
+
+  if (!status) return false;
+
+  const statusLivre = [
+    "livre",
+    "livre para locação",
+    "livre para locacao",
+    "disponível",
+    "disponivel"
+  ];
+
+  if (statusLivre.includes(status)) return false;
+
+  return [
+    "alugada",
+    "alugado",
+    "ocupada",
+    "ocupado",
+    "reservada",
+    "reservado",
+    "manutenção",
+    "manutencao",
+    "precisa manutenção",
+    "precisa manutencao",
+    "limpar",
+    "consertar"
+  ].some(palavra => status.includes(palavra));
+}
+
+function textoStatusProdutoTrocaRapida(produto) {
+  const statusOriginal = String(produto?.status || "").trim();
+  if (!statusOriginal) return "Ocupada";
+  return statusOriginal.charAt(0).toUpperCase() + statusOriginal.slice(1);
+}
+
 function abrirTrocaRapidaProduto(index) {
   const atual = produtosRapidoAtual[index];
   const evento = eventoProdutosRapidoAtual();
 
   if (!atual || !evento) return;
 
-  const opcoes = (produtos || []).filter(p => {
-    if (String(p.id || "") === String(atual.id || "")) return false;
-    if (String(p.codigo || "").trim() && String(p.codigo || "").trim() === String(atual.codigo || "").trim()) return false;
-    if (!produtoMesmoModelo(p, atual)) return false;
+  const opcoesTroca = (produtos || [])
+    .filter(p => {
+      if (String(p.id || "") === String(atual.id || "")) return false;
+      if (String(p.codigo || "").trim() && String(p.codigo || "").trim() === String(atual.codigo || "").trim()) return false;
+      return produtoMesmoModelo(p, atual);
+    })
+    .map(p => {
+      const disponibilidade = produtoEstaDisponivelNoEvento(p, evento, index);
+      const bloqueadoPorStatus = statusProdutoBloqueiaTrocaRapida(p);
+      const livre = disponibilidade.livre && !bloqueadoPorStatus;
 
-    const disp = produtoEstaDisponivelNoEvento(p, evento, index);
-    return disp.livre;
-  });
+      let texto = "Disponível";
+      let classe = "free";
 
-  if (!opcoes.length) {
-    alert("Não há outro produto disponível com a mesma categoria e tamanho para este período.");
+      if (bloqueadoPorStatus) {
+        texto = textoStatusProdutoTrocaRapida(p);
+        classe = "busy";
+      } else if (!disponibilidade.livre) {
+        texto = disponibilidade.texto || "Ocupada";
+        classe = disponibilidade.classe || "busy";
+      }
+
+      return {
+        produto: p,
+        livre,
+        texto,
+        classe
+      };
+    });
+
+  if (!opcoesTroca.length) {
+    alert("Não há outro produto compatível com a mesma categoria e tamanho.");
     return;
   }
+
+  const opcoesLivres = opcoesTroca.filter(item => item.livre);
 
   let dialog = document.getElementById("trocaRapidaProdutoDialog");
 
@@ -1591,40 +1651,56 @@ function abrirTrocaRapidaProduto(index) {
       Substituir por
       <select id="trocaRapidaProdutoSelect">
         <option value="">Selecione um produto compatível disponível</option>
-        ${opcoes.map(p => `
-          <option value="${p.id}">
-            ${descricaoProdutoCompacta(p)}
+        ${opcoesTroca.map(item => `
+          <option value="${item.produto.id}" ${item.livre ? "" : "disabled"}>
+            ${descricaoProdutoCompacta(item.produto)} — ${item.livre ? "Disponível" : item.texto}
           </option>
         `).join("")}
       </select>
     </label>
 
     <div class="troca-rapida-lista">
-      ${opcoes.map(p => `
-        <button type="button" class="troca-rapida-opcao" data-troca-produto-id="${p.id}">
-          <strong>${p.codigo || "-"}</strong>
-          <span>${[p.categoria || p.tipo, p.tamanho, p.cor].filter(Boolean).join(" ")}</span>
+      ${opcoesTroca.map(item => `
+        <button
+          type="button"
+          class="troca-rapida-opcao ${item.livre ? "" : "troca-rapida-opcao-bloqueada"}"
+          data-troca-produto-id="${item.produto.id}"
+          ${item.livre ? "" : "disabled"}
+          title="${item.livre ? "Disponível para troca" : item.texto}"
+        >
+          <strong>${item.produto.codigo || "-"}</strong>
+          <span>${[item.produto.categoria || item.produto.tipo, item.produto.tamanho, item.produto.cor].filter(Boolean).join(" ")}</span>
+          <em class="troca-rapida-status ${item.livre ? "ok" : "bloqueado"}">${item.livre ? "Disponível" : item.texto}</em>
         </button>
       `).join("")}
     </div>
 
+    ${opcoesLivres.length ? "" : `<p class="troca-rapida-alerta">Todos os produtos compatíveis estão ocupados, alugados ou indisponíveis neste período.</p>`}
+
     <div class="troca-rapida-actions">
       <button type="button" class="btn-outline troca-rapida-cancelar">Cancelar</button>
-      <button type="button" class="btn-primary troca-rapida-confirmar">Alterar</button>
+      <button type="button" class="btn-primary troca-rapida-confirmar" ${opcoesLivres.length ? "" : "disabled"}>Alterar</button>
     </div>
   `;
 
   function confirmarTroca(produtoId) {
-    const novoProduto = opcoes.find(p => String(p.id) === String(produtoId));
+    const itemEscolhido = opcoesTroca.find(item => String(item.produto.id) === String(produtoId));
 
-    if (!novoProduto) {
+    if (!itemEscolhido) {
       alert("Selecione um produto substituto.");
       return;
     }
 
+    if (!itemEscolhido.livre) {
+      alert(itemEscolhido.texto || "Este produto não está disponível para este evento.");
+      return;
+    }
+
+    const novoProduto = itemEscolhido.produto;
+
     const validacao = produtoEstaDisponivelNoEvento(novoProduto, evento, index);
-    if (!validacao.livre) {
-      alert(validacao.texto || "Este produto não está disponível para este evento.");
+    if (!validacao.livre || statusProdutoBloqueiaTrocaRapida(novoProduto)) {
+      alert(validacao.texto || textoStatusProdutoTrocaRapida(novoProduto) || "Este produto não está disponível para este evento.");
       return;
     }
 
@@ -1649,7 +1725,7 @@ function abrirTrocaRapidaProduto(index) {
     confirmarTroca(dialog.querySelector("#trocaRapidaProdutoSelect").value);
   });
 
-  dialog.querySelectorAll("[data-troca-produto-id]").forEach(btn => {
+  dialog.querySelectorAll("[data-troca-produto-id]:not(:disabled)").forEach(btn => {
     btn.addEventListener("click", () => confirmarTroca(btn.dataset.trocaProdutoId));
   });
 
@@ -2024,3 +2100,66 @@ function abrirDetalheEvento(id) {
 }
 
 document.addEventListener("DOMContentLoaded", iniciarEventos);
+
+// v19-dev-lista-combinada-scroll-4
+function aplicarScrollListaCombinadaCalendario() {
+  const seletores = [
+    '#listaEventosDia',
+    '#listaEventosMontagens',
+    '#eventosMontagensDesmontagens',
+    '#calendarioListaDia',
+    '.calendario-lista-dia',
+    '.calendario-lista-combinada',
+    '.lista-eventos-dia',
+    '.lista-eventos-montagens',
+    '.eventos-montagens-desmontagens'
+  ];
+
+  seletores.forEach((sel) => {
+    document.querySelectorAll(sel).forEach((el) => {
+      el.classList.add('calendario-lista-combinada');
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', aplicarScrollListaCombinadaCalendario);
+
+
+// v19-dev: aplica rolagem no bloco de cards do dia selecionado do calendário
+function rtAplicarScrollDetalheDiaCalendario() {
+  const paineis = Array.from(document.querySelectorAll('section, aside, div'))
+    .filter((el) => {
+      const texto = (el.textContent || '').trim();
+      return /^Dia\s+\d{2}\/\d{2}\/\d{4}/.test(texto);
+    });
+
+  paineis.forEach((painel) => {
+    if (painel.dataset.rtScrollDetalheDia === '1') return;
+
+    const cards = Array.from(painel.children).filter((child) => {
+      const txt = (child.textContent || '').trim();
+      return /^(Evento|Mont\.|Desm\.)/.test(txt);
+    });
+
+    if (cards.length < 1) return;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'rt-detalhe-dia-scroll-lista';
+    wrapper.style.maxHeight = '665px';
+    wrapper.style.overflowY = 'auto';
+    wrapper.style.overflowX = 'hidden';
+    wrapper.style.paddingRight = '6px';
+    wrapper.style.scrollbarGutter = 'stable';
+
+    cards[0].parentNode.insertBefore(wrapper, cards[0]);
+    cards.forEach((card) => wrapper.appendChild(card));
+
+    painel.style.overflow = 'hidden';
+    painel.dataset.rtScrollDetalheDia = '1';
+  });
+}
+
+document.addEventListener('DOMContentLoaded', rtAplicarScrollDetalheDiaCalendario);
+document.addEventListener('click', () => setTimeout(rtAplicarScrollDetalheDiaCalendario, 50));
+document.addEventListener('input', () => setTimeout(rtAplicarScrollDetalheDiaCalendario, 50));
+setInterval(rtAplicarScrollDetalheDiaCalendario, 800);

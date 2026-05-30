@@ -418,19 +418,46 @@ function produtosDisponiveisParaTrocaRota(produtoAtual, evento) {
   const idsEvento = new Set((evento?.tendas || []).map(p => String(p.id || "")));
   const codigosEvento = new Set((evento?.tendas || []).map(p => String(p.codigo || "").trim()).filter(Boolean));
 
-  return produtos.filter(p => {
-    if (!p || !p.id) return false;
-    if (String(p.id || "") === String(produtoAtual?.id || "")) return false;
-    if (String(p.codigo || "").trim() && String(p.codigo || "").trim() === String(produtoAtual?.codigo || "").trim()) return false;
-    if (idsEvento.has(String(p.id || ""))) return false;
-    if (String(p.codigo || "").trim() && codigosEvento.has(String(p.codigo || "").trim())) return false;
+  return produtos
+    .filter(p => {
+      if (!p || !p.id) return false;
+      if (String(p.id || "") === String(produtoAtual?.id || "")) return false;
+      if (String(p.codigo || "").trim() && String(p.codigo || "").trim() === String(produtoAtual?.codigo || "").trim()) return false;
+      if (idsEvento.has(String(p.id || ""))) return false;
+      if (String(p.codigo || "").trim() && codigosEvento.has(String(p.codigo || "").trim())) return false;
 
-    const mesmaCategoria = String(p.categoria || p.tipo || "") === String(categoriaAtual);
-    const mesmoTamanho = String(p.tamanho || "") === String(tamanhoAtual);
-    if (!mesmaCategoria || !mesmoTamanho) return false;
+      const mesmaCategoria = String(p.categoria || p.tipo || "") === String(categoriaAtual);
+      const mesmoTamanho = String(p.tamanho || "") === String(tamanhoAtual);
+      return mesmaCategoria && mesmoTamanho;
+    })
+    .sort((a, b) => String(a.codigo || "").localeCompare(String(b.codigo || ""), "pt-BR", { numeric: true }));
+}
 
-    return produtoDisponivelParaTrocaRota(p, evento).livre;
-  });
+function statusTrocaRotaProduto(p, evento) {
+  const status = String(p?.status || "").trim();
+  const statusLower = status.toLowerCase();
+  const disponibilidade = produtoDisponivelParaTrocaRota(p, evento);
+
+  const statusLivre = ["livre", "livre para locação", "livre para locacao", "disponível", "disponivel"];
+
+  if (!statusLivre.includes(statusLower)) {
+    return {
+      livre: false,
+      texto: status || "Indisponível"
+    };
+  }
+
+  if (!disponibilidade.livre) {
+    return {
+      livre: false,
+      texto: disponibilidade.texto || "Ocupada no período"
+    };
+  }
+
+  return {
+    livre: true,
+    texto: "Disponível"
+  };
 }
 
 function garantirModalTrocaProdutoRota() {
@@ -511,14 +538,24 @@ async function abrirTrocaProdutoRota(eventoId, produtoIndex) {
   const select = document.getElementById("trocaRotaProdutoSelect");
 
   if (!opcoes.length) {
-    select.innerHTML = `<option value="">Nenhum produto compatível disponível</option>`;
+    select.innerHTML = `<option value="">Nenhum produto compatível encontrado</option>`;
     document.getElementById("confirmarTrocaProdutoRota").disabled = true;
   } else {
+    const opcoesComStatus = opcoes.map(p => {
+      const st = statusTrocaRotaProduto(p, evento);
+      return { produto: p, livre: st.livre, texto: st.texto };
+    });
+
     select.innerHTML = `
       <option value="">Selecione o produto substituto</option>
-      ${opcoes.map(p => `<option value="${p.id}">${produtoDescricaoRota(p)} | ${p.status || "-"}</option>`).join("")}
+      ${opcoesComStatus.map(item => `
+        <option value="${item.produto.id}" ${item.livre ? "" : "disabled"}>
+          ${produtoDescricaoRota(item.produto)} | ${item.livre ? "Disponível" : item.texto}
+        </option>
+      `).join("")}
     `;
-    document.getElementById("confirmarTrocaProdutoRota").disabled = false;
+
+    document.getElementById("confirmarTrocaProdutoRota").disabled = !opcoesComStatus.some(item => item.livre);
   }
 
   modal.showModal();
@@ -1600,3 +1637,27 @@ function moverOrdemRota(rotaId, direcao, listaRotas) {
 
   salvarRotasOrdemManual();
 }
+
+
+// v19-dev-lista-combinada-scroll-4
+function aplicarScrollListaCombinadaCalendario() {
+  const seletores = [
+    '#listaEventosDia',
+    '#listaEventosMontagens',
+    '#eventosMontagensDesmontagens',
+    '#calendarioListaDia',
+    '.calendario-lista-dia',
+    '.calendario-lista-combinada',
+    '.lista-eventos-dia',
+    '.lista-eventos-montagens',
+    '.eventos-montagens-desmontagens'
+  ];
+
+  seletores.forEach((sel) => {
+    document.querySelectorAll(sel).forEach((el) => {
+      el.classList.add('calendario-lista-combinada');
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', aplicarScrollListaCombinadaCalendario);
