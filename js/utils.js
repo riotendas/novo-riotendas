@@ -2,11 +2,11 @@ const categorias = {
   "Tenda Sanfonada": ["3x3", "4.5x3", "4x4", "6x3"],
   "Tenda Piramidal": ["5x5", "6x6", "8x8", "10x10"],
   "Ombrelone": ["2,40"],
-  "Mesas/Cadeiras": ["Sem código individual"]
+  "Materiais de Apoio": ["Sem código individual"]
 };
 
 const cores = ["Branca", "Cristal", "Preta"];
-const statusProdutos = ["Livre", "Bloqueada", "Limpar", "Consertar", "Revisar"];
+const statusProdutos = ["Livre", "Alugado", "Bloqueada", "Limpar", "Consertar", "Revisar"];
 const grausUsabilidade = ["Excelente", "Bom", "Regular", "Ruim", "Venda / Baixa"];
 
 function normalizarStatus(status) {
@@ -80,5 +80,25 @@ const itensApoioPadrao = [
   "Mesa de Madeira",
   "Cadeira de Madeira",
   "Mesa Bistrô",
-  "Cadeira Bistrô"
+  "Cadeira Bistrô",
+  "Caixa Térmica 190L",
+  "Caixa Térmica 360L",
+  "Toalha Branca",
+  "Toalha Azul",
+  "Toalha Verde",
+  "Lateral 3m",
+  "Lateral 4m",
+  "Lateral 4,5m",
+  "Lateral 5m",
+  "Lateral 6m",
+  "Lateral 8m",
+  "Lateral 10m"
 ];
+
+function grupoMaterialApoio(nome) {
+  const texto = String(nome || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (texto.includes("caixa termica") || texto.includes("caixa térmica")) return "Caixas Térmicas";
+  if (texto.includes("toalha")) return "Toalhas";
+  if (texto.includes("lateral")) return "Acessórios de Tendas";
+  return "Materiais Gerais";
+}

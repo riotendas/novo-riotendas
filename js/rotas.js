@@ -30,6 +30,397 @@ let rotasCarros = {};
 const storageRotasCarrosKey = "novoRioTendasRotasCarrosV1";
 
 
+// v19-dev: controle operacional de rotas (entregue/recolhido/revisar)
+let rotasOperacao = {};
+const storageRotasOperacaoKey = "novoRioTendasRotasOperacaoV1";
+
+function carregarRotasOperacaoLocal() {
+  try { return JSON.parse(localStorage.getItem(storageRotasOperacaoKey) || "{}"); }
+  catch { return {}; }
+}
+
+function salvarRotasOperacaoLocal() {
+  localStorage.setItem(storageRotasOperacaoKey, JSON.stringify(rotasOperacao || {}));
+  salvarRotasOperacaoNuvem();
+}
+
+async function carregarRotasOperacaoNuvem() {
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("app_config")
+      .select("valor")
+      .eq("chave", "rotas_operacao")
+      .maybeSingle();
+
+    if (error) {
+      console.warn("Não foi possível carregar operação das rotas na nuvem:", error);
+      return null;
+    }
+
+    return data?.valor || null;
+  } catch (erro) {
+    console.warn("Erro ao carregar operação das rotas na nuvem:", erro);
+    return null;
+  }
+}
+
+async function salvarRotasOperacaoNuvem() {
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from("app_config")
+      .upsert({
+        chave: "rotas_operacao",
+        valor: rotasOperacao || {},
+        atualizado_em: new Date().toISOString()
+      }, { onConflict: "chave" });
+
+    if (error) console.warn("Não foi possível salvar operação das rotas na nuvem:", error);
+  } catch (erro) {
+    console.warn("Erro ao salvar operação das rotas na nuvem:", erro);
+  }
+}
+
+async function sincronizarRotasOperacaoNuvem() {
+  const nuvem = await carregarRotasOperacaoNuvem();
+
+  if (nuvem && typeof nuvem === "object") {
+    rotasOperacao = { ...rotasOperacao, ...nuvem };
+    localStorage.setItem(storageRotasOperacaoKey, JSON.stringify(rotasOperacao));
+    renderizarRotas();
+    return;
+  }
+
+  await salvarRotasOperacaoNuvem();
+}
+
+function colaboradorRotaAtual() {
+  try {
+    return typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "Sistema";
+  } catch {
+    return "Sistema";
+  }
+}
+
+function formatarDataHoraOperacaoRota(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function obterOperacaoRota(rotaId) {
+  return (rotasOperacao || {})[rotaId] || null;
+}
+
+function badgeOperacaoRota(rota) {
+  const op = obterOperacaoRota(rota.id);
+  if (!op || !op.status) return `<span class="rota-operacao-badge rota-operacao-pendente">Pendente</span>`;
+
+  const quando = formatarDataHoraOperacaoRota(op.data);
+  const por = op.colaborador ? ` · ${op.colaborador}` : "";
+
+  if (op.status === "entregue") {
+    return `<span class="rota-operacao-badge rota-operacao-entregue">Entregue${quando ? ` ${quando}` : ""}${por}</span>`;
+  }
+
+  if (op.status === "recolhido") {
+    return `<span class="rota-operacao-badge rota-operacao-recolhido">Recolhido · Revisar${quando ? ` ${quando}` : ""}${por}</span>`;
+  }
+
+  return `<span class="rota-operacao-badge rota-operacao-pendente">Pendente</span>`;
+}
+
+function produtoEventoChaveRota(produto) {
+  return {
+    id: String(produto?.id || ""),
+    codigo: String(produto?.codigo || "").trim()
+  };
+}
+
+function localizarProdutoDaListaRota(produtoEvento) {
+  if (!Array.isArray(produtos)) return null;
+  const chave = produtoEventoChaveRota(produtoEvento);
+  return produtos.find(p => {
+    const id = String(p?.id || "");
+    const codigo = String(p?.codigo || "").trim();
+    return (chave.id && id === chave.id) || (chave.codigo && codigo === chave.codigo);
+  }) || null;
+}
+
+function rotaUsuarioEhAdmin() {
+  try {
+    if (typeof usuarioEhAdministrador === "function") return usuarioEhAdministrador();
+    const usuario = JSON.parse(localStorage.getItem("novoRioTendasUsuarioSessaoV1") || localStorage.getItem("novoRioTendasUsuarioLogado") || "null");
+    return usuario && usuario.perfil === "administrador";
+  } catch {
+    return false;
+  }
+}
+
+function materialEventoRotas(rota) {
+  const evento = rota?.evento || {};
+  return Array.isArray(evento.tendas) ? evento.tendas : [];
+}
+
+async function alterarStatusProdutosEventoRota(rota, novoStatus, motivo, opAnterior = null) {
+  const tendasEvento = materialEventoRotas(rota);
+  if (!tendasEvento.length) return [];
+
+  if (typeof carregarProdutos === "function") {
+    try { await carregarProdutos(true); } catch {}
+  }
+
+  const alterados = [];
+  const colaborador = colaboradorRotaAtual();
+  const agora = new Date().toISOString();
+  const nomeEvento = rota?.evento?.nome || rota?.cliente || "Evento";
+  const anterioresSalvos = Array.isArray(opAnterior?.produtos) ? opAnterior.produtos : [];
+
+  for (const itemEvento of tendasEvento) {
+    const produto = localizarProdutoDaListaRota(itemEvento);
+    if (!produto) continue;
+
+    const statusAnterior = produto.status || "";
+    let statusDestino = novoStatus;
+
+    if (novoStatus === "__RESTORE__") {
+      const registro = anterioresSalvos.find(reg =>
+        (reg.id && String(reg.id) === String(produto.id)) ||
+        (reg.codigo && String(reg.codigo).trim() === String(produto.codigo || "").trim())
+      );
+      statusDestino = registro?.statusAnterior || (opAnterior?.status === "recolhido" ? "Alugado" : "Livre");
+    }
+
+    if (String(statusAnterior).trim().toLowerCase() === String(statusDestino).trim().toLowerCase()) continue;
+
+    alterados.push({
+      id: produto.id,
+      codigo: produto.codigo || "",
+      statusAnterior,
+      statusNovo: statusDestino
+    });
+
+    produto.status = statusDestino;
+    if (statusDestino === "Alugado") {
+      produto.observacao = produto.observacao || `Entregue/montado no evento ${nomeEvento}.`;
+    } else if (statusDestino === "Revisar") {
+      produto.observacao = produto.observacao || `Recolhido do evento ${nomeEvento}. Aguardando revisão.`;
+    }
+    produto.atualizado_em = agora;
+    produto.colaborador = colaborador;
+    produto.historico = Array.isArray(produto.historico) ? produto.historico : [];
+    produto.historico.push({
+      data: agora,
+      colaborador,
+      alteracao: `Status alterado para ${statusDestino} pela rota`,
+      observacao: `Evento: ${nomeEvento}. ${motivo || ""}`.trim()
+    });
+
+    if (typeof salvarProdutoBanco === "function") {
+      const salvo = await salvarProdutoBanco(produto);
+      if (salvo && Array.isArray(produtos)) {
+        const idx = produtos.findIndex(p => String(p.id) === String(salvo.id));
+        if (idx >= 0) produtos[idx] = salvo;
+      }
+    }
+
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({
+        modulo: "Rotas",
+        acao: `Produto alterado para ${statusDestino}`,
+        registro_id: produto.id,
+        registro_nome: produto.codigo || produto.nome || "Produto",
+        antes: { status: statusAnterior },
+        depois: { status: statusDestino },
+        detalhes: `${motivo || "Alteração operacional"} no evento ${nomeEvento}`
+      });
+    }
+  }
+
+  if (alterados.length && typeof invalidarCacheProdutosGlobal === "function") invalidarCacheProdutosGlobal();
+  if (alterados.length && typeof renderizarProdutos === "function") renderizarProdutos();
+  return alterados;
+}
+
+async function marcarProdutosEventoParaRevisar(rota) {
+  return (await alterarStatusProdutosEventoRota(rota, "Revisar", "Recolhido na desmontagem")).length;
+}
+
+async function marcarProdutosEventoParaAlugado(rota) {
+  return await alterarStatusProdutosEventoRota(rota, "Alugado", "Entrega/montagem confirmada");
+}
+
+async function reverterOperacaoRota(rotaId) {
+  if (!rotaUsuarioEhAdmin()) {
+    alert("Apenas administrador pode reverter entrega ou recolhimento.");
+    return;
+  }
+
+  const rota = criarRotasDosEventos().find(r => String(r.id) === String(rotaId));
+  const opAnterior = obterOperacaoRota(rotaId);
+
+  if (!rota || !opAnterior?.status) {
+    alert("Não há operação para reverter nesta rota.");
+    return;
+  }
+
+  const confirma = confirm(`Reverter a operação ${opAnterior.status === "recolhido" ? "recolhida" : "entregue"} desta rota?`);
+  if (!confirma) return;
+
+  const colaborador = colaboradorRotaAtual();
+  const agora = new Date().toISOString();
+  let alterados = [];
+
+  if (opAnterior.status === "recolhido") {
+    alterados = await alterarStatusProdutosEventoRota(rota, "__RESTORE__", "Reversão administrativa do recolhimento", opAnterior);
+    rotasOperacao[rota.id] = {
+      status: "entregue",
+      data: agora,
+      colaborador,
+      evento_id: rota.evento_id,
+      tipo: rota.tipo,
+      revertido_de: opAnterior
+    };
+  } else if (opAnterior.status === "entregue") {
+    alterados = await alterarStatusProdutosEventoRota(rota, "__RESTORE__", "Reversão administrativa da entrega", opAnterior);
+    delete rotasOperacao[rota.id];
+  }
+
+  salvarRotasOperacaoLocal();
+
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Rotas",
+      acao: "Operação revertida pelo administrador",
+      registro_id: rota.evento_id,
+      registro_nome: rota.cliente || "Evento",
+      antes: opAnterior,
+      depois: rotasOperacao[rota.id] || { status: "pendente" },
+      detalhes: `Produtos restaurados: ${alterados.length}`
+    });
+  }
+
+  if (typeof carregarProdutos === "function") {
+    try { await carregarProdutos(true); } catch {}
+  }
+
+  renderizarRotas();
+  alert("Operação revertida pelo administrador.");
+}
+
+async function reconciliarStatusProdutosOperacoesRotas() {
+  if (!rotasOperacao || typeof rotasOperacao !== "object") return;
+
+  const rotas = criarRotasDosEventos();
+  let mudouOperacao = false;
+
+  for (const [rotaId, op] of Object.entries(rotasOperacao)) {
+    if (!op || !op.status) continue;
+
+    const rota = rotas.find(r => String(r.id) === String(rotaId));
+    if (!rota) continue;
+
+    if (op.status === "entregue") {
+      const alterados = await alterarStatusProdutosEventoRota(rota, "Alugado", "Sincronização automática: rota entregue");
+      if (alterados.length) {
+        op.produtos = Array.isArray(op.produtos) && op.produtos.length ? op.produtos : alterados;
+        mudouOperacao = true;
+      }
+    }
+
+    if (op.status === "recolhido") {
+      const alterados = await alterarStatusProdutosEventoRota(rota, "Revisar", "Sincronização automática: rota recolhida");
+      if (alterados.length) {
+        op.produtos = Array.isArray(op.produtos) && op.produtos.length ? op.produtos : alterados;
+        mudouOperacao = true;
+      }
+    }
+  }
+
+  if (mudouOperacao) salvarRotasOperacaoLocal();
+}
+
+async function marcarOperacaoRota(rotaId, acao) {
+  const rota = criarRotasDosEventos().find(r => String(r.id) === String(rotaId));
+  if (!rota) {
+    alert("Rota não encontrada.");
+    return;
+  }
+
+  const agora = new Date().toISOString();
+  const colaborador = colaboradorRotaAtual();
+
+  if (acao === "entregue") {
+    const alteradosAlugado = await marcarProdutosEventoParaAlugado(rota);
+
+    rotasOperacao[rota.id] = {
+      status: "entregue",
+      data: agora,
+      colaborador,
+      evento_id: rota.evento_id,
+      tipo: rota.tipo,
+      produtos: alteradosAlugado
+    };
+
+    salvarRotasOperacaoLocal();
+
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({
+        modulo: "Rotas",
+        acao: "Material entregue",
+        registro_id: rota.evento_id,
+        registro_nome: rota.cliente || "Evento",
+        depois: rotasOperacao[rota.id],
+        detalhes: `Montagem marcada como entregue na rota ${rota.id}`
+      });
+    }
+
+    renderizarRotas();
+    return;
+  }
+
+  if (acao === "recolhido") {
+    const confirma = confirm("Marcar material como recolhido e enviar os produtos deste evento para status Revisar?");
+    if (!confirma) return;
+
+    rotasOperacao[rota.id] = {
+      status: "recolhido",
+      data: agora,
+      colaborador,
+      evento_id: rota.evento_id,
+      tipo: rota.tipo
+    };
+
+    const alteradosRevisar = await alterarStatusProdutosEventoRota(rota, "Revisar", "Recolhido na desmontagem");
+    const qtdRevisar = alteradosRevisar.length;
+    rotasOperacao[rota.id].produtos = alteradosRevisar;
+    salvarRotasOperacaoLocal();
+
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({
+        modulo: "Rotas",
+        acao: "Material recolhido",
+        registro_id: rota.evento_id,
+        registro_nome: rota.cliente || "Evento",
+        depois: rotasOperacao[rota.id],
+        detalhes: `Desmontagem recolhida. Produtos enviados para Revisar: ${qtdRevisar}`
+      });
+    }
+
+    if (typeof carregarProdutos === "function") {
+      try { await carregarProdutos(true); } catch {}
+    }
+
+    renderizarRotas();
+    alert(`Material recolhido. ${qtdRevisar} produto(s) foram enviados para Revisar.`);
+  }
+}
+
+
 async function carregarRotasCarrosNuvem() {
   if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
 
@@ -185,9 +576,12 @@ function iniciarRotas() {
   if (!document.getElementById("rotasConteudo")) return;
 
   rotasCarros = carregarRotasCarrosLocal();
+  rotasOperacao = carregarRotasOperacaoLocal();
   atualizarFiltroCarrosRotas();
   sincronizarRotasCarrosNuvem();
   sincronizarRotasOrdemNuvem();
+  sincronizarRotasOperacaoNuvem().then(() => reconciliarStatusProdutosOperacoesRotas()).catch(() => {});
+  setTimeout(() => reconciliarStatusProdutosOperacoesRotas(), 1800);
 
   const hoje = new Date();
   const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
@@ -745,6 +1139,52 @@ function agruparPorDataECarro(rotas) {
   return grupos;
 }
 
+
+// v19-dev: gerar rota no Google Maps por carro/dia
+function rtEnderecoRotaValido(endereco) {
+  return String(endereco || "").trim();
+}
+
+function rtGoogleMapsUrlRotas(listaRotas) {
+  const enderecos = (Array.isArray(listaRotas) ? listaRotas : [])
+    .map(r => rtEnderecoRotaValido(r.endereco))
+    .filter(Boolean);
+
+  const unicos = [];
+  enderecos.forEach(end => {
+    if (!unicos.some(x => x.toLowerCase() === end.toLowerCase())) unicos.push(end);
+  });
+
+  if (!unicos.length) return "";
+
+  if (unicos.length === 1) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(unicos[0])}`;
+  }
+
+  const origem = unicos[0];
+  const destino = unicos[unicos.length - 1];
+  const intermediarios = unicos.slice(1, -1);
+
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origem)}&destination=${encodeURIComponent(destino)}&travelmode=driving`;
+
+  if (intermediarios.length) {
+    url += `&waypoints=${intermediarios.map(encodeURIComponent).join("|")}`;
+  }
+
+  return url;
+}
+
+function rtAbrirGoogleMapsRotas(listaRotas) {
+  const url = rtGoogleMapsUrlRotas(listaRotas);
+
+  if (!url) {
+    alert("Nenhum endereço encontrado para gerar a rota.");
+    return;
+  }
+
+  window.open(url, "_blank");
+}
+
 function renderizarRotas() {
   const container = document.getElementById("rotasConteudo");
   if (!container) return;
@@ -781,8 +1221,11 @@ function renderizarRotas() {
 
           return `
           <div class="rota-carro">
-            <div class="rota-carro-header">
-              <h4>${carro}</h4>
+            <div class="rota-carro-header rota-carro-header-maps">
+              <div class="rota-carro-topo">
+                <h4>${carro}</h4>
+                <button type="button" class="btn-outline rota-maps-btn rota-maps-header-btn" data-rota-maps-data="${data}" data-rota-maps-carro="${carro}">Rota</button>
+              </div>
               <div class="rota-carro-materiais">
                 ${listaMateriaisRotas(rotasOrdenadas).map(item => `<span>${item}</span>`).join("")}
               </div>
@@ -798,6 +1241,22 @@ function renderizarRotas() {
   }).join("");
 
 
+
+  container.querySelectorAll("button[data-rota-maps-data]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const data = btn.dataset.rotaMapsData;
+      const carro = btn.dataset.rotaMapsCarro;
+
+      const todas = criarRotasDosEventos();
+      const grupos = agruparPorDataECarro(todas);
+      const lista = (grupos[data] && grupos[data][carro])
+        ? ordenarRotasPorOrdemManual(grupos[data][carro])
+        : [];
+
+      rtAbrirGoogleMapsRotas(lista);
+    });
+  });
+
   container.querySelectorAll("button[data-rota-move]").forEach(btn => {
     btn.addEventListener("click", () => {
       const data = btn.dataset.rotaData;
@@ -812,6 +1271,19 @@ function renderizarRotas() {
 
       moverOrdemRota(btn.dataset.rotaMove, btn.dataset.direction, lista);
       renderizarRotas();
+    });
+  });
+
+
+  container.querySelectorAll("button[data-rota-operacao]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      marcarOperacaoRota(btn.dataset.rotaId, btn.dataset.rotaOperacao);
+    });
+  });
+
+  container.querySelectorAll("button[data-rota-reverter]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      reverterOperacaoRota(btn.dataset.rotaReverter);
     });
   });
 
@@ -887,7 +1359,7 @@ function listaMateriaisRotas(listaRotas = []) {
       materiaisComCodigo.push(nome || "Produto com código");
     });
 
-    // Materiais sem código, como mesas e cadeiras, são somados por nome.
+    // Materiais sem código, como materiais de apoio, são somados por nome.
     (evento.itens_apoio || []).forEach(item => {
       const nome = String(item.nome || "Item sem código").trim();
       const quantidade = Number(item.quantidade || item.qtd || item.quantidade_total || 0);
@@ -1136,6 +1608,7 @@ function renderizarCardRota(rota, index = 0, total = 0) {
         <div class="rota-card-top rota-card-top-refinado">
           <div class="rota-identificacao">
             ${conflito ? '<b class="rota-alerta">Conflito</b>' : ''}
+            ${badgeOperacaoRota(rota)}
           </div>
 
 
@@ -1208,6 +1681,9 @@ function renderizarCardRota(rota, index = 0, total = 0) {
             <div class="rota-ordem-controls">
               <button type="button" class="rota-order-btn" title="Subir" data-rota-move="${rota.id}" data-direction="up" data-rota-data="${rota.data}" data-rota-carro-grupo="${carroAtual}" ${index === 0 ? "disabled" : ""}>↑</button>
               <button type="button" class="rota-order-btn" title="Descer" data-rota-move="${rota.id}" data-direction="down" data-rota-data="${rota.data}" data-rota-carro-grupo="${carroAtual}" ${index >= total - 1 ? "disabled" : ""}>↓</button>
+              ${rota.tipo === "Montagem" ? `<button type="button" class="rota-operacao-btn rota-entregue-btn" title="Marcar material entregue na montagem" data-rota-operacao="entregue" data-rota-id="${rota.id}">✓ Entregue</button>` : ""}
+              ${rota.tipo === "Desmontagem" ? `<button type="button" class="rota-operacao-btn rota-recolhido-btn" title="Marcar material recolhido e enviar produtos para revisão" data-rota-operacao="recolhido" data-rota-id="${rota.id}">↩ Recolhido</button>` : ""}
+              ${rotaUsuarioEhAdmin() && obterOperacaoRota(rota.id)?.status ? `<button type="button" class="rota-operacao-btn rota-reverter-btn" title="Reverter operação desta rota" data-rota-reverter="${rota.id}">↺ Reverter</button>` : ""}
             </div>
           </div>
         </div>

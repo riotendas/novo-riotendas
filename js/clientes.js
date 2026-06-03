@@ -92,7 +92,11 @@ function abrirEditarCliente(id) {
   document.getElementById("clienteNome").value = c.nome || "";
   document.getElementById("clienteDocumento").value = c.documento || "";
   document.getElementById("clienteTelefone").value = c.telefone || "";
+  document.getElementById("clienteEmail").value = c.email || "";
+  document.getElementById("clientePerfil").value = c.perfil_cliente || "Normal";
   document.getElementById("clienteEndereco").value = c.endereco || "";
+  document.getElementById("clienteObservacao").value = c.observacao_cliente || "";
+  document.getElementById("clienteObservacaoInterna").value = c.observacao_interna || "";
   document.getElementById("clienteModalTitulo").textContent = "Editar cliente";
   document.getElementById("clienteDialog").showModal();
 }
@@ -112,7 +116,11 @@ async function salvarClienteForm(event) {
     nome: document.getElementById("clienteNome").value.trim(),
     documento: document.getElementById("clienteDocumento").value.trim(),
     telefone: document.getElementById("clienteTelefone").value.trim(),
+    email: document.getElementById("clienteEmail").value.trim(),
     endereco: document.getElementById("clienteEndereco").value.trim(),
+    observacao_cliente: document.getElementById("clienteObservacao").value.trim(),
+    observacao_interna: document.getElementById("clienteObservacaoInterna").value.trim(),
+    perfil_cliente: document.getElementById("clientePerfil").value || "Normal",
     colaborador: getColaboradorLogado(),
     criado_em: existente?.criado_em || new Date().toISOString()
   };
@@ -136,13 +144,21 @@ function filtrarClientes() {
   const endereco = document.getElementById("filtroClienteEndereco").value.trim().toLowerCase();
 
   return clientes.filter(c => {
-    const texto = `${c.nome || ""} ${c.documento || ""} ${c.telefone || ""} ${c.endereco || ""}`.toLowerCase();
+    const texto = `${c.nome || ""} ${c.documento || ""} ${c.telefone || ""} ${c.email || ""} ${c.endereco || ""} ${c.observacao_cliente || ""} ${c.observacao_interna || ""} ${c.perfil_cliente || ""}`.toLowerCase();
     return (!busca || texto.includes(busca))
       && (!nome || String(c.nome || "").toLowerCase().includes(nome))
       && (!documento || String(c.documento || "").toLowerCase().includes(documento))
       && (!telefone || String(c.telefone || "").toLowerCase().includes(telefone))
       && (!endereco || String(c.endereco || "").toLowerCase().includes(endereco));
   });
+}
+
+function normalizarPerfilCliente(perfil) {
+  return String(perfil || "Normal")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-") || "normal";
 }
 
 function renderizarClientes() {
@@ -153,19 +169,21 @@ function renderizarClientes() {
   document.getElementById("clientesTotal").textContent = lista.length;
 
   if (!lista.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty">Nenhum cliente cadastrado.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Nenhum cliente cadastrado.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = lista.map(c => `
     <tr>
-      <td class="clientes-actions"><div class="clientes-actions-row"><button class="code-link" data-action="detalhe" data-id="${c.id}">${c.nome || "-"}</button></td>
+      <td class="cliente-nome-cell"><button class="code-link" data-action="detalhe" data-id="${c.id}">${c.nome || "-"}</button></td>
       <td>${c.documento || "-"}</td>
       <td>${c.telefone || "-"}</td>
+      <td>${c.email || "-"}</td>
+      <td><span class="cliente-perfil-badge perfil-${normalizarPerfilCliente(c.perfil_cliente)}">${c.perfil_cliente || "Normal"}</span></td>
       <td>${c.endereco || "-"}</td>
       <td>${c.colaborador || "-"}</td>
-      <td class="actions clientes-actions"><div class="clientes-actions-row"><button data-action="editar" data-id="${c.id}">Editar</button>
-        <button class="btn-outline" data-action="excluir" data-id="${c.id}">Excluir</button></div></td>
+      <td class="actions clientes-actions"><div class="clientes-actions-row"><button data-action="editar" data-id="${c.id}">✏️</button>
+        <button class="btn-outline" title="Excluir" data-action="excluir" data-id="${c.id}">🗑️</button></div></td>
     </tr>
   `).join("");
 
@@ -330,9 +348,16 @@ async function abrirDetalheCliente(id) {
       <div class="info-box"><span>Nome</span><strong>${c.nome || "-"}</strong></div>
       <div class="info-box"><span>CPF/CNPJ</span><strong>${c.documento || "-"}</strong></div>
       <div class="info-box"><span>Telefone</span><strong>${c.telefone || "-"}</strong></div>
+      <div class="info-box"><span>E-mail</span><strong>${c.email || "-"}</strong></div>
+      <div class="info-box"><span>Perfil</span><strong><span class="cliente-perfil-badge perfil-${normalizarPerfilCliente(c.perfil_cliente)}">${c.perfil_cliente || "Normal"}</span></strong></div>
       <div class="info-box"><span>Endereço</span><strong>${c.endereco || "-"}</strong></div>
       <div class="info-box"><span>Colaborador</span><strong>${c.colaborador || "-"}</strong></div>
       <div class="info-box"><span>Cadastro</span><strong>${formatarData(c.criado_em)}</strong></div>
+    </div>
+    <div class="subpanel cliente-observacoes-panel">
+      <h3>Observações</h3>
+      <p><strong>Cliente:</strong> ${c.observacao_cliente || "-"}</p>
+      <p><strong>Interna:</strong> ${c.observacao_interna || "-"}</p>
     </div>
     <div class="subpanel cliente-eventos-panel">
       <h3>Eventos encontrados</h3>

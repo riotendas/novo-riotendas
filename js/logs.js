@@ -243,12 +243,12 @@ function exportarLogsSistemaCsv() {
 }
 
 function montarPainelLogsSistema() {
-  const config = document.getElementById("configSection");
+  const config = document.getElementById("configModalLogsConteudo") || document.getElementById("configSection");
   if (!config || document.getElementById("logsSistemaBox")) return;
 
   const box = document.createElement("div");
   box.id = "logsSistemaBox";
-  box.className = "config-card logs-sistema-box";
+  box.className = "logs-sistema-box";
 
   box.innerHTML = `
     <div class="section-header">

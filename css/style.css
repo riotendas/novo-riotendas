@@ -64,10 +64,12 @@ table{width:100%;border-collapse:collapse;min-width:980px}
 th,td{padding:9px 8px;border-bottom:1px solid var(--border);text-align:left;font-size:13px;vertical-align:middle}
 th{background:var(--blue);color:white;position:sticky;top:0;z-index:1}
 tr.status-livre{background:var(--green)}
+tr.status-alugado{background:#fff7ed}
 tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{background:var(--red)}
 .product-img{width:48px;height:40px;object-fit:cover;border-radius:8px;background:#eef2f7;border:1px solid var(--border)}
 .code-link{color:var(--blue);font-weight:800;text-decoration:underline;cursor:pointer;background:none;border:0;padding:0}
 .status-select.status-livre{background:var(--green)}
+.status-select.status-alugado{background:#ffedd5}
 .status-select.status-bloqueada{background:#fde2e2}
 .status-select.status-precisa-limpar{background:var(--yellow)}
 .status-select.status-precisa-consertar{background:#ffe7d6}
@@ -127,7 +129,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 }
 
 
-/* Mesas e cadeiras sem código individual */
+/* Materiais de Apoio sem código individual */
 .apoio-separador td {
   background: #eaf3ff;
   color: #174a7c;
@@ -250,7 +252,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 .check-item span,
 .apoio-evento-item span {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 2px;
 }
 
@@ -305,7 +307,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 .selected-item span {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 3px;
 }
 
@@ -356,7 +358,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 /* Janela rápida de alteração de produtos do evento */
 #eventoProdutosRapidoDialog .selected-item span {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 3px;
 }
 
@@ -417,13 +419,20 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 }
 
 .finance-row {
-  grid-template-columns: repeat(3, minmax(130px, 1fr));
+  grid-template-columns: 150px 150px 150px;
+  justify-content:start;
+  gap:16px;
 }
+.finance-row label{max-width:150px;}
 
 .payment-row {
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 340px 180px;
   align-items: center;
+  gap:12px;
+  justify-content:start;
 }
+.payment-row label:first-child{width:340px;}
+.payment-row textarea{width:100%;}
 
 .money-input {
   text-align: right;
@@ -578,7 +587,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 @media (max-width: 700px) {
   .rota-dia-header,
   .rota-card-top {
-    flex-direction: column;
+    flex-direction: row;
     align-items: stretch;
   }
 }
@@ -724,7 +733,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 .rota-card-top > div {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 2px;
 }
 
@@ -1239,7 +1248,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
   }
 }
 
-/* Disponibilidade por período para mesas e cadeiras */
+/* Disponibilidade por período para materiais de apoio */
 .apoio-row .availability-cell {
   min-width: 190px;
 }
@@ -4863,7 +4872,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 
 /* =====================================================
-   FIX específico: tabela inferior Mesas e cadeiras
+   FIX específico: tabela inferior Materiais de Apoio
    Não altera a tabela principal de produtos
 ===================================================== */
 
@@ -5029,7 +5038,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 
 /* =====================================================
-   Mesas e cadeiras - tabela independente da tabela de cima
+   Materiais de Apoio - tabela independente da tabela de cima
 ===================================================== */
 
 #produtosSection .mesas-cadeiras-wrapper {
@@ -5158,7 +5167,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 
 /* =====================================================
-   Expandir largura REAL da tabela Mesas e cadeiras
+   Expandir largura REAL da tabela Materiais de Apoio
 ===================================================== */
 
 /* wrapper ocupa toda a largura disponível */
@@ -5211,7 +5220,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 
 /* =====================================================
-   Mesas/Cadeiras em tabela separada
+   Materiais de Apoio em tabela separada
    Mantém filtro do topo e NÃO altera tabela principal
 ===================================================== */
 
@@ -5359,7 +5368,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 
 /* =====================================================
-   Mesas/Cadeiras separada - sem Código e sem Tipo
+   Materiais de Apoio separada - sem Código e sem Tipo
 ===================================================== */
 
 .apoio-separado-table th,
@@ -5441,7 +5450,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 
 /* =====================================================
-   Mesas/Cadeiras - colunas melhor distribuídas
+   Materiais de Apoio - colunas melhor distribuídas
 ===================================================== */
 
 /* 1 Qtd */
@@ -5539,7 +5548,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 
 /* =====================================================
-   Ajuste fino lateral Mesas/Cadeiras
+   Ajuste fino lateral Materiais de Apoio
 ===================================================== */
 
 /* Cor mais próxima da esquerda */
@@ -5659,7 +5668,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 
 /* =====================================================
-   Mesas/Cadeiras - aumentar coluna disponibilidade
+   Materiais de Apoio - aumentar coluna disponibilidade
 ===================================================== */
 
 /* reduzir um pouco quantidade para abrir espaço */
@@ -5687,7 +5696,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 
 /* =====================================================
-   Mesas/Cadeiras sem coluna ações
+   Materiais de Apoio sem coluna ações
 ===================================================== */
 
 /* 1 Qtd */
@@ -6185,7 +6194,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 
 /* =====================================================
-   Remover coluna Cor da tabela Mesas/Cadeiras
+   Remover coluna Cor da tabela Materiais de Apoio
 ===================================================== */
 
 /* 1 Qtd */
@@ -6718,7 +6727,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 }
 
 
-/* Uniformizar tendas, mesas e cadeiras na área Materiais das Rotas */
+/* Uniformizar tendas, materiais de apoio na área Materiais das Rotas */
 .rota-materiais-lista div span,
 .rota-materiais-lista div .rota-material-click{
     font-size: inherit !important;
@@ -6729,7 +6738,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 }
 
 
-/* Fundo azul suave para TODOS os materiais da rota (tendas, mesas e cadeiras) */
+/* Fundo azul suave para TODOS os materiais da rota (tendas, materiais de apoio) */
 .rota-materiais-lista div span,
 .rota-materiais-lista div .rota-material-click{
     background: #eef7ff !important;
@@ -7949,3 +7958,1778 @@ dialog {
   max-width: 100%;
   white-space: normal;
 }
+
+
+/* v19-dev: remover item escolhido na importação */
+.rt-import-remover-item {
+  margin-left: 5px;
+  border: 0;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 900;
+  width: 18px;
+  height: 18px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+
+/* v19-dev: modal visual de produtos na importação */
+.import-produtos-modal {
+  width: min(1100px, 96vw);
+}
+
+.import-produtos-modal-top {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.import-produtos-modal-top input {
+  width: 100%;
+}
+
+.import-produtos-modal-lista {
+  max-height: 54vh;
+  overflow: auto;
+  border: 1px solid #d7e3f3;
+  border-radius: 12px;
+}
+
+.import-produtos-modal-lista th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.import-produtos-modal-lista .linha-bloqueada {
+  opacity: 0.55;
+  background: #f8fafc;
+}
+
+.import-produtos-modal-lista input[type="number"] {
+  width: 70px;
+}
+
+.import-produtos-extra {
+  display: grid;
+  grid-template-columns: 1fr 90px auto;
+  gap: 8px;
+  align-items: end;
+  margin-top: 10px;
+}
+
+@media (max-width: 760px) {
+  .import-produtos-extra {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* v19-dev: Eventos com limite e visor sobreposto sem alterar colunas */
+.eventos-list-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 10px;
+  color: #60738a;
+  font-size: 13px;
+}
+
+.eventos-list-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.eventos-list-controls select {
+  min-height: 32px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  padding: 4px 8px;
+  background: #fff;
+}
+
+.eventos-table-scroll {
+  max-height: 700px;
+  overflow-y: auto;
+  overflow-x: auto;
+  scrollbar-gutter: stable;
+}
+
+.eventos-table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+
+
+/* v19-dev: visor visível sem sair da tabela e sem deslocar colunas */
+#eventosTbody tr td:first-child {
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: 4px calc(100% - 16px);
+}
+
+#eventosTbody tr.evento-status-passado td:first-child {
+  background-image: linear-gradient(#94a3b8, #94a3b8);
+}
+
+#eventosTbody tr.evento-status-hoje td:first-child {
+  background-image: linear-gradient(#16a34a, #16a34a);
+}
+
+#eventosTbody tr.evento-status-futuro td:first-child {
+  background-image: linear-gradient(#3b82f6, #3b82f6);
+}
+
+
+/* v19-dev: quantidade por altura com rolagem real */
+.eventos-table-scroll {
+  overflow-y: auto !important;
+  overflow-x: auto;
+  scrollbar-gutter: stable;
+}
+
+
+/* v19-dev: visor de status nos eventos recorrentes */
+#eventosRecorrentesTbody tr td:first-child {
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: 4px calc(100% - 16px);
+}
+
+#eventosRecorrentesTbody tr.evento-status-passado td:first-child {
+  background-image: linear-gradient(#94a3b8, #94a3b8);
+}
+
+#eventosRecorrentesTbody tr.evento-status-hoje td:first-child {
+  background-image: linear-gradient(#16a34a, #16a34a);
+}
+
+#eventosRecorrentesTbody tr.evento-status-futuro td:first-child {
+  background-image: linear-gradient(#3b82f6, #3b82f6);
+}
+
+
+/* v19-dev: corrigir número do dia no calendário em fundo branco */
+.calendario-dia,
+.calendario-dia * ,
+.calendar-day,
+.calendar-day * ,
+.cal-day,
+.cal-day * ,
+.mes-dia,
+.mes-dia * ,
+.dia-calendario,
+.dia-calendario * {
+  color: inherit;
+}
+
+.calendario-dia-numero,
+.calendar-day-number,
+.cal-day-number,
+.dia-numero,
+.mes-dia-numero,
+.calendario-mes .dia,
+.calendario-semanal .dia {
+  color: #12395c !important;
+  font-weight: 800;
+}
+
+.calendario-dia[style*="background: white"] .calendario-dia-numero,
+.calendario-dia[style*="background:#fff"] .calendario-dia-numero,
+.calendario-dia[style*="background-color: white"] .calendario-dia-numero,
+.calendario-dia[style*="background-color:#fff"] .calendario-dia-numero,
+.calendar-day[style*="background: white"] .calendar-day-number,
+.calendar-day[style*="background:#fff"] .calendar-day-number,
+.calendar-day[style*="background-color: white"] .calendar-day-number,
+.calendar-day[style*="background-color:#fff"] .calendar-day-number {
+  color: #12395c !important;
+}
+
+.calendario-dia.branco,
+.calendario-dia.fundo-branco,
+.calendar-day.branco,
+.calendar-day.fundo-branco,
+.cal-day.branco,
+.cal-day.fundo-branco {
+  color: #12395c !important;
+}
+
+.calendario-dia.branco .calendario-dia-numero,
+.calendario-dia.fundo-branco .calendario-dia-numero,
+.calendar-day.branco .calendar-day-number,
+.calendar-day.fundo-branco .calendar-day-number,
+.cal-day.branco .cal-day-number,
+.cal-day.fundo-branco .cal-day-number {
+  color: #12395c !important;
+}
+
+
+/* v19-dev: carro de rotas no painel do dia do calendário */
+.cal-rota-carro {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.cal-rota-sem-carro {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+
+/* v19-dev: reforço visual carro rotas calendário */
+.calendar-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cal-rota-carro {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.cal-rota-sem-carro {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+
+/* v19-dev: carro compacto ao lado direito do botão Editar evento */
+.calendar-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+}
+
+.calendar-panel-actions .btn-outline {
+  padding: 7px 9px;
+  white-space: nowrap;
+}
+
+.calendar-panel-actions .cal-rota-carro {
+  margin-left: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-panel-actions .cal-rota-sem-carro {
+  max-width: 95px;
+}
+
+@media (max-width: 760px) {
+  .calendar-panel-actions {
+    flex-wrap: wrap;
+  }
+}
+
+
+/* v19-dev: botão Gerar rota no grupo do carro */
+.rota-carro-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rota-carro-header h4 {
+  flex: 0 0 auto;
+}
+
+.rota-carro-materiais {
+  flex: 1 1 auto;
+}
+
+.rota-maps-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-weight: 800;
+}
+
+@media (max-width: 760px) {
+  .rota-carro-header {
+    flex-wrap: wrap;
+  }
+
+  .rota-maps-btn {
+    width: 100%;
+  }
+}
+
+
+/* v19-dev: botão Rota no canto direito da linha do carro */
+.rota-carro-header {
+  display: block;
+}
+
+.rota-carro-titulo {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin: 0 0 6px 0;
+}
+
+.rota-carro-titulo span {
+  min-width: 0;
+}
+
+.rota-maps-header-btn {
+  margin-left: auto;
+  padding: 4px 10px !important;
+  min-height: 28px !important;
+  line-height: 1 !important;
+  font-size: 13px !important;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.rota-carro-materiais {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+
+/* v19-dev: mover botão Rota para o lado oposto */
+.rota-carro-titulo{
+  flex-direction: row-reverse !important;
+}
+.rota-maps-header-btn{
+  margin-left:0 !important;
+  margin-right:auto !important;
+}
+
+
+/* v19-dev: botão rota à direita na mesma linha */
+.rota-carro-titulo{
+  flex-direction:row !important;
+  justify-content:space-between !important;
+}
+.rota-maps-header-btn{
+  margin-left:auto !important;
+  margin-right:0 !important;
+}
+
+
+/* v19-dev: botão Rota realmente no extremo direito do cabeçalho do carro */
+.rota-carro-header-maps {
+  display: block !important;
+  width: 100% !important;
+}
+
+.rota-carro-header-maps .rota-carro-topo {
+  display: grid !important;
+  grid-template-columns: 1fr auto !important;
+  align-items: center !important;
+  column-gap: 12px !important;
+  width: 100% !important;
+}
+
+.rota-carro-header-maps .rota-carro-topo h4 {
+  margin: 0 !important;
+  min-width: 0 !important;
+}
+
+.rota-carro-header-maps .rota-maps-header-btn {
+  justify-self: end !important;
+  margin: 0 !important;
+  padding: 4px 10px !important;
+  min-height: 26px !important;
+  line-height: 1 !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+.rota-carro-header-maps .rota-carro-materiais {
+  margin-top: 6px !important;
+  width: 100% !important;
+}
+
+/* v19-dev - Configurações em listagem com popups */
+.config-listagem-links {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  max-width: 920px;
+}
+
+.config-link-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 230px 1fr;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #dce6f0;
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 8px 24px rgba(15, 61, 102, 0.04);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.config-link-item:hover {
+  border-color: var(--blue);
+  background: #f8fbff;
+}
+
+.config-link-item strong {
+  color: var(--blue);
+  font-size: .98rem;
+}
+
+.config-link-item span {
+  color: #5b6b7d;
+  font-size: .9rem;
+}
+
+.config-popup .modal-header p {
+  margin: 4px 0 0;
+  color: #5b6b7d;
+  font-size: .86rem;
+}
+
+.config-popup-body {
+  padding: 16px;
+}
+
+.config-popup-logs {
+  width: min(1120px, 96vw);
+}
+
+.config-popup-logs .section-header {
+  padding: 0 0 12px;
+  background: transparent;
+  border-bottom: 0;
+}
+
+.config-popup-logs .section-header h2,
+.config-popup-logs .section-header p {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .config-link-item {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+/* v19-dev: subcategoria de caixas térmicas dentro de Materiais de Apoio */
+.apoio-grupo-row td,
+.config-subsection-title {
+  font-weight: 700;
+  background: rgba(15, 23, 42, 0.04);
+  border-radius: 10px;
+}
+
+.config-subsection-title {
+  padding: 10px 12px;
+  margin: 12px 0 8px;
+}
+
+/* v19-dev: ajuste de layout do popup Materiais de Apoio */
+#configModalMateriais {
+  width: min(980px, 96vw);
+}
+
+#configModalMateriais .config-popup-body {
+  padding: 18px;
+}
+
+#configModalMateriais .config-inline-form {
+  display: grid;
+  grid-template-columns: 180px minmax(220px, 1fr) minmax(160px, 0.7fr) 110px auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 8px;
+}
+
+#configModalMateriais .config-inline-form select,
+#configModalMateriais .config-inline-form input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  box-sizing: border-box;
+}
+
+#configModalMateriais #novoMaterialApoioQtd {
+  max-width: 110px;
+}
+
+#configModalMateriais #adicionarMaterialApoioConfig {
+  min-height: 38px;
+  padding: 8px 14px;
+  white-space: nowrap;
+}
+
+#configModalMateriais .config-list {
+  gap: 10px;
+  margin-top: 14px;
+}
+
+#configModalMateriais .config-subsection-title {
+  margin: 16px 0 6px;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  color: #24415f;
+  background: #f3f7fb;
+  border: 1px solid #e4ecf5;
+}
+
+#configModalMateriais .material-apoio-config-item {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 180px;
+  gap: 12px;
+  align-items: end;
+  padding: 12px;
+}
+
+#configModalMateriais .material-apoio-config-item .compact-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 120px;
+  gap: 10px;
+  width: 100%;
+}
+
+#configModalMateriais .material-apoio-config-item label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #526273;
+}
+
+#configModalMateriais .material-apoio-config-item input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  box-sizing: border-box;
+}
+
+#configModalMateriais .material-apoio-config-item .material-apoio-qtd {
+  max-width: 120px;
+}
+
+#configModalMateriais .material-apoio-config-item .config-actions {
+  justify-content: flex-end;
+  align-items: end;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+#configModalMateriais .material-apoio-config-item .config-actions button {
+  min-height: 36px;
+  padding: 7px 12px;
+  white-space: nowrap;
+}
+
+@media (max-width: 820px) {
+  #configModalMateriais .config-inline-form,
+  #configModalMateriais .material-apoio-config-item,
+  #configModalMateriais .material-apoio-config-item .compact-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #configModalMateriais #novoMaterialApoioQtd,
+  #configModalMateriais .material-apoio-config-item .material-apoio-qtd {
+    max-width: 100%;
+  }
+
+  #configModalMateriais .material-apoio-config-item .config-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
+
+/* Compactação materiais de apoio */
+.material-apoio-config-item{
+  grid-template-columns: 1fr auto !important;
+  gap: 6px !important;
+  padding: 6px 8px !important;
+  margin: 0 !important;
+}
+.material-apoio-config-item .compact-grid{
+  grid-template-columns: 220px 90px !important;
+  gap: 6px !important;
+}
+.material-apoio-config-item label{
+  gap:2px !important;
+  font-size:.72rem !important;
+}
+.material-apoio-config-item input{
+  height:30px !important;
+}
+.material-apoio-config-item .material-apoio-nome{
+  max-width:220px !important;
+}
+.material-apoio-config-item .material-apoio-qtd{
+  max-width:90px !important;
+}
+.material-apoio-config-item .config-actions{
+  gap:4px !important;
+  flex-wrap:nowrap !important;
+}
+.material-apoio-config-item .config-actions button{
+  min-height:30px !important;
+  padding:4px 8px !important;
+}
+#listaMateriaisApoioConfig .config-subsection-title{
+  margin:8px 0 4px 0 !important;
+}
+
+/* Correção final: Materiais de Apoio em linhas compactas */
+#configModalMateriais .config-inline-form {
+  display: grid !important;
+  grid-template-columns: 225px minmax(260px, 440px) 90px auto !important;
+  gap: 10px !important;
+  align-items: center !important;
+  max-width: 100% !important;
+}
+
+#configModalMateriais #novoMaterialApoioNome {
+  max-width: 440px !important;
+}
+
+#configModalMateriais #novoMaterialApoioQtd {
+  max-width: 90px !important;
+}
+
+#configModalMateriais #adicionarMaterialApoioConfig {
+  width: auto !important;
+  min-width: 150px !important;
+}
+
+#listaMateriaisApoioConfig.config-list {
+  gap: 5px !important;
+  margin-top: 10px !important;
+}
+
+#listaMateriaisApoioConfig .config-subsection-title {
+  margin: 10px 0 4px !important;
+  padding: 7px 10px !important;
+  font-size: 0.92rem !important;
+}
+
+#configModalMateriais .materiais-apoio-tabela {
+  display: grid !important;
+  gap: 4px !important;
+  width: 100% !important;
+}
+
+#configModalMateriais .materiais-apoio-cabecalho,
+#configModalMateriais .material-apoio-config-item {
+  display: grid !important;
+  grid-template-columns: minmax(220px, 300px) 90px auto !important;
+  gap: 8px !important;
+  align-items: center !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+#configModalMateriais .materiais-apoio-cabecalho {
+  padding: 0 10px 2px !important;
+  color: #344766 !important;
+  font-size: 0.76rem !important;
+  font-weight: 700 !important;
+}
+
+#configModalMateriais .material-apoio-config-item {
+  padding: 5px 10px !important;
+  margin: 0 !important;
+  min-height: 42px !important;
+}
+
+#configModalMateriais .material-apoio-config-item input {
+  height: 32px !important;
+  min-height: 32px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 5px 10px !important;
+}
+
+#configModalMateriais .material-apoio-config-item .material-apoio-nome {
+  max-width: 300px !important;
+}
+
+#configModalMateriais .material-apoio-config-item .material-apoio-qtd {
+  max-width: 90px !important;
+}
+
+#configModalMateriais .material-apoio-config-item .config-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 6px !important;
+  width: auto !important;
+}
+
+#configModalMateriais .material-apoio-config-item .config-actions button {
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 4px 10px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 760px) {
+  #configModalMateriais .config-inline-form {
+    grid-template-columns: 1fr 80px !important;
+  }
+
+  #configModalMateriais #novoMaterialApoioTipo,
+  #configModalMateriais #novoMaterialApoioNome,
+  #configModalMateriais #adicionarMaterialApoioConfig {
+    grid-column: 1 / -1 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  #configModalMateriais .materiais-apoio-cabecalho {
+    display: none !important;
+  }
+
+  #configModalMateriais .material-apoio-config-item {
+    grid-template-columns: 1fr 76px auto !important;
+    gap: 6px !important;
+    padding: 6px !important;
+  }
+
+  #configModalMateriais .material-apoio-config-item .material-apoio-nome {
+    max-width: none !important;
+  }
+
+  #configModalMateriais .material-apoio-config-item .config-actions button {
+    padding: 4px 7px !important;
+    font-size: 0.82rem !important;
+  }
+}
+
+
+/* v19-dev ajuste final: alinhamento real da tabela de Materiais de Apoio */
+#configModalMateriais .materiais-apoio-tabela {
+  display: block !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+}
+
+#configModalMateriais .materiais-apoio-cabecalho,
+#configModalMateriais .material-apoio-config-item {
+  display: grid !important;
+  grid-template-columns: 260px 112px 190px !important;
+  column-gap: 12px !important;
+  align-items: center !important;
+  justify-content: start !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+#configModalMateriais .materiais-apoio-cabecalho {
+  padding: 0 10px 4px 10px !important;
+}
+
+#configModalMateriais .materiais-apoio-cabecalho span {
+  text-align: left !important;
+  line-height: 1.1 !important;
+}
+
+#configModalMateriais .materiais-apoio-cabecalho span:nth-child(2) {
+  text-align: center !important;
+}
+
+#configModalMateriais .materiais-apoio-cabecalho span:nth-child(3) {
+  text-align: center !important;
+}
+
+#configModalMateriais .material-apoio-config-item {
+  padding: 5px 10px !important;
+  margin: 0 0 4px 0 !important;
+}
+
+#configModalMateriais .material-apoio-config-item .material-apoio-nome {
+  width: 260px !important;
+  min-width: 260px !important;
+  max-width: 260px !important;
+}
+
+#configModalMateriais .material-apoio-config-item .material-apoio-qtd {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+
+#configModalMateriais .material-apoio-config-item .config-actions {
+  width: 190px !important;
+  min-width: 190px !important;
+  max-width: 190px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 8px !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+#configModalMateriais .material-apoio-config-item .config-actions button {
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 5px 12px !important;
+}
+
+@media (max-width: 760px) {
+  #configModalMateriais .materiais-apoio-tabela,
+  #configModalMateriais .material-apoio-config-item {
+    width: 100% !important;
+  }
+  #configModalMateriais .material-apoio-config-item {
+    grid-template-columns: 1fr 76px auto !important;
+  }
+  #configModalMateriais .material-apoio-config-item .material-apoio-nome,
+  #configModalMateriais .material-apoio-config-item .material-apoio-qtd,
+  #configModalMateriais .material-apoio-config-item .config-actions {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+}
+
+/* Materiais de Apoio na tela Produtos: quantidade somente leitura */
+.apoio-separado-table .qtd-apoio-somente-leitura {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  align-items: flex-start;
+}
+
+.apoio-separado-table .qtd-apoio-somente-leitura span {
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--text-muted, #475569);
+  white-space: nowrap;
+}
+
+.apoio-separado-table .qtd-apoio-somente-leitura strong {
+  color: var(--text, #0f172a);
+}
+
+/* v19-dev: ajuste tela novo/editar evento - dados em linhas e apoio por subcategoria */
+.event-date-row-4 {
+  display: grid !important;
+  grid-template-columns: minmax(140px, 1fr) minmax(105px, .75fr) minmax(105px, .75fr) minmax(150px, 1fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.event-operation-row-fast {
+  display: grid !important;
+  grid-template-columns: minmax(160px, 1.1fr) auto minmax(170px, 1fr) minmax(120px, .8fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.btn-mini-fast {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  margin-bottom: 0;
+}
+
+.btn-mini-fast:hover {
+  background: #eef2ff;
+  border-color: #94a3b8;
+}
+
+.apoio-evento-grupo {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 8px;
+}
+
+.apoio-evento-grupo-titulo {
+  font-weight: 800;
+  font-size: .86rem;
+  color: #334155;
+  margin: 0 0 6px;
+}
+
+.apoio-evento-grupo-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 6px;
+}
+
+.apoio-evento-grupo .apoio-evento-item {
+  padding: 7px 8px;
+  margin: 0;
+  background: #fff;
+}
+
+.apoio-evento-grupo .apoio-evento-item span {
+  flex-direction: column;
+  gap: 1px;
+}
+
+.apoio-evento-grupo .apoio-evento-item small {
+  font-size: .74rem;
+  line-height: 1.2;
+}
+
+@media (max-width: 760px) {
+  .event-date-row-4,
+  .event-operation-row-fast {
+    grid-template-columns: 1fr !important;
+  }
+
+  .btn-mini-fast {
+    width: fit-content;
+    margin-top: -4px;
+  }
+}
+
+
+/* v19-dev compacto real evento */
+.event-operation-row-fast{
+  grid-template-columns: 220px 110px 220px 110px !important;
+  justify-content:start !important;
+}
+.event-operation-row-fast > label:first-child input,
+.event-operation-row-fast > label:first-child{
+  width:220px !important;
+}
+.event-operation-row-fast .btn-mini-fast{
+  width:110px !important;
+  min-width:110px !important;
+}
+.event-operation-row-fast > label:nth-of-type(2),
+.event-operation-row-fast > label:nth-of-type(2) select{
+  width:220px !important;
+}
+#eventoMontagemFimBox,#eventoDesmontagemFimBox{
+  width:110px !important;
+}
+.financeiro-grid,.financeiro-row{
+ display:flex !important;
+ gap:10px !important;
+ flex-wrap:nowrap !important;
+}
+#eventoValorTotal,#eventoSinal,#eventoRestante{
+ max-width:140px !important;
+ width:140px !important;
+ flex:0 0 140px !important;
+}
+
+/* v19-dev ajuste fino: Data do evento com mesma largura de montagem/desmontagem */
+.event-date-row-4 {
+  grid-template-columns: 220px 110px 110px 220px !important;
+  justify-content: start !important;
+}
+.event-date-row-4 > label:first-child,
+.event-date-row-4 > label:first-child input {
+  width: 220px !important;
+  max-width: 220px !important;
+  min-width: 220px !important;
+  flex: 0 0 220px !important;
+}
+.event-date-row-4 > label:nth-child(2),
+.event-date-row-4 > label:nth-child(2) input,
+.event-date-row-4 > label:nth-child(3),
+.event-date-row-4 > label:nth-child(3) input {
+  width: 110px !important;
+  max-width: 110px !important;
+  min-width: 110px !important;
+  flex: 0 0 110px !important;
+}
+.event-date-row-4 > label:nth-child(4),
+.event-date-row-4 > label:nth-child(4) select {
+  width: 220px !important;
+  max-width: 220px !important;
+  min-width: 220px !important;
+  flex: 0 0 220px !important;
+}
+
+@media (max-width: 760px) {
+  .event-date-row-4 {
+    grid-template-columns: 1fr !important;
+  }
+  .event-date-row-4 > label,
+  .event-date-row-4 > label input,
+  .event-date-row-4 > label select {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+  }
+}
+
+/* v19-dev: teste seletor popup de data + lista de horários no evento */
+#eventoData,
+#eventoMontagem,
+#eventoDesmontagem {
+  cursor: pointer;
+}
+.time-list-select {
+  min-width: 96px !important;
+  max-width: 110px !important;
+  width: 100px !important;
+  cursor: pointer;
+}
+.date-time-pair {
+  display: grid;
+  grid-template-columns: 128px 92px;
+  gap: 6px;
+  align-items: end;
+  width: 226px;
+  max-width: 226px;
+}
+.date-time-pair input[type="date"] {
+  width: 128px !important;
+  min-width: 128px !important;
+  max-width: 128px !important;
+}
+.date-time-pair .time-list-select {
+  width: 92px !important;
+  min-width: 92px !important;
+  max-width: 92px !important;
+}
+.event-operation-row-fast {
+  grid-template-columns: 226px 110px 220px 110px !important;
+  align-items: end !important;
+}
+.event-date-row-4 > label:nth-child(2) select,
+.event-date-row-4 > label:nth-child(3) select {
+  width: 110px !important;
+  max-width: 110px !important;
+  min-width: 110px !important;
+}
+#eventoMontagemFimBox .time-list-select,
+#eventoDesmontagemFimBox .time-list-select {
+  width: 110px !important;
+  min-width: 110px !important;
+  max-width: 110px !important;
+}
+@media (max-width: 760px) {
+  .date-time-pair {
+    width: 100%;
+    max-width: 100%;
+    grid-template-columns: minmax(0, 1fr) 96px;
+  }
+  .date-time-pair input[type="date"] {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+}
+
+/* v19-dev: botões e badges de operação nas rotas */
+.rota-ordem-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rota-operacao-btn {
+  border: 1px solid #cbd8e6;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.rota-entregue-btn {
+  color: #166534;
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.rota-recolhido-btn {
+  color: #92400e;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.rota-reverter-btn {
+  color: #334155;
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.rota-operacao-btn:hover {
+  filter: brightness(0.97);
+}
+
+.rota-operacao-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+.rota-operacao-pendente {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.rota-operacao-entregue {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.rota-operacao-recolhido {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+@media (max-width: 760px) {
+  .rota-operacao-btn {
+    padding: 6px 7px;
+    font-size: 11px;
+  }
+  .rota-operacao-badge {
+    margin-left: 0;
+    margin-top: 4px;
+  }
+}
+
+/* v19-dev: campos adicionais do cliente */
+.form-grid .span-2 {
+  grid-column: span 2;
+}
+
+.cliente-perfil-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #f8fafc;
+  color: #334155;
+}
+
+.cliente-perfil-badge.perfil-preferencial {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: rgba(4, 120, 87, 0.24);
+}
+
+.cliente-perfil-badge.perfil-atencao {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: rgba(180, 83, 9, 0.24);
+}
+
+.cliente-perfil-badge.perfil-restricao {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: rgba(185, 28, 28, 0.24);
+}
+
+.cliente-observacoes-panel p {
+  margin: 6px 0;
+  line-height: 1.35;
+}
+
+@media (max-width: 720px) {
+  .form-grid .span-2 {
+    grid-column: span 1;
+  }
+}
+
+
+/* v19-dev: tabela de clientes proporcional + endereço maior no evento */
+#clientesSection .table-wrapper,
+#clientesSection .table-responsive {
+  width: 100% !important;
+  overflow-x: auto !important;
+}
+
+#clientesSection table {
+  width: 100% !important;
+  min-width: 1120px !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+#clientesSection table th:nth-child(1),
+#clientesSection table td:nth-child(1) { width: 18% !important; }
+#clientesSection table th:nth-child(2),
+#clientesSection table td:nth-child(2) { width: 9% !important; }
+#clientesSection table th:nth-child(3),
+#clientesSection table td:nth-child(3) { width: 11% !important; }
+#clientesSection table th:nth-child(4),
+#clientesSection table td:nth-child(4) { width: 16% !important; }
+#clientesSection table th:nth-child(5),
+#clientesSection table td:nth-child(5) { width: 8% !important; }
+#clientesSection table th:nth-child(6),
+#clientesSection table td:nth-child(6) { width: 24% !important; }
+#clientesSection table th:nth-child(7),
+#clientesSection table td:nth-child(7) { width: 7% !important; }
+#clientesSection table th:nth-child(8),
+#clientesSection table td:nth-child(8) { width: 7% !important; }
+
+#clientesSection table th,
+#clientesSection table td {
+  padding: 6px 10px !important;
+  font-size: 0.82rem !important;
+  line-height: 1.15 !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+#clientesSection table td:nth-child(6) {
+  display: table-cell !important;
+  align-items: initial !important;
+  justify-content: initial !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+}
+
+#clientesSection table td.cliente-nome-cell {
+  display: table-cell !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+}
+
+#clientesSection table td.cliente-nome-cell .code-link {
+  max-width: 100% !important;
+  display: inline-block !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  vertical-align: middle !important;
+}
+
+#clientesSection table td.actions,
+#clientesSection table td.clientes-actions:nth-child(8),
+#clientesSection table td:last-child {
+  display: table-cell !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+
+#clientesSection .clientes-actions-row {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 5px !important;
+  flex-wrap: nowrap !important;
+  width: auto !important;
+  max-width: 100% !important;
+}
+
+#clientesSection .clientes-actions-row button {
+  height: 26px !important;
+  min-height: 26px !important;
+  padding: 3px 7px !important;
+  font-size: 0.72rem !important;
+  border-radius: 7px !important;
+}
+
+#clientesSection .cliente-perfil-badge {
+  min-width: 68px !important;
+  padding: 3px 6px !important;
+  font-size: 11px !important;
+}
+
+.compact-client-grid .evento-endereco-wide {
+  grid-column: span 3 !important;
+}
+
+.compact-client-grid .evento-observacao-wide {
+  grid-column: span 2 !important;
+}
+
+.compact-client-grid .evento-endereco-wide input,
+.compact-client-grid .evento-observacao-wide input {
+  width: 100% !important;
+}
+
+@media (max-width: 900px) {
+  #clientesSection table { min-width: 980px !important; }
+  .compact-client-grid .evento-endereco-wide,
+  .compact-client-grid .evento-observacao-wide {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+/* clientes table compact */
+#clientesTable td:nth-child(4), #clientesTable th:nth-child(4){width:12%;}
+#clientesTable td:nth-child(6), #clientesTable th:nth-child(6){width:35%;}
+.clientes-actions-row button{min-width:36px;padding:6px 8px;}
+/* evento cliente fields smaller */
+.cliente-dados input,.cliente-dados select,.cliente-dados textarea{font-size:14px;}
+
+/* v19-dev: financeiro do evento em linha única e quitado compacto */
+#eventoModal .finance-row-inline,
+.finance-row-inline {
+  display: grid !important;
+  grid-template-columns: 128px 128px 128px minmax(260px, 1fr) 78px !important;
+  gap: 10px !important;
+  align-items: end !important;
+  width: 100% !important;
+}
+
+.finance-row-inline > label {
+  min-width: 0 !important;
+  width: auto !important;
+  margin: 0 !important;
+}
+
+.finance-row-inline #eventoValorTotal,
+.finance-row-inline #eventoValorSinal,
+.finance-row-inline #eventoValorRestante {
+  width: 128px !important;
+  min-width: 128px !important;
+  max-width: 128px !important;
+  text-align: center !important;
+}
+
+.finance-row-inline .finance-payment-field,
+.finance-row-inline #eventoFormaPagamento {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+.finance-row-inline #eventoFormaPagamento {
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  resize: none !important;
+  line-height: 1.15 !important;
+}
+
+.finance-row-inline .finance-paid-compact {
+  width: 78px !important;
+  min-width: 78px !important;
+  max-width: 78px !important;
+  height: 38px !important;
+  padding: 6px 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  white-space: nowrap !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+}
+
+.finance-row-inline .finance-paid-compact input {
+  width: 14px !important;
+  height: 14px !important;
+  margin: 0 !important;
+  flex: 0 0 auto !important;
+}
+
+.finance-row-inline .finance-paid-compact span {
+  font-size: 12px !important;
+}
+
+@media (max-width: 900px) {
+  #eventoModal .finance-row-inline,
+  .finance-row-inline {
+    grid-template-columns: 1fr 1fr 1fr !important;
+  }
+  .finance-row-inline .finance-payment-field {
+    grid-column: 1 / span 2 !important;
+  }
+  .finance-row-inline .finance-paid-compact {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+}
+
+@media (max-width: 620px) {
+  #eventoModal .finance-row-inline,
+  .finance-row-inline {
+    grid-template-columns: 1fr !important;
+  }
+  .finance-row-inline #eventoValorTotal,
+  .finance-row-inline #eventoValorSinal,
+  .finance-row-inline #eventoValorRestante {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .finance-row-inline .finance-payment-field {
+    grid-column: auto !important;
+  }
+}
+
+/* v19-dev: botões de documentos no rodapé do evento */
+#eventoModal .evento-modal-actions {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+}
+
+#eventoModal .evento-doc-actions,
+#eventoModal .evento-save-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+}
+
+#eventoModal .btn-doc-evento {
+  padding: 7px 10px !important;
+  font-size: 12px !important;
+  min-height: 32px !important;
+  border-radius: 8px !important;
+}
+
+@media (max-width: 720px) {
+  #eventoModal .evento-modal-actions,
+  #eventoModal .evento-doc-actions,
+  #eventoModal .evento-save-actions {
+    width: 100% !important;
+  }
+  #eventoModal .evento-save-actions {
+    justify-content: flex-end !important;
+  }
+}
+
+
+/* v19-dev: alinhamento real do rodapé de documentos do evento */
+#eventoModal form .modal-actions.evento-modal-actions {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  column-gap: 16px !important;
+  row-gap: 8px !important;
+  width: 100% !important;
+  margin-top: 16px !important;
+}
+
+#eventoModal form .modal-actions.evento-modal-actions .evento-doc-actions {
+  display: flex !important;
+  justify-content: flex-start !important;
+  justify-self: start !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+  width: auto !important;
+}
+
+#eventoModal form .modal-actions.evento-modal-actions .evento-save-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  justify-self: end !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+  width: auto !important;
+}
+
+#eventoModal form .modal-actions.evento-modal-actions .btn-doc-evento {
+  min-width: auto !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 760px) {
+  #eventoModal form .modal-actions.evento-modal-actions {
+    grid-template-columns: 1fr !important;
+  }
+  #eventoModal form .modal-actions.evento-modal-actions .evento-doc-actions,
+  #eventoModal form .modal-actions.evento-modal-actions .evento-save-actions {
+    width: 100% !important;
+  }
+  #eventoModal form .modal-actions.evento-modal-actions .evento-save-actions {
+    justify-content: flex-end !important;
+  }
+}
+
+
+/* v19-dev: ajuste definitivo - documentos pequenos e alinhados à esquerda */
+#eventoModal form .modal-actions.evento-modal-actions {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  width: 100% !important;
+  gap: 12px !important;
+  flex-wrap: nowrap !important;
+}
+#eventoModal form .modal-actions.evento-modal-actions .evento-doc-actions {
+  display: inline-flex !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin-right: auto !important;
+}
+#eventoModal form .modal-actions.evento-modal-actions .evento-save-actions {
+  display: inline-flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin-left: auto !important;
+}
+#eventoModal form .modal-actions.evento-modal-actions .btn-doc-evento {
+  width: auto !important;
+  min-width: 72px !important;
+  max-width: 98px !important;
+  padding: 5px 8px !important;
+  min-height: 28px !important;
+  height: 30px !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  border-radius: 7px !important;
+  white-space: nowrap !important;
+}
+@media (max-width: 760px) {
+  #eventoModal form .modal-actions.evento-modal-actions {
+    flex-wrap: wrap !important;
+  }
+  #eventoModal form .modal-actions.evento-modal-actions .evento-doc-actions {
+    width: 100% !important;
+    margin-right: 0 !important;
+  }
+  #eventoModal form .modal-actions.evento-modal-actions .evento-save-actions {
+    width: 100% !important;
+    justify-content: flex-end !important;
+  }
+}
+
+/* v19-dev: rodapé evento realmente separado esquerda/direita */
+#eventoModal .evento-rodape-documentos-final,
+#eventoModal form .evento-rodape-documentos-final,
+#eventoModal form .modal-actions.evento-rodape-documentos-final {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  gap: 12px !important;
+  margin-top: 14px !important;
+}
+#eventoModal .evento-rodape-documentos-final .evento-doc-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin-right: auto !important;
+}
+#eventoModal .evento-rodape-documentos-final .evento-rodape-spacer {
+  display: block !important;
+  flex: 1 1 auto !important;
+  min-width: 20px !important;
+}
+#eventoModal .evento-rodape-documentos-final .evento-save-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin-left: auto !important;
+}
+#eventoModal .evento-rodape-documentos-final .btn-doc-evento {
+  width: auto !important;
+  padding: 5px 8px !important;
+  font-size: 11px !important;
+  min-height: 30px !important;
+  height: 30px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+@media (max-width: 760px) {
+  #eventoModal .evento-rodape-documentos-final {
+    flex-wrap: wrap !important;
+  }
+  #eventoModal .evento-rodape-documentos-final .evento-doc-actions,
+  #eventoModal .evento-rodape-documentos-final .evento-save-actions {
+    width: 100% !important;
+  }
+  #eventoModal .evento-rodape-documentos-final .evento-save-actions {
+    justify-content: flex-end !important;
+  }
+  #eventoModal .evento-rodape-documentos-final .evento-rodape-spacer {
+    display: none !important;
+  }
+}
+
+/* v19-dev: modelos editáveis de documentos nas configurações */
+.config-popup-documentos .config-popup-body {
+  max-height: min(78vh, 760px);
+  overflow: auto;
+}
+
+.doc-model-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.doc-model-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.doc-model-tab {
+  width: 100%;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color, #d5dae4);
+  background: #fff;
+  color: #172033;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.doc-model-tab.active {
+  background: #172033;
+  color: #fff;
+  border-color: #172033;
+}
+
+.doc-model-help {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #f5f7fb;
+  border: 1px solid #e0e5ef;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.doc-model-help code {
+  background: #fff;
+  border: 1px solid #e1e5ee;
+  border-radius: 6px;
+  padding: 3px 5px;
+  font-size: 11px;
+  color: #374151;
+}
+
+.doc-model-editor-wrap {
+  min-width: 0;
+}
+
+.doc-model-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.doc-model-toolbar span {
+  color: #667085;
+  font-size: 12px;
+}
+
+#docModeloEditor {
+  width: 100%;
+  min-height: 460px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid #cfd6e3;
+  border-radius: 12px;
+  font-family: Consolas, Monaco, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  background: #fff;
+  color: #111827;
+}
+
+.doc-model-actions {
+  justify-content: flex-start;
+  margin-top: 10px;
+}
+
+@media (max-width: 760px) {
+  .doc-model-layout {
+    grid-template-columns: 1fr;
+  }
+  .doc-model-side {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .doc-model-help {
+    grid-column: 1 / -1;
+  }
+}
+
+
+/* v19-dev: assinatura do responsável nos documentos */
+.assinatura-config-box{margin:12px 0;padding:12px;border:1px solid #d8e2ee;border-radius:12px;background:#f8fbff}
+.assinatura-preview{min-height:74px;display:flex;align-items:center;justify-content:center;margin-top:8px;padding:8px;border:1px dashed #b8c9dc;border-radius:10px;background:#fff;color:#6b7280}
+.assinatura-preview img{max-width:260px;max-height:70px;object-fit:contain;display:block}
+.assinatura-config-actions{margin-top:8px;gap:8px;flex-wrap:wrap}

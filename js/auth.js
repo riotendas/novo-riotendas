@@ -651,14 +651,14 @@ function garantirUsuariosDentroConfiguracoes() {
   const usuario = typeof getUsuarioLogado === "function" ? getUsuarioLogado() : null;
   if (!usuario || usuario.perfil !== "administrador") return;
 
-  const config = document.getElementById("configSection") || document.querySelector('[data-section-id="configSection"]');
+  const config = document.getElementById("usuariosAdminConfigSlot") || document.querySelector("#configModalUsuarios .config-popup-body");
   if (!config) return;
 
   if (document.getElementById("usuariosAdminConfigBox")) return;
 
   const box = document.createElement("div");
   box.id = "usuariosAdminConfigBox";
-  box.className = "config-card usuarios-admin-box";
+  box.className = "usuarios-admin-box";
   box.innerHTML = `
     <div class="section-header">
       <div>
@@ -684,7 +684,7 @@ function garantirUsuariosDentroConfiguracoes() {
     </div>
   `;
 
-  config.prepend(box);
+  config.appendChild(box);
 
   const novo = document.getElementById("novoUsuarioBtnConfig");
   if (novo) novo.addEventListener("click", () => abrirUsuarioModal());

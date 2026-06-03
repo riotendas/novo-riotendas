@@ -26,6 +26,11 @@ async function atualizarDisponibilidadeProdutosAutomaticamente() {
 
 window.atualizarDisponibilidadeProdutosAutomaticamente = atualizarDisponibilidadeProdutosAutomaticamente;
 
+let rtSyncProdutosDisponibilidadeTimer = null;
+
 window.addEventListener("riotendas:eventos-atualizados", () => {
-  atualizarDisponibilidadeProdutosAutomaticamente();
+  clearTimeout(rtSyncProdutosDisponibilidadeTimer);
+  rtSyncProdutosDisponibilidadeTimer = setTimeout(() => {
+    atualizarDisponibilidadeProdutosAutomaticamente();
+  }, 250);
 });

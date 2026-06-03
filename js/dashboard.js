@@ -1,15 +1,36 @@
+let rtDashboardProdutosCacheKey = "";
+let rtDashboardEventosCache = null;
+let rtDashboardEventosCacheTs = 0;
+const RT_DASHBOARD_EVENTOS_TTL_MS = 2 * 60 * 1000;
+
 function atualizarDashboard(produtos = []) {
-  const total = produtos.length;
-  const livres = produtos.filter(p => p.status === "Livre").length;
-  const problema = produtos.filter(p => p.status !== "Livre").length;
+  const listaProdutos = Array.isArray(produtos) ? produtos : [];
+  const total = listaProdutos.length;
+  let livres = 0;
+  const produtosProblema = [];
 
-  document.getElementById("dashTotalProdutos").textContent = total;
-  document.getElementById("dashLivres").textContent = livres;
-  document.getElementById("dashManutencao").textContent = problema;
-  document.getElementById("dashPagamentos").textContent = "0";
+  listaProdutos.forEach(p => {
+    if (p.status === "Livre") livres++;
+    else produtosProblema.push(p);
+  });
 
+  const problema = produtosProblema.length;
+  const cacheKey = `${total}|${livres}|${problema}|${produtosProblema.map(p => `${p.id || p.codigo}:${p.status}:${p.observacao || ""}`).join(";")}`;
+
+  const totalEl = document.getElementById("dashTotalProdutos");
+  const livresEl = document.getElementById("dashLivres");
+  const manutEl = document.getElementById("dashManutencao");
+  const pagEl = document.getElementById("dashPagamentos");
   const lista = document.getElementById("dashboardProdutosProblema");
-  const produtosProblema = produtos.filter(p => p.status !== "Livre");
+
+  if (totalEl) totalEl.textContent = total;
+  if (livresEl) livresEl.textContent = livres;
+  if (manutEl) manutEl.textContent = problema;
+  if (pagEl) pagEl.textContent = "0";
+
+  if (!lista) return;
+  if (cacheKey === rtDashboardProdutosCacheKey) return;
+  rtDashboardProdutosCacheKey = cacheKey;
 
   if (!produtosProblema.length) {
     lista.className = "compact-list empty";
@@ -18,7 +39,7 @@ function atualizarDashboard(produtos = []) {
   }
 
   lista.className = "compact-list dash-produtos-problema-lista";
-  lista.innerHTML = produtosProblema.map(p => `
+  lista.innerHTML = produtosProblema.slice(0, 80).map(p => `
     <div class="dash-produto-problema-linha">
       <strong>${p.codigo || "Sem código"}</strong>
       <span>${p.categoria || "-"} ${p.tamanho || ""}</span>
@@ -56,6 +77,10 @@ async function garantirCarrosRotasDashboard() {
 }
 
 async function garantirEventosDashboard() {
+  if (rtDashboardEventosCache && (Date.now() - rtDashboardEventosCacheTs) < RT_DASHBOARD_EVENTOS_TTL_MS) {
+    return rtDashboardEventosCache;
+  }
+
   try {
     if (typeof supabaseClient !== "undefined" && supabaseClient) {
       for (const tabela of ["eventos", "eventos_cadastro"]) {
@@ -82,6 +107,8 @@ async function garantirEventosDashboard() {
         console.log("[Dashboard] eventos via buscarEventosBanco:", lista.length);
         window.eventos = lista;
         try { if (typeof eventos !== "undefined") eventos = lista; } catch (e) {}
+        rtDashboardEventosCache = lista;
+        rtDashboardEventosCacheTs = Date.now();
         return lista;
       }
     }
@@ -92,8 +119,8 @@ async function garantirEventosDashboard() {
       if (Array.isArray(window.eventos)) return window.eventos;
     }
 
-    if (typeof eventos !== "undefined" && Array.isArray(eventos)) return eventos;
-    if (Array.isArray(window.eventos)) return window.eventos;
+    if (typeof eventos !== "undefined" && Array.isArray(eventos)) { rtDashboardEventosCache = eventos; rtDashboardEventosCacheTs = Date.now(); return eventos; }
+    if (Array.isArray(window.eventos)) { rtDashboardEventosCache = window.eventos; rtDashboardEventosCacheTs = Date.now(); return window.eventos; }
   } catch (erro) {
     console.warn("Não foi possível carregar eventos no Dashboard:", erro);
   }

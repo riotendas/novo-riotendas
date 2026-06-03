@@ -1,5 +1,99 @@
 
 const storageConfigKey = "novoRioTendasConfiguracoesV1";
+window.RT_ASSINATURA_RODRIGO_PADRAO = window.RT_ASSINATURA_RODRIGO_PADRAO || "data:image/gif;base64,R0lGODlhdQE8APfQAPb29tHR0e/v7/39/fPz8/z8/NLS0pmZmWhoaHd3d8XFxf7+/vX19XR0dKSkpKenpzo6OmxsbPHx8enp6fr6+u3t7dzc3NbW1lhYWPf398zMzLKysp+fn4aGhl9fX0NDQy4uLhcXF8TExHp6emFhYUVFRSwsLBwcHAsLCwoKCuDg4LOzs6ysrI+Pj42NjYiIiGRkZERERCQkJPj4+N/f39jY2MfHx5eXl5GRkYODg2lpaV5eXt3d3YWFhcLCwlZWVpaWltfX17y8vLCwsElJSR0dHQMDAwICAgkJCVBQUDExMTU1NTAwMDw8PHZ2dnx8fCkpKT4+Pk9PT25uboeHh5SUlJ6enhsbGy0tLTQ0NDMzM0dHR11dXYGBgZKSkhAQECUlJTIyMioqKjY2NlVVVWBgYGVlZW1tbSsrK0ZGRvDw8JOTk6Ojo6KiolJSUsPDw/n5+efn57S0tFpaWjg4OEtLSz8/PxkZGRYWFigoKDs7O3V1dcHBwc/Pz6qqqra2trm5ucrKyqurq9TU1Nvb2+Li4uvr67W1tcvLy+Pj4+zs7IKCgoqKipiYmHh4eImJiZycnM7OztPT0+Tk5O7u7uXl5b6+vouLi9ra2nFxcWNjY1xcXGdnZ6mpqebm5pubm01NTRQUFBoaGnBwcMnJyW9vb39/f83Nzbu7u2ZmZqWlpd7e3kxMTI6OjvT09H19fZCQkFRUVKioqOjo6Hl5ea2trTk5OUpKSrGxsdXV1aCgoMDAwFdXV4CAgKGhoZqamltbW3Jycq+vr7q6un5+fr29vU5OTri4uGtra8bGxlNTUxgYGEJCQkFBQSIiIiEhIf///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAHoA9AALAAAAAB1ATwAAAj/AKEJHEiwoMGDCBMOBBAggACFECNKnEixosWLGDNq3DhxQEECBTiKHEmypEQDBxAkUGCypcuXMGPKXKjQo0sAExfM3AmRQciBCho4eAAhgoSfPJMqXcp05IAJEylUsHABg8AMGjZw6ODhA4gQBSaIcDCCRAkIJk6gSKFCxAoWLVy8GAEjhowZAmjUsPHgBo4cDXTsaGqSgkAbPDb08JHBxg8ghCNLnky5oIAgQgQWsDAkAZEiRo4gSYKhhBITS5g0geHkCQ4UIaBEkUJiihMqVThYuYIli5YYW5JwmdLFy5cjKcCEETNGCpkyZs78kFJiDBoxWqKkSUKiskI1AoOM//Cyhk3INm7eCITjvb379xnjyDEz5wOdLHXs3MGTR8+WPRxwwEcAPJDRwAss9HHUDIZB84AffwASSBASFHSAFYL80ccghBRiCHtWHPIGIn0QkogiMwyUwCKM4LBGIzcAAcRfjjwCCQt8RCJJDZNQwkBlPuCAA1UDIcBFJfAlqeSSAvXhAgSFeJGEFlr84IQglkiSyBSXQLIBJjoV9ONOYVaUiSab7ECCJiSQAIMZnFDWyQideEIQAZx4IZBNTPbp51JBfDKHFqCEIsoSc4wiiAEEsVeRo94VQIAaFRgygSeJ0EAKJ6WYwoICmCRSAU8LDMHIA4kQRIECPZzy56uw7v+Eihmp+EFBKaiABw1OJGUgUJnuiWAJIELIwYIqnew0gASZ+EFDQUGuoGus1FY70iprsNJKg5AOhJSffFo0AwOuMECJTDMQAA0Dr6iSKkGEAAELkuFaa++9E0kASiy8QqNGv/gyGUcPsEAFTZgEdCKLAt0GnJEEDU3icJKqdIHKxBwVkKJMAowwxUMEDTDLIZJsjDFGAgABQwm0zGTyyRKFAUEtArkC83sULAJDAAY9hYkhN2M0yiIHvGALyDvNooIhGYwZ9ECz3HDfJ09T5qgkPWxwFUGnJBIHsFUr5MoLblgCTRy3/PHyS650wgUdH5jhdNjQTIALI5rQLVkuQNj/0KC3CvCxygLf6n0QC26golMtdagy7UsGZFKGFbn4sYUaDVcNxwqM3BDIQEgbHhMQfugCsEAseGHDIDslIsIsvsL3iSOqCKQIAhHsAlOFQkTgQhsPPcBLvWFnkAsCvSAiOk8BZHLALANVCA0hrQARx04U8EDFGb7w/F4kU/zSLzCyrEJSg7HXEkgvIyhSMwK1Ly8QLj1EgAjx8pMUhAdDGKwZNAJwQQNywRMVCAIYwOiE/ybjKEX44gY+GIgabFED/IlEDmeIACP+1gIQ5G8gk6BCDoAAtg+KxBSxGNVAHPWARRBwJpEQAht0AIvrwacTjGDUQC6xCWhkTiM2IYQH/4LhiHMJpBKb8AU0/iY/CxyCCgGwmQlH0oYykOKIBBHGGXCxEwIcAhKteMUDKjOJQVQiTMNwgvIGIgkntKElhpmALvZACl81KAE/mKIKBcCBFUhxihupBC+UKBAAhAkRtfrV/0ryEw4AYQ1rIMYfJmMIWPQgEutSwARMsQiBbMwKtFBhSzqhCR3+igceuAEga1aMFrxrlRnhBQ4GYieBeIIKetrTIk2iiEe8oA3GqIIRIzMITZhCYpIAQgfkIBDwLAAXY3xJJ5JQibmtgBOEhGUhRoBJWF5EAsIow9qg4YpFPGBM0IuJCHqhixwg4GKTUcET4ieHVkRwAGE6xiwI4f+SSeTgEg1zhRkuAUuQwaELx/AmQtwHjXRi0RN1wMRAXggNXZhChwWwCRNJggk2AMEHDXgFQyUTBC9YABqY+IUlgBamCUDmjyQpgBde0c2z8aARGmiQBZc3gwu0QmsKhchDJHaBUbwiRdIzzBsioAEkhWluJXEFGy4RiDeMABI6+SFPKrCBRagAGq2ghboIwgJhKLIkNUDGGwcihyGo0pvSE8ANOqG7oBIEJwZ4pUAowQJkvDARIRnEApDxgJctoIQj6QMjHEADRrxAA5KxmQFSkQxoRA4QBaHBJZDUEjj8IgHPWuIkGuGEH6VTXfyExjirVqEFaCAHmOCBXb0lEBf/REAA4PGIL0ZBs2YKpApt6EFSEtEJXeTCEntoRS0jw4BWuGBXVWDD4xSxBvW0BACkGMEGPGIzIdAiGIUk5zFg0QDWfdAFvwDqbKERuzKkYQCh9UQqpqAZoEGDBQk4xRqhMdaY+IAKF6gALPaQmRU2BRKp6AM0IuHCguwCFjAlSS5wQAWHQgMWqfDfLrrwCzeQARWrfZorLsGFyq63IMlw3hKhEYARBIMNmmGPIBAgi4EUgiIL2OldCxKHB1AhF7vwwgH6G5lgJKAAFFiDL8LFAEiY1SW7GMUhCsIJMvA3CBr4hRdwgIweXEB0FQhEJh5R0xMPxLbSgwYVkqAL1Q6E/w9k6C00JBAuxBYuJwKpgReGwYEcyOLOaT6ITu5cEFcYIhfLVQgiSmEDaFjhEoG2bCdMaZJNPJkgq9jFL3DhC2BYYgBVWIQk9KYeFTCCzep63IkB4IQ5QANoF4DBIoDG2QWYogFGJLRBNnqRU/SiD73oQGrzLIsNxA4aBUi0Qa7HAAaUKRFvcMAj2qzLg3i2ERlQgxPiN5A41ELBJPGIr4ShjK8epAccXtcbGrCGmkVE10wqRgJisYMkVCG0Zi7IAJpgBXJC4ww5GEZBGuEIVwGwIgMwgAFka5E3dKEWHRgCQVwhglf0QgRiQkgiXNAIU7gPDoFggwY27oQIJsQTxf8ohgtdUQwvWBgafqjCj3iNkUDQwJCc6EJCKHBSgXShCqf4W+jwZYgNwIATj4iFE8yW74MgIgJARUUmhi0QL2hCuK82YogLEokVQbaENIdGEH6xBsIOE4B/cEQHrPutkf5KF1KQJTQSwQYhmFcOBzDvQTxBCRdQYQE8IEYNCFKIT/xikibphB9q8AYd7DchBnjEDpheEDjMjU82UYSqe4bYmSDiEiSYQyuOwQA+ND0hkOiCxAyxBQeEzBMtOEDmTldogegiCa2QiByCEQQ56KIUZsABJyRGEDX4whS6UFeEDfKGMmyiC9fbgBcGYZMNPMC+BxEwMCYRhxysdSBdeIX/A44tkgVYwRRsIEMnkpWQnncCA1ckCLyRLRABVKBBnVcKIQ5BCUwc4AwlYAZAYGKnlxCGAAPgBQ1eAAzAEgBt4AuswydbVxABQAKCIBBpdmedgAwJUAbKQAwe4AZUQHnecglnoHcCwQfYNxBB4ASacAjQUwNAUGDQEAhVoAvLNxCrUAcHQAOB0AMsMRATsAaXRhI28AJchgNOhRDsQQgBIhBDIAsYh1JwcHbydy5lQgjDMAAEAAAEYIUCQQGEln8RMQO5sAKwQAJNgABLQAdlsAvzV4ACoQDYBA2nwAV1BTSu4AcwMGoYQQNC4gmuUAkXYG4DESZTMAqwgAvqIQKL/0ALL0BbAsEDjqAJNhAmNtADJdABmNUgq/AJyNBvluUIrdAviOAL8DQQJkMBIsAFATAIfsAB8ucFuPByQCQQo9AABxALYVcQFzACsHAJbZAJdpEKPWcQ41I33XYDMDAFxGcQlocRNrE2MwAAasAHXuABtsAEwHAApxALrWCIcvgdNxABAhEBwmVD0DAELTBLA6EIeqUQ/gQKsmAIw4AKNtAGNrRHveAGulAmqLAHjPCMBBEIO1ACZRB6ZqADdeABMDBsAyALnNAC9gUImSBwAyEEQ9BoqqKDjLALsyAE90YQkTAKkWCLG/EJSfAAZsB+YNgolYADTmAHQFAM0DACvf8QMgYoAk9QBpwwa7pEAUxUCckgB35ATjygAMayAX9wCBsgSgdBCjonCYugDMsQBU6wAbOwWiU0gUEVJjxwBv0mBDuzLgLhB6mQihqwBg1gBhIhCVagAx4gCzxwAasgAYPQBlCRIgPABszget5SZRI3EGNiCcHAAjwgDJoQDFVgBqCwArqzMRPwBKCwRjMwCILwN5PwCSywggSRAd6lAscgDL3VIJ/QAmR4ETXwCjjACywgiRDhhwJRAnZQQn/kA3HgA6MwCl7AAp8AC0M3ECKgCk9AAlyQAKqgCr/wCIvwCJ9gBWtABZPwRwTAA9pTAmLwA6qABjrwBxagbOMoEY7/0gfGIAwV0Au/MBAUoAPIcAAFmQM6kAm8IIsIMQMqUACL0AxrwAd98DJn0AsgIwtkkE2+YgmvcAlTyCeuMASH8EeK8AacMAIrEIbIxgY7gFkHYwNvcAj9cggXlxBqQAUv0AeX4AM61ISNkFo6VhEC9ADAYBjqWBGUQAWwAA3EowaNgAwI0AOOYAo+UCGHkAmiOCa5wAGmQAZ78AAGYAgMsAaqoAAnKRAW4AAuIFE2EQDEgAZa0APEVwkAEAThuRFYcAATsAusgG+C8AGMsB7FoAE9AB6WEAPL9S2RcAN/UAZbEAmYpFEC8Qo/EBIr8AM1Wn/GswexMKFnlQhD0AgG/3BssyALI3AMOGEwbzAKVTAtPGAJQ2BfiAAEqEBkBzMQNTAKB4AsihAuvpBQ64EQamBwEjEBCOACjyBRGTEAvtAFBKiKNnADDeAFCtACQuBQFsAJMQADsQAKG4AMxgADe+AJLwMA3SIJv9ADLsADn0ABcgAKJfAEgxemJSECEcACAbAD6mEYIkALH6BgGSAJiHAKWOgIeVBL4XIBqkALtNAFkTgQ2QYNfdAGB7AANvAEDfAQDEAputAGenALt0Bp0CAJXuAHpjcQBEAFpRCxocoHOpAKrioQPqALmAQHteAInhkybOACqvAGnDUQiYADBHkQagAIOHAKIyt/AjECmf8wBKKYEUHABZ9DEAbQAMoQC7+wMZkzCELQBR3QAsawCCxwjGEYOgTgA04QBaBABTuQAB7ADL1gsd56LalQBYFwCmcQPR3wBCanAT6wXCpABrxgEATQBbcAA7mQCnuwhQNhREPgALkQBKbQCuZFAJIwLCzQAB0AU0HQA68wDAskCJqgqgMhC7LgBrcAmJ4EQAGwC6pwBjrwXAcREp7wCh2wAW4nEMUgC1B1EJOwC5CwsQeBE5qQA3C4EbBgB4DgT4TwCglQB8GgNuuRmtAACClbn83kBUQAAxBYCVbQrdXWtRvxCz/QCKqgDJw1Ay3QAEgyCYvwCvE3EE6QCf+jCNT/ZQJO8GUKYBQNwgAeYQGPUAsEsAZEUAs/QgkTwKszYAEsoAOG6APEwAmD0C0KQEN3FQgRgAGlwLo2pgNEwG0JUQyOcAnm8xHCUIQQQasKgQmWQAw1xBGQIAWmEHc7AAp9sxNeybwcMQnB0AOaMAqyiBMFMAKCYDO/YAY1RhASgAGN0F/DQAtNUAfewwho0EzDhAOqIAcOYAqqEH9u0wobY4KpMr91MApQZQBGmk6uYAMz1gFs4AVlRhCoYAXekxCu0AivIAy8BgfDgHgx9QARcMYj4QAiIAwTAJwEAb4R4TQ5RsKV0QlfSwYwwF4CcQNItwe0oAooKBAXIAZ9DA25/5AAozACB3AITUMJDfADMRoIo9AEPqAGHlAKAwEDI6AK5lYAIoABwOAGbkACN7B5jEs1oWUKjVCiLfAHDBcyqOALqRWcA7EBmdAG4GmjyVDIGmEDFxABEUAFE7BAJTF0R4HHsDIBl5AACVAKPlAAoaUFohALl+ABDDsQHDACaxAMzkAEDTAqFuA+A9AFQ5BmxQC0a/QIpkADG8AFtvALseMRA7ALPYAAsCBKx4ZKYysQAfAJOCCLPkAGo1uDBBAAMZoQLTAFJncQEkADWoVwo2AFveADvcjMsKQAxMAKbkCfAjEBfTAMp7AAN2YQ9pUBd3AHwEAINuFsAgEKU6AuBv9wBmOAA/FHAMRQBzHwAT/wBl65NpQQVqpaCQ7QAZA1AJYACsVQJobwAB6wAm8QaQeRCD1wCaBaEJuXEU4AA6owwho9RS5gDI7QbhoBVTbBHqXwDGWQBLegBAkAFTbxBwIE0rsCEZByp4iXCI0AC68JDZWgCyPgPxfQAbeACqpw0AeBCX5AgjKRDMQQj2EdVJPwA83QlDFBCC2AAVrQCyg5Eas1CKMAA0AjAL0AC646AILgDDSTDDuQBTtwUvgWEYakFL082au0AKrQDKUQvH/CAFBZBaUAWYbAAsTAsBNQBrzQDHQADK1AUYeI29L9EnFABJugvNbyBtojin5w3EKg6ENQuAOPMNFLsqLTTTedoAfpiS8iwAimEAmFsAKOsN7nXd+RwQOcwAufzSRjdQGQcAAXGABd0AWObd8GnhSWkAY5gC+BYAYBoAI00AASfOAUPo7IWwYW0AefIAnkV+Ee3nRV3AGf8AjDMKi09+EoHlQ0IAuMgApUwEwpHuNmhghloZW+LeM4DkvFcAZnYMA5/uNThAnC4Li+C+RGbhABAQA7";
+
+function modelosDocumentosPadrao() {
+  return {
+    guia: `
+<section class="doc-header">
+  {{logo_empresa}}
+  <h1>RioTendas – Empresa do Grupo Maximum</h1>
+  <p>CNPJ: 05.831.617/0001-72<br>Tels.: (21) 3490-2333 / 99692-9292<br>www.riotendas.com.br</p>
+  <h2>Guia de serviço / Contrato</h2>
+</section>
+<table class="doc-table">
+  <tr><th>Data do evento</th><td>{{data_evento}}</td><th>Horário do evento</th><td>{{horario_evento}}</td></tr>
+  <tr><th>Montagem</th><td>{{montagem}}</td><th>Desmontagem</th><td>{{desmontagem}}</td></tr>
+  <tr><th>Cliente</th><td>{{cliente}}</td><th>CPF/CNPJ</th><td>{{cpf_cnpj}}</td></tr>
+  <tr><th>Contatos</th><td>{{telefone}}</td><th>E-mail</th><td>{{email}}</td></tr>
+  <tr><th>Endereço</th><td colspan="3">{{endereco}}</td></tr>
+  <tr><th>Descrição do serviço</th><td colspan="3">{{descricao_servico}}</td></tr>
+  <tr><th>Observação</th><td colspan="3">{{observacao_cliente}}</td></tr>
+</table>
+<h3>Pagamento</h3>
+<table class="doc-table compact">
+  <tr><th>Valor total</th><td>{{valor_total}}</td><th>Sinal pago</th><td>{{sinal}}</td><th>Receber</th><td>{{restante}}</td></tr>
+  <tr><th>Forma de pagamento</th><td colspan="5">{{forma_pagamento}}</td></tr>
+</table>
+<h3>Contrato</h3>
+<p>Pelo presente CONTRATO DE LOCAÇÃO, de um lado, na qualidade de LOCADORA a empresa RIOTENDAS, pessoa jurídica de direito privado e, na qualidade de LOCATÁRIO, o cliente acima identificado, têm entre si justo e contratado o que abaixo segue:</p>
+<p>1º - Confirmo o recebimento dos objetos locados acima descritos em perfeito estado de conservação e funcionamento e, desta forma deverão ser devolvidos à LOCADORA.</p>
+<p>2º - É vedada a instalação de material adesivo na lona ou estrutura, alteração de configuração, amarramento ou peças.</p>
+<p>3º - O LOCATÁRIO assume responsabilidade pela guarda e conservação dos objetos locados.</p>
+<p>Rio de Janeiro, {{data_hoje}}.</p>
+{{assinaturas}}
+`,
+    contrato: `
+<section class="doc-header">
+  {{logo_empresa}}
+  <h1>Contrato de prestação de serviços</h1>
+  <p><strong>Contratado:</strong> RioTendas (Condolink Eventos, Locação e Multimidia Ltda) — CNPJ: 05.831.617/0001-72 — Tel.: (21) 3490-2333</p>
+</section>
+<p><strong>Contratante:</strong> {{cliente}} — CPF/CNPJ: {{cpf_cnpj}} — Telefone: {{telefone}} — E-mail: {{email}}</p>
+<p><strong>Descrição do serviço:</strong><br>{{descricao_servico}}</p>
+<p><strong>Data do evento:</strong> {{data_evento}} &nbsp; <strong>Horário:</strong> {{horario_evento}}</p>
+<p><strong>Local:</strong> {{endereco}}</p>
+<h3>Procedimentos de montagem e desmontagem</h3>
+<p><strong>Montagem:</strong> {{montagem}}</p>
+<p><strong>Desmontagem:</strong> {{desmontagem}}</p>
+<h3>Valores e forma de pagamento</h3>
+<p>Valor total do serviço: <strong>{{valor_total}}</strong></p>
+<p>Sinal: <strong>{{sinal}}</strong></p>
+<p>Restante: <strong>{{restante}}</strong></p>
+<p>Forma de pagamento:<br>{{forma_pagamento}}</p>
+<h3>Contrato de prestação de serviços — Adicional</h3>
+<p>De um lado, ora definida como CONTRATANTE, {{cliente}}, no endereço {{endereco}}, telefone {{telefone}}.</p>
+<p>De outro lado, ora definido como CONTRATADO, Rio Tendas (Condolink Eventos, Locação e Multimídia Ltda ME), empresa registrada sob o CNPJ 05.831.617/0001-72, com sede à Rua Conselheiro Lampreia, 245 – Cosme Velho - Rio de Janeiro/RJ.</p>
+<h4>Cláusula 01 – Das responsabilidades</h4>
+<p>A CONTRATADA deverá utilizar produtos de procedência segura, realizar a entrega dos materiais limpos e sem aparência danificada, comparecer ao local com antecedência suficiente e levar as ferramentas necessárias para execução do serviço.</p>
+<p>A CONTRATANTE deverá informar dia, local e horário do evento, repassar informações sobre o local, efetuar os pagamentos acordados e providenciar autorizações necessárias em condomínios, portarias ou áreas de acesso restrito.</p>
+<h4>Cláusula 02 – Dos serviços</h4>
+<p>A CONTRATADA fica encarregada de fornecer os materiais escolhidos pela CONTRATANTE, nos modelos e medidas acordados neste documento.</p>
+<h4>Cláusula 03 – Horário de serviço</h4>
+<p>A CONTRATADA geralmente realiza a montagem no dia anterior ao evento e a desmontagem no dia posterior ao término, sem cobrança de diária adicional, respeitando rota, trânsito e condições operacionais.</p>
+<h4>Cláusula 04 – Do valor e forma de pagamento</h4>
+<p>A CONTRATANTE deverá efetuar o pagamento do sinal para garantir a data escolhida e quitar o contrato conforme combinado entre as partes.</p>
+<h4>Cláusula 05 – Do cancelamento</h4>
+<p>Cancelamentos, alterações de local ou de quantidade de materiais deverão ser comunicados por escrito e serão tratados conforme disponibilidade, prazos e condições comerciais acordadas.</p>
+<h4>Cláusula 06 – Do foro</h4>
+<p>As partes elegem o foro da Cidade do Rio de Janeiro para solução de qualquer controvérsia oriunda do presente contrato.</p>
+<p>Rio de Janeiro, {{data_hoje}}.</p>
+{{assinaturas}}
+`,
+    recibo: `
+<section class="doc-header">
+  {{logo_empresa}}
+  <h1>RioTendas – Empresa do Grupo Maximum</h1>
+  <p>Telefones: (21) 3490-2333 / 99692-9292<br>www.riotendas.com.br<br>CNPJ: 05.831.617/0001-72</p>
+  <h2>Recibo de locação de bens móveis</h2>
+</section>
+<table class="doc-table compact">
+  <tr><th>Valor</th><td>{{valor_total}}</td><th>Data</th><td>{{data_hoje}}</td></tr>
+</table>
+<p><strong>Documento emitido conforme Lei 8.846/1994</strong></p>
+<table class="doc-table">
+  <tr><th>Recebemos de</th><td>{{cliente}}</td></tr>
+  <tr><th>Endereço</th><td>{{endereco}}</td></tr>
+  <tr><th>A importância de (R$)</th><td>{{valor_total}}</td></tr>
+  <tr><th>Referente a</th><td>Locação de materiais para evento em {{data_evento}}<br>{{descricao_servico}}</td></tr>
+  <tr><th>Recebimento</th><td>{{forma_pagamento}}</td></tr>
+</table>
+<p class="small-text">A atividade de locação de bens móveis não está sujeita à tributação de ISS, conforme Lei Complementar nº 116/03, Anexo III da Lei Complementar nº 123/2006 e Instr. Normativa SMF nº 15 de 12/01/2012. As empresas deverão emitir recibo ou fatura de locação de bens móveis.</p>
+{{assinaturas}}
+`
+  };
+}
+
 
 function configPadrao() {
   return {
@@ -8,13 +102,15 @@ function configPadrao() {
       "Tenda Sanfonada": ["3x3", "4.5x3", "4x4", "6x3"],
       "Tenda Piramidal": ["5x5", "6x6", "8x8", "10x10"],
       "Ombrelone": ["2,40"],
-      "Mesas/Cadeiras": ["Sem código individual"]
+      "Materiais de Apoio": ["Sem código individual"]
     },
     cores: ["Branca", "Cristal", "Preta"],
     fotosPadrao: {},
     nomeEmpresa: "RioTendas",
     logoEmpresa: "https://riotendas.smartwebinfo.com.br/webapp/public/img/logo.png",
-    periodoRotas: "30"
+    assinaturaResponsavel: window.RT_ASSINATURA_RODRIGO_PADRAO || "",
+    periodoRotas: "30",
+    modelosDocumentos: modelosDocumentosPadrao()
   };
 }
 
@@ -174,22 +270,153 @@ function iniciarConfiguracoes() {
   renderizarCoresConfig();
   preencherSelectsFotoPadrao();
   renderizarFotosPadraoConfig();
+  iniciarModelosDocumentosConfig();
 
-  document.getElementById("exportarProdutosExcel").addEventListener("click", () => exportarProdutosExcel());
-  document.getElementById("importarProdutosExcel").addEventListener("change", importarProdutosExcel);
+  iniciarPopupsConfiguracoes();
 
-  document.getElementById("exportarEventosExcel").addEventListener("click", exportarEventosExcel);
-  document.getElementById("importarEventosExcel").addEventListener("change", importarEventosExcel);
+  const aoClicar = (id, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", fn);
+  };
+  const aoMudar = (id, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("change", fn);
+  };
 
-  document.getElementById("adicionarCarroConfig").addEventListener("click", adicionarCarroConfig);
-  document.getElementById("adicionarCategoriaConfig").addEventListener("click", adicionarCategoriaConfig);
-  document.getElementById("adicionarCorConfig").addEventListener("click", adicionarCorConfig);
+  aoClicar("exportarProdutosExcel", () => exportarProdutosExcel());
+  aoMudar("importarProdutosExcel", importarProdutosExcel);
+
+  aoClicar("adicionarMaterialApoioConfig", adicionarMaterialApoioConfig);
+  renderizarMateriaisApoioConfig();
+
+  aoClicar("exportarEventosExcel", exportarEventosExcel);
+  aoMudar("importarEventosExcel", importarEventosExcel);
+
+  aoClicar("adicionarCarroConfig", adicionarCarroConfig);
+  aoClicar("adicionarCategoriaConfig", adicionarCategoriaConfig);
+  aoClicar("adicionarCorConfig", adicionarCorConfig);
   const categoriaFotoPadrao = document.getElementById("fotoPadraoCategoria");
   if (categoriaFotoPadrao) categoriaFotoPadrao.addEventListener("change", preencherTamanhosFotoPadrao);
 
   const btnFotoPadrao = document.getElementById("adicionarFotoPadraoConfig");
   if (btnFotoPadrao) btnFotoPadrao.addEventListener("click", adicionarFotoPadraoConfig);
-  document.getElementById("salvarPreferenciasConfig").addEventListener("click", salvarPreferenciasConfig);
+  const salvarPrefs = document.getElementById("salvarPreferenciasConfig");
+  if (salvarPrefs) salvarPrefs.addEventListener("click", salvarPreferenciasConfig);
+  aoMudar("configAssinaturaResponsavelArquivo", carregarAssinaturaResponsavelConfig);
+  aoClicar("removerAssinaturaResponsavelConfig", removerAssinaturaResponsavelConfig);
+  aoClicar("restaurarAssinaturaResponsavelConfig", restaurarAssinaturaResponsavelConfig);
+}
+
+function iniciarPopupsConfiguracoes() {
+  const mapa = {
+    usuarios: "configModalUsuarios",
+    produtos: "configModalProdutos",
+    materiais: "configModalMateriais",
+    eventos: "configModalEventos",
+    carros: "configModalCarros",
+    cores: "configModalCores",
+    fotos: "configModalFotos",
+    documentos: "configModalDocumentos",
+    preferencias: "configModalPreferencias",
+    logs: "configModalLogs"
+  };
+
+  document.querySelectorAll("[data-config-modal]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const modal = document.getElementById(mapa[btn.dataset.configModal]);
+      if (!modal) return;
+      if (btn.dataset.configModal === "usuarios") {
+        if (typeof garantirUsuariosDentroConfiguracoes === "function") garantirUsuariosDentroConfiguracoes();
+        setTimeout(() => { if (typeof renderizarUsuariosSistemaConfig === "function") renderizarUsuariosSistemaConfig(); }, 50);
+      }
+      if (btn.dataset.configModal === "materiais") {
+        renderizarMateriaisApoioConfig();
+      }
+      if (btn.dataset.configModal === "documentos") {
+        iniciarModelosDocumentosConfig();
+      }
+      if (btn.dataset.configModal === "logs" && typeof montarPainelLogsSistema === "function") {
+        montarPainelLogsSistema();
+        setTimeout(() => { if (typeof renderizarLogsSistema === "function") renderizarLogsSistema(); }, 50);
+      }
+      modal.showModal();
+    });
+  });
+
+  document.querySelectorAll("[data-close-config]").forEach(btn => {
+    btn.addEventListener("click", () => document.getElementById(btn.dataset.closeConfig)?.close());
+  });
+
+}
+
+
+let modeloDocumentoAtualConfig = "guia";
+
+function rtObterModelosDocumentosConfig() {
+  const config = carregarConfiguracoes();
+  const padrao = modelosDocumentosPadrao();
+  return { ...padrao, ...(config.modelosDocumentos || {}) };
+}
+
+function iniciarModelosDocumentosConfig() {
+  const editor = document.getElementById("docModeloEditor");
+  if (!editor) return;
+
+  document.querySelectorAll(".doc-model-tab").forEach(btn => {
+    if (btn.dataset.docModelBound === "1") return;
+    btn.dataset.docModelBound = "1";
+    btn.addEventListener("click", () => {
+      modeloDocumentoAtualConfig = btn.dataset.docModel || "guia";
+      document.querySelectorAll(".doc-model-tab").forEach(b => b.classList.toggle("active", b === btn));
+      carregarModeloDocumentoNoEditor();
+    });
+  });
+
+  const salvar = document.getElementById("salvarModeloDocumento");
+  if (salvar && salvar.dataset.bound !== "1") {
+    salvar.dataset.bound = "1";
+    salvar.addEventListener("click", salvarModeloDocumentoAtual);
+  }
+
+  const restaurar = document.getElementById("restaurarModeloDocumento");
+  if (restaurar && restaurar.dataset.bound !== "1") {
+    restaurar.dataset.bound = "1";
+    restaurar.addEventListener("click", restaurarModeloDocumentoAtual);
+  }
+
+  carregarModeloDocumentoNoEditor();
+}
+
+function carregarModeloDocumentoNoEditor() {
+  const editor = document.getElementById("docModeloEditor");
+  if (!editor) return;
+  const titulos = { guia: "Guia de Serviço", contrato: "Contrato", recibo: "Recibo" };
+  const titulo = document.getElementById("docModeloTituloAtual");
+  if (titulo) titulo.textContent = titulos[modeloDocumentoAtualConfig] || "Modelo";
+  const modelos = rtObterModelosDocumentosConfig();
+  editor.value = modelos[modeloDocumentoAtualConfig] || "";
+}
+
+function salvarModeloDocumentoAtual() {
+  const editor = document.getElementById("docModeloEditor");
+  if (!editor) return;
+  const config = carregarConfiguracoes();
+  const modelos = rtObterModelosDocumentosConfig();
+  modelos[modeloDocumentoAtualConfig] = editor.value;
+  config.modelosDocumentos = modelos;
+  salvarConfiguracoes(config);
+  alert("Modelo salvo.");
+}
+
+function restaurarModeloDocumentoAtual() {
+  if (!confirm("Restaurar o modelo padrão deste documento?")) return;
+  const config = carregarConfiguracoes();
+  const modelos = rtObterModelosDocumentosConfig();
+  modelos[modeloDocumentoAtualConfig] = modelosDocumentosPadrao()[modeloDocumentoAtualConfig] || "";
+  config.modelosDocumentos = modelos;
+  salvarConfiguracoes(config);
+  carregarModeloDocumentoNoEditor();
+  alert("Modelo restaurado.");
 }
 
 function garantirXLSX() {
@@ -804,17 +1031,62 @@ function parseJSONSeguro(valor, fallback) {
   }
 }
 
+
+function atualizarPreviewAssinaturaResponsavelConfig(valor) {
+  const hidden = document.getElementById("configAssinaturaResponsavel");
+  const preview = document.getElementById("configAssinaturaResponsavelPreview");
+  if (hidden) hidden.value = valor || "";
+  if (preview) {
+    preview.innerHTML = valor
+      ? `<img src="${valor}" alt="Assinatura do responsável">`
+      : `<span>Sem assinatura configurada.</span>`;
+  }
+}
+
+function carregarAssinaturaResponsavelConfig(evento) {
+  const arquivo = evento?.target?.files?.[0];
+  if (!arquivo) return;
+  if (!arquivo.type.startsWith("image/")) {
+    alert("Selecione um arquivo de imagem para a assinatura.");
+    evento.target.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => atualizarPreviewAssinaturaResponsavelConfig(reader.result || "");
+  reader.readAsDataURL(arquivo);
+}
+
+function removerAssinaturaResponsavelConfig() {
+  atualizarPreviewAssinaturaResponsavelConfig("");
+  const arquivo = document.getElementById("configAssinaturaResponsavelArquivo");
+  if (arquivo) arquivo.value = "";
+}
+
+function restaurarAssinaturaResponsavelConfig() {
+  atualizarPreviewAssinaturaResponsavelConfig(window.RT_ASSINATURA_RODRIGO_PADRAO || "");
+  const arquivo = document.getElementById("configAssinaturaResponsavelArquivo");
+  if (arquivo) arquivo.value = "";
+}
+
 function preencherPreferenciasConfig() {
   const config = carregarConfiguracoes();
 
   document.getElementById("configNomeEmpresa").value = config.nomeEmpresa || "";
   document.getElementById("configLogoEmpresa").value = config.logoEmpresa || "";
+  atualizarPreviewAssinaturaResponsavelConfig(config.assinaturaResponsavel || window.RT_ASSINATURA_RODRIGO_PADRAO || "");
   document.getElementById("configPeriodoRotas").value = config.periodoRotas || "30";
 }
 
 function renderizarCarrosConfig() {
   const config = carregarConfiguracoes();
-  const lista = document.getElementById("listaCarrosConfig");
+  
+const materiaisApoioStyle = document.getElementById('materiais-apoio-align-style') || (()=>{const s=document.createElement('style');s.id='materiais-apoio-align-style';s.textContent=`
+#configModalMateriais .materiais-apoio-cabecalho,#configModalMateriais .material-apoio-config-item{display:grid;grid-template-columns:260px 112px 190px;align-items:center;column-gap:12px;justify-content:start;width:fit-content}
+#configModalMateriais .materiais-apoio-cabecalho span:nth-child(2),#configModalMateriais .materiais-apoio-cabecalho span:nth-child(3){text-align:center}
+#configModalMateriais .material-apoio-config-item .config-actions{display:flex;gap:8px;justify-content:center;width:190px}
+`;document.head.appendChild(s);return s;})();
+
+const lista = document.getElementById("listaCarrosConfig");
 
   lista.innerHTML = config.carros.map(carro => `
     <div class="config-list-item">
@@ -850,6 +1122,7 @@ function adicionarCarroConfig() {
 function renderizarCategoriasConfig() {
   const config = carregarConfiguracoes();
   const lista = document.getElementById("listaCategoriasConfig");
+  if (!lista) return;
 
   lista.innerHTML = Object.entries(config.categorias).map(([categoria, tamanhos]) => `
     <div class="config-list-item config-list-item-column">
@@ -891,6 +1164,200 @@ function adicionarCategoriaConfig() {
   aplicarConfiguracoesNoSistema();
   renderizarCategoriasConfig();
   preencherSelectsFotoPadrao();
+}
+
+
+
+async function atualizarMateriaisApoioNasTelas() {
+  // Atualiza imediatamente os dados globais e avisa as outras telas, sem precisar recarregar a página.
+  try {
+    if (typeof invalidarCacheProdutosGlobal === "function") invalidarCacheProdutosGlobal();
+
+    if (typeof buscarEstoqueApoioBanco === "function") {
+      window.estoqueApoio = await buscarEstoqueApoioBanco();
+      if (typeof estoqueApoio !== "undefined") estoqueApoio = window.estoqueApoio;
+    }
+
+    if (typeof carregarProdutos === "function") await carregarProdutos(true);
+    else if (typeof renderizarProdutos === "function") renderizarProdutos();
+
+    if (typeof renderizarTabelaApoioSeparada === "function") renderizarTabelaApoioSeparada();
+    if (typeof renderizarProdutos === "function") renderizarProdutos();
+
+    window.dispatchEvent(new CustomEvent("materiaisApoioAtualizados", {
+      detail: { atualizadoEm: new Date().toISOString() }
+    }));
+  } catch (erro) {
+    console.warn("Não foi possível atualizar automaticamente os materiais de apoio nas telas.", erro);
+  }
+}
+
+async function buscarMateriaisApoioConfig() {
+  if (typeof buscarEstoqueApoioBanco === "function") {
+    return await buscarEstoqueApoioBanco();
+  }
+  return JSON.parse(localStorage.getItem("novoRioTendasEstoqueApoioV1") || "[]");
+}
+
+async function salvarMaterialApoioConfig(item) {
+  if (typeof salvarItemApoioBanco === "function") {
+    return await salvarItemApoioBanco(item);
+  }
+
+  const estoque = JSON.parse(localStorage.getItem("novoRioTendasEstoqueApoioV1") || "[]");
+  const index = estoque.findIndex(i => String(i.id) === String(item.id));
+  if (index >= 0) estoque[index] = item;
+  else estoque.push(item);
+  localStorage.setItem("novoRioTendasEstoqueApoioV1", JSON.stringify(estoque));
+  return item;
+}
+
+async function excluirMaterialApoioConfig(id) {
+  const idTexto = String(id || "");
+  const materiaisAtuais = await buscarMateriaisApoioConfig();
+  const itemAtual = materiaisAtuais.find(i => String(i.id) === idTexto);
+
+  if (itemAtual?.nome && typeof marcarMaterialApoioExcluido === "function") {
+    marcarMaterialApoioExcluido(itemAtual.nome);
+  }
+
+  if (typeof supabaseClient !== "undefined" && supabaseClient && !idTexto.startsWith("local-")) {
+    const { error } = await supabaseClient.from("estoque_apoio").delete().eq("id", id);
+    if (error) {
+      console.warn("Erro ao remover material de apoio no Supabase. Removendo localmente se existir.", error);
+    }
+  }
+
+  const estoque = JSON.parse(localStorage.getItem("novoRioTendasEstoqueApoioV1") || "[]")
+    .filter(i => String(i.id) !== idTexto)
+    .filter(i => !itemAtual?.nome || String(i.nome || "").trim().toLowerCase() !== String(itemAtual.nome || "").trim().toLowerCase());
+  localStorage.setItem("novoRioTendasEstoqueApoioV1", JSON.stringify(estoque));
+
+  await atualizarMateriaisApoioNasTelas();
+}
+
+async function renderizarMateriaisApoioConfig() {
+  const lista = document.getElementById("listaMateriaisApoioConfig");
+  if (!lista) return;
+
+  const materiais = await buscarMateriaisApoioConfig();
+
+  if (!materiais.length) {
+    lista.innerHTML = `<p class="empty">Nenhum material de apoio cadastrado.</p>`;
+    return;
+  }
+
+  const grupos = materiais.reduce((acc, item) => {
+    const grupo = (typeof grupoMaterialApoio === "function") ? grupoMaterialApoio(item.nome) : "Materiais Gerais";
+    if (!acc[grupo]) acc[grupo] = [];
+    acc[grupo].push(item);
+    return acc;
+  }, {});
+  const ordemGrupos = ["Materiais Gerais", "Caixas Térmicas", "Toalhas", "Acessórios de Tendas"];
+
+  lista.innerHTML = ordemGrupos.filter(grupo => grupos[grupo]?.length).map(grupo => `
+    <div class="config-subsection-title">${grupo}</div>
+    <div class="materiais-apoio-tabela">
+      <div class="materiais-apoio-cabecalho">
+        <span>Nome</span>
+        <span>Qtd.</span>
+        <span>Ações</span>
+      </div>
+      ${grupos[grupo].map(item => `
+      <div class="config-list-item material-apoio-config-item" data-material-id="${item.id}">
+        <input type="text" class="material-apoio-nome" aria-label="Nome" value="${String(item.nome || "").replace(/"/g, "&quot;")}">
+        <input type="number" min="0" step="1" class="material-apoio-qtd" aria-label="Quantidade total" value="${Number(item.quantidade_total || 0)}">
+        <div class="config-actions">
+          <button type="button" class="btn-outline" data-salvar-material-apoio="${item.id}">Salvar</button>
+          <button type="button" class="btn-outline danger" data-remover-material-apoio="${item.id}">Excluir</button>
+        </div>
+      </div>
+      `).join("")}
+    </div>
+  `).join("");
+
+  lista.querySelectorAll("[data-salvar-material-apoio]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const linha = btn.closest("[data-material-id]");
+      const id = btn.dataset.salvarMaterialApoio;
+      const original = materiais.find(i => String(i.id) === String(id));
+      if (!linha || !original) return;
+
+      const nome = linha.querySelector(".material-apoio-nome")?.value.trim();
+      const quantidade = Math.max(Number(linha.querySelector(".material-apoio-qtd")?.value || 0), 0);
+      if (!nome) {
+        alert("Informe o nome do material de apoio.");
+        return;
+      }
+
+      if (String(original.nome || "").trim().toLowerCase() !== nome.toLowerCase() && typeof marcarMaterialApoioExcluido === "function") {
+        marcarMaterialApoioExcluido(original.nome);
+      }
+      if (typeof desmarcarMaterialApoioExcluido === "function") desmarcarMaterialApoioExcluido(nome);
+      await salvarMaterialApoioConfig({ ...original, nome, quantidade_total: quantidade });
+      await atualizarMateriaisApoioNasTelas();
+      renderizarMateriaisApoioConfig();
+    });
+  });
+
+  lista.querySelectorAll("[data-remover-material-apoio]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.removerMaterialApoio;
+      const item = materiais.find(i => String(i.id) === String(id));
+      if (!confirm(`Remover o material de apoio "${item?.nome || ""}"?`)) return;
+      await excluirMaterialApoioConfig(id);
+      renderizarMateriaisApoioConfig();
+    });
+  });
+}
+
+async function adicionarMaterialApoioConfig() {
+  const nomeInput = document.getElementById("novoMaterialApoioNome");
+  const qtdInput = document.getElementById("novoMaterialApoioQtd");
+  const tipoInput = document.getElementById("novoMaterialApoioTipo");
+  const corInput = document.getElementById("novoMaterialApoioCor");
+
+  const tipo = tipoInput?.value || "material";
+  const cor = corInput?.value.trim();
+  let nome = nomeInput?.value.trim();
+  const quantidade = Math.max(Number(qtdInput?.value || 0), 0);
+
+  if (tipo === "toalha") {
+    if (!cor) {
+      alert("Informe a cor da toalha.");
+      return;
+    }
+    nome = "Toalha " + cor;
+  }
+
+  if (!nome) {
+    alert("Informe o nome do material de apoio.");
+    return;
+  }
+
+  const materiais = await buscarMateriaisApoioConfig();
+  const duplicado = materiais.some(i => String(i.nome || "").trim().toLowerCase() === nome.toLowerCase());
+  if (duplicado) {
+    alert("Já existe um material de apoio com esse nome.");
+    return;
+  }
+
+  const item = {
+    id: (typeof supabaseClient !== "undefined" && supabaseClient) ? undefined : "local-" + gerarId(),
+    nome,
+    quantidade_total: quantidade,
+    quantidade_reservada: 0,
+    atualizado_em: new Date().toISOString(),
+    colaborador: getColaboradorLogado()
+  };
+
+  await salvarMaterialApoioConfig(item);
+  if (nomeInput) nomeInput.value = "";
+  if (corInput) corInput.value = "";
+  if (qtdInput) qtdInput.value = "0";
+
+  await atualizarMateriaisApoioNasTelas();
+  renderizarMateriaisApoioConfig();
 }
 
 function renderizarCoresConfig() {
@@ -1106,6 +1573,7 @@ function salvarPreferenciasConfig() {
 
   config.nomeEmpresa = document.getElementById("configNomeEmpresa").value.trim() || "RioTendas";
   config.logoEmpresa = document.getElementById("configLogoEmpresa").value.trim() || configPadrao().logoEmpresa;
+  config.assinaturaResponsavel = document.getElementById("configAssinaturaResponsavel")?.value || "";
   config.periodoRotas = document.getElementById("configPeriodoRotas").value || "30";
 
   salvarConfiguracoes(config);
@@ -1644,18 +2112,22 @@ function rtProdutoDisponivelParaDataImportacao(produto, dataEvento, ignorarReser
 function rtProdutosCompativeisImportacao(item) {
   const tamanhoEl = document.querySelector(`.rt-import-prod-tamanho[data-import-numero="${item.numero}"]`);
   const tamanhoInformado = String(tamanhoEl?.value || rtExtrairTamanhoTendaImportacao(item.produtos_texto) || "").trim().toLowerCase();
+  const textoOriginalEhOmbrelone = rtTextoProdutoEhOmbreloneImportacao(item.produtos_texto);
 
   return (Array.isArray(produtos) ? produtos : [])
     .filter(p => {
       const categoria = String(p.categoria || p.tipo || "").toLowerCase();
+      const nomeDescricao = String([p.nome, p.descricao, p.observacao].filter(Boolean).join(" ")).toLowerCase();
       const tamanho = String(p.tamanho || "").toLowerCase();
+      const produtoEhOmbrelone = categoria.includes("ombrelone") || nomeDescricao.includes("ombrelone");
 
-      if (!categoria.includes("tenda") && !categoria.includes("sanfonada") && !categoria.includes("piramidal")) {
-        // mantém categorias de tendas configuradas mesmo sem a palavra tenda, se tiver tamanho igual
+      if (textoOriginalEhOmbrelone) {
+        if (!produtoEhOmbrelone) return false;
+      } else if (!categoria.includes("tenda") && !categoria.includes("sanfonada") && !categoria.includes("piramidal")) {
         if (!tamanhoInformado || tamanho !== tamanhoInformado) return false;
       }
 
-      if (tamanhoInformado && tamanho !== tamanhoInformado) return false;
+      if (!textoOriginalEhOmbrelone && tamanhoInformado && tamanho !== tamanhoInformado) return false;
 
       return rtProdutoDisponivelParaDataImportacao(p, item.data_evento);
     })
@@ -1683,12 +2155,7 @@ function rtSalvarProdutosEscolhidosNaLinha(numero, produtosEscolhidos) {
     cor: p.cor || ""
   }));
 
-  const box = document.querySelector(`.rt-import-prod-selecionados[data-import-numero="${numero}"]`);
-  if (box) {
-    box.innerHTML = item.tendas_escolhidas.length
-      ? item.tendas_escolhidas.map(p => `<span>${escaparHTML([p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - "))}</span>`).join("")
-      : "Nenhum produto escolhido.";
-  }
+  rtRenderizarItensEscolhidosImportacao(numero);
 }
 
 async function rtEscolherProdutosImportacao(numero) {
@@ -1863,174 +2330,11 @@ async function rtGarantirClienteImportado(item) {
   return salvo;
 }
 
+let rtImportProdutosVisualLinhaAtual = null;
+let rtImportProdutosVisualOpcoes = [];
+
 async function rtAdicionarQualquerItemImportacao(numero) {
-  await rtGarantirProdutosParaImportacao();
-
-  if (typeof buscarEstoqueApoioBanco === "function") {
-    try {
-      estoqueApoio = await buscarEstoqueApoioBanco();
-    } catch (erro) {
-      console.warn("Não foi possível carregar mesas/cadeiras/apoio:", erro);
-    }
-  }
-
-  const lista = Array.isArray(rtEventosImportacaoExcelPreviewAtual)
-    ? rtEventosImportacaoExcelPreviewAtual
-    : (Array.isArray(eventosImportacaoExcelPreviewAtual) ? eventosImportacaoExcelPreviewAtual : []);
-
-  const item = lista.find(linha => String(linha.numero) === String(numero));
-  if (!item) return;
-
-  const termoInicial = prompt(
-    "Digite o CÓDIGO ou parte do nome/categoria do item.\n\n" +
-    "Exemplos: 12, OMBRELONE, MESA, CADEIRA.\n\n" +
-    "Deixe em branco para listar todos os materiais cadastrados.",
-    ""
-  );
-
-  if (termoInicial === null) return;
-
-  const termoBusca = rtNormalizarBuscaImportacao(termoInicial);
-
-  const opcoesProdutos = (Array.isArray(produtos) ? produtos : [])
-    .filter(p => {
-      const texto = rtTextoBuscaItemImportacao(p);
-      const codigo = rtNormalizarBuscaImportacao(p.codigo || "");
-      const termoEhCodigo = /^\\d+$/.test(termoBusca);
-
-      if (termoBusca) {
-        if (termoEhCodigo && codigo !== termoBusca) return false;
-        if (!termoEhCodigo && !texto.includes(termoBusca)) return false;
-      }
-
-      return rtProdutoDisponivelParaDataImportacao(p, item.data_evento);
-    })
-    .map(p => ({
-      tipoOrigem: "produto",
-      item: p,
-      label: rtDescricaoProdutoImportacao(p),
-      estoque: 1
-    }));
-
-  const opcoesApoio = (Array.isArray(estoqueApoio) ? estoqueApoio : [])
-    .filter(a => {
-      const texto = rtTextoBuscaItemImportacao(a);
-      const codigo = rtNormalizarBuscaImportacao(a.codigo || "");
-      const termoEhCodigo = /^\\d+$/.test(termoBusca);
-
-      if (!termoBusca) return true;
-      if (termoEhCodigo) return codigo === termoBusca;
-      return texto.includes(termoBusca);
-    })
-    .map(a => ({
-      tipoOrigem: "apoio",
-      item: a,
-      label: [a.codigo, a.nome || a.descricao || a.categoria || a.tipo || "Item de apoio"].filter(Boolean).join(" - "),
-      estoque: Number(a.quantidade || a.qtd || a.estoque || 0) || ""
-    }));
-
-  let opcoes = [...opcoesProdutos, ...opcoesApoio]
-    .sort((a, b) => {
-      if (a.tipoOrigem !== b.tipoOrigem) return a.tipoOrigem === "apoio" ? -1 : 1;
-      return String(a.label || "").localeCompare(String(b.label || ""), "pt-BR", { numeric: true });
-    })
-    .slice(0, 150);
-
-  if (!opcoes.length) {
-    const cadastrarExtra = confirm(
-      "Nenhum material cadastrado foi encontrado para essa busca.\n\n" +
-      "Deseja adicionar como item não catalogado?"
-    );
-
-    if (!cadastrarExtra) return;
-
-    const descricaoExtra = prompt("Descrição do item não catalogado:", termoInicial || "");
-    if (!descricaoExtra || !descricaoExtra.trim()) return;
-
-    const qtdExtra = prompt("Quantidade necessária para este item extra:", "1");
-    item.produtos_extras_escolhidos = item.produtos_extras_escolhidos || [];
-    item.produtos_extras_escolhidos.push({
-      descricao: descricaoExtra.trim(),
-      quantidade: Number(qtdExtra || 1) || 1,
-      origem: "Importação Excel - manual"
-    });
-
-    const box = document.querySelector(`.rt-import-prod-selecionados[data-import-numero="${numero}"]`);
-    if (box) box.innerHTML += `<span>${escaparHTML(`${qtdExtra || 1}x ${descricaoExtra.trim()}`)}</span>`;
-    return;
-  }
-
-  const textoOpcoes = opcoes.map((op, i) => {
-    const prefixo = op.tipoOrigem === "apoio" ? "[Apoio]" : "[Produto]";
-    const estoque = op.estoque !== "" ? ` | estoque: ${op.estoque}` : "";
-    return `${i + 1} - ${prefixo} ${op.label}${estoque}`;
-  }).join("\n");
-
-  const resposta = prompt(
-    "Informe os materiais e quantidades neste formato:\n\n" +
-    "número:quantidade, número:quantidade\n\n" +
-    "Exemplo: 1:20, 4:2\n\n" +
-    textoOpcoes,
-    ""
-  );
-
-  if (!resposta) return;
-
-  const escolhas = resposta
-    .split(",")
-    .map(parte => {
-      const [idxTxt, qtdTxt] = parte.split(":").map(v => String(v || "").trim());
-      const idx = Number(idxTxt) - 1;
-      const qtd = Math.max(1, Number(qtdTxt || 1) || 1);
-
-      if (!Number.isInteger(idx) || idx < 0 || idx >= opcoes.length) return null;
-
-      return { opcao: opcoes[idx], quantidade: qtd };
-    })
-    .filter(Boolean);
-
-  if (!escolhas.length) {
-    alert("Nenhum material válido escolhido.");
-    return;
-  }
-
-  const produtosEscolhidos = [];
-  const apoioEscolhido = [];
-
-  escolhas.forEach(({ opcao, quantidade }) => {
-    if (opcao.tipoOrigem === "produto") {
-      produtosEscolhidos.push(opcao.item);
-    } else {
-      apoioEscolhido.push({ item: opcao.item, quantidade });
-    }
-  });
-
-  if (produtosEscolhidos.length) {
-    const atuais = Array.isArray(item.tendas_escolhidas) ? item.tendas_escolhidas : [];
-    const novos = produtosEscolhidos.filter(p => !atuais.some(a => String(a.id) === String(p.id) || String(a.codigo) === String(p.codigo)));
-    rtSalvarProdutosEscolhidosNaLinha(numero, [...atuais, ...novos]);
-  }
-
-  if (apoioEscolhido.length) {
-    item.itens_apoio_escolhidos = item.itens_apoio_escolhidos || [];
-
-    apoioEscolhido.forEach(({ item: a, quantidade }) => {
-      item.itens_apoio_escolhidos.push({
-        id: a.id || gerarId(),
-        nome: a.nome || a.descricao || a.categoria || a.tipo || "Item de apoio",
-        quantidade,
-        observacao: "Importação Excel"
-      });
-    });
-
-    const box = document.querySelector(`.rt-import-prod-selecionados[data-import-numero="${numero}"]`);
-    if (box) {
-      apoioEscolhido.forEach(({ item: a, quantidade }) => {
-        const desc = [a.codigo, a.nome || a.descricao || a.categoria || a.tipo].filter(Boolean).join(" - ");
-        box.innerHTML += `<span>${escaparHTML(`${quantidade}x ${desc}`)}</span>`;
-      });
-    }
-  }
+  await rtAbrirModalProdutosImportacao(numero);
 }
 
 document.addEventListener("click", event => {
@@ -2101,4 +2405,320 @@ function rtTextoBuscaItemImportacao(item) {
     item.observacao,
     item.status
   ].filter(Boolean).join(" "));
+}
+
+
+// v19-dev: reconhecimento de ombrelone/ombrelones na importação
+function rtTextoProdutoEhOmbreloneImportacao(texto) {
+  return /\bombrelones?\b/i.test(String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+}
+
+
+// v19-dev: renderização e remoção de itens escolhidos na importação
+function rtRenderizarItensEscolhidosImportacao(numero) {
+  const lista = Array.isArray(rtEventosImportacaoExcelPreviewAtual)
+    ? rtEventosImportacaoExcelPreviewAtual
+    : (Array.isArray(eventosImportacaoExcelPreviewAtual) ? eventosImportacaoExcelPreviewAtual : []);
+
+  const item = lista.find(linha => String(linha.numero) === String(numero));
+  const box = document.querySelector(`.rt-import-prod-selecionados[data-import-numero="${numero}"]`);
+
+  if (!item || !box) return;
+
+  const partes = [];
+
+  (item.tendas_escolhidas || []).forEach((p, idx) => {
+    partes.push(`
+      <span>
+        ${escaparHTML([p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - "))}
+        <button type="button" class="rt-import-remover-item" data-import-numero="${numero}" data-import-tipo="tenda" data-import-index="${idx}" title="Remover">×</button>
+      </span>
+    `);
+  });
+
+  (item.itens_apoio_escolhidos || []).forEach((a, idx) => {
+    partes.push(`
+      <span>
+        ${escaparHTML(`${a.quantidade || 1}x ${a.nome || a.descricao || "Item de apoio"}`)}
+        <button type="button" class="rt-import-remover-item" data-import-numero="${numero}" data-import-tipo="apoio" data-import-index="${idx}" title="Remover">×</button>
+      </span>
+    `);
+  });
+
+  (item.produtos_extras_escolhidos || []).forEach((e, idx) => {
+    partes.push(`
+      <span>
+        ${escaparHTML(`${e.quantidade || 1}x ${e.descricao || "Item extra"}`)}
+        <button type="button" class="rt-import-remover-item" data-import-numero="${numero}" data-import-tipo="extra" data-import-index="${idx}" title="Remover">×</button>
+      </span>
+    `);
+  });
+
+  box.innerHTML = partes.length ? partes.join("") : "Nenhum produto escolhido.";
+}
+
+document.addEventListener("click", event => {
+  const btn = event.target.closest?.(".rt-import-remover-item");
+  if (!btn) return;
+
+  const numero = btn.dataset.importNumero;
+  const tipo = btn.dataset.importTipo;
+  const index = Number(btn.dataset.importIndex);
+
+  const lista = Array.isArray(rtEventosImportacaoExcelPreviewAtual)
+    ? rtEventosImportacaoExcelPreviewAtual
+    : (Array.isArray(eventosImportacaoExcelPreviewAtual) ? eventosImportacaoExcelPreviewAtual : []);
+
+  const item = lista.find(linha => String(linha.numero) === String(numero));
+  if (!item || !Number.isFinite(index)) return;
+
+  if (tipo === "tenda" && Array.isArray(item.tendas_escolhidas)) item.tendas_escolhidas.splice(index, 1);
+  if (tipo === "apoio" && Array.isArray(item.itens_apoio_escolhidos)) item.itens_apoio_escolhidos.splice(index, 1);
+  if (tipo === "extra" && Array.isArray(item.produtos_extras_escolhidos)) item.produtos_extras_escolhidos.splice(index, 1);
+
+  rtRenderizarItensEscolhidosImportacao(numero);
+});
+
+
+// v19-dev: modal visual para escolher produtos/apoio na importação
+async function rtAbrirModalProdutosImportacao(numero) {
+  await rtGarantirProdutosParaImportacao();
+
+  if (typeof buscarEstoqueApoioBanco === "function") {
+    try {
+      estoqueApoio = await buscarEstoqueApoioBanco();
+    } catch (erro) {
+      console.warn("Não foi possível carregar itens de apoio:", erro);
+    }
+  }
+
+  const lista = Array.isArray(rtEventosImportacaoExcelPreviewAtual)
+    ? rtEventosImportacaoExcelPreviewAtual
+    : (Array.isArray(eventosImportacaoExcelPreviewAtual) ? eventosImportacaoExcelPreviewAtual : []);
+
+  const linha = lista.find(item => String(item.numero) === String(numero));
+  if (!linha) return;
+
+  rtImportProdutosVisualLinhaAtual = linha;
+  rtImportProdutosVisualOpcoes = rtMontarOpcoesProdutosImportacaoVisual(linha);
+
+  const modal = document.getElementById("modalImportarProdutosVisual");
+  const busca = document.getElementById("buscaImportarProdutosVisual");
+  const extraDescricao = document.getElementById("importarProdutoExtraDescricao");
+  const extraQtd = document.getElementById("importarProdutoExtraQtd");
+
+  if (!modal || !busca) {
+    alert("Modal de seleção de produtos não encontrado.");
+    return;
+  }
+
+  busca.value = "";
+  if (extraDescricao) extraDescricao.value = "";
+  if (extraQtd) extraQtd.value = "1";
+
+  const fechar = () => modal.close();
+
+  const btnFechar = document.getElementById("fecharImportarProdutosVisual");
+  const btnCancelar = document.getElementById("cancelarImportarProdutosVisual");
+  const btnConfirmar = document.getElementById("confirmarImportarProdutosVisual");
+  const btnExtra = document.getElementById("adicionarImportarProdutoExtra");
+
+  if (btnFechar) btnFechar.onclick = fechar;
+  if (btnCancelar) btnCancelar.onclick = fechar;
+  if (btnConfirmar) btnConfirmar.onclick = rtConfirmarProdutosModalImportacao;
+  if (btnExtra) btnExtra.onclick = rtAdicionarExtraModalImportacao;
+
+  busca.oninput = () => rtRenderizarModalProdutosImportacao();
+
+  rtRenderizarModalProdutosImportacao();
+  modal.showModal();
+}
+
+function rtMontarOpcoesProdutosImportacaoVisual(linha) {
+  const produtosLista = (Array.isArray(produtos) ? produtos : [])
+    .map(p => {
+      const statusDisponivel = rtProdutoDisponivelParaDataImportacao(p, linha.data_evento);
+      const texto = typeof rtTextoBuscaItemImportacao === "function" ? rtTextoBuscaItemImportacao(p) : String([p.codigo, p.categoria, p.tipo, p.tamanho, p.cor, p.nome, p.descricao].filter(Boolean).join(" ")).toLowerCase();
+      const categoria = String(p.categoria || p.tipo || "").toLowerCase();
+      const nomeDescricao = String([p.nome, p.descricao, p.observacao].filter(Boolean).join(" ")).toLowerCase();
+      const produtoEhOmbrelone = categoria.includes("ombrelone") || nomeDescricao.includes("ombrelone");
+
+      return {
+        tipoOrigem: "produto",
+        id: p.id || "",
+        codigo: p.codigo || "",
+        descricao: [p.categoria || p.tipo || p.nome || p.descricao || "Produto", p.tamanho, p.cor].filter(Boolean).join(" - "),
+        status: statusDisponivel ? "Disponível" : "Indisponível",
+        disponivel: !!statusDisponivel,
+        quantidadePadrao: 1,
+        busca: texto + (produtoEhOmbrelone ? " ombrelone ombrelones" : ""),
+        raw: p
+      };
+    });
+
+  const apoioLista = (Array.isArray(estoqueApoio) ? estoqueApoio : [])
+    .map(a => ({
+      tipoOrigem: "apoio",
+      id: a.id || "",
+      codigo: a.codigo || "",
+      descricao: a.nome || a.descricao || a.categoria || a.tipo || "Item de apoio",
+      status: "Apoio",
+      disponivel: true,
+      quantidadePadrao: 1,
+      busca: typeof rtTextoBuscaItemImportacao === "function" ? rtTextoBuscaItemImportacao(a) : String([a.codigo, a.nome, a.descricao, a.categoria, a.tipo].filter(Boolean).join(" ")).toLowerCase(),
+      raw: a
+    }));
+
+  return [...produtosLista, ...apoioLista]
+    .sort((a, b) => {
+      if (a.tipoOrigem !== b.tipoOrigem) return a.tipoOrigem === "apoio" ? -1 : 1;
+      return String(a.codigo || a.descricao).localeCompare(String(b.codigo || b.descricao), "pt-BR", { numeric: true });
+    });
+}
+
+function rtRenderizarModalProdutosImportacao() {
+  const tbody = document.getElementById("tbodyImportarProdutosVisual");
+  const resumo = document.getElementById("resumoImportarProdutosVisual");
+  const buscaValor = document.getElementById("buscaImportarProdutosVisual")?.value || "";
+  const busca = typeof rtNormalizarBuscaImportacao === "function" ? rtNormalizarBuscaImportacao(buscaValor) : String(buscaValor).toLowerCase().trim();
+
+  if (!tbody) return;
+
+  const filtrados = rtImportProdutosVisualOpcoes
+    .filter(op => !busca || op.busca.includes(busca) || String(op.codigo || "").toLowerCase().includes(busca))
+    .slice(0, 180);
+
+  if (resumo) {
+    resumo.textContent = `${filtrados.length} item(ns) exibido(s). Produtos indisponíveis aparecem bloqueados.`;
+  }
+
+  tbody.innerHTML = filtrados.map((op) => {
+    const originalIndex = rtImportProdutosVisualOpcoes.indexOf(op);
+    const disabled = op.disponivel ? "" : "disabled";
+    const rowClass = op.disponivel ? "" : "linha-bloqueada";
+
+    return `
+      <tr class="${rowClass}">
+        <td>
+          <input type="checkbox" class="rt-modal-prod-check" data-op-index="${originalIndex}" ${disabled}>
+        </td>
+        <td>${op.tipoOrigem === "apoio" ? "Apoio" : "Produto"}</td>
+        <td>${escaparHTML(op.codigo || "-")}</td>
+        <td>${escaparHTML(op.descricao || "-")}</td>
+        <td>${escaparHTML(op.status || "-")}</td>
+        <td>
+          <input type="number" min="1" value="${op.quantidadePadrao || 1}" class="rt-modal-prod-qtd" data-op-index="${originalIndex}" ${disabled}>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function rtConfirmarProdutosModalImportacao() {
+  const linha = rtImportProdutosVisualLinhaAtual;
+  if (!linha) return;
+
+  const checks = Array.from(document.querySelectorAll(".rt-modal-prod-check:checked"));
+  if (!checks.length) {
+    alert("Selecione pelo menos um item ou adicione um item extra.");
+    return;
+  }
+
+  const produtosEscolhidos = [];
+  const apoioEscolhido = [];
+
+  checks.forEach(check => {
+    const index = Number(check.dataset.opIndex);
+    const op = rtImportProdutosVisualOpcoes[index];
+    if (!op || !op.disponivel) return;
+
+    const qtdEl = document.querySelector(`.rt-modal-prod-qtd[data-op-index="${index}"]`);
+    const quantidade = Math.max(1, Number(qtdEl?.value || 1) || 1);
+
+    if (op.tipoOrigem === "produto") {
+      produtosEscolhidos.push(op.raw);
+    } else {
+      apoioEscolhido.push({ raw: op.raw, quantidade });
+    }
+  });
+
+  if (produtosEscolhidos.length) {
+    const atuais = Array.isArray(linha.tendas_escolhidas) ? linha.tendas_escolhidas : [];
+    const novos = produtosEscolhidos.filter(p => !atuais.some(a => String(a.id) === String(p.id) || String(a.codigo) === String(p.codigo)));
+    rtSalvarProdutosEscolhidosNaLinha(linha.numero, [...atuais, ...novos]);
+  }
+
+  if (apoioEscolhido.length) {
+    linha.itens_apoio_escolhidos = linha.itens_apoio_escolhidos || [];
+
+    apoioEscolhido.forEach(({ raw, quantidade }) => {
+      linha.itens_apoio_escolhidos.push({
+        id: raw.id || gerarId(),
+        nome: raw.nome || raw.descricao || raw.categoria || raw.tipo || "Item de apoio",
+        quantidade,
+        observacao: "Importação Excel"
+      });
+    });
+
+    if (typeof rtRenderizarItensEscolhidosImportacao === "function") {
+      rtRenderizarItensEscolhidosImportacao(linha.numero);
+    }
+  }
+
+  document.getElementById("modalImportarProdutosVisual")?.close();
+}
+
+function rtAdicionarExtraModalImportacao() {
+  const linha = rtImportProdutosVisualLinhaAtual;
+  if (!linha) return;
+
+  const descEl = document.getElementById("importarProdutoExtraDescricao");
+  const qtdEl = document.getElementById("importarProdutoExtraQtd");
+
+  const descricao = String(descEl?.value || "").trim();
+  const quantidade = Math.max(1, Number(qtdEl?.value || 1) || 1);
+
+  if (!descricao) {
+    alert("Digite a descrição do item extra.");
+    return;
+  }
+
+  linha.produtos_extras_escolhidos = linha.produtos_extras_escolhidos || [];
+  linha.produtos_extras_escolhidos.push({
+    descricao,
+    quantidade,
+    origem: "Importação Excel - manual"
+  });
+
+  if (descEl) descEl.value = "";
+  if (qtdEl) qtdEl.value = "1";
+
+  if (typeof rtRenderizarItensEscolhidosImportacao === "function") {
+    rtRenderizarItensEscolhidosImportacao(linha.numero);
+  }
+}
+
+
+function configurarCamposNovoMaterialApoio() {
+  const tipoInput = document.getElementById("novoMaterialApoioTipo");
+  const nomeInput = document.getElementById("novoMaterialApoioNome");
+  const corInput = document.getElementById("novoMaterialApoioCor");
+  if (!tipoInput || !nomeInput || !corInput) return;
+
+  const aplicar = () => {
+    const ehToalha = tipoInput.value === "toalha";
+    nomeInput.style.display = ehToalha ? "none" : "";
+    corInput.style.display = ehToalha ? "" : "none";
+    corInput.required = ehToalha;
+    nomeInput.required = !ehToalha;
+  };
+
+  tipoInput.addEventListener("change", aplicar);
+  aplicar();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", configurarCamposNovoMaterialApoio);
+} else {
+  configurarCamposNovoMaterialApoio();
 }

@@ -91,7 +91,7 @@
       <div class="section-header split">
         <div>
           <h2>Produtos</h2>
-          <p>Cadastro e controle de tendas, ombrelones, mesas e cadeiras.</p>
+          <p>Cadastro e controle de tendas, ombrelones, materiais de apoio.</p>
         </div>
         <button id="novoProdutoBtn">Novo produto</button>
       </div>
@@ -168,7 +168,7 @@
 
       <div class="filters-grid">
         <label>Busca geral
-          <input id="buscaCliente" type="search" placeholder="Nome, CPF/CNPJ, telefone ou endereço">
+          <input id="buscaCliente" type="search" placeholder="Nome, e-mail, CPF/CNPJ, telefone, endereço ou observação">
         </label>
         <label>Nome
           <input id="filtroClienteNome" type="search">
@@ -195,6 +195,8 @@
               <th>Nome</th>
               <th>CPF/CNPJ</th>
               <th>Telefone</th>
+              <th>E-mail</th>
+              <th>Perfil</th>
               <th>Endereço</th>
               <th>Colaborador</th>
               <th>Ações</th>
@@ -241,7 +243,21 @@
         <span>Em aberto: <strong id="eventosEmAberto">0</strong></span>
       </div>
 
-      <div class="table-wrapper">
+      <div class="eventos-list-controls">
+        <label>Mostrar
+          <select id="eventosItensPorPagina">
+            <option value="10">10 eventos</option>
+            <option value="15">15 eventos</option>
+            <option value="25">25 eventos</option>
+            <option value="50">50 eventos</option>
+            <option value="100">100 eventos</option>
+            <option value="todos">Todos</option>
+          </select>
+        </label>
+        <small>O sistema lembra a última quantidade escolhida.</small>
+      </div>
+
+      <div class="eventos-table-scroll table-wrapper">
         <table>
           <thead>
             <tr>
@@ -324,6 +340,7 @@
               <option value="evento">Eventos</option>
               <option value="montagem">Montagens</option>
               <option value="desmontagem">Desmontagens</option>
+              <option value="montagem_desmontagem">Montagens + Desmontagens</option>
             </select>
           </label>
 
@@ -456,148 +473,225 @@
         </div>
       </div>
 
-      <div class="config-grid">
-        <div class="config-card">
-          <h3>Produtos</h3>
-          <p>Exportar ou importar todas as informações dos produtos cadastrados.</p>
+      <div class="config-listagem-links">
+        <button type="button" class="config-link-item" data-config-modal="usuarios">
+          <strong>Usuários</strong>
+          <span>Adição, edição e atributos de cada colaborador.</span>
+        </button>
+        <button type="button" class="config-link-item" data-config-modal="produtos">
+          <strong>Produtos</strong>
+          <span>Exportar e importar para Excel.</span>
+        </button>
+        <button type="button" class="config-link-item" data-config-modal="materiais">
+          <strong>Materiais de Apoio</strong>
+          <span>Adição, edição e remoção dos materiais de apoio.</span>
+        </button>
+        <button type="button" class="config-link-item" data-config-modal="eventos">
+          <strong>Eventos Backup</strong>
+          <span>Exportar e importar eventos para Excel.</span>
+        </button>
+        <button type="button" class="config-link-item" data-config-modal="carros">
+          <strong>Carros da Empresa</strong>
+          <span>Adição e edição dos carros usados nas rotas.</span>
+        </button>
+        <button type="button" class="config-link-item" data-config-modal="cores">
+          <strong>Cores dos Produtos</strong>
+          <span>Adicionar e remover cores de tendas e ombrelones.</span>
+        </button>
+        <button type="button" class="config-link-item" data-config-modal="fotos">
+          <strong>Fotos</strong>
+          <span>Adicionar fotos no catálogo por categoria e tamanho.</span>
+        </button>
+        <button type="button" class="config-link-item" data-config-modal="documentos">
+          <strong>Modelos de Documentos</strong>
+          <span>Editar textos, campos, logo e variáveis de Guia, Contrato e Recibo.</span>
+        </button>
+        <button type="button" class="config-link-item" data-config-modal="preferencias">
+          <strong>Preferências do aplicativo</strong>
+          <span>Personalização visual e ajustes operacionais.</span>
+        </button>
+        <button type="button" class="config-link-item" data-config-modal="logs">
+          <strong>Log do Sistema</strong>
+          <span>Todo histórico de quem alterou algo no sistema.</span>
+        </button>
+      </div>
 
+      <div id="configCategoriaProdutosRemovida" class="hidden">
+        <input id="novaCategoriaNome" type="text">
+        <input id="novaCategoriaTamanhos" type="text">
+        <button id="adicionarCategoriaConfig" type="button">Adicionar categoria</button>
+        <div id="listaCategoriasConfig"></div>
+      </div>
+
+      <dialog id="configModalUsuarios" class="modal large-modal config-popup">
+        <div class="modal-header">
+          <div><h2>Usuários</h2><p>Adição, edição e atributos de cada colaborador.</p></div>
+          <button type="button" class="modal-close" data-close-config="configModalUsuarios">×</button>
+        </div>
+        <div class="config-popup-body">
+          <div id="usuariosAdminConfigSlot"></div>
+        </div>
+      </dialog>
+
+      <dialog id="configModalProdutos" class="modal large-modal config-popup">
+        <div class="modal-header"><div><h2>Produtos</h2><p>Exportar ou importar todas as informações dos produtos cadastrados.</p></div><button type="button" class="modal-close" data-close-config="configModalProdutos">×</button></div>
+        <div class="config-popup-body">
           <div class="config-actions">
             <button id="exportarProdutosExcel">Exportar produtos Excel</button>
-            <label class="file-button">
-              Importar produtos Excel
-              <input id="importarProdutosExcel" type="file" accept=".xlsx,.xls,.csv">
-            </label>
+            <label class="file-button">Importar produtos Excel<input id="importarProdutosExcel" type="file" accept=".xlsx,.xls,.csv"></label>
           </div>
-
           <small>Colunas: código, categoria, tamanho, cor, status, observação, foto, usabilidade e colaborador.</small>
         </div>
+      </dialog>
 
-        <div class="config-card">
-          <h3>Eventos</h3>
-          <p>Exportar ou importar eventos por período.</p>
-
-          <div class="form-row config-date-row">
-            <label>Data inicial
-              <input id="exportEventoInicio" type="date">
-            </label>
-            <label>Data final
-              <input id="exportEventoFim" type="date">
-            </label>
+      <dialog id="configModalMateriais" class="modal large-modal config-popup">
+        <div class="modal-header"><div><h2>Materiais de Apoio</h2><p>Adicionar, editar e remover os materiais de apoio usados nos eventos e produtos.</p></div><button type="button" class="modal-close" data-close-config="configModalMateriais">×</button></div>
+        <div class="config-popup-body">
+          <div class="config-inline-form">
+            <select id="novoMaterialApoioTipo" title="Subcategoria">
+              <option value="material">Materiais Gerais</option>
+              <option value="caixa">Caixas Térmicas</option>
+              <option value="toalha">Toalhas</option>
+              <option value="acessorio-tenda">Acessórios de Tendas</option>
+            </select>
+            <input id="novoMaterialApoioNome" type="text" placeholder="Nome do material. Ex: Lateral 3m">
+            <input id="novoMaterialApoioCor" type="text" placeholder="Cor da toalha. Ex: branca, azul, verde" list="coresToalhaSugestoes" style="display:none">
+            <datalist id="coresToalhaSugestoes">
+              <option value="Branca"></option>
+              <option value="Azul"></option>
+              <option value="Verde"></option>
+              <option value="Preta"></option>
+              <option value="Vermelha"></option>
+              <option value="Amarela"></option>
+            </datalist>
+            <input id="novoMaterialApoioQtd" type="number" min="0" step="1" value="0" placeholder="Quantidade">
+            <button id="adicionarMaterialApoioConfig" type="button">Adicionar material</button>
           </div>
+          <small>Estes itens aparecem como Materiais de Apoio, com controle por quantidade e sem código individual. Caixas térmicas, toalhas e acessórios de tendas ficam agrupados em subcategorias próprias. Para toalhas, selecione “Toalhas” e informe a cor.</small>
+          <div id="listaMateriaisApoioConfig" class="config-list"></div>
+        </div>
+      </dialog>
 
+      <dialog id="configModalEventos" class="modal large-modal config-popup">
+        <div class="modal-header"><div><h2>Eventos Backup</h2><p>Exportar ou importar eventos por período.</p></div><button type="button" class="modal-close" data-close-config="configModalEventos">×</button></div>
+        <div class="config-popup-body">
+          <div class="form-row config-date-row">
+            <label>Data inicial<input id="exportEventoInicio" type="date"></label>
+            <label>Data final<input id="exportEventoFim" type="date"></label>
+          </div>
           <div class="config-actions">
             <button id="exportarEventosExcel">Exportar eventos Excel</button>
-            <label class="file-button">
-              Importar eventos Excel
-              <input id="importarEventosExcel" type="file" accept=".xlsx,.xls,.csv">
-            </label>
+            <label class="file-button">Importar eventos Excel<input id="importarEventosExcel" type="file" accept=".xlsx,.xls,.csv"></label>
           </div>
-
-          <small>Inclui cliente, datas, produtos, mesas/cadeiras, financeiro e pagamento.</small>
+          <small>Inclui cliente, datas, produtos, materiais de apoio, financeiro e pagamento.</small>
         </div>
+      </dialog>
 
-        <div class="config-card">
-          <h3>Carros da empresa</h3>
-          <p>Editar os veículos disponíveis para uso nas rotas.</p>
-
-          <div class="config-inline-form">
-            <input id="novoCarroNome" type="text" placeholder="Nome do carro">
-            <button id="adicionarCarroConfig" type="button">Adicionar carro</button>
-          </div>
-
+      <dialog id="configModalCarros" class="modal large-modal config-popup">
+        <div class="modal-header"><div><h2>Carros da Empresa</h2><p>Editar os veículos disponíveis para uso nas rotas.</p></div><button type="button" class="modal-close" data-close-config="configModalCarros">×</button></div>
+        <div class="config-popup-body">
+          <div class="config-inline-form"><input id="novoCarroNome" type="text" placeholder="Nome do carro"><button id="adicionarCarroConfig" type="button">Adicionar carro</button></div>
           <div id="listaCarrosConfig" class="config-list"></div>
         </div>
+      </dialog>
 
-        <div class="config-card">
-          <h3>Categorias de produtos</h3>
-          <p>Editar categorias e tamanhos disponíveis no cadastro de produtos.</p>
-
-          <div class="config-inline-form">
-            <input id="novaCategoriaNome" type="text" placeholder="Categoria">
-            <input id="novaCategoriaTamanhos" type="text" placeholder="Tamanhos separados por vírgula">
-            <button id="adicionarCategoriaConfig" type="button">Adicionar categoria</button>
-          </div>
-
-          <div id="listaCategoriasConfig" class="config-list"></div>
-        </div>
-
-        <div class="config-card">
-          <h3>Cores dos produtos</h3>
-          <p>Editar cores disponíveis no cadastro de produtos.</p>
-
-          <div class="config-inline-form">
-            <input id="novaCorNome" type="text" placeholder="Nova cor">
-            <button id="adicionarCorConfig" type="button">Adicionar cor</button>
-          </div>
-
+      <dialog id="configModalCores" class="modal large-modal config-popup">
+        <div class="modal-header"><div><h2>Cores dos Produtos</h2><p>Adicionar e remover cores de tendas e ombrelones.</p></div><button type="button" class="modal-close" data-close-config="configModalCores">×</button></div>
+        <div class="config-popup-body">
+          <div class="config-inline-form"><input id="novaCorNome" type="text" placeholder="Nova cor"><button id="adicionarCorConfig" type="button">Adicionar cor</button></div>
           <div id="listaCoresConfig" class="config-list"></div>
         </div>
+      </dialog>
 
-        <div class="config-card">
-          <h3>Fotos padrão por produto</h3>
-          <p>Defina ou altere uma foto padrão por categoria e tamanho usando upload.</p>
-
+      <dialog id="configModalFotos" class="modal large-modal config-popup">
+        <div class="modal-header"><div><h2>Fotos</h2><p>Adicionar fotos no catálogo por categoria e tamanho.</p></div><button type="button" class="modal-close" data-close-config="configModalFotos">×</button></div>
+        <div class="config-popup-body">
           <div class="foto-padrao-form">
-            <label>Categoria
-              <select id="fotoPadraoCategoria">
-                <option value="">Selecione uma categoria</option>
-              </select>
-            </label>
-
-            <label>Tamanho
-              <select id="fotoPadraoTamanho">
-                <option value="">Selecione um tamanho</option>
-              </select>
-            </label>
-
-            <label>Foto
-              <input id="fotoPadraoArquivo" type="file" accept="image/*">
-            </label>
+            <label>Categoria<select id="fotoPadraoCategoria"><option value="">Selecione uma categoria</option></select></label>
+            <label>Tamanho<select id="fotoPadraoTamanho"><option value="">Selecione um tamanho</option></select></label>
+            <label>Foto<input id="fotoPadraoArquivo" type="file" accept="image/*"></label>
             <input id="fotoPadraoUrl" type="hidden">
-
             <button id="adicionarFotoPadraoConfig" type="button">Salvar/alterar foto</button>
           </div>
-
           <div id="listaFotosPadraoConfig" class="config-list"></div>
         </div>
+      </dialog>
 
-        <div class="config-card">
-          <h3>Preferências do aplicativo</h3>
-          <p>Configurações visuais e operacionais.</p>
+      <dialog id="configModalDocumentos" class="modal large-modal config-popup config-popup-documentos">
+        <div class="modal-header"><div><h2>Modelos de Documentos</h2><p>Edite os textos padrão usados na Guia de Serviço, Contrato e Recibo.</p></div><button type="button" class="modal-close" data-close-config="configModalDocumentos">×</button></div>
+        <div class="config-popup-body">
+          <div class="doc-model-layout">
+            <aside class="doc-model-side">
+              <button type="button" class="doc-model-tab active" data-doc-model="guia">Guia de Serviço</button>
+              <button type="button" class="doc-model-tab" data-doc-model="contrato">Contrato</button>
+              <button type="button" class="doc-model-tab" data-doc-model="recibo">Recibo</button>
+              <div class="doc-model-help">
+                <strong>Variáveis disponíveis</strong>
+                <code>{{logo_empresa}}</code>
+                <code>{{nome_empresa}}</code>
+                <code>{{cliente}}</code>
+                <code>{{cpf_cnpj}}</code>
+                <code>{{telefone}}</code>
+                <code>{{email}}</code>
+                <code>{{endereco}}</code>
+                <code>{{data_evento}}</code>
+                <code>{{horario_evento}}</code>
+                <code>{{montagem}}</code>
+                <code>{{desmontagem}}</code>
+                <code>{{descricao_servico}}</code>
+                <code>{{observacao_cliente}}</code>
+                <code>{{valor_total}}</code>
+                <code>{{sinal}}</code>
+                <code>{{restante}}</code>
+                <code>{{forma_pagamento}}</code>
+                <code>{{data_hoje}}</code>
+                <code>{{assinaturas}}</code>
+              </div>
+            </aside>
+            <section class="doc-model-editor-wrap">
+              <div class="doc-model-toolbar">
+                <strong id="docModeloTituloAtual">Guia de Serviço</strong>
+                <span>Use HTML simples e as variáveis ao lado.</span>
+              </div>
+              <textarea id="docModeloEditor" spellcheck="false"></textarea>
+              <div class="config-actions doc-model-actions">
+                <button id="salvarModeloDocumento" type="button">Salvar modelo</button>
+                <button id="restaurarModeloDocumento" class="btn-outline" type="button">Restaurar padrão</button>
+              </div>
+              <small>As alterações ficam salvas nas configurações do sistema. Depois, os botões Guia, Contrato e Recibo usam estes modelos automaticamente.</small>
+            </section>
+          </div>
+        </div>
+      </dialog>
 
+      <dialog id="configModalPreferencias" class="modal large-modal config-popup">
+        <div class="modal-header"><div><h2>Preferências do aplicativo</h2><p>Personalização visual e ajustes operacionais.</p></div><button type="button" class="modal-close" data-close-config="configModalPreferencias">×</button></div>
+        <div class="config-popup-body">
           <div class="form-grid">
-            <label>Nome da empresa
-              <input id="configNomeEmpresa" type="text" placeholder="RioTendas">
+            <label>Nome da empresa<input id="configNomeEmpresa" type="text" placeholder="RioTendas"></label>
+            <label>Logo da empresa<input id="configLogoEmpresa" type="url" placeholder="https://..."></label>
+            <label>Assinatura do responsável
+              <input id="configAssinaturaResponsavelArquivo" type="file" accept="image/*">
+              <input id="configAssinaturaResponsavel" type="hidden">
             </label>
-            <label>Logo da empresa
-              <input id="configLogoEmpresa" type="url" placeholder="https://...">
-            </label>
-            <label>Período padrão das rotas
-              <select id="configPeriodoRotas">
-                <option value="7">Próximos 7 dias</option>
-                <option value="15">Próximos 15 dias</option>
-                <option value="30">Próximos 30 dias</option>
-              </select>
-            </label>
+            <label>Período padrão das rotas<select id="configPeriodoRotas"><option value="7">Próximos 7 dias</option><option value="15">Próximos 15 dias</option><option value="30">Próximos 30 dias</option></select></label>
           </div>
-
-          <div class="config-actions">
-            <button id="salvarPreferenciasConfig">Salvar preferências</button>
+          <div class="assinatura-config-box">
+            <strong>Prévia da assinatura nos documentos</strong>
+            <div id="configAssinaturaResponsavelPreview" class="assinatura-preview"><span>Sem assinatura configurada.</span></div>
+            <div class="config-actions assinatura-config-actions">
+              <button id="restaurarAssinaturaResponsavelConfig" type="button" class="btn-outline">Restaurar assinatura Rodrigo</button>
+              <button id="removerAssinaturaResponsavelConfig" type="button" class="btn-outline danger">Remover assinatura</button>
+            </div>
           </div>
+          <div class="config-actions"><button id="salvarPreferenciasConfig">Salvar preferências</button></div>
         </div>
+      </dialog>
 
-        <div class="config-card config-card-sugestoes">
-          <h3>Outras sugestões futuras</h3>
-          <ul>
-            <li>Backup completo do sistema em Excel.</li>
-            <li>Restaurar backup completo.</li>
-            <li>Usuários com permissões diferentes.</li>
-            <li>Configurar formas de pagamento padrão.</li>
-            <li>Configurar status personalizados.</li>
-            <li>Numeração automática de contratos/orçamentos.</li>
-          </ul>
-        </div>
-      </div>
+      <dialog id="configModalLogs" class="modal large-modal config-popup config-popup-logs">
+        <div class="modal-header"><div><h2>Log do Sistema</h2><p>Todo histórico de quem alterou algo no sistema.</p></div><button type="button" class="modal-close" data-close-config="configModalLogs">×</button></div>
+        <div id="configModalLogsConteudo" class="config-popup-body"></div>
+      </dialog>
     </section>
 </main>
 
@@ -613,7 +707,18 @@
         <label>Nome <input id="clienteNome" type="text" required></label>
         <label>CPF/CNPJ <input id="clienteDocumento" type="text"></label>
         <label>Telefone <input id="clienteTelefone" type="text"></label>
+        <label>E-mail <input id="clienteEmail" type="email"></label>
+        <label>Perfil do cliente
+          <select id="clientePerfil">
+            <option value="Normal">Normal</option>
+            <option value="Preferencial">Preferencial</option>
+            <option value="Atenção">Atenção</option>
+            <option value="Restrição">Restrição</option>
+          </select>
+        </label>
         <label>Endereço <input id="clienteEndereco" type="text"></label>
+        <label class="span-2">Observação do cliente <textarea id="clienteObservacao" rows="2" placeholder="Indicação, referência, preferência de contato..."></textarea></label>
+        <label class="span-2">Observação interna <textarea id="clienteObservacaoInterna" rows="2" placeholder="Visível apenas no sistema. Não aparece em rota."></textarea></label>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn-outline" id="cancelarCliente">Cancelar</button>
@@ -656,8 +761,14 @@
           <label>Telefone
             <input id="eventoTelefone" type="text">
           </label>
-          <label>Endereço
+          <label>E-mail
+            <input id="eventoEmail" type="email">
+          </label>
+          <label class="evento-endereco-wide">Endereço
             <input id="eventoEndereco" type="text">
+          </label>
+          <label class="evento-observacao-wide">Observação do cliente
+            <input id="eventoClienteObservacao" type="text" placeholder="Indicação, referência ou preferência">
           </label>
         </div>
         <p class="hint">Se o cliente ainda não existir, ele será cadastrado automaticamente ao salvar o evento.</p>
@@ -665,14 +776,6 @@
 
       <div class="subpanel">
         <h3>Dados do evento</h3>
-        <div class="form-row recurrence-type-row">
-          <label>Tipo de evento
-            <select id="eventoTipoEvento">
-              <option value="pontual">Pontual</option>
-              <option value="recorrente">Recorrente</option>
-            </select>
-          </label>
-        </div>
 
         <div id="eventoRecorrenciaBox" class="recurrence-box hidden">
           <div class="form-row recurrence-row">
@@ -697,22 +800,29 @@
         </div>
 
         <div class="event-lines">
-          <div class="form-row event-date-row">
+          <div class="form-row event-date-row event-date-row-4">
             <label>Data do evento
               <input id="eventoData" type="date" required>
             </label>
             <label>Início
-              <input id="eventoHoraInicio" type="time">
+              <select id="eventoHoraInicio" class="time-list-select"></select>
             </label>
             <label>Término
-              <input id="eventoHoraTermino" type="time">
+              <select id="eventoHoraTermino" class="time-list-select"></select>
+            </label>
+            <label>Tipo de evento
+              <select id="eventoTipoEvento">
+                <option value="pontual">Pontual</option>
+                <option value="recorrente">Recorrente</option>
+              </select>
             </label>
           </div>
 
-          <div class="form-row event-operation-row">
+          <div class="form-row event-operation-row event-operation-row-fast">
             <label>Montagem
-              <input id="eventoMontagem" type="datetime-local">
+              <span class="date-time-pair"><input id="eventoMontagem" type="date"><select id="eventoMontagemHora" class="time-list-select"></select></span>
             </label>
+            <button type="button" id="btnMontagemDiaAnterior" class="btn-mini-fast" title="Usar dia anterior ao evento e horário livre">Dia anterior</button>
             <label>Tipo da montagem
               <select id="eventoMontagemTipo">
                 <option value="A partir de">A partir de</option>
@@ -724,14 +834,15 @@
               </select>
             </label>
             <label class="campo-hora-final" id="eventoMontagemFimBox">Hora final
-              <input id="eventoMontagemFim" type="time">
+              <select id="eventoMontagemFim" class="time-list-select"></select>
             </label>
           </div>
 
-          <div class="form-row event-operation-row">
+          <div class="form-row event-operation-row event-operation-row-fast">
             <label>Desmontagem
-              <input id="eventoDesmontagem" type="datetime-local">
+              <span class="date-time-pair"><input id="eventoDesmontagem" type="date"><select id="eventoDesmontagemHora" class="time-list-select"></select></span>
             </label>
+            <button type="button" id="btnDesmontagemDiaPosterior" class="btn-mini-fast" title="Usar dia posterior ao evento e horário livre">Dia posterior</button>
             <label>Tipo da desmontagem
               <select id="eventoDesmontagemTipo">
                 <option value="A partir de">A partir de</option>
@@ -743,7 +854,7 @@
               </select>
             </label>
             <label class="campo-hora-final" id="eventoDesmontagemFimBox">Hora final
-              <input id="eventoDesmontagemFim" type="time">
+              <select id="eventoDesmontagemFim" class="time-list-select"></select>
             </label>
           </div>
         </div>
@@ -751,7 +862,7 @@
 
       <div class="subpanel">
         <h3>Financeiro</h3>
-        <div class="form-row finance-row">
+        <div class="form-row finance-row finance-row-inline">
           <label>Valor total
             <input id="eventoValorTotal" class="money-input" type="text" inputmode="decimal" value="R$ 0,00">
           </label>
@@ -761,15 +872,12 @@
           <label>Restante
             <input id="eventoValorRestante" class="money-input" type="text" readonly value="R$ 0,00">
           </label>
-        </div>
-
-        <div class="form-row payment-row">
-          <label>Forma de pagamento
+          <label class="finance-payment-field">Forma de pagamento
             <textarea id="eventoFormaPagamento" rows="2" placeholder="Ex: Pix, dinheiro, cartão..."></textarea>
           </label>
-          <label class="checkbox-line">
+          <label class="checkbox-line finance-paid-compact">
             <input id="eventoPagamentoQuitado" type="checkbox">
-            Pagamento quitado
+            <span>Quitado</span>
           </label>
         </div>
       </div>
@@ -786,7 +894,7 @@
       </div>
 
       <div class="subpanel">
-        <h3>Mesas e cadeiras</h3>
+        <h3>Materiais de Apoio</h3>
         <div id="eventoApoioLista" class="apoio-evento-lista"></div>
       </div>
 
@@ -800,9 +908,17 @@
         <div id="eventoExtrasSelecionados" class="selected-list extras-list"></div>
       </div>
 
-      <div class="modal-actions">
-        <button type="button" class="btn-outline" id="cancelarEvento">Cancelar</button>
-        <button type="submit">Salvar evento</button>
+      <div class="modal-actions evento-modal-actions evento-rodape-documentos-final" style="display:flex!important;justify-content:space-between!important;align-items:center!important;width:100%!important;max-width:100%!important;margin-top:14px!important;gap:12px!important;box-sizing:border-box!important;">
+        <div class="evento-doc-actions" style="display:flex!important;justify-content:flex-start!important;align-items:center!important;gap:6px!important;flex:0 0 auto!important;margin-right:auto!important;width:auto!important;">
+          <button type="button" class="btn-outline btn-doc-evento" id="gerarGuiaServicoEvento" title="Gerar guia de serviço" style="width:auto!important;min-width:74px!important;max-width:98px!important;padding:5px 8px!important;font-size:11px!important;min-height:30px!important;height:30px!important;line-height:1!important;white-space:nowrap!important;">📄 Guia</button>
+          <button type="button" class="btn-outline btn-doc-evento" id="gerarContratoEvento" title="Gerar contrato" style="width:auto!important;min-width:86px!important;max-width:108px!important;padding:5px 8px!important;font-size:11px!important;min-height:30px!important;height:30px!important;line-height:1!important;white-space:nowrap!important;">📑 Contrato</button>
+          <button type="button" class="btn-outline btn-doc-evento" id="gerarReciboEvento" title="Gerar recibo" style="width:auto!important;min-width:78px!important;max-width:98px!important;padding:5px 8px!important;font-size:11px!important;min-height:30px!important;height:30px!important;line-height:1!important;white-space:nowrap!important;">🧾 Recibo</button>
+        </div>
+        <div class="evento-rodape-spacer" style="flex:1 1 auto!important;min-width:20px!important;"></div>
+        <div class="evento-save-actions" style="display:flex!important;justify-content:flex-end!important;align-items:center!important;gap:8px!important;flex:0 0 auto!important;margin-left:auto!important;width:auto!important;">
+          <button type="button" class="btn-outline" id="cancelarEvento">Cancelar</button>
+          <button type="submit">Salvar evento</button>
+        </div>
       </div>
     </form>
   </dialog>
@@ -836,7 +952,7 @@
     </div>
 
     <div class="subpanel">
-      <h3>Mesas e cadeiras</h3>
+      <h3>Materiais de Apoio</h3>
       <div id="eventoApoioRapidoLista" class="apoio-evento-lista"></div>
     </div>
 
@@ -1010,6 +1126,52 @@
     <div class="modal-actions">
       <button type="button" class="btn-outline" id="cancelarPreviewImportarEventos">Fechar</button>
       <button type="button" class="btn-primary" id="confirmarPreviewImportarEventos">Confirmar importação</button>
+    </div>
+  </dialog>
+
+
+  <dialog id="modalImportarProdutosVisual" class="modal large-modal import-produtos-modal">
+    <div class="modal-header">
+      <h2>Selecionar produtos da importação</h2>
+      <button type="button" class="icon-btn" id="fecharImportarProdutosVisual">×</button>
+    </div>
+
+    <div class="import-produtos-modal-top">
+      <label>Buscar produto, apoio, código, tamanho ou ombrelone
+        <input id="buscaImportarProdutosVisual" type="search" placeholder="Ex: 3x3, ombrelone, cadeira, mesa, código...">
+      </label>
+      <small id="resumoImportarProdutosVisual">Selecione os itens e informe a quantidade.</small>
+    </div>
+
+    <div class="table-wrapper import-produtos-modal-lista">
+      <table>
+        <thead>
+          <tr>
+            <th>Selecionar</th>
+            <th>Tipo</th>
+            <th>Código</th>
+            <th>Descrição</th>
+            <th>Status</th>
+            <th>Qtd.</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyImportarProdutosVisual"></tbody>
+      </table>
+    </div>
+
+    <div class="import-produtos-extra">
+      <label>Item não catalogado
+        <input id="importarProdutoExtraDescricao" type="text" placeholder="Ex: 1 balcão, extensão, lona extra...">
+      </label>
+      <label>Qtd.
+        <input id="importarProdutoExtraQtd" type="number" min="1" value="1">
+      </label>
+      <button type="button" class="btn-outline" id="adicionarImportarProdutoExtra">Adicionar extra</button>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-outline" id="cancelarImportarProdutosVisual">Cancelar</button>
+      <button type="button" class="btn-primary" id="confirmarImportarProdutosVisual">Adicionar selecionados</button>
     </div>
   </dialog>
 

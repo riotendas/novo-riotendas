@@ -5,6 +5,48 @@ const produtoDetalheCache = new Map();
 
 const storageProdutosKey = "novoRioTendasProdutosV1";
 const storageApoioKey = "novoRioTendasEstoqueApoioV1";
+const storageApoioExcluidosKey = "novoRioTendasEstoqueApoioExcluidosV1";
+
+function chaveMaterialApoio(nome) {
+  return String(nome || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function nomesMateriaisApoioExcluidos() {
+  try {
+    return JSON.parse(localStorage.getItem(storageApoioExcluidosKey) || "[]");
+  } catch (erro) {
+    return [];
+  }
+}
+
+function materialApoioEstaExcluido(nome) {
+  return nomesMateriaisApoioExcluidos().includes(chaveMaterialApoio(nome));
+}
+
+function marcarMaterialApoioExcluido(nome) {
+  const chave = chaveMaterialApoio(nome);
+  if (!chave) return;
+  const excluidos = nomesMateriaisApoioExcluidos();
+  if (!excluidos.includes(chave)) {
+    excluidos.push(chave);
+    localStorage.setItem(storageApoioExcluidosKey, JSON.stringify(excluidos));
+  }
+}
+
+function desmarcarMaterialApoioExcluido(nome) {
+  const chave = chaveMaterialApoio(nome);
+  if (!chave) return;
+  const excluidos = nomesMateriaisApoioExcluidos().filter(i => i !== chave);
+  localStorage.setItem(storageApoioExcluidosKey, JSON.stringify(excluidos));
+}
+
+function filtrarMateriaisApoioVisiveis(lista) {
+  return (lista || []).filter(item => !materialApoioEstaExcluido(item.nome));
+}
 
 
 function categoriasProdutosAtivas() {
@@ -22,7 +64,7 @@ async function buscarProdutosBanco() {
 
   const { data, error } = await supabaseClient
     .from("produtos")
-    .select("id,codigo,tipo,categoria,tamanho,status,cor,observacao,foto,grau_usabilidade,colaborador,atualizado_em,criado_em")
+    .select("id,codigo,tipo,categoria,tamanho,status,cor,observacao,foto,grau_usabilidade,colaborador,historico,locacoes,atualizado_em,criado_em")
     .order("codigo", { ascending: true });
 
   if (error) {
@@ -153,15 +195,27 @@ async function excluirProdutoBanco(id) {
 
 function buscarEstoqueApoioLocal() {
   let estoque = JSON.parse(localStorage.getItem(storageApoioKey) || "[]");
-  if (!estoque.length) {
-    estoque = itensApoioPadrao.map(nome => ({
-      id: "local-" + gerarId(),
-      nome,
-      quantidade_total: 0,
-      quantidade_reservada: 0,
-      atualizado_em: new Date().toISOString(),
-      colaborador: getColaboradorLogado()
-    }));
+  const nomesExistentes = new Set(estoque.map(i => chaveMaterialApoio(i.nome)));
+  let alterou = false;
+
+  itensApoioPadrao.forEach(nome => {
+    if (materialApoioEstaExcluido(nome)) return;
+    if (!nomesExistentes.has(chaveMaterialApoio(nome))) {
+      estoque.push({
+        id: "local-" + gerarId(),
+        nome,
+        quantidade_total: 0,
+        quantidade_reservada: 0,
+        atualizado_em: new Date().toISOString(),
+        colaborador: getColaboradorLogado()
+      });
+      alterou = true;
+    }
+  });
+
+  estoque = filtrarMateriaisApoioVisiveis(estoque);
+
+  if (alterou || !JSON.parse(localStorage.getItem(storageApoioKey) || "[]").length) {
     localStorage.setItem(storageApoioKey, JSON.stringify(estoque));
   }
   return estoque;
@@ -180,9 +234,34 @@ async function buscarEstoqueApoioBanco() {
     return buscarEstoqueApoioLocal();
   }
 
-  if (data && data.length) return data;
+  if (data && data.length) {
+    const dadosVisiveis = filtrarMateriaisApoioVisiveis(data);
+    const nomesExistentes = new Set(data.map(i => chaveMaterialApoio(i.nome)));
+    const faltantes = itensApoioPadrao
+      .filter(nome => !materialApoioEstaExcluido(nome))
+      .filter(nome => !nomesExistentes.has(chaveMaterialApoio(nome)))
+      .map(nome => ({
+        nome,
+        quantidade_total: 0,
+        quantidade_reservada: 0,
+        atualizado_em: new Date().toISOString(),
+        colaborador: getColaboradorLogado()
+      }));
 
-  const iniciais = itensApoioPadrao.map(nome => ({
+    if (faltantes.length) {
+      const { data: criadosFaltantes, error: erroFaltantes } = await supabaseClient
+        .from("estoque_apoio")
+        .insert(faltantes)
+        .select();
+      if (!erroFaltantes && criadosFaltantes) return [...dadosVisiveis, ...criadosFaltantes].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || "")));
+    }
+
+    return dadosVisiveis;
+  }
+
+  const iniciais = itensApoioPadrao
+    .filter(nome => !materialApoioEstaExcluido(nome))
+    .map(nome => ({
     nome,
     quantidade_total: 0,
     quantidade_reservada: 0,
@@ -204,6 +283,7 @@ async function buscarEstoqueApoioBanco() {
 }
 
 async function salvarItemApoioBanco(item) {
+  desmarcarMaterialApoioExcluido(item.nome);
   item.atualizado_em = new Date().toISOString();
   item.colaborador = getColaboradorLogado();
 
@@ -249,17 +329,32 @@ function produtosCacheGlobalValido() {
   return Array.isArray(produtos) && produtos.length > 0 && (Date.now() - produtosCacheGlobalTimestamp) < PRODUTOS_CACHE_GLOBAL_TTL_MS;
 }
 
+
+// v19-dev: atualiza dashboard sem forçar renderização pesada repetida
+let rtDashboardProdutosTimer = null;
+function rtAtualizarDashboardProdutosLeve() {
+  if (typeof atualizarDashboard !== "function") return;
+  clearTimeout(rtDashboardProdutosTimer);
+  rtDashboardProdutosTimer = setTimeout(() => atualizarDashboard(produtos), 60);
+}
+
+
+function rtProdutosSectionAtiva() {
+  const section = document.getElementById("produtosSection");
+  return !!section && section.classList.contains("active-section");
+}
+
 async function carregarProdutos(forceReload = false) {
   if (!forceReload && produtosCacheGlobalValido()) {
-    renderizarProdutos();
-    atualizarDashboard(produtos);
+    if (rtProdutosSectionAtiva()) renderizarProdutos();
+    rtAtualizarDashboardProdutosLeve();
     return produtos;
   }
 
   if (!forceReload && produtosCacheGlobalEmCarregamento) {
     await produtosCacheGlobalEmCarregamento;
-    renderizarProdutos();
-    atualizarDashboard(produtos);
+    if (rtProdutosSectionAtiva()) renderizarProdutos();
+    rtAtualizarDashboardProdutosLeve();
     return produtos;
   }
 
@@ -276,8 +371,8 @@ async function carregarProdutos(forceReload = false) {
     produtosCacheGlobalEmCarregamento = null;
   }
 
-  renderizarProdutos();
-  atualizarDashboard(produtos);
+  if (rtProdutosSectionAtiva()) renderizarProdutos();
+  rtAtualizarDashboardProdutosLeve();
   return produtos;
 }
 
@@ -436,15 +531,36 @@ function fecharProdutoModal() {
   document.getElementById("produtoDialog").close();
 }
 
+
+function codigoProdutoJaExiste(codigo, idAtual = "") {
+  const codigoNormalizado = String(codigo || "").trim().toLowerCase();
+
+  if (!codigoNormalizado) return false;
+
+  return (Array.isArray(produtos) ? produtos : []).some(p => {
+    const mesmoCodigo = String(p.codigo || "").trim().toLowerCase() === codigoNormalizado;
+    const outroProduto = String(p.id || "") !== String(idAtual || "");
+    return mesmoCodigo && outroProduto;
+  });
+}
+
 async function salvarProdutoForm(event) {
   event.preventDefault();
   const id = document.getElementById("produtoId").value || gerarId();
   const existente = produtos.find(p => p.id === id);
   const colaborador = getColaboradorLogado();
 
+  const codigoInformado = document.getElementById("produtoCodigo").value.trim();
+
+  if (codigoProdutoJaExiste(codigoInformado, id)) {
+    alert(`Já existe um produto cadastrado com o código ${codigoInformado}. Use outro código.`);
+    document.getElementById("produtoCodigo").focus();
+    return;
+  }
+
   const produto = {
     id,
-    codigo: document.getElementById("produtoCodigo").value.trim(),
+    codigo: codigoInformado,
     categoria: document.getElementById("produtoCategoria").value,
     tipo: document.getElementById("produtoCategoria").value,
     tamanho: document.getElementById("produtoTamanho").value,
@@ -489,7 +605,7 @@ async function salvarProdutoForm(event) {
 
   fecharProdutoModal();
   renderizarProdutos();
-  atualizarDashboard(produtos);
+  rtAtualizarDashboardProdutosLeve();
 }
 
 
@@ -872,7 +988,7 @@ function statusApoioPeriodo(itemApoio) {
 }
 
 function renderizarLinhasApoio() {
-  // Mesas e cadeiras agora são renderizadas em tabela separada,
+  // Materiais de Apoio agora são renderizadas em tabela separada,
   // mantendo os mesmos filtros do topo.
   setTimeout(renderizarTabelaApoioSeparada, 0);
   return "";
@@ -907,8 +1023,8 @@ function renderizarTabelaApoioSeparada() {
   const categoriaFiltro = document.getElementById("filtroCategoria")?.value || "";
   const somenteDisponiveis = document.getElementById("mostrarSomenteDisponiveis")?.checked || false;
 
-  // Mantém o filtro do topo: só mostra em Todas ou Mesas/Cadeiras
-  if (categoriaFiltro && categoriaFiltro !== "Mesas/Cadeiras") {
+  // Mantém o filtro do topo: só mostra em Todas ou Materiais de Apoio
+  if (categoriaFiltro && categoriaFiltro !== "Materiais de Apoio") {
     area.innerHTML = "";
     area.style.display = "none";
     return;
@@ -925,12 +1041,21 @@ function renderizarTabelaApoioSeparada() {
     return disponibilidadeApoioNoPeriodo(item).disponivel > 0;
   });
 
+  const gruposApoio = itensFiltrados.reduce((acc, item) => {
+    const grupo = (typeof grupoMaterialApoio === "function") ? grupoMaterialApoio(item.nome) : "Materiais Gerais";
+    if (!acc[grupo]) acc[grupo] = [];
+    acc[grupo].push(item);
+    return acc;
+  }, {});
+
+  const ordemGruposApoio = ["Materiais Gerais", "Caixas Térmicas", "Toalhas", "Acessórios de Tendas"];
+
   area.style.display = "";
 
   if (!itensFiltrados.length) {
     area.innerHTML = `
       <div class="apoio-separado-header">
-        <h3>Mesas e cadeiras</h3>
+        <h3>Materiais de Apoio</h3>
         <span>Controle por quantidade, sem código individual</span>
       </div>
       <p class="empty">Nenhum item de apoio disponível no período selecionado.</p>
@@ -940,7 +1065,7 @@ function renderizarTabelaApoioSeparada() {
 
   area.innerHTML = `
     <div class="apoio-separado-header">
-      <h3>Mesas e cadeiras</h3>
+      <h3>Materiais de Apoio</h3>
       <span>Controle por quantidade, sem código individual</span>
     </div>
 
@@ -956,7 +1081,9 @@ function renderizarTabelaApoioSeparada() {
           </tr>
         </thead>
         <tbody>
-          ${itensFiltrados.map(item => {
+          ${ordemGruposApoio.filter(grupo => gruposApoio[grupo]?.length).map(grupo => `
+            <tr class="apoio-grupo-row"><td colspan="5"><strong>${grupo}</strong></td></tr>
+            ${gruposApoio[grupo].map(item => {
             const total = Number(item.quantidade_total || 0);
             const dispPeriodo = disponibilidadeApoioNoPeriodo(item);
             const reservado = Number(dispPeriodo.reservado || 0);
@@ -966,15 +1093,11 @@ function renderizarTabelaApoioSeparada() {
             return `
               <tr class="apoio-row-separada">
                 <td><span class="apoio-icon">Qtd</span></td>
-                <td>Mesas/Cadeiras</td>
+                <td>${grupo}</td>
                 <td>${item.nome || "-"}</td>
                 <td>
-                  <div class="qtd-apoio-box">
-                    <label>Total
-                      <input type="number" min="0" step="1" class="qtd-apoio-input" data-action="qtd-apoio" data-id="${item.id}" value="${total}">
-                    </label>
-                    <span>Reservado: <strong>${reservado}</strong></span>
-                    <span>Disponível: <strong>${disponivel}</strong></span>
+                  <div class="qtd-apoio-box qtd-apoio-somente-leitura">
+                    <span>Total: <strong>${total}</strong> | Reservado: <strong>${reservado}</strong> | Disponível: <strong>${disponivel}</strong></span>
                   </div>
                 </td>
                 <td class="availability-cell">
@@ -982,12 +1105,12 @@ function renderizarTabelaApoioSeparada() {
                     ${statusPeriodo.texto}
                   </span>
                   <small class="disp-detail">${dispPeriodo.detalhe}</small>
+                  <button type="button" class="btn-outline mini" data-action="detalhe-apoio" data-id="${item.id}">Detalhes</button>
                 </td>
-
               </tr>
             `;
           }).join("")}
-        </tbody>
+          `).join("")}        </tbody>
       </table>
     </div>
   `;
@@ -1075,13 +1198,13 @@ function renderizarProdutos() {
   if (!filtrados.length) {
     tbody.innerHTML = `<tr><td colspan="9" class="empty">Nenhum produto com código cadastrado.</td></tr>${renderizarLinhasApoio()}`;
     configurarEventosTabelaProdutos(tbody);
-    atualizarDashboard(produtos);
+    rtAtualizarDashboardProdutosLeve();
     return;
   }
 
   const ordenados = [...filtrados].sort((a,b) => {
-    const aMesa = (a.categoria || a.tipo) === "Mesas/Cadeiras";
-    const bMesa = (b.categoria || b.tipo) === "Mesas/Cadeiras";
+    const aMesa = (a.categoria || a.tipo) === "Materiais de Apoio";
+    const bMesa = (b.categoria || b.tipo) === "Materiais de Apoio";
     if (aMesa !== bMesa) return aMesa ? 1 : -1;
     return String(a.codigo || "").localeCompare(String(b.codigo || ""), "pt-BR", { numeric: true });
   });
@@ -1138,41 +1261,13 @@ function renderizarProdutos() {
     input.addEventListener("blur", lidarAcaoProduto);
   });
 
-  tbody.querySelectorAll("input[data-action='qtd-apoio']").forEach(input => {
-    input.addEventListener("click", event => event.stopPropagation());
-    input.addEventListener("mousedown", event => event.stopPropagation());
-    input.addEventListener("keydown", event => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        event.currentTarget.blur();
-      }
-    });
-    input.addEventListener("blur", lidarAcaoProduto);
-  });
 
-  atualizarDashboard(produtos);
+  rtAtualizarDashboardProdutosLeve();
 }
 
 async function lidarAcaoProduto(event) {
   const action = event.currentTarget.dataset.action;
   const id = event.currentTarget.dataset.id;
-
-  if (action === "qtd-apoio") {
-    const item = estoqueApoio.find(i => String(i.id) === String(id));
-    if (!item) return;
-
-    const novaQuantidade = Math.max(Number(event.currentTarget.value || 0), 0);
-    if (Number(item.quantidade_total || 0) === novaQuantidade) return;
-
-    item.quantidade_total = novaQuantidade;
-    const salvo = await salvarItemApoioBanco(item);
-    if (salvo) {
-      const index = estoqueApoio.findIndex(i => String(i.id) === String(id));
-      if (index >= 0) estoqueApoio[index] = salvo;
-    }
-    renderizarProdutos();
-    return;
-  }
 
   if (action === "detalhe-apoio") {
     abrirDetalheApoio(id);
@@ -1182,9 +1277,9 @@ async function lidarAcaoProduto(event) {
   let produto = produtos.find(p => p.id === id);
   if (!produto) return;
 
-  if (["status", "usabilidade", "obs"].includes(action)) {
-    produto = await carregarProdutoDetalheParaUso(id) || produto;
-  }
+  // Status e observação devem responder rápido na tela de Produtos.
+  // A lista inicial já traz historico/locacoes, evitando uma consulta extra ao Supabase
+  // a cada alteração. Essa consulta extra era o que deixava o primeiro ajuste lento.
 
   if (action === "editar") abrirEditarProduto(id);
   if (action === "detalhe") abrirDetalheProduto(id);
@@ -1208,7 +1303,7 @@ async function lidarAcaoProduto(event) {
 
     produtos = produtos.filter(p => p.id !== id);
     renderizarProdutos();
-    atualizarDashboard(produtos);
+    rtAtualizarDashboardProdutosLeve();
   }
 
   if (action === "status") {
@@ -1250,7 +1345,7 @@ async function lidarAcaoProduto(event) {
       }
     }
     renderizarProdutos();
-    atualizarDashboard(produtos);
+    rtAtualizarDashboardProdutosLeve();
   }
 
   if (action === "usabilidade") {
@@ -1282,7 +1377,7 @@ async function lidarAcaoProduto(event) {
       if (index >= 0) produtos[index] = salvo;
     }
     renderizarProdutos();
-    atualizarDashboard(produtos);
+    rtAtualizarDashboardProdutosLeve();
   }
 
   renderizarTabelaApoioSeparada();
@@ -1304,7 +1399,7 @@ function abrirDetalheApoio(id) {
       <div>
         <div class="info-grid">
           <div class="info-box"><span>Item</span><strong>${item.nome || "-"}</strong></div>
-          <div class="info-box"><span>Categoria</span><strong>Mesas/Cadeiras</strong></div>
+          <div class="info-box"><span>Categoria</span><strong>Materiais de Apoio</strong></div>
           <div class="info-box"><span>Código</span><strong>Sem código individual</strong></div>
           <div class="info-box"><span>Total disponível</span><strong>${total}</strong></div>
           <div class="info-box"><span>Reservado</span><strong>${reservado}</strong></div>
@@ -1578,7 +1673,7 @@ async function excluirHistoricoProduto(produtoId, indices) {
 
     renderizarHistoricoProdutoDetalhe(produtoId, document.getElementById("historicoProdutoBusca")?.value || "");
     renderizarProdutos();
-    atualizarDashboard(produtos);
+    rtAtualizarDashboardProdutosLeve();
   }
 }
 
@@ -1725,3 +1820,14 @@ function aplicarScrollListaCombinadaCalendario() {
 }
 
 document.addEventListener('DOMContentLoaded', aplicarScrollListaCombinadaCalendario);
+
+// Recebe alterações feitas em Configurações > Materiais de Apoio e atualiza a tela sem F5.
+window.addEventListener("materiaisApoioAtualizados", async () => {
+  try {
+    if (typeof invalidarCacheProdutosGlobal === "function") invalidarCacheProdutosGlobal();
+    if (typeof carregarProdutos === "function") await carregarProdutos(true);
+    else if (typeof renderizarProdutos === "function") renderizarProdutos();
+  } catch (erro) {
+    console.warn("Falha ao atualizar materiais de apoio automaticamente.", erro);
+  }
+});

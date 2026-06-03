@@ -153,7 +153,7 @@ function calendarioTodosItens() {
     .filter(item => {
       const evento = item.evento;
       const clienteOk = !cliente || String(evento.nome || "").toLowerCase().includes(cliente);
-      const tipoOk = !tipo || item.tipo === tipo;
+      const tipoOk = !tipo || item.tipo === tipo || (tipo === "montagem_desmontagem" && (item.tipo === "montagem" || item.tipo === "desmontagem"));
       const pagamentoOk = !pagamento || (pagamento === "quitado" ? evento.pagamento_quitado : !evento.pagamento_quitado);
       return clienteOk && tipoOk && pagamentoOk;
     });
@@ -260,7 +260,7 @@ function renderizarCalendarioSemana() {
     const selecionado = calendarioDataSelecionada === iso;
     const itensDia = itens
       .filter(item => item.data === iso)
-      .sort((a, b) => String(a.hora || "99:99").localeCompare(String(b.hora || "99:99")));
+      .sort(rtCalCompararPainelDia);
 
     itensSemana.push(...itensDia);
 
@@ -301,6 +301,92 @@ function renderizarCalendarioSemana() {
   renderizarPainelDiaCalendario();
 }
 
+
+// v19-dev: carro e ordem das rotas no painel do dia do calendário
+function rtCalCarrosRotas() {
+  try {
+    if (typeof rotasCarros !== "undefined" && rotasCarros && Object.keys(rotasCarros).length) return rotasCarros;
+  } catch {}
+
+  try {
+    return JSON.parse(localStorage.getItem("novoRioTendasRotasCarrosV1") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function rtCalOrdemRotas() {
+  try {
+    if (typeof rotasOrdemManual !== "undefined" && rotasOrdemManual && Object.keys(rotasOrdemManual).length) return rotasOrdemManual;
+  } catch {}
+
+  try {
+    return JSON.parse(localStorage.getItem("rotas_ordem_manual") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function rtCalRotaId(item) {
+  if (!item || !item.eventoId) return "";
+  if (item.tipo === "montagem") return `${item.eventoId}-montagem`;
+  if (item.tipo === "desmontagem") return `${item.eventoId}-desmontagem`;
+  return "";
+}
+
+function rtCalCarroItem(item) {
+  const id = rtCalRotaId(item);
+  if (!id) return "";
+
+  const carros = rtCalCarrosRotas();
+
+  // formatos possíveis: id da rota, id do evento + tipo, ou id do evento
+  return carros[id]
+    || carros[String(item.eventoId || "")]
+    || carros[`${item.eventoId}_${item.tipo}`]
+    || carros[`${item.eventoId}-${item.tipo}`]
+    || "";
+}
+
+function rtCalOrdemItem(item) {
+  const id = rtCalRotaId(item);
+  if (!id) return 999999;
+  const ordem = Number(rtCalOrdemRotas()[id]);
+  return Number.isFinite(ordem) ? ordem : 999999;
+}
+
+function rtCalCompararPainelDia(a, b) {
+  const rotaA = a.tipo === "montagem" || a.tipo === "desmontagem";
+  const rotaB = b.tipo === "montagem" || b.tipo === "desmontagem";
+
+  if (rotaA && rotaB) {
+    const carroA = rtCalCarroItem(a) || "Sem carro";
+    const carroB = rtCalCarroItem(b) || "Sem carro";
+
+    if (carroA !== carroB && typeof ordemCarro === "function") {
+      const diff = ordemCarro(carroA) - ordemCarro(carroB);
+      if (diff !== 0) return diff;
+    }
+
+    const ordemA = rtCalOrdemItem(a);
+    const ordemB = rtCalOrdemItem(b);
+    if (ordemA !== ordemB) return ordemA - ordemB;
+  }
+
+  return String(a.hora || "99:99").localeCompare(String(b.hora || "99:99"));
+}
+
+function rtCalBadgeCarro(item) {
+  if (!(item.tipo === "montagem" || item.tipo === "desmontagem")) return "";
+
+  const carro = rtCalCarroItem(item);
+  const rotaId = rtCalRotaId(item);
+
+  if (!carro) return `<span class="cal-rota-carro cal-rota-sem-carro" title="${rotaId}">Sem carro</span>`;
+
+  return `<span class="cal-rota-carro" title="${rotaId}">🚚 ${carro}</span>`;
+}
+
 function renderizarPainelDiaCalendario() {
   const titulo = document.getElementById("calendarioDiaTitulo");
   const lista = document.getElementById("calendarioDiaLista");
@@ -309,7 +395,7 @@ function renderizarPainelDiaCalendario() {
   const data = calendarioDataSelecionada || calendarioISODate(new Date());
   const itens = calendarioTodosItens()
     .filter(item => item.data === data)
-    .sort((a, b) => String(a.hora || "99:99").localeCompare(String(b.hora || "99:99")));
+    .sort(rtCalCompararPainelDia);
 
   titulo.textContent = `Dia ${calendarioDataBR(data)}`;
   document.getElementById("calDiaEventos").textContent = itens.filter(i => i.tipo === "evento").length;
@@ -346,6 +432,7 @@ function renderizarPainelDiaCalendario() {
         <div class="calendar-panel-actions">
           <button type="button" class="btn-outline" data-cal-abrir-evento="${evento.id}">Abrir evento</button>
           <button type="button" class="btn-outline" data-cal-editar-evento="${evento.id}">Editar evento</button>
+          ${rtCalBadgeCarro(item)}\n          ${rtCalBadgeCarro(item)}
         </div>
       </div>
     `;
