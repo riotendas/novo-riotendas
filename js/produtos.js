@@ -654,6 +654,47 @@ function conflitoPeriodoProduto(inicioBusca, fimBusca, inicioReserva, fimReserva
 }
 
 
+
+function obterRotasOperacaoProdutoDisponibilidade() {
+  try {
+    if (typeof rotasOperacao !== "undefined" && rotasOperacao && typeof rotasOperacao === "object") return rotasOperacao;
+  } catch {}
+
+  try {
+    const local = JSON.parse(localStorage.getItem("novoRioTendasRotasOperacaoV1") || "{}");
+    return local && typeof local === "object" ? local : {};
+  } catch {
+    return {};
+  }
+}
+
+function eventoMontagemPendenteEntregaProduto(evento) {
+  if (!evento || !evento.id || !evento.montagem) return false;
+
+  const montagem = new Date(evento.montagem);
+  if (Number.isNaN(montagem.getTime())) return false;
+
+  const agora = new Date();
+  if (agora.getTime() < montagem.getTime()) return false;
+
+  const operacoes = obterRotasOperacaoProdutoDisponibilidade();
+  const opMontagem = operacoes[`${evento.id}-montagem`];
+
+  // Se já marcou entregue ou recolhido, não é pendência de entrega.
+  if (opMontagem && ["entregue", "recolhido"].includes(String(opMontagem.status || "").toLowerCase())) return false;
+
+  return true;
+}
+
+function pendenciaEntregaProduto(produto) {
+  const pendentes = getEventosDisponibilidadeProduto()
+    .filter(evento => eventoUsaProdutoParaDisponibilidade(evento, produto))
+    .filter(eventoMontagemPendenteEntregaProduto)
+    .sort((a, b) => new Date(a.montagem).getTime() - new Date(b.montagem).getTime());
+
+  return pendentes[0] || null;
+}
+
 function dataISOProdutoDisponibilidade(valor) {
   if (!valor) return "";
   return String(valor).slice(0, 10);
@@ -802,6 +843,17 @@ function disponibilidadePeriodoProduto(produto) {
   const periodo = periodoProdutoSelecionado();
 
   if (!periodo) {
+    const pendenteEntrega = pendenciaEntregaProduto(produto);
+
+    if (pendenteEntrega) {
+      const intervaloPendente = intervaloEventoDisponibilidade(pendenteEntrega);
+      return {
+        classe: "pendente-entrega",
+        texto: "Pendente entrega",
+        detalhe: `${pendenteEntrega.nome || "Cliente"} — montagem prevista ${formatarDataHoraProdutoDisp(pendenteEntrega.montagem || intervaloPendente.inicio)}`
+      };
+    }
+
     const proximo = proximoUsoProduto(produto);
 
     if ((produto.status || "") !== "Livre") {
@@ -1187,6 +1239,33 @@ function obterFotoProduto(produto) {
   return fotoPadrao || "";
 }
 
+function obterUltimaChecagemProduto(produto, inicio = null, fim = null) {
+  const historico = Array.isArray(produto?.historico) ? produto.historico : [];
+  const checks = historico
+    .filter(item => String(item.alteracao || "").toLowerCase().includes("checagem de depósito") || String(item.alteracao || "").toLowerCase().includes("checagem de deposito"))
+    .map(item => ({ ...item, dataObj: new Date(item.data || item.criado_em || item.atualizado_em || 0) }))
+    .filter(item => !Number.isNaN(item.dataObj.getTime()));
+
+  const filtrados = checks.filter(item => {
+    if (inicio && item.dataObj < inicio) return false;
+    if (fim && item.dataObj > fim) return false;
+    return true;
+  });
+
+  return filtrados.sort((a, b) => b.dataObj - a.dataObj)[0] || null;
+}
+
+function htmlCheckDepositoProduto(produto) {
+  const ultimo = obterUltimaChecagemProduto(produto);
+  const titulo = ultimo
+    ? `Última checagem: ${formatarData(ultimo.data)} por ${ultimo.colaborador || "-"}`
+    : "Marcar produto como checado no depósito";
+
+  return `
+    <button type="button" class="btn-check-produto" data-action="check-deposito" data-id="${produto.id}" title="${titulo.replaceAll('"', '&quot;')}">✓</button>
+  `;
+}
+
 function renderizarProdutos() {
   const tbody = document.getElementById("produtosTbody");
   const filtrados = filtrarProdutos();
@@ -1196,7 +1275,7 @@ function renderizarProdutos() {
   document.getElementById("prodProblema").textContent = filtrados.filter(p => p.status !== "Livre").length;
 
   if (!filtrados.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="empty">Nenhum produto com código cadastrado.</td></tr>${renderizarLinhasApoio()}`;
+    tbody.innerHTML = `<tr><td colspan="11" class="empty">Nenhum produto com código cadastrado.</td></tr>${renderizarLinhasApoio()}`;
     configurarEventosTabelaProdutos(tbody);
     rtAtualizarDashboardProdutosLeve();
     return;
@@ -1222,6 +1301,7 @@ function renderizarProdutos() {
         </select>
       </td>
       <td><input data-action="obs" data-id="${p.id}" value="${(p.observacao || "").replaceAll('"', '&quot;')}" /></td>
+      <td class="check-cell">${htmlCheckDepositoProduto(p)}</td>
       <td class="availability-cell">${htmlDisponibilidadePeriodoProduto(p)}</td>
       <td class="actions">
         <button data-action="editar" data-id="${p.id}">Editar</button>
@@ -1310,6 +1390,7 @@ async function lidarAcaoProduto(event) {
     const novoStatus = event.currentTarget.value;
     if ((produto.status || "") === novoStatus) return;
 
+    const statusAnterior = produto.status || "";
     const observacaoAnterior = produto.observacao || "-";
 
     produto.status = novoStatus;
@@ -1324,7 +1405,7 @@ async function lidarAcaoProduto(event) {
     produto.historico.push({
       data: new Date().toISOString(),
       colaborador: produto.colaborador,
-      alteracao: `Status alterado para ${produto.status}`,
+      alteracao: `Status alterado manualmente para ${produto.status}`,
       observacao: observacaoAnterior
     });
 
@@ -1339,7 +1420,7 @@ async function lidarAcaoProduto(event) {
           acao: "Status alterado",
           registro_id: salvo.id,
           registro_nome: salvo.codigo || "Produto",
-          antes: { status: produto.status === novoStatus ? "Anterior" : produto.status, observacao: observacaoAnterior },
+          antes: { status: statusAnterior, observacao: observacaoAnterior },
           depois: { status: novoStatus, observacao: produto.observacao || "-" }
         });
       }
@@ -1378,6 +1459,42 @@ async function lidarAcaoProduto(event) {
     }
     renderizarProdutos();
     rtAtualizarDashboardProdutosLeve();
+  }
+
+
+  if (action === "check-deposito") {
+    const agora = new Date().toISOString();
+    const colaborador = getColaboradorLogado();
+    produto.atualizado_em = agora;
+    produto.colaborador = colaborador;
+    produto.historico = produto.historico || [];
+    produto.historico.push({
+      data: agora,
+      colaborador,
+      alteracao: "Checagem de depósito",
+      observacao: "Produto conferido no depósito"
+    });
+
+    const salvo = await salvarProdutoBanco(produto);
+    if (salvo) {
+      const index = produtos.findIndex(p => p.id === id);
+      if (index >= 0) produtos[index] = salvo;
+
+      if (typeof registrarLogSistema === "function") {
+        registrarLogSistema({
+          modulo: "Produtos",
+          acao: "Produto checado no depósito",
+          registro_id: salvo.id,
+          registro_nome: salvo.codigo || "Produto",
+          antes: null,
+          depois: { codigo: salvo.codigo || "-", data: agora, colaborador }
+        });
+      }
+    }
+
+    renderizarProdutos();
+    if (typeof renderizarRelatorioChecagem === "function") renderizarRelatorioChecagem();
+    return;
   }
 
   renderizarTabelaApoioSeparada();

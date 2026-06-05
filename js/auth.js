@@ -756,8 +756,11 @@ const paginasSistemaPermissoes = [
   { id: "produtosSection", label: "Produtos" },
   { id: "clientesSection", label: "Clientes" },
   { id: "eventosSection", label: "Eventos" },
+  { id: "orcamentosSection", label: "Orçamentos" },
   { id: "calendarioSection", label: "Agenda" },
   { id: "rotasSection", label: "Rotas" },
+  { id: "financeiroSection", label: "Financeiro" },
+  { id: "relatoriosSection", label: "Relatórios" },
   { id: "usuariosSection", label: "Usuários" },
   { id: "configSection", label: "Configurações" }
 ];
@@ -774,8 +777,11 @@ const permissoesPadraoPerfil = {
     produtosSection: true,
     clientesSection: true,
     eventosSection: true,
+    orcamentosSection: true,
     calendarioSection: true,
     rotasSection: true,
+    financeiroSection: true,
+    relatoriosSection: true,
     usuariosSection: true,
     configSection: true
   },
@@ -784,8 +790,11 @@ const permissoesPadraoPerfil = {
     produtosSection: true,
     clientesSection: true,
     eventosSection: true,
+    orcamentosSection: true,
     calendarioSection: true,
     rotasSection: true,
+    financeiroSection: true,
+    relatoriosSection: true,
     usuariosSection: false,
     configSection: false
   },
@@ -794,8 +803,11 @@ const permissoesPadraoPerfil = {
     produtosSection: true,
     clientesSection: false,
     eventosSection: false,
+    orcamentosSection: false,
     calendarioSection: false,
     rotasSection: false,
+    financeiroSection: false,
+    relatoriosSection: true,
     usuariosSection: false,
     configSection: false
   }
@@ -1028,6 +1040,16 @@ async function salvarPermissoesPerfilDoEditor() {
   const salvo = await salvarPermissoesPerfilSistema(novas);
 
   if (salvo) {
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({
+        modulo: "Permissões",
+        acao: "Permissões de perfil salvas",
+        registro_id: "permissoes-perfil",
+        registro_nome: "Permissões por perfil",
+        antes: permissoes,
+        depois: novas
+      });
+    }
     alert("Permissões salvas com sucesso.");
     await aplicarPermissoesUsuarioIndividual();
   }
@@ -1062,8 +1084,11 @@ const paginasPermissaoUsuario = [
   { id: "produtosSection", label: "Produtos" },
   { id: "clientesSection", label: "Clientes" },
   { id: "eventosSection", label: "Eventos" },
+  { id: "orcamentosSection", label: "Orçamentos" },
   { id: "calendarioSection", label: "Agenda" },
   { id: "rotasSection", label: "Rotas" },
+  { id: "financeiroSection", label: "Financeiro" },
+  { id: "relatoriosSection", label: "Relatórios" },
   { id: "usuariosSection", label: "Usuários" },
   { id: "configSection", label: "Configurações" }
 ];
@@ -1074,8 +1099,11 @@ const permissoesPadraoPorPerfilUsuario = {
     produtosSection: true,
     clientesSection: true,
     eventosSection: true,
+    orcamentosSection: true,
     calendarioSection: true,
     rotasSection: true,
+    financeiroSection: true,
+    relatoriosSection: true,
     usuariosSection: true,
     configSection: true
   },
@@ -1084,8 +1112,11 @@ const permissoesPadraoPorPerfilUsuario = {
     produtosSection: true,
     clientesSection: true,
     eventosSection: true,
+    orcamentosSection: true,
     calendarioSection: true,
     rotasSection: true,
+    financeiroSection: true,
+    relatoriosSection: true,
     usuariosSection: false,
     configSection: false
   },
@@ -1094,8 +1125,11 @@ const permissoesPadraoPorPerfilUsuario = {
     produtosSection: true,
     clientesSection: false,
     eventosSection: false,
+    orcamentosSection: false,
     calendarioSection: false,
     rotasSection: false,
+    financeiroSection: false,
+    relatoriosSection: true,
     usuariosSection: false,
     configSection: false
   }

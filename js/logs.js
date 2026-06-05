@@ -267,9 +267,13 @@ function montarPainelLogsSistema() {
         <option value="">Todos os módulos</option>
         <option value="Produtos">Produtos</option>
         <option value="Eventos">Eventos</option>
+        <option value="Eventos Recorrentes">Eventos Recorrentes</option>
         <option value="Clientes">Clientes</option>
+        <option value="Financeiro">Financeiro</option>
         <option value="Usuários">Usuários</option>
+        <option value="Permissões">Permissões</option>
         <option value="Rotas">Rotas</option>
+        <option value="Materiais de Apoio">Materiais de Apoio</option>
         <option value="Configurações">Configurações</option>
       </select>
       <input id="logSistemaDataInicio" type="date">

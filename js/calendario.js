@@ -53,9 +53,9 @@ function calendarioMesAnoTexto(data) {
 function calendarioInicioSemana(data) {
   const d = new Date(data);
   d.setHours(12, 0, 0, 0);
-  // Semana operacional: terça-feira até segunda-feira.
+  // Semana padrão: segunda-feira até domingo.
   // getDay(): domingo=0, segunda=1, terça=2...
-  const deslocamento = (d.getDay() + 5) % 7;
+  const deslocamento = (d.getDay() + 6) % 7;
   d.setDate(d.getDate() - deslocamento);
   return d;
 }
@@ -185,8 +185,8 @@ function renderizarCalendario() {
   const primeiro = new Date(ano, mes, 1);
   const ultimo = new Date(ano, mes + 1, 0);
   const inicioGrade = new Date(primeiro);
-  // Grade mensal começa na terça-feira e termina na segunda-feira.
-  const deslocamentoInicioMes = (primeiro.getDay() + 5) % 7;
+  // Grade mensal começa na segunda-feira e termina no domingo.
+  const deslocamentoInicioMes = (primeiro.getDay() + 6) % 7;
   inicioGrade.setDate(primeiro.getDate() - deslocamentoInicioMes);
 
   const itens = calendarioTodosItens();
@@ -455,6 +455,11 @@ function renderizarPainelDiaCalendario() {
 
 function iniciarCalendarioVisual() {
   if (!document.getElementById("calendarioSection")) return;
+
+  const filtroTipoInicial = document.getElementById("calendarioFiltroTipo");
+  if (filtroTipoInicial && !filtroTipoInicial.value) {
+    filtroTipoInicial.value = "montagem_desmontagem";
+  }
 
   document.getElementById("calendarioHojeBtn")?.addEventListener("click", () => {
     calendarioDataAtual = new Date();

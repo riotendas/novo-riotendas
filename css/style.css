@@ -60,7 +60,7 @@ small{color:#b91c1c;display:block;margin-top:10px}
 .filters-bar label,.form-grid label,label{font-size:12px;font-weight:700;color:#374151;display:grid;gap:5px}
 .summary-row{display:flex;gap:18px;flex-wrap:wrap;background:var(--blue-soft);border:1px solid #cfe3f5;border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:14px}
 .table-wrapper{overflow:auto;background:white;border-radius:16px;box-shadow:var(--shadow)}
-table{width:100%;border-collapse:collapse;min-width:980px}
+table{width:100%;border-collapse:collapse;min-width:940px}
 th,td{padding:9px 8px;border-bottom:1px solid var(--border);text-align:left;font-size:13px;vertical-align:middle}
 th{background:var(--blue);color:white;position:sticky;top:0;z-index:1}
 tr.status-livre{background:var(--green)}
@@ -437,6 +437,16 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 .money-input {
   text-align: right;
   font-weight: 700;
+}
+
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
 }
 
 @media (max-width: 900px) {
@@ -848,6 +858,16 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
   margin-bottom: 8px;
 }
 
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
+}
+
 @media (max-width: 900px) {
   .cliente-evento-grid {
     grid-template-columns: 1fr 1fr;
@@ -991,6 +1011,16 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
   border-radius: 8px;
   border: 1px solid #dce6f0;
   background: #f4f7fb;
+}
+
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
 }
 
 @media (max-width: 900px) {
@@ -1148,6 +1178,16 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
   max-width: 230px;
 }
 
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
+}
+
 @media (max-width: 900px) {
   .availability-filter-grid {
     grid-template-columns: 1fr 1fr;
@@ -1163,6 +1203,12 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 .disp-proximo {
   background: #eef4ff;
   color: #1d5fd1;
+}
+
+.disp-pendente-entrega {
+  background: #fff4c2;
+  color: #8a5a00;
+  border: 1px solid #f2c94c;
 }
 
 /* Alertas de próximo uso para produtos indisponíveis */
@@ -1239,6 +1285,16 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 .recurring-row td {
   border-bottom-color: #d8ebff;
+}
+
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
 }
 
 @media (max-width: 900px) {
@@ -1591,6 +1647,16 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 .rota-carro-materiais {
   justify-content: flex-end !important;
+}
+
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
 }
 
 @media (max-width: 900px) {
@@ -2087,6 +2153,16 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 .historico-obs {
   color: #617286;
+}
+
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
 }
 
 @media (max-width: 900px) {
@@ -2756,6 +2832,16 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
   margin-top: 0 !important;
 }
 
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
+}
+
 @media (max-width: 900px) {
   .event-operation-row {
     grid-template-columns: 1fr !important;
@@ -3141,7 +3227,7 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
   border-bottom: 1px solid #ffd0d0 !important;
 }
 
-#eventosSection table tbody tr.payment-open {
+#eventosSection table tbody tr.payment-pending {
   background: #fff1f1 !important;
 }
 
@@ -3574,6 +3660,16 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 
 #eventoDetalheConteudo .detalhe-pagamento-forma h3 {
   font-size: 0.9rem !important;
+}
+
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
 }
 
 @media (max-width: 900px) {
@@ -6609,6 +6705,16 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
   overflow-wrap: anywhere !important;
 }
 
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
+}
+
 @media (max-width: 900px) {
   .produto-historico-compacto .historico-produto-topo {
     flex-direction: column !important;
@@ -6818,6 +6924,16 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
 .logs-sistema-table .log-detalhes {
   max-width: 420px !important;
   overflow-wrap: anywhere !important;
+}
+
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
 }
 
 @media (max-width: 900px) {
@@ -7312,6 +7428,16 @@ dialog {
   border-radius: 999px !important;
 }
 
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
+}
+
 @media (max-width: 900px) {
   .produto-dados-linha-4,
   .produto-dados-linha-2 {
@@ -7578,6 +7704,16 @@ dialog {
 .calendar-week-day .cal-item {
   white-space: normal;
   line-height: 1.2;
+}
+
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
 }
 
 @media (max-width: 900px) {
@@ -9304,6 +9440,16 @@ dialog {
   width: 100% !important;
 }
 
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
+}
+
 @media (max-width: 900px) {
   #clientesSection table { min-width: 980px !important; }
   .compact-client-grid .evento-endereco-wide,
@@ -9352,9 +9498,9 @@ dialog {
 }
 
 .finance-row-inline #eventoFormaPagamento {
-  height: 38px !important;
-  min-height: 38px !important;
-  max-height: 38px !important;
+  height: 64px !important;
+  min-height: 64px !important;
+  max-height: 64px !important;
   resize: none !important;
   line-height: 1.15 !important;
 }
@@ -9383,6 +9529,16 @@ dialog {
 
 .finance-row-inline .finance-paid-compact span {
   font-size: 12px !important;
+}
+
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
 }
 
 @media (max-width: 900px) {
@@ -9733,3 +9889,985 @@ dialog {
 .assinatura-preview{min-height:74px;display:flex;align-items:center;justify-content:center;margin-top:8px;padding:8px;border:1px dashed #b8c9dc;border-radius:10px;background:#fff;color:#6b7280}
 .assinatura-preview img{max-width:260px;max-height:70px;object-fit:contain;display:block}
 .assinatura-config-actions{margin-top:8px;gap:8px;flex-wrap:wrap}
+
+
+/* v19-dev: status financeiro compacto na coluna Pagamento */
+#eventosSection .pagamento-status-cell {
+  text-align: center;
+  white-space: nowrap;
+}
+
+#eventosSection .pagamento-status-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  max-width: 100%;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  white-space: nowrap;
+}
+
+#eventosSection .pagamento-status-bolinha {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  line-height: 1;
+  width: 10px;
+  min-width: 10px;
+  overflow: hidden;
+}
+
+#eventosSection .pagamento-status-texto {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#eventosSection table tbody tr.payment-pending {
+  background: #fff1f1 !important;
+}
+
+#eventosSection table tbody tr.payment-pending td {
+  border-bottom-color: #ffd0d0 !important;
+}
+
+@media (max-width: 700px) {
+  #eventosSection .pagamento-status-icone {
+    font-size: 11px;
+    gap: 2px;
+  }
+
+  #eventosSection .pagamento-status-bolinha {
+    font-size: 8px;
+    width: 9px;
+    min-width: 9px;
+  }
+}
+
+/* v19-dev: ajuste real para caber status financeiro com texto curto */
+#eventosSection table.eventos-tabela-principal th:nth-child(6),
+#eventosSection table.eventos-tabela-principal td:nth-child(6) {
+  width: 22% !important; /* Produtos um pouco menor */
+  max-width: 22% !important;
+}
+
+#eventosSection table.eventos-tabela-principal th:nth-child(7),
+#eventosSection table.eventos-tabela-principal td:nth-child(7),
+#eventosSection table.eventos-tabela-principal th:nth-child(8),
+#eventosSection table.eventos-tabela-principal td:nth-child(8),
+#eventosSection table.eventos-tabela-principal th:nth-child(9),
+#eventosSection table.eventos-tabela-principal td:nth-child(9) {
+  width: 4.5% !important; /* Valores mais compactos */
+  max-width: 4.5% !important;
+  font-size: 10px !important;
+  white-space: nowrap !important;
+}
+
+#eventosSection table.eventos-tabela-principal th:nth-child(10),
+#eventosSection table.eventos-tabela-principal td:nth-child(10) {
+  width: 9.5% !important; /* Pagamento ganhou espaço sem mexer nas demais áreas críticas */
+  max-width: 9.5% !important;
+}
+
+#eventosSection .pagamento-status-cell {
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+  text-align: center !important;
+}
+
+#eventosSection .pagamento-status-icone {
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  gap: 2px !important;
+  line-height: 1 !important;
+  letter-spacing: -0.2px !important;
+}
+
+#eventosSection .pagamento-status-bolinha {
+  font-size: 7px !important;
+  width: 8px !important;
+  min-width: 8px !important;
+}
+
+#eventosSection .pagamento-status-texto {
+  font-weight: 400 !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+#eventosSection table.eventos-tabela-recorrentes th:nth-child(7),
+#eventosSection table.eventos-tabela-recorrentes td:nth-child(7) {
+  width: 18% !important; /* Produtos recorrentes um pouco menor */
+  max-width: 18% !important;
+}
+
+#eventosSection table.eventos-tabela-recorrentes th:nth-child(8),
+#eventosSection table.eventos-tabela-recorrentes td:nth-child(8) {
+  width: 5% !important;
+  max-width: 5% !important;
+  font-size: 10px !important;
+  white-space: nowrap !important;
+}
+
+#eventosSection table.eventos-tabela-recorrentes th:nth-child(9),
+#eventosSection table.eventos-tabela-recorrentes td:nth-child(9) {
+  width: 10% !important;
+  max-width: 10% !important;
+}
+
+/* ==========================================================
+   v19-dev - ajuste real Mont./Desm. x Cliente
+   Reduz o vão entre as colunas, sobrescrevendo regras antigas.
+========================================================== */
+#eventosSection table th:nth-child(2),
+#eventosSection table td:nth-child(2) {
+  width: 8.5% !important;
+  padding-right: 4px !important;
+  border-right: none !important;
+}
+
+#eventosSection table th:nth-child(3),
+#eventosSection table td:nth-child(3) {
+  width: 15.5% !important;
+  padding-left: 4px !important;
+}
+
+/* ==========================================================
+   v19-dev - Setor Financeiro inicial
+========================================================== */
+#financeiroSection textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 120px;
+}
+
+.financeiro-cards .dash-card strong {
+  font-size: 20px;
+}
+
+.financeiro-associar-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.left-actions {
+  justify-content: flex-start;
+}
+
+.financeiro-extrato-resultado {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #f8fbff;
+  padding: 10px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.financeiro-extrato-resultado.empty {
+  color: var(--muted);
+}
+
+.financeiro-extrato-line {
+  display: grid;
+  grid-template-columns: 90px 1fr 110px;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.financeiro-extrato-line:last-child {
+  border-bottom: 0;
+}
+
+.financeiro-extrato-line em {
+  font-style: normal;
+  font-weight: 700;
+  text-align: right;
+}
+
+.financeiro-table-wrapper {
+  max-height: 520px;
+  overflow: auto;
+}
+
+.financeiro-table th,
+.financeiro-table td {
+  font-size: 12px;
+  vertical-align: top;
+}
+
+.financeiro-status-badge {
+  display: inline-block;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #edf4ff;
+  color: var(--blue-dark);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.financeiro-status-pendente .financeiro-status-badge {
+  background: #fff6db;
+  color: #8a5a00;
+}
+
+.financeiro-status-completo .financeiro-status-badge {
+  background: #e7f8ed;
+  color: #176b35;
+}
+
+.financeiro-status-divergencia .financeiro-status-badge {
+  background: #ffecec;
+  color: #9b1c1c;
+}
+
+.financeiro-registro {
+  margin-top: 4px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.btn-mini {
+  padding: 3px 6px !important;
+  font-size: 10px !important;
+  border-radius: 7px !important;
+}
+
+
+.finance-row-inline .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+.finance-row-inline .finance-inloco-compact span {
+  font-size: 11px !important;
+}
+
+@media (max-width: 900px) {
+  .financeiro-associar-grid {
+    grid-template-columns: 1fr;
+  }
+  .financeiro-extrato-line {
+    grid-template-columns: 1fr;
+  }
+  .financeiro-extrato-line em {
+    text-align: left;
+  }
+}
+
+/* v19-dev - Financeiro: registro manual de dinheiro/cartão/pix/transferência */
+.financeiro-cartao-campo {
+  display: none;
+}
+.financeiro-status-cartao_aguardando .financeiro-status-badge {
+  background: #fff6db;
+  color: #8a5a00;
+}
+.financeiro-status-dinheiro .financeiro-status-badge {
+  background: #eef8f0;
+  color: #176b35;
+}
+
+/* v19-dev: ícones compactos de forma de pagamento no cadastro do evento */
+.pagamento-icones {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 2px;
+  line-height: 1;
+}
+.pagamento-icone {
+  border: 1px solid #d9dde8;
+  background: #fff;
+  border-radius: 8px;
+  padding: 1px 5px;
+  min-width: 27px;
+  height: 22px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.pagamento-icone:hover,
+.pagamento-icone.ativo {
+  border-color: #4f7cff;
+  background: #eef4ff;
+}
+.finance-row-inline > label:has(.pagamento-icones) {
+  align-self: end !important;
+}
+
+.financeiro-status-sugestao .financeiro-status-badge {
+  background: #e8f7ff;
+  color: #075985;
+}
+
+.financeiro-sugestao {
+  border: 1px solid #b7e4ff;
+  background: #f0f9ff;
+  border-radius: 10px;
+  padding: 6px 8px;
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+}
+
+.financeiro-sugestao strong {
+  color: #075985;
+}
+
+.financeiro-sugestao small {
+  color: var(--muted);
+  line-height: 1.25;
+}
+
+.financeiro-sugestao.data-diferente {
+  border-color: #ffd38a;
+  background: #fff8e8;
+}
+
+.financeiro-sugestao.data-diferente strong {
+  color: #8a5a00;
+}
+
+/* Financeiro fase 1 - abas */
+.financeiro-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 16px;}
+.financeiro-tab{border:1px solid var(--border,#d7dde8);background:#fff;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;color:var(--text,#1f2937);}
+.financeiro-tab.active{background:var(--primary,#2563eb);border-color:var(--primary,#2563eb);color:#fff;box-shadow:0 6px 14px rgba(0,0,0,.08);}
+.financeiro-tab-panel{display:none;}
+.financeiro-tab-panel.active{display:block;}
+.section-header.compact{margin-bottom:8px;}
+.financeiro-filtros.inline{margin:0;}
+
+
+/* v19-dev: FORÇADO - Pagar in loco acima de Quitado, sem deslocar Quitado */
+#eventoModal .finance-row-inline,
+.finance-row-inline {
+  grid-template-columns: 128px 128px 128px minmax(260px, 1fr) 112px !important;
+  align-items: end !important;
+}
+.finance-row-inline .finance-check-stack {
+  grid-column: 5 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+  align-self: end !important;
+  margin: 0 !important;
+}
+.finance-row-inline .finance-check-stack .finance-paid-compact,
+.finance-row-inline .finance-check-stack .finance-inloco-compact {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+  height: 30px !important;
+  padding: 5px 7px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 5px !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+}
+.finance-row-inline .finance-check-stack .finance-paid-compact input {
+  width: 14px !important;
+  height: 14px !important;
+  margin: 0 !important;
+  flex: 0 0 auto !important;
+}
+.finance-row-inline .finance-check-stack .finance-paid-compact span {
+  font-size: 11px !important;
+  line-height: 1 !important;
+}
+@media (max-width: 900px) {
+  .finance-row-inline .finance-check-stack {
+    grid-column: auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  .finance-row-inline .finance-check-stack .finance-paid-compact,
+  .finance-row-inline .finance-check-stack .finance-inloco-compact {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+}
+
+.pagamento-status-subtexto{display:block;font-size:11px;line-height:1.1;color:#b8860b;margin-left:18px;font-weight:600}
+
+/* v19-dev: corrigir Pg pendente como segunda linha real, sem sobrepor textos */
+#eventosSection .pagamento-status-cell {
+  white-space: normal !important;
+  line-height: 1.15 !important;
+  vertical-align: middle !important;
+}
+
+#eventosSection .pagamento-status-icone {
+  display: inline-flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 1px !important;
+  line-height: 1.15 !important;
+  white-space: normal !important;
+  text-align: center !important;
+  overflow: visible !important;
+  max-width: 100% !important;
+  border-radius: 0 !important;
+}
+
+#eventosSection .pagamento-status-linha {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 2px !important;
+  white-space: nowrap !important;
+  line-height: 1.15 !important;
+}
+
+#eventosSection .pagamento-status-subtexto {
+  display: block !important;
+  margin: 1px 0 0 0 !important;
+  padding: 0 !important;
+  font-size: inherit !important;
+  line-height: 1.15 !important;
+  font-weight: inherit !important;
+  color: inherit !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+}
+
+
+/* fix alinhamento Pg pendente topo */
+#eventosSection .pagamento-status-cell{
+  vertical-align: top !important;
+  text-align:left !important;
+}
+#eventosSection .pagamento-status-icone{
+  display:inline-flex !important;
+  flex-direction:column !important;
+  align-items:flex-start !important;
+  justify-content:flex-start !important;
+}
+#eventosSection .pagamento-status-subtexto{
+  margin-left:0 !important;
+  font-size:12px !important;
+  font-weight:700 !important;
+  line-height:1 !important;
+  color:inherit !important;
+}
+
+
+/* v19-dev: Cobrar abaixo de Confirmado com bolinha vermelha, sem negrito */
+#eventosSection .pagamento-status-cell{
+  vertical-align: top !important;
+  text-align: left !important;
+}
+#eventosSection .pagamento-status-icone{
+  display: inline-flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+  text-align: left !important;
+  font-weight: 400 !important;
+}
+#eventosSection .pagamento-status-linha,
+#eventosSection .pagamento-status-subtexto{
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 2px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  white-space: nowrap !important;
+  font-size: inherit !important;
+  line-height: 1.15 !important;
+  font-weight: 400 !important;
+  color: inherit !important;
+  text-align: left !important;
+}
+#eventosSection .pagamento-status-bolinha,
+#eventosSection .pagamento-status-texto{
+  font-weight: 400 !important;
+}
+#eventosSection .pagamento-status-bolinha-cobrar{
+  color: #d32f2f !important;
+}
+
+
+/* ==========================================================
+   v19-dev - Eventos recorrentes sem rolagem horizontal
+   Ajuste cirúrgico somente na tabela de recorrentes.
+========================================================== */
+#eventosSection .recurring-table-wrapper {
+  overflow-x: hidden !important;
+}
+
+#eventosSection table.eventos-tabela-recorrentes {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  table-layout: fixed !important;
+  box-sizing: border-box !important;
+}
+
+#eventosSection table.eventos-tabela-recorrentes th,
+#eventosSection table.eventos-tabela-recorrentes td {
+  box-sizing: border-box !important;
+  padding: 5px 4px !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+}
+
+/* Distribuição total = 100% */
+#eventosSection table.eventos-tabela-recorrentes th:nth-child(1),
+#eventosSection table.eventos-tabela-recorrentes td:nth-child(1) { width: 6% !important; max-width: 6% !important; }
+#eventosSection table.eventos-tabela-recorrentes th:nth-child(2),
+#eventosSection table.eventos-tabela-recorrentes td:nth-child(2) { width: 11% !important; max-width: 11% !important; }
+#eventosSection table.eventos-tabela-recorrentes th:nth-child(3),
+#eventosSection table.eventos-tabela-recorrentes td:nth-child(3) { width: 6% !important; max-width: 6% !important; }
+#eventosSection table.eventos-tabela-recorrentes th:nth-child(4),
+#eventosSection table.eventos-tabela-recorrentes td:nth-child(4) { width: 10% !important; max-width: 10% !important; }
+#eventosSection table.eventos-tabela-recorrentes th:nth-child(5),
+#eventosSection table.eventos-tabela-recorrentes td:nth-child(5) { width: 8% !important; max-width: 8% !important; }
+#eventosSection table.eventos-tabela-recorrentes th:nth-child(6),
+#eventosSection table.eventos-tabela-recorrentes td:nth-child(6) { width: 20% !important; max-width: 20% !important; }
+#eventosSection table.eventos-tabela-recorrentes th:nth-child(7),
+#eventosSection table.eventos-tabela-recorrentes td:nth-child(7) { width: 18% !important; max-width: 18% !important; }
+#eventosSection table.eventos-tabela-recorrentes th:nth-child(8),
+#eventosSection table.eventos-tabela-recorrentes td:nth-child(8) { width: 5% !important; max-width: 5% !important; white-space: nowrap !important; }
+#eventosSection table.eventos-tabela-recorrentes th:nth-child(9),
+#eventosSection table.eventos-tabela-recorrentes td:nth-child(9) { width: 7% !important; max-width: 7% !important; }
+#eventosSection table.eventos-tabela-recorrentes th:nth-child(10),
+#eventosSection table.eventos-tabela-recorrentes td:nth-child(10) { width: 4% !important; max-width: 4% !important; }
+#eventosSection table.eventos-tabela-recorrentes th:nth-child(11),
+#eventosSection table.eventos-tabela-recorrentes td:nth-child(11) { width: 5% !important; max-width: 5% !important; white-space: nowrap !important; }
+
+#eventosSection table.eventos-tabela-recorrentes td.actions {
+  display: table-cell !important;
+  white-space: nowrap !important;
+  min-width: 0 !important;
+  text-align: center !important;
+}
+
+#eventosSection table.eventos-tabela-recorrentes td.actions .clientes-actions-row,
+#eventosSection table.eventos-tabela-recorrentes td.actions .event-actions-row {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 4px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+}
+
+#eventosSection table.eventos-tabela-recorrentes td.actions button {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  max-width: 22px !important;
+  padding: 0 !important;
+}
+
+
+/* Relatórios / Checagem de produtos */
+.check-cell {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.btn-check-produto {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid #16a34a;
+  background: #ecfdf5;
+  color: #15803d;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.btn-check-produto:hover {
+  background: #bbf7d0;
+}
+
+.relatorios-tabs {
+  margin-bottom: 14px;
+}
+
+.relatorio-checagem-table th,
+.relatorio-checagem-table td {
+  vertical-align: top;
+}
+
+.badge.success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge.danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* v19-dev: barra de setores fixa no topo */
+.app .tabs{
+  position: sticky;
+  top: 74px;
+  z-index: 4;
+  box-shadow: 0 4px 12px rgba(15,76,129,.08);
+}
+.app .topbar{
+  z-index: 6;
+}
+@media (max-width: 760px){
+  .app .tabs{top: 96px;}
+}
+
+
+.rotas-header-acoes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.rotas-header-acoes .btn-danger {
+  border-color: #dc2626;
+  color: #dc2626;
+  background: #fff;
+}
+.rotas-header-acoes .btn-danger:hover {
+  background: #fee2e2;
+}
+
+/* v19-dev manutenção administrativa */
+.manutencao-admin-box .config-card{
+  border:1px solid #e5e7eb;
+  border-radius:12px;
+  padding:14px;
+  margin-bottom:12px;
+  background:#fff;
+}
+.manutencao-admin-box .config-card h3{margin:0 0 6px 0;}
+.manutencao-admin-box .config-card p{margin:0 0 10px 0;color:#64748b;}
+.manutencao-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.manutencao-actions button{white-space:normal;}
+button.danger-soft{border-color:#fecaca;background:#fff1f2;color:#991b1b;}
+.manutencao-resultado{margin-top:10px;padding:10px 12px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0;color:#334155;}
+.manutencao-resultado.ok{background:#ecfdf5;border-color:#bbf7d0;color:#166534;}
+.manutencao-resultado.aviso{background:#fffbeb;border-color:#fde68a;color:#92400e;}
+
+
+/* Configurações > Produtos: abas enxutas e altura fixa */
+.config-produtos-tabs-modal .config-popup-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 620px;
+  max-height: calc(100vh - 170px);
+  overflow: hidden;
+}
+
+.config-produtos-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid #d8e1ef;
+  margin-bottom: 12px;
+}
+
+.config-produtos-tab {
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--blue);
+  color: #fff;
+  font-weight: 700;
+  border: 0;
+  white-space: nowrap;
+}
+
+.config-produtos-tab:hover,
+.config-produtos-tab.active {
+  background: var(--blue-dark);
+}
+
+.config-produtos-tabs-content {
+  flex: 1;
+  min-height: 500px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.config-produtos-pane {
+  display: none;
+  min-height: 500px;
+}
+
+.config-produtos-pane.active {
+  display: block;
+}
+
+.config-produtos-pane h3 {
+  margin: 0 0 12px;
+  color: #1f3350;
+}
+
+.config-produtos-pane .config-actions,
+.config-produtos-pane .config-inline-form {
+  align-items: end;
+}
+
+.config-produtos-pane .config-inline-form {
+  grid-template-columns: minmax(145px, .9fr) minmax(210px, 1.6fr) minmax(150px, 1fr) minmax(95px, .6fr) auto;
+}
+
+.config-produtos-pane .config-inline-form #novoMaterialApoioCor[style*="display:none"] {
+  display: none !important;
+}
+
+.config-produtos-pane .foto-padrao-form {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(230px, 1.5fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.config-produtos-pane .foto-padrao-form button,
+.config-produtos-pane .foto-padrao-preview button,
+.config-produtos-pane .material-apoio-config-item .config-actions button {
+  white-space: nowrap;
+}
+
+.config-produtos-pane .foto-padrao-item {
+  display: grid !important;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.config-produtos-pane .foto-padrao-preview {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.config-produtos-pane .foto-padrao-preview img {
+  width: 70px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+@media (max-width: 900px) {
+  .config-produtos-tabs-modal .config-popup-body {
+    min-height: auto;
+    max-height: calc(100vh - 120px);
+  }
+  .config-produtos-pane .config-inline-form,
+  .config-produtos-pane .foto-padrao-form,
+  .config-produtos-pane .foto-padrao-item {
+    grid-template-columns: 1fr;
+  }
+  .config-produtos-pane .foto-padrao-preview {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
+/* v19-dev: botão Contador e popup resumido por carro nas rotas */
+.rota-carro-acoes{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.rota-contador-btn,
+.rota-maps-header-btn{
+  white-space:nowrap;
+}
+.rota-contador-modal{
+  width:min(520px,94vw);
+}
+.rota-contador-body{
+  padding:16px;
+}
+.rota-contador-body h3{
+  margin:0 0 8px;
+  color:var(--blue);
+  font-size:15px;
+}
+.rota-contador-body h3 + .rota-contador-lista,
+.rota-contador-body h3 + .rota-contador-chips{
+  margin-bottom:16px;
+}
+.rota-contador-chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.rota-contador-chips span{
+  display:inline-flex;
+  align-items:center;
+  border:1px solid var(--border);
+  border-radius:999px;
+  background:var(--blue-soft);
+  color:var(--blue);
+  padding:6px 10px;
+  font-weight:700;
+  font-size:13px;
+}
+.rota-contador-lista{
+  display:grid;
+  gap:6px;
+  max-height:260px;
+  overflow:auto;
+}
+.rota-contador-lista div{
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:#fff;
+  padding:8px 10px;
+  font-size:13px;
+  color:var(--text);
+}
+.rota-contador-legenda{
+  margin:10px 0 0;
+  color:var(--muted);
+  font-size:12px;
+}
+
+/* v19-dev: Contador com o mesmo tamanho do botão Rota */
+.rota-carro-header-maps .rota-contador-btn {
+  justify-self: end !important;
+  margin: 0 !important;
+  padding: 4px 10px !important;
+  min-height: 26px !important;
+  line-height: 1 !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+/* v19-dev: manutenção recriada do zero - reset por período */
+#configModalManutencao .manutencao-reset-box .config-card{margin-top:0;}
+#configModalManutencao .manutencao-periodo-row{align-items:end;gap:10px;}
+#configModalManutencao .manutencao-periodo-row button{align-self:end;}
+#configModalManutencao .manutencao-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}
+#configModalManutencao .manutencao-tabela-wrapper{max-height:430px;overflow:auto;border:1px solid #e5e7eb;border-radius:12px;background:#fff;}
+#configModalManutencao .manutencao-tabela{width:100%;border-collapse:collapse;font-size:13px;}
+#configModalManutencao .manutencao-tabela th,
+#configModalManutencao .manutencao-tabela td{padding:8px 9px;border-bottom:1px solid rgba(0,0,0,.08);text-align:left;vertical-align:middle;}
+#configModalManutencao .manutencao-tabela thead th{position:sticky;top:0;background:#f8fafc;z-index:1;}
+#configModalManutencao .manut-check{width:16px;height:16px;}
+
+/* v19-dev Orçamentos */
+#orcamentosSection .actions-cell{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+#orcamentosSection .btn-mini{font-size:11px;padding:4px 7px;min-height:26px;}
+.orcamento-material-row{grid-template-columns: 1fr 90px 130px auto;align-items:end;}
+.orcamento-material-item span{line-height:1.35;}
+#orcamentoDialog .modal-actions button{white-space:nowrap;}
+#orcamentoMateriaisSelecionados .selected-item{align-items:center;}
+@media (max-width: 900px){.orcamento-material-row{grid-template-columns:1fr 80px;}.orcamento-material-row button{grid-column:1 / -1;}}
+
+/* v19-dev Orçamentos - financeiro em linha única */
+#orcamentoDialog{width:min(1180px,98vw);}
+#orcamentoDialog .finance-row-inline{
+  display:grid;
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
+  gap:10px;
+  align-items:end;
+  width:100%;
+}
+#orcamentoDialog .finance-row-inline label{max-width:none;min-width:0;}
+#orcamentoDialog .finance-row-inline input,
+#orcamentoDialog .finance-row-inline select{width:100%;box-sizing:border-box;}
+@media (max-width: 1100px){
+  #orcamentoDialog .finance-row-inline{grid-template-columns:repeat(2,minmax(150px,1fr));}
+}
+#orcamentoDialog .finance-row-inline #orcamentoValorTotal{font-weight:700;background:#f8fafc;}
+#orcamentoDialog .finance-row-inline label{font-size:13px;}
+
+
+/* v19-dev fix: orçamento financeiro realmente em 7 colunas iguais */
+#orcamentoDialog .finance-row.finance-row-inline,
+#orcamentoDialog .finance-row-inline {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  align-items: end !important;
+  width: 100% !important;
+  justify-content: stretch !important;
+}
+#orcamentoDialog .finance-row.finance-row-inline > label,
+#orcamentoDialog .finance-row-inline > label {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+#orcamentoDialog .finance-row.finance-row-inline input,
+#orcamentoDialog .finance-row.finance-row-inline select,
+#orcamentoDialog .finance-row-inline input,
+#orcamentoDialog .finance-row-inline select,
+#orcamentoDialog .finance-row-inline #orcamentoValorMateriais,
+#orcamentoDialog .finance-row-inline #orcamentoValorFreteMontagem,
+#orcamentoDialog .finance-row-inline #orcamentoValorDesconto,
+#orcamentoDialog .finance-row-inline #orcamentoValorTotal,
+#orcamentoDialog .finance-row-inline #orcamentoValorSinal,
+#orcamentoDialog .finance-row-inline #orcamentoValorRestante,
+#orcamentoDialog .finance-row-inline #orcamentoFormaPagamento {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
+#orcamentoDialog .finance-row-inline #orcamentoValorTotal {
+  font-weight: 800 !important;
+  background: #f8fafc !important;
+}
+@media (max-width: 1100px){
+  #orcamentoDialog .finance-row.finance-row-inline,
+  #orcamentoDialog .finance-row-inline { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 700px){
+  #orcamentoDialog .finance-row.finance-row-inline,
+  #orcamentoDialog .finance-row-inline { grid-template-columns: 1fr !important; }
+}
+
+/* Orçamentos: seleção estruturada de materiais */
+.orcamento-material-catalog-row{
+  grid-template-columns:minmax(220px,1.4fr) 90px 130px auto !important;
+}
+.orcamento-material-catalog-row select{
+  min-width:220px;
+}
+@media (max-width: 900px){
+  .orcamento-material-catalog-row{grid-template-columns:1fr 80px !important;}
+  .orcamento-material-catalog-row .money-input{min-width:0;}
+  .orcamento-material-catalog-row button{grid-column:1 / -1;}
+}

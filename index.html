@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Novo RioTendas | Controle de Locação</title>
   <link rel="stylesheet" href="css/style.css" />
+
+<style id="force-recurring-actions">
+.eventos-tabela-recorrentes th:nth-child(3), .eventos-tabela-recorrentes td:nth-child(3){width:90px;max-width:90px;}
+.eventos-tabela-recorrentes th:last-child, .eventos-tabela-recorrentes td:last-child{width:80px;min-width:80px;}
+.eventos-tabela-recorrentes .clientes-actions-row{display:flex !important;flex-direction:row !important;gap:6px;flex-wrap:nowrap !important;}
+.eventos-tabela-recorrentes .clientes-actions-row button{display:inline-flex;}
+</style>
 </head>
 <body>
   <section id="loginScreen" class="login-screen">
@@ -43,6 +50,9 @@
       <button class="tab-btn" data-section="eventosSection">Eventos</button>
       <button class="tab-btn" data-section="calendarioSection">Calendário</button>
       <button class="tab-btn" data-section="rotasSection">Rotas</button>
+      <button class="tab-btn" data-section="orcamentosSection">Orçamentos</button>
+      <button class="tab-btn" data-section="financeiroSection">Financeiro</button>
+      <button class="tab-btn" data-section="relatoriosSection">Relatórios</button>
       <button class="tab-btn admin-only" data-section="usuariosSection">Usuários</button>
       <button class="tab-btn" data-section="configSection">Configurações</button>
     </nav>
@@ -147,6 +157,7 @@
               <th>Usabilidade</th>
               <th>Status</th>
               <th>Observação</th>
+              <th>Check</th>
               <th>Disponibilidade</th>
               <th>Ações</th>
             </tr>
@@ -259,6 +270,9 @@
 
       <div class="eventos-table-scroll table-wrapper">
         <table>
+          <colgroup>
+            <col style="width:7%"><col style="width:9%"><col style="width:15%"><col style="width:8%"><col style="width:16%"><col style="width:17%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:7%"><col style="width:6%"><col style="width:7%">
+          </colgroup>
           <thead>
             <tr>
               <th>Data</th>
@@ -312,6 +326,217 @@
     </section>
 
     
+
+    <section id="orcamentosSection" class="section">
+      <div class="section-header split">
+        <div>
+          <h2>Orçamentos</h2>
+          <p>Propostas comerciais sem reservar inventário nem cadastrar cliente antes da aprovação.</p>
+        </div>
+        <button id="novoOrcamentoBtn" class="btn-primary" type="button">Novo orçamento</button>
+      </div>
+
+      <div class="filters-grid">
+        <label>Busca geral
+          <input id="buscaOrcamento" type="search" placeholder="Cliente, telefone, endereço, status...">
+        </label>
+        <label>Status
+          <select id="filtroOrcamentoStatus">
+            <option value="">Todos</option>
+            <option value="em_aberto">Em aberto</option>
+            <option value="enviado">Enviado</option>
+            <option value="aprovado">Aprovado</option>
+            <option value="recusado">Recusado</option>
+            <option value="vencido">Vencido</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="summary-line">
+        <span>Total de orçamentos: <strong id="orcamentosTotal">0</strong></span>
+        <span>Em aberto/enviados: <strong id="orcamentosAbertos">0</strong></span>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Nº</th>
+              <th>Data</th>
+              <th>Cliente</th>
+              <th>Telefone</th>
+              <th>Evento</th>
+              <th>Materiais</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="orcamentosTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="financeiroSection" class="section">
+      <div class="section-header split">
+        <div>
+          <h2>Financeiro</h2>
+          <p>Fase 1 organizada: Resumo Financeiro, Contas a Receber e Conferência Bancária.</p>
+        </div>
+        <button type="button" id="financeiroAtualizarBtn" class="btn-outline">Atualizar</button>
+      </div>
+
+      <div class="financeiro-tabs">
+        <button type="button" class="financeiro-tab active" data-fin-tab="resumo">📊 Resumo Financeiro</button>
+        <button type="button" class="financeiro-tab" data-fin-tab="receber">💰 Contas a Receber</button>
+        <button type="button" class="financeiro-tab" data-fin-tab="banco">🏦 Conferência Bancária</button>
+      </div>
+
+      <div id="financeiroTabResumo" class="financeiro-tab-panel active" data-fin-panel="resumo">
+        <div class="panel financeiro-competencia-panel">
+          <div class="section-header split compact">
+            <div>
+              <h3>Competência</h3>
+              <p class="hint">Escolha o mês/ano para calcular o resumo financeiro.</p>
+            </div>
+            <div class="filters-bar financeiro-filtros inline financeiro-competencia-controles">
+              <label>Mês
+                <select id="financeiroResumoMes">
+                  <option value="01">Janeiro</option>
+                  <option value="02">Fevereiro</option>
+                  <option value="03">Março</option>
+                  <option value="04">Abril</option>
+                  <option value="05">Maio</option>
+                  <option value="06">Junho</option>
+                  <option value="07">Julho</option>
+                  <option value="08">Agosto</option>
+                  <option value="09">Setembro</option>
+                  <option value="10">Outubro</option>
+                  <option value="11">Novembro</option>
+                  <option value="12">Dezembro</option>
+                </select>
+              </label>
+              <label>Ano
+                <input id="financeiroResumoAno" type="number" min="2020" max="2100" step="1">
+              </label>
+              <button type="button" id="financeiroMesAnteriorBtn" class="btn-outline">Mês anterior</button>
+              <button type="button" id="financeiroMesAtualBtn" class="btn-outline">Mês atual</button>
+              <button type="button" id="financeiroProximoMesBtn" class="btn-outline">Próximo mês</button>
+            </div>
+          </div>
+        </div>
+        <div class="cards-grid financeiro-cards">
+          <div class="dash-card"><span>Receita prevista</span><strong id="finReceitaPrevista">R$ 0,00</strong></div>
+          <div class="dash-card success"><span>Recebido no mês</span><strong id="finRecebidoMes">R$ 0,00</strong></div>
+          <div class="dash-card danger"><span>Faltante</span><strong id="finFaltanteMes">R$ 0,00</strong></div>
+          <div class="dash-card"><span>A receber</span><strong id="finAReceberMes">R$ 0,00</strong></div>
+          <div class="dash-card"><span>Sinais pendentes</span><strong id="finSinaisPendentes">R$ 0,00</strong></div>
+          <div class="dash-card"><span>Restantes pendentes</span><strong id="finRestantesPendentes">R$ 0,00</strong></div>
+          <div class="dash-card success"><span>Eventos quitados</span><strong id="finEventosQuitados">0</strong></div>
+          <div class="dash-card danger"><span>Eventos pendentes</span><strong id="finEventosPendentes">0</strong></div>
+        </div>
+        <div class="panel">
+          <h3>Resumo da fase 1</h3>
+          <p class="hint">Os valores são calculados automaticamente pelos eventos do mês/ano selecionado e pelo campo Forma de Pagamento. Pagamentos com data preenchida são considerados recebidos; Pix/Transferência conferido no banco fica validado na aba Conferência Bancária.</p>
+        </div>
+      </div>
+
+      <div id="financeiroTabReceber" class="financeiro-tab-panel" data-fin-panel="receber">
+        <div class="panel">
+          <div class="section-header split compact">
+            <div>
+              <h3>Contas a Receber</h3>
+              <p class="hint">Lista automática de sinal/restante ainda sem pagamento registrado no campo Forma de Pagamento.</p>
+            </div>
+            <div class="filters-bar financeiro-filtros inline">
+              <label>Filtro
+                <select id="financeiroReceberFiltro">
+                  <option value="todos">Todos</option>
+                  <option value="hoje">Hoje</option>
+                  <option value="7dias">Próximos 7 dias</option>
+                  <option value="vencidos">Vencidos</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="table-wrapper financeiro-table-wrapper">
+            <table class="financeiro-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Cliente</th>
+                  <th>Tipo</th>
+                  <th>Valor</th>
+                  <th>Evento</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="financeiroReceberTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="financeiroTabBanco" class="financeiro-tab-panel" data-fin-panel="banco">
+        <div class="cards-grid financeiro-cards">
+          <div class="dash-card"><span>Total Pix/Transferência</span><strong id="finTotalPrevisto">R$ 0,00</strong></div>
+          <div class="dash-card success"><span>Conferido</span><strong id="finSinalPrevisto">R$ 0,00</strong></div>
+          <div class="dash-card"><span>A conferir</span><strong id="finRestantePrevisto">R$ 0,00</strong></div>
+          <div class="dash-card danger"><span>Divergências</span><strong id="finEmAberto">0</strong></div>
+        </div>
+
+        <div class="panel financeiro-extrato-panel">
+          <h3>Extrato do banco</h3>
+          <p class="hint">Cole as linhas de entrada do banco. O sistema procura automaticamente pagamentos com a mesma data e o mesmo valor para sugerir confirmação.</p>
+          <textarea id="financeiroExtratoTexto" rows="6" placeholder="Ex.: 29/abr PIX JOAO SILVA R$ 200,00"></textarea>
+          <div class="modal-actions left-actions">
+            <button type="button" id="financeiroLerExtratoBtn">Ler extrato</button>
+            <button type="button" id="financeiroLimparExtratoBtn" class="btn-outline">Limpar</button>
+          </div>
+          <div id="financeiroExtratoResultado" class="financeiro-extrato-resultado empty">Nenhuma linha de extrato lida ainda.</div>
+        </div>
+
+        <div class="panel">
+          <h3>Conferência de Pix/Transferência</h3>
+          <p class="hint">Esta lista é gerada automaticamente a partir do campo Forma de Pagamento dos eventos. Ex.: Sinal - Pix/Transferência - 04/06/2026.</p>
+          <div class="filters-bar financeiro-filtros">
+            <label>Busca
+              <input id="financeiroBusca" type="search" placeholder="Cliente, tipo, data, valor...">
+            </label>
+            <label>Status
+              <select id="financeiroFiltroStatus">
+                <option value="">Todos</option>
+                <option value="a_conferir">A conferir</option>
+                <option value="sugestao">Sugestão encontrada</option>
+                <option value="conferido">Conferido</option>
+                <option value="divergencia">Divergência</option>
+                <option value="nao_encontrado">Não encontrado</option>
+              </select>
+            </label>
+          </div>
+          <div class="table-wrapper financeiro-table-wrapper">
+            <table class="financeiro-table">
+              <thead>
+                <tr>
+                  <th>Data informada</th>
+                  <th>Cliente</th>
+                  <th>Tipo</th>
+                  <th>Valor esperado</th>
+                  <th>Data evento</th>
+                  <th>Evento</th>
+                  <th>Sugestão do extrato</th>
+                  <th>Status</th>
+                  <th>Registro</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="financeiroTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section id="calendarioSection" class="section">
       <div class="section-header split">
         <div>
@@ -340,7 +565,7 @@
               <option value="evento">Eventos</option>
               <option value="montagem">Montagens</option>
               <option value="desmontagem">Desmontagens</option>
-              <option value="montagem_desmontagem">Montagens + Desmontagens</option>
+              <option value="montagem_desmontagem" selected>Montagens + Desmontagens</option>
             </select>
           </label>
 
@@ -361,13 +586,13 @@
       <div class="calendar-layout">
         <div class="calendar-main">
           <div class="calendar-weekdays">
+            <span>Seg</span>
             <span>Ter</span>
             <span>Qua</span>
             <span>Qui</span>
             <span>Sex</span>
             <span>Sáb</span>
             <span>Dom</span>
-            <span>Seg</span>
           </div>
           <div id="calendarioGrid" class="calendar-grid"></div>
         </div>
@@ -392,7 +617,7 @@
           <h2>Rotas</h2>
           <p>Montagens e desmontagens organizadas por data e carro.</p>
         </div>
-        <button id="atualizarRotasBtn" class="btn-outline">Atualizar rotas</button>
+        <div class="rotas-header-acoes"><button id="atualizarRotasBtn" class="btn-outline">Atualizar rotas</button><button id="zerarOperacoesRotasBtn" class="btn-danger btn-outline" type="button" title="Limpa todos os marcadores Entregue/Recolhido das rotas para recomeçar os testes">Zerar entregue/recolhido</button></div>
       </div>
 
       <div class="filters-grid">
@@ -440,6 +665,84 @@
       </div>
     </section>
   
+
+    <section id="relatoriosSection" class="section">
+      <div class="section-header split">
+        <div>
+          <h2>Relatórios</h2>
+          <p>Relatórios operacionais da RioTendas. Primeira aba: checagem de produtos no depósito.</p>
+        </div>
+        <button type="button" id="relatoriosAtualizarBtn" class="btn-outline">Atualizar</button>
+      </div>
+
+      <div class="financeiro-tabs relatorios-tabs">
+        <button type="button" class="financeiro-tab active" data-rel-tab="checagem">✅ Checagem</button>
+      </div>
+
+      <div id="relatoriosTabChecagem" class="financeiro-tab-panel active" data-rel-panel="checagem">
+        <div class="panel">
+          <div class="section-header split compact">
+            <div>
+              <h3>Checagem de produtos no depósito</h3>
+              <p class="hint">Mostra quais produtos foram conferidos no período pelo botão de check da tela Produtos.</p>
+            </div>
+            <div class="filters-bar financeiro-filtros inline">
+              <label>Início
+                <input id="relatorioCheckInicio" type="date">
+              </label>
+              <label>Fim
+                <input id="relatorioCheckFim" type="date">
+              </label>
+              <button type="button" id="relatorioCheckMesAtual" class="btn-outline">Mês atual</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="cards-grid financeiro-cards">
+          <div class="dash-card"><span>Total de produtos</span><strong id="relCheckTotal">0</strong></div>
+          <div class="dash-card success"><span>Checados no período</span><strong id="relCheckChecados">0</strong></div>
+          <div class="dash-card danger"><span>Não checados</span><strong id="relCheckNaoChecados">0</strong></div>
+        </div>
+
+        <div class="panel">
+          <div class="section-header split compact">
+            <div>
+              <h3>Lista de checagem</h3>
+              <p class="hint">Use para identificar produtos/tendas que ainda não foram conferidos no depósito.</p>
+            </div>
+            <div class="filters-bar financeiro-filtros inline">
+              <label>Status
+                <select id="relatorioCheckFiltroStatus">
+                  <option value="todos">Todos</option>
+                  <option value="checados">Checados</option>
+                  <option value="nao_checados">Não checados</option>
+                </select>
+              </label>
+              <label>Busca
+                <input id="relatorioCheckBusca" type="search" placeholder="Código, categoria, tamanho...">
+              </label>
+            </div>
+          </div>
+          <div class="table-wrapper financeiro-table-wrapper">
+            <table class="financeiro-table relatorio-checagem-table">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Categoria</th>
+                  <th>Tamanho</th>
+                  <th>Cor</th>
+                  <th>Última checagem</th>
+                  <th>Colaborador</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="relatorioChecagemTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section id="usuariosSection" class="section">
         <div class="section-header">
           <div>
@@ -482,10 +785,6 @@
           <strong>Produtos</strong>
           <span>Exportar e importar para Excel.</span>
         </button>
-        <button type="button" class="config-link-item" data-config-modal="materiais">
-          <strong>Materiais de Apoio</strong>
-          <span>Adição, edição e remoção dos materiais de apoio.</span>
-        </button>
         <button type="button" class="config-link-item" data-config-modal="eventos">
           <strong>Eventos Backup</strong>
           <span>Exportar e importar eventos para Excel.</span>
@@ -493,14 +792,6 @@
         <button type="button" class="config-link-item" data-config-modal="carros">
           <strong>Carros da Empresa</strong>
           <span>Adição e edição dos carros usados nas rotas.</span>
-        </button>
-        <button type="button" class="config-link-item" data-config-modal="cores">
-          <strong>Cores dos Produtos</strong>
-          <span>Adicionar e remover cores de tendas e ombrelones.</span>
-        </button>
-        <button type="button" class="config-link-item" data-config-modal="fotos">
-          <strong>Fotos</strong>
-          <span>Adicionar fotos no catálogo por categoria e tamanho.</span>
         </button>
         <button type="button" class="config-link-item" data-config-modal="documentos">
           <strong>Modelos de Documentos</strong>
@@ -513,6 +804,10 @@
         <button type="button" class="config-link-item" data-config-modal="logs">
           <strong>Log do Sistema</strong>
           <span>Todo histórico de quem alterou algo no sistema.</span>
+        </button>
+        <button type="button" class="config-link-item admin-only" data-config-modal="manutencao">
+          <strong>Manutenção</strong>
+          <span>Ferramentas administrativas para regularizar rotas, disponibilidade e produtos.</span>
         </button>
       </div>
 
@@ -533,20 +828,26 @@
         </div>
       </dialog>
 
-      <dialog id="configModalProdutos" class="modal large-modal config-popup">
-        <div class="modal-header"><div><h2>Produtos</h2><p>Exportar ou importar todas as informações dos produtos cadastrados.</p></div><button type="button" class="modal-close" data-close-config="configModalProdutos">×</button></div>
-        <div class="config-popup-body">
+      <dialog id="configModalProdutos" class="modal large-modal config-popup config-produtos-tabs-modal">
+        <div class="modal-header"><div><h2>Produtos</h2><p>Exportar/importar, materiais, cores e fotos em uma tela única.</p></div><button type="button" class="modal-close" data-close-config="configModalProdutos">×</button></div>
+        <div class="config-popup-body config-produtos-tabs-body">
+          <div class="config-produtos-tabs" role="tablist" aria-label="Configurações de produtos">
+            <button type="button" class="config-produtos-tab active" data-produtos-config-tab="exportar">Exportar / Importar</button>
+            <button type="button" class="config-produtos-tab" data-produtos-config-tab="materiais">Materiais de Apoio</button>
+            <button type="button" class="config-produtos-tab" data-produtos-config-tab="cores">Cores dos Produtos</button>
+            <button type="button" class="config-produtos-tab" data-produtos-config-tab="fotos">Fotos</button>
+          </div>
+          <div class="config-produtos-tabs-content">
+            <div class="config-produtos-pane active" data-produtos-config-pane="exportar">
+              <h3>Exportar / Importar</h3>
           <div class="config-actions">
             <button id="exportarProdutosExcel">Exportar produtos Excel</button>
             <label class="file-button">Importar produtos Excel<input id="importarProdutosExcel" type="file" accept=".xlsx,.xls,.csv"></label>
           </div>
           <small>Colunas: código, categoria, tamanho, cor, status, observação, foto, usabilidade e colaborador.</small>
-        </div>
-      </dialog>
-
-      <dialog id="configModalMateriais" class="modal large-modal config-popup">
-        <div class="modal-header"><div><h2>Materiais de Apoio</h2><p>Adicionar, editar e remover os materiais de apoio usados nos eventos e produtos.</p></div><button type="button" class="modal-close" data-close-config="configModalMateriais">×</button></div>
-        <div class="config-popup-body">
+            </div>
+            <div class="config-produtos-pane" data-produtos-config-pane="materiais">
+              <h3>Materiais de Apoio</h3>
           <div class="config-inline-form">
             <select id="novoMaterialApoioTipo" title="Subcategoria">
               <option value="material">Materiais Gerais</option>
@@ -569,8 +870,27 @@
           </div>
           <small>Estes itens aparecem como Materiais de Apoio, com controle por quantidade e sem código individual. Caixas térmicas, toalhas e acessórios de tendas ficam agrupados em subcategorias próprias. Para toalhas, selecione “Toalhas” e informe a cor.</small>
           <div id="listaMateriaisApoioConfig" class="config-list"></div>
+            </div>
+            <div class="config-produtos-pane" data-produtos-config-pane="cores">
+              <h3>Cores dos Produtos</h3>
+          <div class="config-inline-form"><input id="novaCorNome" type="text" placeholder="Nova cor"><button id="adicionarCorConfig" type="button">Adicionar cor</button></div>
+          <div id="listaCoresConfig" class="config-list"></div>
+            </div>
+            <div class="config-produtos-pane" data-produtos-config-pane="fotos">
+              <h3>Fotos</h3>
+          <div class="foto-padrao-form">
+            <label>Categoria<select id="fotoPadraoCategoria"><option value="">Selecione uma categoria</option></select></label>
+            <label>Tamanho<select id="fotoPadraoTamanho"><option value="">Selecione um tamanho</option></select></label>
+            <label>Foto<input id="fotoPadraoArquivo" type="file" accept="image/*"></label>
+            <input id="fotoPadraoUrl" type="hidden">
+            <button id="adicionarFotoPadraoConfig" type="button">Salvar/alterar foto</button>
+          </div>
+          <div id="listaFotosPadraoConfig" class="config-list"></div>
+            </div>
+          </div>
         </div>
       </dialog>
+
 
       <dialog id="configModalEventos" class="modal large-modal config-popup">
         <div class="modal-header"><div><h2>Eventos Backup</h2><p>Exportar ou importar eventos por período.</p></div><button type="button" class="modal-close" data-close-config="configModalEventos">×</button></div>
@@ -595,36 +915,18 @@
         </div>
       </dialog>
 
-      <dialog id="configModalCores" class="modal large-modal config-popup">
-        <div class="modal-header"><div><h2>Cores dos Produtos</h2><p>Adicionar e remover cores de tendas e ombrelones.</p></div><button type="button" class="modal-close" data-close-config="configModalCores">×</button></div>
-        <div class="config-popup-body">
-          <div class="config-inline-form"><input id="novaCorNome" type="text" placeholder="Nova cor"><button id="adicionarCorConfig" type="button">Adicionar cor</button></div>
-          <div id="listaCoresConfig" class="config-list"></div>
-        </div>
-      </dialog>
 
-      <dialog id="configModalFotos" class="modal large-modal config-popup">
-        <div class="modal-header"><div><h2>Fotos</h2><p>Adicionar fotos no catálogo por categoria e tamanho.</p></div><button type="button" class="modal-close" data-close-config="configModalFotos">×</button></div>
-        <div class="config-popup-body">
-          <div class="foto-padrao-form">
-            <label>Categoria<select id="fotoPadraoCategoria"><option value="">Selecione uma categoria</option></select></label>
-            <label>Tamanho<select id="fotoPadraoTamanho"><option value="">Selecione um tamanho</option></select></label>
-            <label>Foto<input id="fotoPadraoArquivo" type="file" accept="image/*"></label>
-            <input id="fotoPadraoUrl" type="hidden">
-            <button id="adicionarFotoPadraoConfig" type="button">Salvar/alterar foto</button>
-          </div>
-          <div id="listaFotosPadraoConfig" class="config-list"></div>
-        </div>
-      </dialog>
 
       <dialog id="configModalDocumentos" class="modal large-modal config-popup config-popup-documentos">
-        <div class="modal-header"><div><h2>Modelos de Documentos</h2><p>Edite os textos padrão usados na Guia de Serviço, Contrato e Recibo.</p></div><button type="button" class="modal-close" data-close-config="configModalDocumentos">×</button></div>
+        <div class="modal-header"><div><h2>Modelos de Documentos</h2><p>Edite os textos padrão usados na Guia de Serviço, Contrato, Recibo e Orçamento.</p></div><button type="button" class="modal-close" data-close-config="configModalDocumentos">×</button></div>
         <div class="config-popup-body">
           <div class="doc-model-layout">
             <aside class="doc-model-side">
               <button type="button" class="doc-model-tab active" data-doc-model="guia">Guia de Serviço</button>
               <button type="button" class="doc-model-tab" data-doc-model="contrato">Contrato</button>
               <button type="button" class="doc-model-tab" data-doc-model="recibo">Recibo</button>
+              <button type="button" class="doc-model-tab" data-doc-model="orcamento">Orçamento</button>
+              <button type="button" class="doc-model-tab" data-doc-model="assinatura">Assinatura Digital</button>
               <div class="doc-model-help">
                 <strong>Variáveis disponíveis</strong>
                 <code>{{logo_empresa}}</code>
@@ -645,6 +947,13 @@
                 <code>{{restante}}</code>
                 <code>{{forma_pagamento}}</code>
                 <code>{{data_hoje}}</code>
+                <code>{{numero_orcamento}}</code>
+                <code>{{data_orcamento}}</code>
+                <code>{{validade_orcamento}}</code>
+                <code>{{itens}}</code>
+                <code>{{valor_materiais}}</code>
+                <code>{{valor_frete}}</code>
+                <code>{{desconto}}</code>
                 <code>{{assinaturas}}</code>
               </div>
             </aside>
@@ -654,11 +963,25 @@
                 <span>Use HTML simples e as variáveis ao lado.</span>
               </div>
               <textarea id="docModeloEditor" spellcheck="false"></textarea>
+              <div id="docAssinaturaDigitalPainel" class="assinatura-config-box" style="display:none">
+                <strong>Assinatura Digital</strong>
+                <p class="small">Envie uma imagem PNG ou JPG da assinatura. Ela será usada automaticamente no PDF de orçamento e ficará preparada para os demais documentos.</p>
+                <label>Enviar assinatura
+                  <input id="docAssinaturaResponsavelArquivo" type="file" accept="image/*">
+                </label>
+                <input id="docAssinaturaResponsavel" type="hidden">
+                <div id="docAssinaturaResponsavelPreview" class="assinatura-preview"><span>Sem assinatura configurada.</span></div>
+                <div class="config-actions assinatura-config-actions">
+                  <button id="salvarAssinaturaDigitalDocumento" type="button">Salvar assinatura</button>
+                  <button id="restaurarAssinaturaDigitalDocumento" type="button" class="btn-outline">Restaurar assinatura Rodrigo</button>
+                  <button id="removerAssinaturaDigitalDocumento" type="button" class="btn-outline danger">Remover assinatura</button>
+                </div>
+              </div>
               <div class="config-actions doc-model-actions">
                 <button id="salvarModeloDocumento" type="button">Salvar modelo</button>
                 <button id="restaurarModeloDocumento" class="btn-outline" type="button">Restaurar padrão</button>
               </div>
-              <small>As alterações ficam salvas nas configurações do sistema. Depois, os botões Guia, Contrato e Recibo usam estes modelos automaticamente.</small>
+              <small>As alterações ficam salvas nas configurações do sistema. Depois, os botões Guia, Contrato, Recibo e Orçamento usam estes modelos automaticamente.</small>
             </section>
           </div>
         </div>
@@ -692,6 +1015,64 @@
         <div class="modal-header"><div><h2>Log do Sistema</h2><p>Todo histórico de quem alterou algo no sistema.</p></div><button type="button" class="modal-close" data-close-config="configModalLogs">×</button></div>
         <div id="configModalLogsConteudo" class="config-popup-body"></div>
       </dialog>
+
+      <dialog id="configModalManutencao" class="modal large-modal config-popup">
+        <div class="modal-header">
+          <div>
+            <h2>Manutenção</h2>
+            <p>Regularização administrativa de pendências de entrega e retirada por período.</p>
+          </div>
+          <button type="button" class="modal-close" data-close-config="configModalManutencao">×</button>
+        </div>
+        <div class="config-popup-body manutencao-admin-box manutencao-reset-box">
+          <div class="config-card manutencao-avancada-card" id="manutencaoAvancadaCard">
+            <h3>Resetar pendências por período</h3>
+            <p>Use esta opção quando a equipe esquecer de clicar em <strong>Entregue</strong> ou <strong>Recolhido</strong>. Filtre o período, confira a lista e selecione quais eventos deseja regularizar.</p>
+
+            <div class="form-row config-date-row manutencao-periodo-row">
+              <label>Data inicial<input type="date" id="manutDataIni"></label>
+              <label>Data final<input type="date" id="manutDataFim"></label>
+              <label>Tipo
+                <select id="manutTipoPendencia">
+                  <option value="todos">Entrega + Retirada</option>
+                  <option value="entrega">Somente pendente de entrega</option>
+                  <option value="retirada">Somente pendente de retirada</option>
+                </select>
+              </label>
+              <button id="btnPesquisarManut" type="button">Pesquisar</button>
+            </div>
+
+            <div class="config-actions manutencao-actions">
+              <button id="manutSelectAll" type="button">Selecionar todos</button>
+              <button id="manutClearSelection" type="button">Limpar seleção</button>
+              <button id="manutZerarSelecionados" type="button" class="danger-soft">Resetar selecionados</button>
+            </div>
+
+            <div class="table-wrapper manutencao-tabela-wrapper">
+              <table class="manutencao-tabela">
+                <thead>
+                  <tr>
+                    <th style="width:42px">✓</th>
+                    <th>Data</th>
+                    <th>Tipo</th>
+                    <th>Cliente</th>
+                    <th>Horário</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyManutencaoAvancada">
+                  <tr><td colspan="6">Informe o período e clique em Pesquisar.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <small>Entrega marcada como Entregue atualiza os produtos como Alugado. Retirada marcada como Recolhido envia os produtos para Revisar, seguindo a mesma lógica do botão da rota.</small>
+          </div>
+
+          <div id="manutencaoResultado" class="manutencao-resultado"></div>
+        </div>
+      </dialog>
+
     </section>
 </main>
 
@@ -865,20 +1246,41 @@
         <div class="form-row finance-row finance-row-inline">
           <label>Valor total
             <input id="eventoValorTotal" class="money-input" type="text" inputmode="decimal" value="R$ 0,00">
+            <span class="pagamento-icones" data-pagamento-tipo="Pg Total">
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Pix/Transferência" title="Pg Total - Pix/Transferência">📱</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Dinheiro" title="Pg Total - Dinheiro">💵</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão" title="Pg Total - Cartão">💳</button>
+            </span>
           </label>
           <label>Sinal
             <input id="eventoValorSinal" class="money-input" type="text" inputmode="decimal" value="R$ 0,00">
+            <span class="pagamento-icones" data-pagamento-tipo="Sinal">
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Pix/Transferência" title="Sinal - Pix/Transferência">📱</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Dinheiro" title="Sinal - Dinheiro">💵</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão" title="Sinal - Cartão">💳</button>
+            </span>
           </label>
           <label>Restante
             <input id="eventoValorRestante" class="money-input" type="text" readonly value="R$ 0,00">
+            <span class="pagamento-icones" data-pagamento-tipo="Restante">
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Pix/Transferência" title="Restante - Pix/Transferência">📱</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Dinheiro" title="Restante - Dinheiro">💵</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão" title="Restante - Cartão">💳</button>
+            </span>
           </label>
           <label class="finance-payment-field">Forma de pagamento
             <textarea id="eventoFormaPagamento" rows="2" placeholder="Ex: Pix, dinheiro, cartão..."></textarea>
           </label>
-          <label class="checkbox-line finance-paid-compact">
-            <input id="eventoPagamentoQuitado" type="checkbox">
-            <span>Quitado</span>
-          </label>
+          <div class="finance-check-stack">
+            <label class="checkbox-line finance-paid-compact finance-inloco-compact" title="Cliente pagará o valor total no local. Confirma a reserva, mas não quita o pagamento.">
+              <input id="eventoPagarInloco" type="checkbox">
+              <span>Pagar in loco</span>
+            </label>
+            <label class="checkbox-line finance-paid-compact">
+              <input id="eventoPagamentoQuitado" type="checkbox">
+              <span>Quitado</span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -916,6 +1318,7 @@
         </div>
         <div class="evento-rodape-spacer" style="flex:1 1 auto!important;min-width:20px!important;"></div>
         <div class="evento-save-actions" style="display:flex!important;justify-content:flex-end!important;align-items:center!important;gap:8px!important;flex:0 0 auto!important;margin-left:auto!important;width:auto!important;">
+          <button type="button" class="btn-outline" id="duplicarEventoBtn" style="display:none;">Duplicar</button>
           <button type="button" class="btn-outline" id="cancelarEvento">Cancelar</button>
           <button type="submit">Salvar evento</button>
         </div>
@@ -1018,6 +1421,219 @@
   </dialog>
 
 
+  <dialog id="orcamentoDialog" class="modal large-modal">
+    <form id="orcamentoForm" method="dialog">
+      <div class="modal-header">
+        <div>
+          <h2 id="orcamentoModalTitulo">Novo orçamento</h2>
+          <p class="hint">Orçamento não reserva inventário e não cadastra o cliente oficial até ser aprovado.</p>
+        </div>
+        <button type="button" class="icon-btn" id="fecharOrcamentoModal">×</button>
+      </div>
+
+      <input type="hidden" id="orcamentoId">
+
+      <div class="subpanel">
+        <h3>Cliente</h3>
+        <div class="form-grid compact-client-grid">
+          <label>Nome
+            <input id="orcamentoNome" type="text" required>
+          </label>
+          <label>CPF/CNPJ
+            <input id="orcamentoDocumento" type="text">
+          </label>
+          <label>Telefone
+            <input id="orcamentoTelefone" type="text">
+          </label>
+          <label>E-mail
+            <input id="orcamentoEmail" type="email">
+          </label>
+          <label class="evento-endereco-wide">Endereço
+            <input id="orcamentoEndereco" type="text">
+          </label>
+          <label class="evento-observacao-wide">Observação
+            <input id="orcamentoObservacaoCliente" type="text" placeholder="Referência, indicação, observação comercial...">
+          </label>
+        </div>
+      </div>
+
+      <div class="subpanel">
+        <h3>Dados do evento</h3>
+        <div class="event-lines">
+          <input type="hidden" id="orcamentoStatus" value="em_aberto">
+          <div class="form-row event-date-row event-date-row-4">
+            <label>Data do evento
+              <input id="orcamentoDataEvento" type="date" required>
+            </label>
+            <label>Início
+              <select id="orcamentoHoraInicio" class="time-list-select"></select>
+            </label>
+            <label>Término
+              <select id="orcamentoHoraTermino" class="time-list-select"></select>
+            </label>
+            <label>Tipo de evento
+              <select id="orcamentoTipoEvento">
+                <option value="pontual">Pontual</option>
+                <option value="recorrente">Recorrente</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-row event-operation-row event-operation-row-fast">
+            <label>Montagem
+              <span class="date-time-pair"><input id="orcamentoMontagemData" type="date"><select id="orcamentoMontagemHora" class="time-list-select"></select></span>
+            </label>
+            <button type="button" id="orcamentoMontagemDiaAnterior" class="btn-mini-fast" title="Usar dia anterior ao evento e horário livre">Dia anterior</button>
+            <label>Tipo da montagem
+              <select id="orcamentoMontagemTipo">
+                <option value="A partir de">A partir de</option>
+                <option value="Até">Até</option>
+                <option value="Exatamente">Exatamente</option>
+                <option value="Intervalo">Intervalo</option>
+                <option value="Horário comercial" selected>Horário comercial</option>
+                <option value="Livre / combinar">Livre / combinar</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-row event-operation-row event-operation-row-fast">
+            <label>Desmontagem
+              <span class="date-time-pair"><input id="orcamentoDesmontagemData" type="date"><select id="orcamentoDesmontagemHora" class="time-list-select"></select></span>
+            </label>
+            <button type="button" id="orcamentoRetiradaDiaSeguinte" class="btn-mini-fast" title="Usar dia posterior ao evento e horário livre">Dia posterior</button>
+            <label>Tipo da desmontagem
+              <select id="orcamentoDesmontagemTipo">
+                <option value="A partir de">A partir de</option>
+                <option value="Até">Até</option>
+                <option value="Exatamente">Exatamente</option>
+                <option value="Intervalo">Intervalo</option>
+                <option value="Horário comercial" selected>Horário comercial</option>
+                <option value="Livre / combinar">Livre / combinar</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="subpanel orcamento-materiais-panel">
+        <div class="section-header compact-header split">
+          <div>
+            <h3>Materiais por quantidade</h3>
+            <p class="hint">Seleção de orçamento: não escolhe código e não reserva produto.</p>
+          </div>
+        </div>
+        <div class="form-row extra-row orcamento-material-row orcamento-material-catalog-row">
+          <select id="orcamentoMaterialTipo" title="Material">
+            <option value="">Selecione o material</option>
+            <optgroup label="Tendas sanfonadas">
+              <option value="Tenda Sanfonada 3x3 Branca" data-label="Tenda Sanfonada 3x3 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="3x3" data-detalhes="sanfonada branca">Tenda Sanfonada 3x3 Branca</option>
+              <option value="Tenda Sanfonada 3x3 Cristal" data-label="Tenda Sanfonada 3x3 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="3x3" data-detalhes="sanfonada cristal">Tenda Sanfonada 3x3 Cristal</option>
+              <option value="Tenda Sanfonada 4x4 Branca" data-label="Tenda Sanfonada 4x4 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="4x4" data-detalhes="sanfonada branca">Tenda Sanfonada 4x4 Branca</option>
+              <option value="Tenda Sanfonada 4x4 Cristal" data-label="Tenda Sanfonada 4x4 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="4x4" data-detalhes="sanfonada cristal">Tenda Sanfonada 4x4 Cristal</option>
+              <option value="Tenda Sanfonada 4.5x3 Branca" data-label="Tenda Sanfonada 4.5x3 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="4.5x3" data-detalhes="sanfonada branca">Tenda Sanfonada 4.5x3 Branca</option>
+              <option value="Tenda Sanfonada 4.5x3 Cristal" data-label="Tenda Sanfonada 4.5x3 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="4.5x3" data-detalhes="sanfonada cristal">Tenda Sanfonada 4.5x3 Cristal</option>
+              <option value="Tenda Sanfonada 6x3 Branca" data-label="Tenda Sanfonada 6x3 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="6x3" data-detalhes="sanfonada branca">Tenda Sanfonada 6x3 Branca</option>
+              <option value="Tenda Sanfonada 6x3 Cristal" data-label="Tenda Sanfonada 6x3 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="6x3" data-detalhes="sanfonada cristal">Tenda Sanfonada 6x3 Cristal</option>
+            </optgroup>
+            <optgroup label="Tendas piramidais">
+              <option value="Tenda Piramidal 3x3 Branca" data-label="Tenda Piramidal 3x3 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="3x3" data-detalhes="piramidal branca">Tenda Piramidal 3x3 Branca</option>
+              <option value="Tenda Piramidal 3x3 Cristal" data-label="Tenda Piramidal 3x3 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="3x3" data-detalhes="piramidal cristal">Tenda Piramidal 3x3 Cristal</option>
+              <option value="Tenda Piramidal 4x4 Branca" data-label="Tenda Piramidal 4x4 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="4x4" data-detalhes="piramidal branca">Tenda Piramidal 4x4 Branca</option>
+              <option value="Tenda Piramidal 4x4 Cristal" data-label="Tenda Piramidal 4x4 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="4x4" data-detalhes="piramidal cristal">Tenda Piramidal 4x4 Cristal</option>
+              <option value="Tenda Piramidal 4.5x3 Branca" data-label="Tenda Piramidal 4.5x3 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="4.5x3" data-detalhes="piramidal branca">Tenda Piramidal 4.5x3 Branca</option>
+              <option value="Tenda Piramidal 4.5x3 Cristal" data-label="Tenda Piramidal 4.5x3 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="4.5x3" data-detalhes="piramidal cristal">Tenda Piramidal 4.5x3 Cristal</option>
+              <option value="Tenda Piramidal 6x3 Branca" data-label="Tenda Piramidal 6x3 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="6x3" data-detalhes="piramidal branca">Tenda Piramidal 6x3 Branca</option>
+              <option value="Tenda Piramidal 6x3 Cristal" data-label="Tenda Piramidal 6x3 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="6x3" data-detalhes="piramidal cristal">Tenda Piramidal 6x3 Cristal</option>
+              <option value="Tenda Piramidal 6x6 Branca" data-label="Tenda Piramidal 6x6 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="6x6" data-detalhes="piramidal branca">Tenda Piramidal 6x6 Branca</option>
+              <option value="Tenda Piramidal 6x6 Cristal" data-label="Tenda Piramidal 6x6 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="6x6" data-detalhes="piramidal cristal">Tenda Piramidal 6x6 Cristal</option>
+              <option value="Tenda Piramidal 8x8 Branca" data-label="Tenda Piramidal 8x8 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="8x8" data-detalhes="piramidal branca">Tenda Piramidal 8x8 Branca</option>
+              <option value="Tenda Piramidal 8x8 Cristal" data-label="Tenda Piramidal 8x8 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="8x8" data-detalhes="piramidal cristal">Tenda Piramidal 8x8 Cristal</option>
+              <option value="Tenda Piramidal 10x10 Branca" data-label="Tenda Piramidal 10x10 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="10x10" data-detalhes="piramidal branca">Tenda Piramidal 10x10 Branca</option>
+              <option value="Tenda Piramidal 10x10 Cristal" data-label="Tenda Piramidal 10x10 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="10x10" data-detalhes="piramidal cristal">Tenda Piramidal 10x10 Cristal</option>
+            </optgroup>
+            <optgroup label="Produtos">
+              <option value="Ombrelone" data-label="Ombrelone" data-tipo="produto" data-categoria="Ombrelone" data-tamanho="">Ombrelone</option>
+            </optgroup>
+            <optgroup label="Materiais de apoio">
+              <option value="Mesa de Plástico Branca" data-label="Mesa de Plástico Branca" data-tipo="apoio" data-categoria="Mesa" data-apoio="Mesa de Plástico Branca">Mesa de Plástico Branca</option>
+              <option value="Mesa Bistrô" data-label="Mesa Bistrô" data-tipo="apoio" data-categoria="Mesa" data-apoio="Mesa Bistrô">Mesa Bistrô</option>
+              <option value="Mesa de Madeira" data-label="Mesa de Madeira" data-tipo="apoio" data-categoria="Mesa" data-apoio="Mesa de Madeira">Mesa de Madeira</option>
+              <option value="Cadeira Plástica Branca" data-label="Cadeira Plástica Branca" data-tipo="apoio" data-categoria="Cadeira" data-apoio="Cadeira Plástica Branca">Cadeira Plástica Branca</option>
+              <option value="Cadeira de Madeira" data-label="Cadeira de Madeira" data-tipo="apoio" data-categoria="Cadeira" data-apoio="Cadeira de Madeira">Cadeira de Madeira</option>
+              <option value="Banco Plástico" data-label="Banco Plástico" data-tipo="apoio" data-categoria="Banco" data-apoio="Banco Plástico">Banco Plástico</option>
+              <option value="Banqueta" data-label="Banqueta" data-tipo="apoio" data-categoria="Banqueta" data-apoio="Banqueta">Banqueta</option>
+              <option value="Toalha" data-label="Toalha" data-tipo="apoio" data-categoria="Toalha" data-apoio="Toalha">Toalha</option>
+              <option value="Lateral 3m" data-label="Lateral 3m" data-tipo="apoio" data-categoria="Lateral" data-apoio="Lateral 3m">Lateral 3m</option>
+              <option value="Lateral 4m" data-label="Lateral 4m" data-tipo="apoio" data-categoria="Lateral" data-apoio="Lateral 4m">Lateral 4m</option>
+              <option value="Lateral 4.5m" data-label="Lateral 4.5m" data-tipo="apoio" data-categoria="Lateral" data-apoio="Lateral 4.5m">Lateral 4.5m</option>
+              <option value="Lateral 5m" data-label="Lateral 5m" data-tipo="apoio" data-categoria="Lateral" data-apoio="Lateral 5m">Lateral 5m</option>
+              <option value="Lateral 6m" data-label="Lateral 6m" data-tipo="apoio" data-categoria="Lateral" data-apoio="Lateral 6m">Lateral 6m</option>
+              <option value="Lateral 8m" data-label="Lateral 8m" data-tipo="apoio" data-categoria="Lateral" data-apoio="Lateral 8m">Lateral 8m</option>
+              <option value="Lateral 10m" data-label="Lateral 10m" data-tipo="apoio" data-categoria="Lateral" data-apoio="Lateral 10m">Lateral 10m</option>
+              <option value="Caixa térmica 190L" data-label="Caixa térmica 190L" data-tipo="apoio" data-categoria="Caixa térmica" data-apoio="Caixa térmica 190L">Caixa térmica 190L</option>
+              <option value="Caixa térmica 360L" data-label="Caixa térmica 360L" data-tipo="apoio" data-categoria="Caixa térmica" data-apoio="Caixa térmica 360L">Caixa térmica 360L</option>
+            </optgroup>
+            <option value="Outro / serviço extra" data-label="Outro / serviço extra" data-tipo="extra" data-categoria="Extra" data-tamanho="">Outro / serviço extra</option>
+          </select>
+          <input id="orcamentoMaterialQtd" type="number" min="1" step="1" value="1" title="Quantidade">
+          <input id="orcamentoMaterialValorUnit" class="money-input" type="text" inputmode="decimal" value="R$ 0,00" title="Valor unitário">
+          <button type="button" id="adicionarMaterialOrcamento" class="btn-outline">Adicionar</button>
+        </div>
+        <div id="orcamentoOutroServicoLinha" class="form-row" style="display:none; margin-top:8px;">
+          <label style="flex:1;">Descrição do outro produto/serviço
+            <input id="orcamentoMaterialDescricao" type="text" placeholder="Ex: Gerador 5kva, taxa de estacionamento, equipe extra...">
+          </label>
+        </div>
+        <div id="orcamentoMateriaisSelecionados" class="selected-list extras-list"></div>
+      </div>
+
+      <div class="subpanel">
+        <h3>Financeiro e condição</h3>
+        <div class="form-row finance-row finance-row-inline">
+          <label>Locação dos materiais
+            <input id="orcamentoValorMateriais" class="money-input" type="text" readonly value="R$ 0,00">
+          </label>
+          <label>Frete / Montagem / Desmontagem
+            <input id="orcamentoValorFreteMontagem" class="money-input" type="text" inputmode="decimal" value="R$ 0,00">
+          </label>
+          <label>Desconto
+            <input id="orcamentoValorDesconto" class="money-input" type="text" inputmode="decimal" value="R$ 0,00">
+          </label>
+          <label>Total geral
+            <input id="orcamentoValorTotal" class="money-input" type="text" readonly value="R$ 0,00">
+          </label>
+          <label>Sinal
+            <input id="orcamentoValorSinal" class="money-input" type="text" inputmode="decimal" value="R$ 0,00">
+          </label>
+          <label>Restante
+            <input id="orcamentoValorRestante" class="money-input" type="text" readonly value="R$ 0,00">
+          </label>
+          <label>Forma de pagamento
+            <select id="orcamentoFormaPagamento">
+              <option value="Sinal de 20% para reserva do material e mobilização da equipe. Restante até o dia do evento em dinheiro, transferência ou cartão.">Sinal 20% + restante na entrega/evento</option>
+              <option value="Faturado conforme combinado entre as partes.">Faturado</option>
+              <option value="À vista no local.">À vista no local</option>
+              <option value="A combinar.">A combinar</option>
+            </select>
+          </label>
+        </div>
+        <label>Observações do orçamento
+          <textarea id="orcamentoObservacoes" rows="3" placeholder="Ex: valor sujeito à disponibilidade, frete incluso, observação comercial..."></textarea>
+        </label>
+      </div>
+
+      <div class="modal-actions evento-modal-actions" style="display:flex;justify-content:space-between;gap:10px;align-items:center;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn-outline" id="gerarPdfOrcamento">Gerar PDF</button>
+          <button type="button" class="btn-outline" id="aprovarOrcamentoBtn" style="display:none;">Aprovar e virar evento</button>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btn-outline" id="cancelarOrcamento">Cancelar</button>
+          <button type="submit" class="btn-primary">Salvar orçamento</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+
   <dialog id="usuarioModal" class="modal">
     <div class="modal-header">
       <h2 id="usuarioModalTitulo">Usuário</h2>
@@ -1074,10 +1690,13 @@
   <script src="js/produtos.js"></script>
   <script src="js/clientes.js"></script>
   <script src="js/eventos.js"></script>
+  <script src="js/orcamentos.js"></script>
+  <script src="js/financeiro.js"></script>
   <script src="js/rotas.js"></script>
   <script src="js/calendario.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="js/configuracoes.js"></script>
+  <script src="js/relatorios.js"></script>
   <script src="js/app.js"></script>
   <script src="js/calendario-nav-fix.js"></script>
   <script src="js/logs.js"></script>

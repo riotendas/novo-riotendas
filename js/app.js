@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   iniciarNavegacao();
   iniciarProdutos();
+  if (typeof iniciarRelatorios === "function") iniciarRelatorios();
   iniciarAuth();
 });
 

@@ -125,8 +125,22 @@ async function salvarClienteForm(event) {
     criado_em: existente?.criado_em || new Date().toISOString()
   };
 
+  const antesLogCliente = existente ? JSON.parse(JSON.stringify(existente)) : null;
+  const depoisLogCliente = JSON.parse(JSON.stringify(cliente));
+
   const salvo = await salvarClienteBanco(cliente);
   if (!salvo) return;
+
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Clientes",
+      acao: existente ? "Cliente editado" : "Cliente cadastrado",
+      registro_id: salvo.id,
+      registro_nome: salvo.nome || cliente.nome || "Cliente",
+      antes: antesLogCliente,
+      depois: depoisLogCliente
+    });
+  }
 
   const i = clientes.findIndex(c => c.id === salvo.id);
   if (i >= 0) clientes[i] = salvo;
@@ -201,8 +215,20 @@ async function lidarAcaoCliente(event) {
     const c = clientes.find(x => x.id === id);
     if (!confirm(`Excluir o cliente ${c?.nome || ""}?`)) return;
 
+    const antesLogCliente = c ? JSON.parse(JSON.stringify(c)) : null;
     const ok = await excluirClienteBanco(id);
     if (!ok) return;
+
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({
+        modulo: "Clientes",
+        acao: "Cliente excluído",
+        registro_id: id,
+        registro_nome: c?.nome || "Cliente",
+        antes: antesLogCliente,
+        depois: null
+      });
+    }
 
     clientes = clientes.filter(x => x.id !== id);
     renderizarClientes();

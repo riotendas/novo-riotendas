@@ -84,6 +84,49 @@ async function salvarRotasOperacaoNuvem() {
   }
 }
 
+
+async function zerarRotasOperacaoTotal(silencioso = false) {
+  const antes = rotasOperacao && typeof rotasOperacao === "object" ? { ...rotasOperacao } : {};
+  rotasOperacao = {};
+  localStorage.setItem(storageRotasOperacaoKey, JSON.stringify({}));
+
+  if (typeof supabaseClient !== "undefined" && supabaseClient) {
+    try {
+      await supabaseClient
+        .from("app_config")
+        .upsert({
+          chave: "rotas_operacao",
+          valor: {},
+          atualizado_em: new Date().toISOString()
+        }, { onConflict: "chave" });
+    } catch (erro) {
+      console.warn("Não foi possível zerar Entregue/Recolhido na nuvem:", erro);
+    }
+  }
+
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Rotas",
+      acao: "Entregue/Recolhido zerado",
+      registro_id: "rotas_operacao",
+      registro_nome: "Controle operacional de rotas",
+      antes,
+      depois: {},
+      detalhes: "Limpeza dos marcadores Entregue/Recolhido para recomeçar os testes da logística sem sincronização automática em loop."
+    });
+  }
+
+  if (!silencioso) alert("Marcadores Entregue/Recolhido zerados. A partir de agora, os produtos só mudam de status quando você clicar em Entregue, Recolhido ou Reverter.");
+  if (typeof renderizarRotas === "function") renderizarRotas();
+}
+
+async function resetarOperacoesRotasUmaVezParaTeste() {
+  const chaveReset = "novoRioTendasResetEntregueRecolhidoLogisticaV1";
+  if (localStorage.getItem(chaveReset) === "ok") return;
+  localStorage.setItem(chaveReset, "ok");
+  await zerarRotasOperacaoTotal(true);
+}
+
 async function sincronizarRotasOperacaoNuvem() {
   const nuvem = await carregarRotasOperacaoNuvem();
 
@@ -166,6 +209,35 @@ function materialEventoRotas(rota) {
   return Array.isArray(evento.tendas) ? evento.tendas : [];
 }
 
+
+
+function rtProdutoStatusFoiAlteradoManual(produto) {
+  const historico = Array.isArray(produto?.historico) ? produto.historico : [];
+  const eventosStatus = historico
+    .filter(h => String(h?.alteracao || '').toLowerCase().includes('status alterado'))
+    .slice()
+    .sort((a, b) => new Date(b.data || 0) - new Date(a.data || 0));
+
+  if (!eventosStatus.length) return false;
+
+  const ultimo = eventosStatus[0];
+  const texto = `${ultimo.alteracao || ''} ${ultimo.observacao || ''}`.toLowerCase();
+
+  // Alterações registradas pela rota continuam sendo automáticas.
+  if (texto.includes('pela rota') || texto.includes('sincronização automática') || texto.includes('sincronizacao automatica')) {
+    return false;
+  }
+
+  return true;
+}
+
+function rtStatusProdutoManualProtegido(produto, novoStatus) {
+  const atual = String(produto?.status || '').trim().toLowerCase();
+  const destino = String(novoStatus || '').trim().toLowerCase();
+  if (!atual || atual === destino) return false;
+  return rtProdutoStatusFoiAlteradoManual(produto);
+}
+
 async function alterarStatusProdutosEventoRota(rota, novoStatus, motivo, opAnterior = null) {
   const tendasEvento = materialEventoRotas(rota);
   if (!tendasEvento.length) return [];
@@ -196,6 +268,25 @@ async function alterarStatusProdutosEventoRota(rota, novoStatus, motivo, opAnter
     }
 
     if (String(statusAnterior).trim().toLowerCase() === String(statusDestino).trim().toLowerCase()) continue;
+
+    const ehSincronizacaoAutomatica = String(motivo || "").toLowerCase().includes("sincronização automática") || String(motivo || "").toLowerCase().includes("sincronizacao automatica");
+
+    // Protege status manuais apenas durante reconciliações automáticas.
+    // Ações explícitas da rota (Entregue/Recolhido) continuam tendo prioridade operacional.
+    if (ehSincronizacaoAutomatica && rtStatusProdutoManualProtegido(produto, statusDestino)) {
+      if (typeof registrarLogSistema === "function") {
+        registrarLogSistema({
+          modulo: "Rotas",
+          acao: "Status automático ignorado",
+          registro_id: produto.id,
+          registro_nome: produto.codigo || produto.nome || "Produto",
+          antes: { status: statusAnterior },
+          depois: { status: statusAnterior },
+          detalhes: `A sincronização automática tentou alterar para ${statusDestino}, mas o status atual foi definido manualmente. Produto preservado para evitar loop.`
+        });
+      }
+      continue;
+    }
 
     alterados.push({
       id: produto.id,
@@ -277,14 +368,7 @@ async function reverterOperacaoRota(rotaId) {
 
   if (opAnterior.status === "recolhido") {
     alterados = await alterarStatusProdutosEventoRota(rota, "__RESTORE__", "Reversão administrativa do recolhimento", opAnterior);
-    rotasOperacao[rota.id] = {
-      status: "entregue",
-      data: agora,
-      colaborador,
-      evento_id: rota.evento_id,
-      tipo: rota.tipo,
-      revertido_de: opAnterior
-    };
+    delete rotasOperacao[rota.id];
   } else if (opAnterior.status === "entregue") {
     alterados = await alterarStatusProdutosEventoRota(rota, "__RESTORE__", "Reversão administrativa da entrega", opAnterior);
     delete rotasOperacao[rota.id];
@@ -318,11 +402,22 @@ async function reconciliarStatusProdutosOperacoesRotas() {
   const rotas = criarRotasDosEventos();
   let mudouOperacao = false;
 
-  for (const [rotaId, op] of Object.entries(rotasOperacao)) {
-    if (!op || !op.status) continue;
+  const operacoesOrdenadas = Object.entries(rotasOperacao)
+    .filter(([, op]) => op && op.status)
+    .sort(([, a], [, b]) => {
+      const da = new Date(a?.data || 0).getTime() || 0;
+      const db = new Date(b?.data || 0).getTime() || 0;
+      return da - db;
+    });
 
+  // Processa em ordem cronológica para a última operação vencer.
+  // Isso evita que uma montagem entregue antiga volte a marcar como Alugado
+  // depois que a desmontagem já foi marcada como Recolhido/Revisar.
+  for (const [rotaId, op] of operacoesOrdenadas) {
     const rota = rotas.find(r => String(r.id) === String(rotaId));
     if (!rota) continue;
+
+    if (op.semAlterarProdutos) continue;
 
     if (op.status === "entregue") {
       const alterados = await alterarStatusProdutosEventoRota(rota, "Alugado", "Sincronização automática: rota entregue");
@@ -580,8 +675,9 @@ function iniciarRotas() {
   atualizarFiltroCarrosRotas();
   sincronizarRotasCarrosNuvem();
   sincronizarRotasOrdemNuvem();
-  sincronizarRotasOperacaoNuvem().then(() => reconciliarStatusProdutosOperacoesRotas()).catch(() => {});
-  setTimeout(() => reconciliarStatusProdutosOperacoesRotas(), 1800);
+  // Logística revisada: não reconciliar automaticamente Entregue/Recolhido ao abrir a tela.
+  // Isso evita loop de produtos voltando para Alugado/Revisar sem ação do usuário.
+  resetarOperacoesRotasUmaVezParaTeste().catch(() => {});
 
   const hoje = new Date();
   const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
@@ -599,6 +695,19 @@ function iniciarRotas() {
     if (typeof carregarEventos === "function") await carregarEventos();
     renderizarRotas();
   });
+
+  const zerarBtn = document.getElementById("zerarOperacoesRotasBtn");
+  if (zerarBtn) {
+    zerarBtn.addEventListener("click", async () => {
+      if (!rotaUsuarioEhAdmin()) {
+        alert("Apenas administrador pode zerar Entregue/Recolhido.");
+        return;
+      }
+      const ok = confirm("Zerar todos os marcadores Entregue/Recolhido das rotas? Isso não apaga eventos nem produtos. Serve para recomeçar os testes da logística do zero.");
+      if (!ok) return;
+      await zerarRotasOperacaoTotal(false);
+    });
+  }
 
   setTimeout(renderizarRotas, 400);
   setTimeout(renderizarRotas, 1200);
@@ -1140,6 +1249,206 @@ function agruparPorDataECarro(rotas) {
 }
 
 
+
+// v19-dev: contador operacional resumido por carro
+function rtNormalizarTexto(txt) {
+  return String(txt || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+function rtQuantidadeItem(item) {
+  const q = Number(item?.quantidade ?? item?.qtd ?? item?.quantidade_total ?? item?.qtde ?? 1);
+  return Number.isFinite(q) && q > 0 ? q : 1;
+}
+
+function rtTamanhoProduto(item) {
+  const texto = rtNormalizarTexto([item?.tamanho, item?.categoria, item?.tipo, item?.nome, item?.descricao].filter(Boolean).join(" "));
+  if (texto.includes("4.5x3") || texto.includes("4,5x3") || texto.includes("4.50x3") || texto.includes("4,50x3")) return "4.5x3";
+  if (texto.includes("6x3")) return "6x3";
+  if (texto.includes("4x4")) return "4x4";
+  if (texto.includes("3x3")) return "3x3";
+  return "";
+}
+
+function rtTipoApoioResumo(item) {
+  const texto = rtNormalizarTexto([item?.nome, item?.descricao, item?.categoria, item?.tipo].filter(Boolean).join(" "));
+  if (texto.includes("ombrel") || texto.includes("omb")) return "omb";
+  if (texto.includes("cadeira") || texto.includes(" banco") || texto.startsWith("banco")) return "cad";
+  if (texto.includes("mesa")) return "mes";
+  return "";
+}
+
+function rtResumoCargaCarro(listaRotas = []) {
+  const cont = { "6x3": 0, "4.5x3": 0, "4x4": 0, "3x3": 0, omb: 0, mes: 0, cad: 0 };
+
+  (listaRotas || []).forEach(rota => {
+    if (rotaEhDesmontagem(rota)) return;
+    const evento = rota.evento || {};
+
+    (evento.tendas || []).forEach(item => {
+      const tamanho = rtTamanhoProduto(item);
+      if (tamanho) cont[tamanho] += rtQuantidadeItem(item);
+      const tipo = rtTipoApoioResumo(item);
+      if (tipo && tipo !== "mes" && tipo !== "cad") cont[tipo] += rtQuantidadeItem(item);
+    });
+
+    [...(evento.itens_apoio || []), ...(evento.produtos_extras || [])].forEach(item => {
+      const tipo = rtTipoApoioResumo(item);
+      if (tipo) cont[tipo] += rtQuantidadeItem(item);
+    });
+  });
+
+  const partes = [];
+  if (cont["6x3"]) partes.push(`${cont["6x3"]} 6x3`);
+  if (cont["4.5x3"]) partes.push(`${cont["4.5x3"]} 4.5x3`);
+  if (cont["4x4"]) partes.push(`${cont["4x4"]} 4x4`);
+  if (cont["3x3"]) partes.push(`${cont["3x3"]} 3x3`);
+  if (cont.omb) partes.push(`${cont.omb} omb`);
+  if (cont.mes) partes.push(`${cont.mes} mes`);
+  if (cont.cad) partes.push(`${cont.cad} cad`);
+
+  return partes.length ? partes : ["Sem material de montagem neste carro"];
+}
+
+function rtPrimeiroNomeCliente(nome) {
+  return String(nome || "-").trim().split(/\s+/)[0] || "-";
+}
+
+function rtBairroEndereco(endereco) {
+  const textoOriginal = String(endereco || "").trim();
+  if (!textoOriginal) return "-";
+
+  function limparBairro(valor) {
+    return String(valor || "")
+      .replace(/\bcep\b[:\s-]*[\d.-]*/ig, "")
+      .replace(/\b(rio de janeiro|rj|brasil|brazil)\b/ig, "")
+      .replace(/^[\d\s.,º°ª/-]+/, "")
+      .replace(/[\d\s.,º°ª/-]+$/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  const ignorar = p => {
+    const n = rtNormalizarTexto(p);
+    return !n || /\b(rio de janeiro|rj|brasil|brazil|cep)\b/.test(n);
+  };
+
+  const partes = textoOriginal
+    .split(",")
+    .map(p => p.trim())
+    .filter(Boolean)
+    .filter(p => !ignorar(p));
+
+  const candidatos = [];
+
+  partes.forEach(parte => {
+    const pedacos = parte.split(/\s+-\s+/).map(p => p.trim()).filter(Boolean);
+    if (pedacos.length > 1) candidatos.push(pedacos[pedacos.length - 1]);
+    candidatos.push(parte);
+  });
+
+  const palavrasLogradouro = /\b(rua|av|avenida|estrada|rodovia|travessa|praça|praca|alameda|largo|condominio|condomínio|bloco|apto|apartamento|casa|loja|sala)\b/i;
+  const validos = candidatos
+    .map(limparBairro)
+    .filter(Boolean)
+    .filter(c => !ignorar(c))
+    .filter(c => !palavrasLogradouro.test(c) || !/\d/.test(c));
+
+  return validos.length ? validos[validos.length - 1] : (limparBairro(partes[partes.length - 1]) || "-");
+}
+
+function rtPontosTendasEvento(evento) {
+  let pontos = 0;
+  (evento?.tendas || []).forEach(item => {
+    const qtd = rtQuantidadeItem(item);
+    const tamanho = rtTamanhoProduto(item);
+    if (["6x3", "4.5x3", "4x4"].includes(tamanho)) pontos += qtd;
+    if (tamanho === "3x3") pontos += qtd * 0.5;
+  });
+  return pontos;
+}
+
+function rtMesasCadeirasOmbEvento(evento) {
+  const r = { mes: 0, cad: 0, omb: 0 };
+  const todos = [...(evento?.tendas || []), ...(evento?.itens_apoio || []), ...(evento?.produtos_extras || [])];
+  todos.forEach(item => {
+    const tipo = rtTipoApoioResumo(item);
+    if (tipo) r[tipo] += rtQuantidadeItem(item);
+  });
+  return r;
+}
+
+function rtNumeroCurto(n) {
+  return Number.isInteger(n) ? String(n) : String(n).replace('.', ',');
+}
+
+function rtResumoCurtoRota(rota) {
+  const evento = rota.evento || {};
+  const pontos = rtPontosTendasEvento(evento);
+  const apoio = rtMesasCadeirasOmbEvento(evento);
+  const blocos = [];
+
+  if (pontos) blocos.push(rtNumeroCurto(pontos));
+  const mc = `${apoio.cad ? apoio.cad + 'c' : ''}${apoio.mes ? apoio.mes + 'm' : ''}`;
+  if (mc) blocos.push(mc);
+  if (apoio.omb) blocos.push('OMB');
+
+  return blocos.length ? blocos.join(' ') : '-';
+}
+
+function rtMiniResumoRotasCarro(listaRotas = []) {
+  return (listaRotas || []).map(rota => {
+    const carga = rtResumoCurtoRota(rota);
+    const bairro = rtBairroEndereco(rota.endereco);
+    const cliente = rtPrimeiroNomeCliente(rota.cliente);
+    const horario = textoHorarioRota(rota.tipoHorario, rota.horario, rota.data);
+    return `${carga} - ${bairro} - ${cliente} - ${horario}`;
+  });
+}
+
+function rtFecharContadorCarro() {
+  const dialog = document.getElementById("rotaContadorDialog");
+  if (dialog && dialog.open) dialog.close();
+}
+
+function rtAbrirContadorCarro(listaRotas = [], carro = "Carro") {
+  let dialog = document.getElementById("rotaContadorDialog");
+
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "rotaContadorDialog";
+    dialog.className = "modal rota-contador-modal";
+    document.body.appendChild(dialog);
+  }
+
+  const contagem = rtResumoCargaCarro(listaRotas);
+  const miniRotas = rtMiniResumoRotasCarro(listaRotas);
+
+  dialog.innerHTML = `
+    <div class="modal-header">
+      <div>
+        <h2>Contador do carro</h2>
+        <p>${carro}</p>
+      </div>
+      <button type="button" class="modal-close" data-rota-contador-fechar>×</button>
+    </div>
+    <div class="rota-contador-body">
+      <h3>Material de montagem</h3>
+      <div class="rota-contador-chips">${contagem.map(item => `<span>${item}</span>`).join("")}</div>
+      <h3>Mini resumo da rota</h3>
+      <div class="rota-contador-lista">
+        ${miniRotas.length ? miniRotas.map(item => `<div>${item}</div>`).join("") : `<p class="empty">Sem paradas neste carro.</p>`}
+      </div>
+      <p class="rota-contador-legenda">Tendas: 6x3, 4.5x3 e 4x4 valem 1 ponto; 3x3 vale 0,5 ponto.</p>
+    </div>
+  `;
+
+  dialog.querySelector("[data-rota-contador-fechar]")?.addEventListener("click", rtFecharContadorCarro);
+  dialog.addEventListener("click", (ev) => { if (ev.target === dialog) rtFecharContadorCarro(); }, { once: true });
+
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else alert(`${carro}\n\n${contagem.join('; ')}\n\n${miniRotas.join('\n')}`);
+}
+
 // v19-dev: gerar rota no Google Maps por carro/dia
 function rtEnderecoRotaValido(endereco) {
   return String(endereco || "").trim();
@@ -1157,13 +1466,12 @@ function rtGoogleMapsUrlRotas(listaRotas) {
 
   if (!unicos.length) return "";
 
-  if (unicos.length === 1) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(unicos[0])}`;
-  }
-
-  const origem = unicos[0];
+  // v19-dev: a rota do carro deve sair da localização atual do motorista.
+  // No Google Maps, "Current Location" força o Maps/app a usar o local atual
+  // como ponto de origem, em vez de usar o primeiro endereço da lista.
+  const origem = "Current Location";
   const destino = unicos[unicos.length - 1];
-  const intermediarios = unicos.slice(1, -1);
+  const intermediarios = unicos.slice(0, -1);
 
   let url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origem)}&destination=${encodeURIComponent(destino)}&travelmode=driving`;
 
@@ -1224,7 +1532,10 @@ function renderizarRotas() {
             <div class="rota-carro-header rota-carro-header-maps">
               <div class="rota-carro-topo">
                 <h4>${carro}</h4>
-                <button type="button" class="btn-outline rota-maps-btn rota-maps-header-btn" data-rota-maps-data="${data}" data-rota-maps-carro="${carro}">Rota</button>
+                <div class="rota-carro-acoes">
+                  <button type="button" class="btn-outline rota-contador-btn" data-rota-contador-data="${data}" data-rota-contador-carro="${carro}">Contador</button>
+                  <button type="button" class="btn-outline rota-maps-btn rota-maps-header-btn" data-rota-maps-data="${data}" data-rota-maps-carro="${carro}">Rota</button>
+                </div>
               </div>
               <div class="rota-carro-materiais">
                 ${listaMateriaisRotas(rotasOrdenadas).map(item => `<span>${item}</span>`).join("")}
@@ -1241,6 +1552,21 @@ function renderizarRotas() {
   }).join("");
 
 
+
+  container.querySelectorAll("button[data-rota-contador-data]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const data = btn.dataset.rotaContadorData;
+      const carro = btn.dataset.rotaContadorCarro;
+
+      const todas = criarRotasDosEventos();
+      const grupos = agruparPorDataECarro(todas);
+      const lista = (grupos[data] && grupos[data][carro])
+        ? ordenarRotasPorOrdemManual(grupos[data][carro])
+        : [];
+
+      rtAbrirContadorCarro(lista, carro);
+    });
+  });
 
   container.querySelectorAll("button[data-rota-maps-data]").forEach(btn => {
     btn.addEventListener("click", () => {

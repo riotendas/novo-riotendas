@@ -90,6 +90,40 @@ function modelosDocumentosPadrao() {
 </table>
 <p class="small-text">A atividade de locação de bens móveis não está sujeita à tributação de ISS, conforme Lei Complementar nº 116/03, Anexo III da Lei Complementar nº 123/2006 e Instr. Normativa SMF nº 15 de 12/01/2012. As empresas deverão emitir recibo ou fatura de locação de bens móveis.</p>
 {{assinaturas}}
+`,
+    orcamento: `
+<section class="doc-header">
+  {{logo_empresa}}
+  <h1>RioTendas – Empresa do Grupo Maximum</h1>
+  <p>CNPJ: 05.831.617/0001-72 &nbsp; Insc. Mun. 343.037-5<br>Tels.: (21) 3490-2333 / 99692-9292<br>www.riotendas.com.br</p>
+  <h2>ORÇAMENTO Nº {{numero_orcamento}}</h2>
+  <p>Rio de Janeiro, {{data_orcamento}}<br><strong>Validade:</strong> {{validade_orcamento}}</p>
+</section>
+<p><strong>Para:</strong> {{cliente}}<br><strong>Telefone:</strong> {{telefone}} &nbsp; <strong>CPF/CNPJ:</strong> {{cpf_cnpj}}<br><strong>E-mail:</strong> {{email}}</p>
+<h3>Descrição dos Serviços</h3>
+<p><strong>LOCAÇÃO DE ARTIGOS PARA EVENTOS</strong></p>
+{{itens}}
+<h3>Resumo financeiro</h3>
+<table class="doc-table compact">
+  <tr><th>Locação dos materiais</th><td>{{valor_materiais}}</td></tr>
+  <tr><th>Frete / Montagem / Desmontagem</th><td>{{valor_frete}}</td></tr>
+  {{desconto}}
+  <tr><th>Total geral</th><td><strong>{{valor_total}}</strong></td></tr>
+  <tr><th>Sinal</th><td>{{sinal}}</td></tr>
+  <tr><th>Restante</th><td>{{restante}}</td></tr>
+</table>
+<p><strong>FORMA DE PAGAMENTO:</strong> {{forma_pagamento}}</p>
+<p><strong>DADOS BANCÁRIOS:</strong> Banco Itaú (341) – Ag. 8054 – CC 06451-7 (Condolink – Eventos, locação e multimídia Ltda) – Pix: CNPJ – 05.831.617/0001-72</p>
+<p><strong>DADOS DO EVENTO:</strong> Data: {{data_evento}}; Entrega/Montagem: {{montagem}}; Retirada: {{desmontagem}}.</p>
+<p><strong>LOCAL:</strong> {{endereco}}</p>
+<p>{{observacao_cliente}}</p>
+<p>* Valor válido por 30 dias após data da proposta, mediante disponibilidade de material. Este orçamento não reserva material até confirmação/sinal.</p>
+<p>Sendo o que se tem para o momento, e no aguardo de seu “DE ACORDO”, nos colocamos à disposição para dirimir quaisquer dúvidas que porventura houver.</p>
+<p>Cordialmente,</p>
+{{assinaturas}}
+<h3>DE ACORDO</h3>
+<p>A assinatura do “De Acordo” dessa proposta firma o contrato de prestação de serviços entre as partes.</p>
+<p>____________________________________<br>CNPJ ou CPF</p>
 `
   };
 }
@@ -251,6 +285,30 @@ function aplicarConfiguracoesNoSistema() {
   } catch {}
 }
 
+function iniciarAbasProdutosConfig() {
+  const modal = document.getElementById("configModalProdutos");
+  if (!modal) return;
+  const tabs = Array.from(modal.querySelectorAll("[data-produtos-config-tab]"));
+  const panes = Array.from(modal.querySelectorAll("[data-produtos-config-pane]"));
+  if (!tabs.length || !panes.length) return;
+
+  const ativar = chave => {
+    tabs.forEach(tab => tab.classList.toggle("active", tab.dataset.produtosConfigTab === chave));
+    panes.forEach(pane => pane.classList.toggle("active", pane.dataset.produtosConfigPane === chave));
+    if (chave === "materiais") renderizarMateriaisApoioConfig();
+    if (chave === "cores") renderizarCoresConfig();
+    if (chave === "fotos") {
+      preencherSelectsFotoPadrao();
+      renderizarFotosPadraoConfig();
+    }
+  };
+
+  tabs.forEach(tab => {
+    tab.addEventListener("click", () => ativar(tab.dataset.produtosConfigTab));
+  });
+  ativar("exportar");
+}
+
 function iniciarConfiguracoes() {
   if (!document.getElementById("configSection")) return;
 
@@ -273,6 +331,8 @@ function iniciarConfiguracoes() {
   iniciarModelosDocumentosConfig();
 
   iniciarPopupsConfiguracoes();
+  iniciarAbasProdutosConfig();
+  iniciarManutencaoAdminConfig();
 
   const aoClicar = (id, fn) => {
     const el = document.getElementById(id);
@@ -318,7 +378,8 @@ function iniciarPopupsConfiguracoes() {
     fotos: "configModalFotos",
     documentos: "configModalDocumentos",
     preferencias: "configModalPreferencias",
-    logs: "configModalLogs"
+    logs: "configModalLogs",
+    manutencao: "configModalManutencao"
   };
 
   document.querySelectorAll("[data-config-modal]").forEach(btn => {
@@ -329,8 +390,11 @@ function iniciarPopupsConfiguracoes() {
         if (typeof garantirUsuariosDentroConfiguracoes === "function") garantirUsuariosDentroConfiguracoes();
         setTimeout(() => { if (typeof renderizarUsuariosSistemaConfig === "function") renderizarUsuariosSistemaConfig(); }, 50);
       }
-      if (btn.dataset.configModal === "materiais") {
+      if (btn.dataset.configModal === "materiais" || btn.dataset.configModal === "produtos") {
         renderizarMateriaisApoioConfig();
+        renderizarCoresConfig();
+        preencherSelectsFotoPadrao();
+        renderizarFotosPadraoConfig();
       }
       if (btn.dataset.configModal === "documentos") {
         iniciarModelosDocumentosConfig();
@@ -338,6 +402,13 @@ function iniciarPopupsConfiguracoes() {
       if (btn.dataset.configModal === "logs" && typeof montarPainelLogsSistema === "function") {
         montarPainelLogsSistema();
         setTimeout(() => { if (typeof renderizarLogsSistema === "function") renderizarLogsSistema(); }, 50);
+      }
+      if (btn.dataset.configModal === "manutencao") {
+        if (typeof usuarioEhAdministrador === "function" && !usuarioEhAdministrador()) {
+          alert("Acesso restrito ao administrador.");
+          return;
+        }
+        if (typeof atualizarResumoManutencaoAdmin === "function") atualizarResumoManutencaoAdmin();
       }
       modal.showModal();
     });
@@ -347,6 +418,244 @@ function iniciarPopupsConfiguracoes() {
     btn.addEventListener("click", () => document.getElementById(btn.dataset.closeConfig)?.close());
   });
 
+}
+
+
+
+function manutencaoAdminEhPermitida() {
+  return typeof usuarioEhAdministrador === "function" ? usuarioEhAdministrador() : false;
+}
+
+function manutencaoHojeISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dia = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dia}`;
+}
+
+function manutencaoResultado(texto, tipo = "ok") {
+  const el = document.getElementById("manutencaoResultado");
+  if (!el) return;
+  el.className = `manutencao-resultado ${tipo}`;
+  el.textContent = texto;
+}
+
+function manutencaoDataBR(dataISO) {
+  if (!dataISO) return "-";
+  const [a, m, d] = String(dataISO).split("-");
+  return a && m && d ? `${d}/${m}/${String(a).slice(2)}` : dataISO;
+}
+
+function manutencaoHorarioTexto(rota) {
+  try {
+    if (typeof textoHorarioRota === "function") return textoHorarioRota(rota.tipoHorario, rota.horario, rota.data);
+  } catch {}
+  return rota?.horario || "Livre";
+}
+
+function manutencaoGarantirRotasOperacao() {
+  if (typeof rotasOperacao === "undefined") return null;
+  if (!rotasOperacao || typeof rotasOperacao !== "object") rotasOperacao = {};
+  return rotasOperacao;
+}
+
+function manutencaoSalvarOperacoesRotas() {
+  if (typeof salvarRotasOperacaoLocal === "function") salvarRotasOperacaoLocal();
+  else {
+    try { localStorage.setItem("novoRioTendasRotasOperacaoV1", JSON.stringify(rotasOperacao || {})); } catch {}
+  }
+  try { if (typeof renderizarRotas === "function") renderizarRotas(); } catch {}
+  try { if (typeof renderizarProdutos === "function") renderizarProdutos(); } catch {}
+  try { if (typeof atualizarDashboard === "function") atualizarDashboard(); } catch {}
+}
+
+function manutencaoRegistrarLog(acao, detalhes, antes = null, depois = null) {
+  if (typeof registrarLogSistema !== "function") return;
+  try {
+    registrarLogSistema({
+      modulo: "Manutenção",
+      acao,
+      registro_id: "manutencao-admin",
+      registro_nome: "Configurações > Manutenção",
+      antes,
+      depois,
+      detalhes
+    });
+  } catch {}
+}
+
+function manutencaoRotasPendentesPeriodo() {
+  const ini = document.getElementById("manutDataIni")?.value || "";
+  const fim = document.getElementById("manutDataFim")?.value || "";
+  const tipoFiltro = document.getElementById("manutTipoPendencia")?.value || "todos";
+  const ops = manutencaoGarantirRotasOperacao() || {};
+  const rotas = typeof criarRotasDosEventos === "function" ? criarRotasDosEventos() : [];
+
+  if (!ini || !fim) return [];
+
+  return rotas
+    .filter(rota => {
+      const data = String(rota.data || "");
+      if (!data || data < ini || data > fim) return false;
+      if (ops[rota.id]?.status) return false;
+      if (tipoFiltro === "entrega" && rota.tipo !== "Montagem") return false;
+      if (tipoFiltro === "retirada" && rota.tipo !== "Desmontagem") return false;
+      return rota.tipo === "Montagem" || rota.tipo === "Desmontagem";
+    })
+    .sort((a, b) => String(a.data).localeCompare(String(b.data)) || String(a.horario || "").localeCompare(String(b.horario || "")) || String(a.cliente || "").localeCompare(String(b.cliente || "")));
+}
+
+function renderizarManutencaoPendencias() {
+  if (!manutencaoAdminEhPermitida()) return;
+  const tbody = document.getElementById("tbodyManutencaoAvancada");
+  if (!tbody) return;
+  const ini = document.getElementById("manutDataIni")?.value || "";
+  const fim = document.getElementById("manutDataFim")?.value || "";
+  if (!ini || !fim) {
+    tbody.innerHTML = `<tr><td colspan="6">Escolha a data inicial e final para pesquisar.</td></tr>`;
+    manutencaoResultado("Informe o período para listar as pendências.", "aviso");
+    return;
+  }
+
+  const rotas = manutencaoRotasPendentesPeriodo();
+  window.manutencaoPendenciasAtuais = rotas;
+
+  if (!rotas.length) {
+    tbody.innerHTML = `<tr><td colspan="6">Nenhuma pendência encontrada neste período.</td></tr>`;
+    manutencaoResultado("Nenhuma pendência encontrada para o período selecionado.", "ok");
+    return;
+  }
+
+  tbody.innerHTML = rotas.map(rota => {
+    const tipo = rota.tipo === "Montagem" ? "Pendente de entrega" : "Pendente de retirada";
+    const cliente = String(rota.cliente || "-").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return `
+      <tr>
+        <td><input type="checkbox" class="manut-check" value="${rota.id}"></td>
+        <td>${manutencaoDataBR(rota.data)}</td>
+        <td>${tipo}</td>
+        <td>${cliente}</td>
+        <td>${manutencaoHorarioTexto(rota)}</td>
+        <td><span class="status-badge status-alerta">Pendente</span></td>
+      </tr>`;
+  }).join("");
+
+  const entregas = rotas.filter(r => r.tipo === "Montagem").length;
+  const retiradas = rotas.filter(r => r.tipo === "Desmontagem").length;
+  manutencaoResultado(`Encontrado(s): ${entregas} entrega(s) e ${retiradas} retirada(s) pendente(s).`, "ok");
+}
+
+function manutencaoSelecionarTodos(checked) {
+  document.querySelectorAll('#tbodyManutencaoAvancada input.manut-check').forEach(c => { c.checked = checked; });
+}
+
+async function manutencaoResetarSelecionados() {
+  if (!manutencaoAdminEhPermitida()) {
+    alert("Acesso restrito ao administrador.");
+    return;
+  }
+  const ops = manutencaoGarantirRotasOperacao();
+  if (!ops) {
+    alert("Controle operacional de rotas não encontrado.");
+    return;
+  }
+
+  const marcados = Array.from(document.querySelectorAll('#tbodyManutencaoAvancada input.manut-check:checked')).map(c => c.value);
+  if (!marcados.length) {
+    alert("Selecione pelo menos uma pendência.");
+    return;
+  }
+
+  const rotas = (window.manutencaoPendenciasAtuais || manutencaoRotasPendentesPeriodo()).filter(r => marcados.includes(String(r.id)));
+  if (!rotas.length) {
+    alert("Nenhuma pendência válida selecionada.");
+    return;
+  }
+
+  const entregas = rotas.filter(r => r.tipo === "Montagem").length;
+  const retiradas = rotas.filter(r => r.tipo === "Desmontagem").length;
+  const confirma = confirm(`Resetar ${rotas.length} pendência(s) selecionada(s)?\n\nEntrega(s): ${entregas}\nRetirada(s): ${retiradas}\n\nEntrega será marcada como Entregue. Retirada será marcada como Recolhido.`);
+  if (!confirma) return;
+
+  const antes = { rotas: rotas.map(r => ({ id: r.id, status: ops[r.id]?.status || "pendente" })) };
+  const agora = new Date().toISOString();
+  const colaborador = (typeof colaboradorRotaAtual === "function" ? colaboradorRotaAtual() : (window.usuario?.nome || "Administrador"));
+  let ok = 0;
+  let erros = 0;
+
+  for (const rota of rotas) {
+    try {
+      if (rota.tipo === "Montagem") {
+        let produtosAlterados = [];
+        try {
+          if (typeof marcarProdutosEventoParaAlugado === "function") produtosAlterados = await marcarProdutosEventoParaAlugado(rota);
+        } catch (e) { console.warn("Falha ao atualizar produtos para Alugado:", e); }
+        ops[rota.id] = {
+          status: "entregue",
+          data: agora,
+          colaborador,
+          evento_id: rota.evento_id,
+          tipo: rota.tipo,
+          produtos: produtosAlterados,
+          origem: "manutencao_admin",
+          observacao: "Reset de pendência por período em Configurações > Manutenção"
+        };
+      } else if (rota.tipo === "Desmontagem") {
+        ops[rota.id] = {
+          status: "recolhido",
+          data: agora,
+          colaborador,
+          evento_id: rota.evento_id,
+          tipo: rota.tipo,
+          origem: "manutencao_admin",
+          observacao: "Reset de pendência por período em Configurações > Manutenção"
+        };
+        let produtosAlterados = [];
+        try {
+          if (typeof alterarStatusProdutosEventoRota === "function") produtosAlterados = await alterarStatusProdutosEventoRota(rota, "Revisar", "Recolhido via manutenção");
+        } catch (e) { console.warn("Falha ao atualizar produtos para Revisar:", e); }
+        ops[rota.id].produtos = produtosAlterados;
+      }
+      ok++;
+    } catch (erro) {
+      console.warn("Erro ao resetar pendência", rota, erro);
+      erros++;
+    }
+  }
+
+  manutencaoSalvarOperacoesRotas();
+  manutencaoRegistrarLog("Reset de pendências por período", `${ok} pendência(s) regularizada(s). ${erros} erro(s).`, antes, { quantidade: ok, erros });
+  renderizarManutencaoPendencias();
+  manutencaoResultado(`${ok} pendência(s) resetada(s).${erros ? ` ${erros} erro(s).` : ""}`, erros ? "aviso" : "ok");
+}
+
+function atualizarResumoManutencaoAdmin() {
+  const ini = document.getElementById("manutDataIni");
+  const fim = document.getElementById("manutDataFim");
+  const hoje = manutencaoHojeISO();
+  if (ini && !ini.value) ini.value = hoje;
+  if (fim && !fim.value) fim.value = hoje;
+  renderizarManutencaoPendencias();
+}
+
+function iniciarManutencaoAdminConfig() {
+  const bind = (id, fn) => {
+    const el = document.getElementById(id);
+    if (el && !el.dataset.manutListener) {
+      el.dataset.manutListener = "1";
+      el.addEventListener("click", fn);
+    }
+  };
+  bind("btnPesquisarManut", renderizarManutencaoPendencias);
+  bind("manutSelectAll", () => manutencaoSelecionarTodos(true));
+  bind("manutClearSelection", () => manutencaoSelecionarTodos(false));
+  bind("manutZerarSelecionados", manutencaoResetarSelecionados);
+  const tipo = document.getElementById("manutTipoPendencia");
+  if (tipo && !tipo.dataset.manutListener) {
+    tipo.dataset.manutListener = "1";
+    tipo.addEventListener("change", renderizarManutencaoPendencias);
+  }
 }
 
 
@@ -384,17 +693,100 @@ function iniciarModelosDocumentosConfig() {
     restaurar.addEventListener("click", restaurarModeloDocumentoAtual);
   }
 
+  const arquivoAssinatura = document.getElementById("docAssinaturaResponsavelArquivo");
+  if (arquivoAssinatura && arquivoAssinatura.dataset.bound !== "1") {
+    arquivoAssinatura.dataset.bound = "1";
+    arquivoAssinatura.addEventListener("change", carregarAssinaturaDigitalDocumentoConfig);
+  }
+  const salvarAss = document.getElementById("salvarAssinaturaDigitalDocumento");
+  if (salvarAss && salvarAss.dataset.bound !== "1") {
+    salvarAss.dataset.bound = "1";
+    salvarAss.addEventListener("click", salvarAssinaturaDigitalDocumentoConfig);
+  }
+  const restaurarAss = document.getElementById("restaurarAssinaturaDigitalDocumento");
+  if (restaurarAss && restaurarAss.dataset.bound !== "1") {
+    restaurarAss.dataset.bound = "1";
+    restaurarAss.addEventListener("click", restaurarAssinaturaDigitalDocumentoConfig);
+  }
+  const removerAss = document.getElementById("removerAssinaturaDigitalDocumento");
+  if (removerAss && removerAss.dataset.bound !== "1") {
+    removerAss.dataset.bound = "1";
+    removerAss.addEventListener("click", removerAssinaturaDigitalDocumentoConfig);
+  }
+
   carregarModeloDocumentoNoEditor();
 }
 
 function carregarModeloDocumentoNoEditor() {
   const editor = document.getElementById("docModeloEditor");
   if (!editor) return;
-  const titulos = { guia: "Guia de Serviço", contrato: "Contrato", recibo: "Recibo" };
+  const painelAssinatura = document.getElementById("docAssinaturaDigitalPainel");
+  const acoesModelo = document.querySelector(".doc-model-actions");
+  const toolbarSpan = document.querySelector(".doc-model-toolbar span");
+  const titulos = { guia: "Guia de Serviço", contrato: "Contrato", recibo: "Recibo", orcamento: "Orçamento", assinatura: "Assinatura Digital" };
   const titulo = document.getElementById("docModeloTituloAtual");
   if (titulo) titulo.textContent = titulos[modeloDocumentoAtualConfig] || "Modelo";
+
+  const ehAssinatura = modeloDocumentoAtualConfig === "assinatura";
+  editor.style.display = ehAssinatura ? "none" : "";
+  if (painelAssinatura) painelAssinatura.style.display = ehAssinatura ? "block" : "none";
+  if (acoesModelo) acoesModelo.style.display = ehAssinatura ? "none" : "";
+  if (toolbarSpan) toolbarSpan.textContent = ehAssinatura ? "Envie, visualize ou remova a assinatura usada nos documentos." : "Use HTML simples e as variáveis ao lado.";
+
+  if (ehAssinatura) {
+    const config = carregarConfiguracoes();
+    atualizarPreviewAssinaturaDigitalDocumentoConfig(config.assinaturaResponsavel || "");
+    return;
+  }
+
   const modelos = rtObterModelosDocumentosConfig();
   editor.value = modelos[modeloDocumentoAtualConfig] || "";
+}
+
+function atualizarPreviewAssinaturaDigitalDocumentoConfig(valor) {
+  const hidden = document.getElementById("docAssinaturaResponsavel");
+  const preview = document.getElementById("docAssinaturaResponsavelPreview");
+  if (hidden) hidden.value = valor || "";
+  if (preview) {
+    preview.innerHTML = valor
+      ? `<img src="${valor}" alt="Assinatura digital RioTendas">`
+      : `<span>Sem assinatura configurada.</span>`;
+  }
+  atualizarPreviewAssinaturaResponsavelConfig(valor || "");
+}
+
+function carregarAssinaturaDigitalDocumentoConfig(evento) {
+  const arquivo = evento?.target?.files?.[0];
+  if (!arquivo) return;
+  if (!arquivo.type.startsWith("image/")) {
+    alert("Selecione um arquivo de imagem para a assinatura.");
+    evento.target.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => atualizarPreviewAssinaturaDigitalDocumentoConfig(reader.result || "");
+  reader.readAsDataURL(arquivo);
+}
+
+function salvarAssinaturaDigitalDocumentoConfig() {
+  const config = carregarConfiguracoes();
+  const valor = document.getElementById("docAssinaturaResponsavel")?.value || "";
+  config.assinaturaResponsavel = valor;
+  salvarConfiguracoes(config);
+  preencherPreferenciasConfig();
+  alert("Assinatura digital salva.");
+}
+
+function removerAssinaturaDigitalDocumentoConfig() {
+  atualizarPreviewAssinaturaDigitalDocumentoConfig("");
+  const arquivo = document.getElementById("docAssinaturaResponsavelArquivo");
+  if (arquivo) arquivo.value = "";
+}
+
+function restaurarAssinaturaDigitalDocumentoConfig() {
+  atualizarPreviewAssinaturaDigitalDocumentoConfig(window.RT_ASSINATURA_RODRIGO_PADRAO || "");
+  const arquivo = document.getElementById("docAssinaturaResponsavelArquivo");
+  if (arquivo) arquivo.value = "";
 }
 
 function salvarModeloDocumentoAtual() {
@@ -1081,9 +1473,9 @@ function renderizarCarrosConfig() {
   const config = carregarConfiguracoes();
   
 const materiaisApoioStyle = document.getElementById('materiais-apoio-align-style') || (()=>{const s=document.createElement('style');s.id='materiais-apoio-align-style';s.textContent=`
-#configModalMateriais .materiais-apoio-cabecalho,#configModalMateriais .material-apoio-config-item{display:grid;grid-template-columns:260px 112px 190px;align-items:center;column-gap:12px;justify-content:start;width:fit-content}
-#configModalMateriais .materiais-apoio-cabecalho span:nth-child(2),#configModalMateriais .materiais-apoio-cabecalho span:nth-child(3){text-align:center}
-#configModalMateriais .material-apoio-config-item .config-actions{display:flex;gap:8px;justify-content:center;width:190px}
+#configModalProdutos .materiais-apoio-cabecalho,#configModalProdutos .material-apoio-config-item{display:grid;grid-template-columns:260px 112px 190px;align-items:center;column-gap:12px;justify-content:start;width:fit-content}
+#configModalProdutos .materiais-apoio-cabecalho span:nth-child(2),#configModalProdutos .materiais-apoio-cabecalho span:nth-child(3){text-align:center}
+#configModalProdutos .material-apoio-config-item .config-actions{display:flex;gap:8px;justify-content:center;width:190px}
 `;document.head.appendChild(s);return s;})();
 
 const lista = document.getElementById("listaCarrosConfig");
@@ -1200,8 +1592,20 @@ async function buscarMateriaisApoioConfig() {
 }
 
 async function salvarMaterialApoioConfig(item) {
+  const antesLogMaterial = (await buscarMateriaisApoioConfig()).find(i => String(i.id) === String(item.id)) || null;
   if (typeof salvarItemApoioBanco === "function") {
-    return await salvarItemApoioBanco(item);
+    const salvo = await salvarItemApoioBanco(item);
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({
+        modulo: "Materiais de Apoio",
+        acao: antesLogMaterial ? "Material de apoio editado" : "Material de apoio cadastrado",
+        registro_id: salvo?.id || item.id,
+        registro_nome: salvo?.nome || item.nome || "Material de apoio",
+        antes: antesLogMaterial,
+        depois: salvo || item
+      });
+    }
+    return salvo;
   }
 
   const estoque = JSON.parse(localStorage.getItem("novoRioTendasEstoqueApoioV1") || "[]");
@@ -1209,6 +1613,16 @@ async function salvarMaterialApoioConfig(item) {
   if (index >= 0) estoque[index] = item;
   else estoque.push(item);
   localStorage.setItem("novoRioTendasEstoqueApoioV1", JSON.stringify(estoque));
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Materiais de Apoio",
+      acao: antesLogMaterial ? "Material de apoio editado" : "Material de apoio cadastrado",
+      registro_id: item.id,
+      registro_nome: item.nome || "Material de apoio",
+      antes: antesLogMaterial,
+      depois: item
+    });
+  }
   return item;
 }
 
@@ -1232,6 +1646,17 @@ async function excluirMaterialApoioConfig(id) {
     .filter(i => String(i.id) !== idTexto)
     .filter(i => !itemAtual?.nome || String(i.nome || "").trim().toLowerCase() !== String(itemAtual.nome || "").trim().toLowerCase());
   localStorage.setItem("novoRioTendasEstoqueApoioV1", JSON.stringify(estoque));
+
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Materiais de Apoio",
+      acao: "Material de apoio excluído",
+      registro_id: idTexto,
+      registro_nome: itemAtual?.nome || "Material de apoio",
+      antes: itemAtual || null,
+      depois: null
+    });
+  }
 
   await atualizarMateriaisApoioNasTelas();
 }
@@ -1570,6 +1995,7 @@ async function adicionarFotoPadraoConfig() {
 
 function salvarPreferenciasConfig() {
   const config = carregarConfiguracoes();
+  const antesLogConfig = JSON.parse(JSON.stringify(config));
 
   config.nomeEmpresa = document.getElementById("configNomeEmpresa").value.trim() || "RioTendas";
   config.logoEmpresa = document.getElementById("configLogoEmpresa").value.trim() || configPadrao().logoEmpresa;
@@ -1577,6 +2003,16 @@ function salvarPreferenciasConfig() {
   config.periodoRotas = document.getElementById("configPeriodoRotas").value || "30";
 
   salvarConfiguracoes(config);
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Configurações",
+      acao: "Preferências salvas",
+      registro_id: "preferencias",
+      registro_nome: "Preferências gerais",
+      antes: antesLogConfig,
+      depois: config
+    });
+  }
   alert("Preferências salvas.");
 }
 
