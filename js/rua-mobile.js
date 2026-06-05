@@ -27,8 +27,39 @@ function ruaMobileTelefoneLimpo(telefone) {
 }
 
 function ruaMobileWhatsappUrl(telefone) {
-  const tel = ruaMobileTelefoneLimpo(telefone);
+  let tel = ruaMobileTelefoneLimpo(telefone);
   if (!tel) return "";
+
+  // Normalização para WhatsApp Brasil/RJ.
+  // Remove caracteres, evita duplicar DDI/DDD e, se faltar DDD, assume Rio de Janeiro (21).
+  tel = tel.replace(/^00+/, "");
+
+  // Corrige casos digitados/salvos com 55 duplicado no início.
+  while (tel.startsWith("5555") && tel.length > 13) {
+    tel = tel.slice(2);
+  }
+
+  // Já está no padrão Brasil: 55 + DDD + número.
+  if (tel.startsWith("55") && (tel.length === 12 || tel.length === 13)) {
+    return `https://wa.me/${tel}`;
+  }
+
+  // Veio com 55, mas sem DDD: 55 + número local. Assume DDD 21.
+  if (tel.startsWith("55") && (tel.length === 10 || tel.length === 11)) {
+    const local = tel.slice(2);
+    if (local.length === 8 || local.length === 9) return `https://wa.me/5521${local}`;
+  }
+
+  // DDD + número: 21XXXXXXXX ou 21XXXXXXXXX.
+  if (tel.length === 10 || tel.length === 11) {
+    return `https://wa.me/55${tel}`;
+  }
+
+  // Somente número local: assume DDD 21.
+  if (tel.length === 8 || tel.length === 9) {
+    return `https://wa.me/5521${tel}`;
+  }
+
   const comPais = tel.startsWith("55") ? tel : `55${tel}`;
   return `https://wa.me/${comPais}`;
 }
@@ -162,12 +193,12 @@ function renderizarRuaMobile() {
         <div class="rua-mobile-materiais"><strong>Materiais:</strong> ${ruaMobileResumoMateriais(rota)}</div>
         ${ruaMobileHtmlPagamento(rota.evento || {})}
 
-        <div class="rua-mobile-acoes">
-          ${endereco ? `<a class="btn-outline" href="${mapa}" target="_blank" rel="noopener">Mapa</a>` : ""}
-          ${tel ? `<a class="btn-outline" href="tel:${tel}">Ligar</a>` : ""}
-          ${whats ? `<a class="btn-outline" href="${whats}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
-          ${rota.tipo === "Montagem" ? `<button type="button" class="btn-primary" data-rua-operacao="entregue" data-rota-id="${rota.id}">Entregue</button>` : ""}
-          ${rota.tipo === "Desmontagem" ? `<button type="button" class="btn-primary" data-rua-operacao="recolhido" data-rota-id="${rota.id}">Recolhido</button>` : ""}
+        <div class="rua-mobile-acoes rua-mobile-acoes-compactas">
+          ${endereco ? `<a class="btn-outline rua-mobile-acao-btn" href="${mapa}" target="_blank" rel="noopener" title="Abrir mapa" aria-label="Abrir mapa"><span>🗺️</span><small>Mapa</small></a>` : ""}
+          ${tel ? `<a class="btn-outline rua-mobile-acao-btn" href="tel:${tel}" title="Ligar" aria-label="Ligar"><span>☎️</span><small>Ligar</small></a>` : ""}
+          ${whats ? `<a class="btn-outline rua-mobile-acao-btn" href="${whats}" target="_blank" rel="noopener" title="WhatsApp" aria-label="WhatsApp"><span>💬</span><small>Zap</small></a>` : ""}
+          ${rota.tipo === "Montagem" ? `<button type="button" class="btn-primary rua-mobile-acao-btn" data-rua-operacao="entregue" data-rota-id="${rota.id}" title="Marcar entregue" aria-label="Marcar entregue"><span>✅</span><small>Entregue</small></button>` : ""}
+          ${rota.tipo === "Desmontagem" ? `<button type="button" class="btn-primary rua-mobile-acao-btn" data-rua-operacao="recolhido" data-rota-id="${rota.id}" title="Marcar recolhido" aria-label="Marcar recolhido"><span>↩️</span><small>Recolhido</small></button>` : ""}
         </div>
       </article>
     `;

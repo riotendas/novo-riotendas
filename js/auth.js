@@ -1438,16 +1438,55 @@ function resumoPermissoesUsuario(usuario) {
     return 'mobileHubSection';
   }
 
-  window.abrirSecaoRioTendas = function(sectionId) {
+  function rtSecaoEhMobile(sectionId) {
+    return ['mobileHubSection', 'ruaMobileSection', 'manutencaoMobileSection'].includes(sectionId);
+  }
+
+  window.rtMobilePushState = function(sectionId, extra = {}) {
+    try {
+      if (!rtSecaoEhMobile(sectionId)) return;
+      const atual = history.state || {};
+      const novo = { rtMobile: true, sectionId, ...extra };
+      if (atual.rtMobile && atual.sectionId === novo.sectionId && atual.detalheProdutoId === novo.detalheProdutoId) return;
+      history.pushState(novo, '', `${location.pathname}${location.search}#${sectionId}`);
+    } catch(e) { console.warn('Histórico mobile:', e); }
+  };
+
+  window.abrirSecaoRioTendas = function(sectionId, opcoes = {}) {
     const sec = document.getElementById(sectionId);
     if (!sec) return;
     document.querySelectorAll('.tab-btn[data-section]').forEach(btn => btn.classList.toggle('active', btn.dataset.section === sectionId));
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active', 'active-section'));
     sec.style.display = '';
     sec.classList.add('active', 'active-section');
+    if (rtSecaoEhMobile(sectionId)) {
+      document.body.classList.add('modo-mobile-operacional');
+      if (!opcoes.semHistorico) window.rtMobilePushState(sectionId);
+    }
     if (sectionId === 'ruaMobileSection' && typeof renderizarRuaMobile === 'function') renderizarRuaMobile();
     if (sectionId === 'manutencaoMobileSection' && typeof renderizarManutencaoMobile === 'function') renderizarManutencaoMobile();
   };
+
+  window.addEventListener('popstate', (ev) => {
+    const state = ev.state || {};
+    if (!state.rtMobile) {
+      const ativoMobile = document.querySelector('.section.active#manutencaoMobileSection, .section.active#ruaMobileSection, .section.active#mobileHubSection');
+      if (ativoMobile && ativoMobile.id === 'manutencaoMobileSection' && typeof window.manutencaoMobileFecharDetalheVoltar === 'function' && window.manutencaoMobileFecharDetalheVoltar()) {
+        return;
+      }
+      return;
+    }
+
+    if (state.sectionId === 'manutencaoMobileSection' && typeof window.manutencaoMobileFecharDetalheVoltar === 'function') {
+      window.manutencaoMobileFecharDetalheVoltar();
+    }
+
+    window.abrirSecaoRioTendas(state.sectionId || 'mobileHubSection', { semHistorico: true });
+
+    if (state.sectionId === 'manutencaoMobileSection' && state.detalheProdutoId && typeof window.abrirManutencaoMobileProduto === 'function') {
+      setTimeout(() => window.abrirManutencaoMobileProduto(state.detalheProdutoId, { semHistorico: true }), 80);
+    }
+  });
 
   function garantirBotaoSistemaCompletoMobile() {
     const hub = document.getElementById('mobileHubSection');

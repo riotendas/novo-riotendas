@@ -1,7 +1,7 @@
 // v19-dev: Mobile > Manutenção
-// Busca manual por código, OCR beta do número escrito, observação, checklist e atualização de status.
+// Busca rápida por número/código, observação, checklist e atualização de status.
 
-let manutencaoMobileFiltroAtual = "";
+let manutencaoMobileFiltroAtual = "pendentes";
 let manutencaoMobileProdutoAtualId = null;
 
 function manutMobileNormalizar(txt) {
@@ -50,10 +50,11 @@ function manutMobileProdutoPendente(produto = {}) {
 
 function manutMobileProdutosFiltrados() {
   const lista = Array.isArray(produtos) ? produtos : [];
-  const filtro = manutMobileNormalizar(manutencaoMobileFiltroAtual);
+  const filtro = manutMobileNormalizar(manutencaoMobileFiltroAtual || "pendentes");
   return lista
     .filter(produto => {
-      if (!filtro) return manutMobileProdutoPendente(produto);
+      if (filtro === "todos") return true;
+      if (!filtro || filtro === "pendentes") return manutMobileProdutoPendente(produto);
       const status = manutMobileNormalizar(produto.status);
       if (filtro === "bloqueada") return status === "bloqueada" || status === "bloqueado";
       return status === filtro;
@@ -64,6 +65,8 @@ function manutMobileProdutosFiltrados() {
 function manutMobileContar(statusEsperado) {
   const esperado = manutMobileNormalizar(statusEsperado);
   return (Array.isArray(produtos) ? produtos : []).filter(produto => {
+    if (!esperado || esperado === "pendentes") return manutMobileProdutoPendente(produto);
+    if (esperado === "todos") return true;
     const st = manutMobileNormalizar(produto.status);
     if (esperado === "bloqueada") return st === "bloqueada" || st === "bloqueado";
     return st === esperado;
@@ -87,7 +90,9 @@ function renderizarManutencaoMobile() {
 
   const lista = manutMobileProdutosFiltrados();
   if (!lista.length) {
-    listaEl.innerHTML = `<p class="empty">Nenhum produto pendente encontrado.</p>`;
+    const filtro = manutMobileNormalizar(manutencaoMobileFiltroAtual || "pendentes");
+    const msg = filtro === "todos" ? "Nenhum produto encontrado." : "Nenhum produto pendente encontrado.";
+    listaEl.innerHTML = `<p class="empty">${msg}</p>`;
     return;
   }
 
@@ -107,16 +112,78 @@ function renderizarManutencaoMobile() {
   });
 }
 
+function manutMobileDigitos(txt) {
+  return String(txt || "").replace(/\D+/g, "");
+}
+
 function manutMobileBuscarProdutoPorCodigo(codigo) {
   const termo = manutMobileNormalizar(codigo).replace(/\s+/g, "");
-  if (!termo) return null;
-  return (Array.isArray(produtos) ? produtos : []).find(p => {
-    const cod = manutMobileNormalizar(p.codigo).replace(/\s+/g, "");
-    return cod === termo;
-  }) || (Array.isArray(produtos) ? produtos : []).find(p => {
-    const cod = manutMobileNormalizar(p.codigo).replace(/\s+/g, "");
-    return cod.includes(termo) || termo.includes(cod);
-  }) || null;
+  const termoDigitos = manutMobileDigitos(codigo);
+  if (!termo && !termoDigitos) return null;
+
+  const lista = Array.isArray(produtos) ? produtos : [];
+  const preparar = p => ({
+    produto: p,
+    codigo: manutMobileNormalizar(p.codigo).replace(/\s+/g, ""),
+    digitos: manutMobileDigitos(p.codigo)
+  });
+
+  const preparados = lista.map(preparar);
+
+  return preparados.find(item => item.codigo === termo)?.produto
+    || preparados.find(item => termoDigitos && item.digitos === termoDigitos)?.produto
+    || preparados.find(item => termoDigitos && item.digitos.endsWith(termoDigitos))?.produto
+    || preparados.find(item => item.codigo.includes(termo) || (termo && termo.includes(item.codigo)))?.produto
+    || null;
+}
+
+function manutMobileBuscarProdutosPossiveis(codigo) {
+  const termoDigitos = manutMobileDigitos(codigo);
+  if (!termoDigitos) return [];
+  return (Array.isArray(produtos) ? produtos : []).filter(p => {
+    const dig = manutMobileDigitos(p.codigo);
+    return dig === termoDigitos || dig.endsWith(termoDigitos) || dig.includes(termoDigitos);
+  });
+}
+
+let manutMobileBuscaTimer = null;
+function manutMobileBuscaAutomatica() {
+  const input = document.getElementById("manutencaoMobileCodigo");
+  const statusEl = document.getElementById("manutencaoMobileOcrStatus");
+  if (!input) return;
+
+  const somenteNumeros = manutMobileDigitos(input.value);
+  if (input.value !== somenteNumeros) input.value = somenteNumeros;
+
+  clearTimeout(manutMobileBuscaTimer);
+  manutMobileBuscaTimer = setTimeout(() => {
+    const termo = input.value;
+    if (!termo || termo.length < 3) {
+      if (statusEl) statusEl.textContent = "Digite pelo menos 3 números do código do produto.";
+      return;
+    }
+
+    const possiveis = manutMobileBuscarProdutosPossiveis(termo);
+    if (possiveis.length === 1) {
+      if (statusEl) statusEl.textContent = `Produto encontrado: ${possiveis[0].codigo || termo}`;
+      abrirManutencaoMobileProduto(possiveis[0].id);
+      return;
+    }
+
+    const exato = possiveis.find(p => manutMobileDigitos(p.codigo) === termo);
+    if (exato) {
+      if (statusEl) statusEl.textContent = `Produto encontrado: ${exato.codigo || termo}`;
+      abrirManutencaoMobileProduto(exato.id);
+      return;
+    }
+
+    if (possiveis.length > 1) {
+      if (statusEl) statusEl.textContent = `${possiveis.length} produtos encontrados. Digite mais números para abrir automaticamente.`;
+      return;
+    }
+
+    if (statusEl) statusEl.textContent = "Nenhum produto encontrado para este número.";
+  }, 250);
 }
 
 function manutMobileChecklistHtml(produto = {}) {
@@ -130,8 +197,11 @@ function manutMobileChecklistHtml(produto = {}) {
   `;
 }
 
-function abrirManutencaoMobileProduto(id) {
+function abrirManutencaoMobileProduto(id, opcoes = {}) {
   manutencaoMobileProdutoAtualId = id;
+  if (!opcoes.semHistorico && typeof window.rtMobilePushState === "function") {
+    window.rtMobilePushState("manutencaoMobileSection", { detalheProdutoId: String(id || "") });
+  }
   const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(id));
   const detalhe = document.getElementById("manutencaoMobileDetalhe");
   if (!detalhe || !produto) return;
@@ -149,7 +219,7 @@ function abrirManutencaoMobileProduto(id) {
       </div>
 
       <label class="manut-mobile-observacao">Observação / Reparo realizado
-        <textarea id="manutencaoMobileObs" rows="4" placeholder="Ex.: Lavagem completa, troca de lona, costura refeita, reparo de solda...">${manutMobileEscape(produto.observacao || "")}</textarea>
+        <textarea id="manutencaoMobileObs" rows="2" placeholder="Ex.: Lavagem, troca de lona, costura, reparo...">${manutMobileEscape(produto.observacao || "")}</textarea>
       </label>
 
       <div class="manut-mobile-checado-box">
@@ -168,6 +238,7 @@ function abrirManutencaoMobileProduto(id) {
         <button type="button" class="btn-outline" data-manut-status="Limpar">Limpar</button>
         <button type="button" class="btn-outline" data-manut-status="Revisar">Revisar</button>
         <button type="button" class="btn-outline" data-manut-status="Consertar">Consertar</button>
+        <button type="button" class="btn-outline" data-manut-status="Bloqueado">Bloquear</button>
         <button type="button" class="btn-primary" data-manut-status="Livre">Liberar</button>
       </div>
 
@@ -180,6 +251,9 @@ function abrirManutencaoMobileProduto(id) {
   document.getElementById("manutMobileFecharDetalhe")?.addEventListener("click", () => {
     detalhe.hidden = true;
     manutencaoMobileProdutoAtualId = null;
+    if (typeof window.rtMobilePushState === "function") {
+      window.rtMobilePushState("manutencaoMobileSection");
+    }
   });
 
   detalhe.querySelectorAll("[data-manut-status]").forEach(btn => {
@@ -370,17 +444,13 @@ function iniciarManutencaoMobile() {
     abrirManutencaoMobileProduto(produto.id);
   });
 
+  document.getElementById("manutencaoMobileCodigo")?.addEventListener("input", manutMobileBuscaAutomatica);
+
   document.getElementById("manutencaoMobileCodigo")?.addEventListener("keydown", ev => {
-    if (ev.key === "Enter") document.getElementById("manutencaoMobileBuscarBtn")?.click();
-  });
-
-  document.getElementById("manutencaoMobileOCRBtn")?.addEventListener("click", () => {
-    document.getElementById("manutencaoMobileOCRInput")?.click();
-  });
-
-  document.getElementById("manutencaoMobileOCRInput")?.addEventListener("change", ev => {
-    processarOCRManutencaoMobile(ev.target.files?.[0]);
-    ev.target.value = "";
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      document.getElementById("manutencaoMobileBuscarBtn")?.click();
+    }
   });
 
   document.getElementById("manutencaoMobileAtualizarBtn")?.addEventListener("click", async () => {
@@ -390,14 +460,28 @@ function iniciarManutencaoMobile() {
 
   document.querySelectorAll("[data-manut-filtro]").forEach(btn => {
     btn.addEventListener("click", () => {
-      manutencaoMobileFiltroAtual = btn.dataset.manutFiltro || "";
-      document.querySelectorAll(".manutencao-mobile-filtros [data-manut-filtro]").forEach(b => b.classList.toggle("active", (b.dataset.manutFiltro || "") === manutencaoMobileFiltroAtual));
+      manutencaoMobileFiltroAtual = btn.dataset.manutFiltro || "pendentes";
+      document.querySelectorAll(".manutencao-mobile-filtros [data-manut-filtro]").forEach(b => b.classList.toggle("active", (b.dataset.manutFiltro || "pendentes") === manutencaoMobileFiltroAtual));
       renderizarManutencaoMobile();
     });
   });
 
   setTimeout(renderizarManutencaoMobile, 900);
 }
+
+
+function manutencaoMobileFecharDetalheVoltar() {
+  const detalhe = document.getElementById("manutencaoMobileDetalhe");
+  if (detalhe && !detalhe.hidden) {
+    detalhe.hidden = true;
+    manutencaoMobileProdutoAtualId = null;
+    return true;
+  }
+  return false;
+}
+
+window.abrirManutencaoMobileProduto = abrirManutencaoMobileProduto;
+window.manutencaoMobileFecharDetalheVoltar = manutencaoMobileFecharDetalheVoltar;
 
 window.renderizarManutencaoMobile = renderizarManutencaoMobile;
 window.iniciarManutencaoMobile = iniciarManutencaoMobile;
