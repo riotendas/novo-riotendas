@@ -41,7 +41,7 @@ function carregarRotasOperacaoLocal() {
 
 function salvarRotasOperacaoLocal() {
   localStorage.setItem(storageRotasOperacaoKey, JSON.stringify(rotasOperacao || {}));
-  salvarRotasOperacaoNuvem();
+  return salvarRotasOperacaoNuvem();
 }
 
 async function carregarRotasOperacaoNuvem() {
@@ -66,8 +66,26 @@ async function carregarRotasOperacaoNuvem() {
   }
 }
 
+function rtRotasOperacaoMesclar(local = {}, nuvem = {}) {
+  const saida = { ...(local || {}) };
+
+  Object.entries(nuvem || {}).forEach(([id, opNuvem]) => {
+    const opLocal = saida[id];
+    if (!opLocal) {
+      saida[id] = opNuvem;
+      return;
+    }
+
+    const tLocal = new Date(opLocal.data || opLocal.atualizado_em || 0).getTime() || 0;
+    const tNuvem = new Date(opNuvem.data || opNuvem.atualizado_em || 0).getTime() || 0;
+    if (tNuvem >= tLocal) saida[id] = opNuvem;
+  });
+
+  return saida;
+}
+
 async function salvarRotasOperacaoNuvem() {
-  if (typeof supabaseClient === "undefined" || !supabaseClient) return;
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return false;
 
   try {
     const { error } = await supabaseClient
@@ -78,9 +96,14 @@ async function salvarRotasOperacaoNuvem() {
         atualizado_em: new Date().toISOString()
       }, { onConflict: "chave" });
 
-    if (error) console.warn("Não foi possível salvar operação das rotas na nuvem:", error);
+    if (error) {
+      console.warn("Não foi possível salvar operação das rotas na nuvem:", error);
+      return false;
+    }
+    return true;
   } catch (erro) {
     console.warn("Erro ao salvar operação das rotas na nuvem:", erro);
+    return false;
   }
 }
 
@@ -127,17 +150,22 @@ async function resetarOperacoesRotasUmaVezParaTeste() {
   await zerarRotasOperacaoTotal(true);
 }
 
-async function sincronizarRotasOperacaoNuvem() {
+async function sincronizarRotasOperacaoNuvem(renderizar = true) {
+  const localAntes = rotasOperacao && typeof rotasOperacao === "object" ? rotasOperacao : carregarRotasOperacaoLocal();
   const nuvem = await carregarRotasOperacaoNuvem();
 
   if (nuvem && typeof nuvem === "object") {
-    rotasOperacao = { ...rotasOperacao, ...nuvem };
+    const mesclado = rtRotasOperacaoMesclar(localAntes, nuvem);
+    const mudou = JSON.stringify(mesclado) !== JSON.stringify(rotasOperacao || {});
+    rotasOperacao = mesclado;
     localStorage.setItem(storageRotasOperacaoKey, JSON.stringify(rotasOperacao));
-    renderizarRotas();
-    return;
+    if (renderizar && mudou && typeof renderizarRotas === "function") renderizarRotas();
+    if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
+    return rotasOperacao;
   }
 
   await salvarRotasOperacaoNuvem();
+  return rotasOperacao;
 }
 
 function colaboradorRotaAtual() {
@@ -374,7 +402,7 @@ async function reverterOperacaoRota(rotaId) {
     delete rotasOperacao[rota.id];
   }
 
-  salvarRotasOperacaoLocal();
+  await salvarRotasOperacaoLocal();
 
   if (typeof registrarLogSistema === "function") {
     registrarLogSistema({
@@ -436,7 +464,7 @@ async function reconciliarStatusProdutosOperacoesRotas() {
     }
   }
 
-  if (mudouOperacao) salvarRotasOperacaoLocal();
+  if (mudouOperacao) await salvarRotasOperacaoLocal();
 }
 
 async function marcarOperacaoRota(rotaId, acao) {
@@ -461,7 +489,7 @@ async function marcarOperacaoRota(rotaId, acao) {
       produtos: alteradosAlugado
     };
 
-    salvarRotasOperacaoLocal();
+    await salvarRotasOperacaoLocal();
 
     if (typeof registrarLogSistema === "function") {
       registrarLogSistema({
@@ -493,7 +521,7 @@ async function marcarOperacaoRota(rotaId, acao) {
     const alteradosRevisar = await alterarStatusProdutosEventoRota(rota, "Revisar", "Recolhido na desmontagem");
     const qtdRevisar = alteradosRevisar.length;
     rotasOperacao[rota.id].produtos = alteradosRevisar;
-    salvarRotasOperacaoLocal();
+    await salvarRotasOperacaoLocal();
 
     if (typeof registrarLogSistema === "function") {
       registrarLogSistema({
@@ -675,9 +703,9 @@ function iniciarRotas() {
   atualizarFiltroCarrosRotas();
   sincronizarRotasCarrosNuvem();
   sincronizarRotasOrdemNuvem();
-  // Logística revisada: não reconciliar automaticamente Entregue/Recolhido ao abrir a tela.
-  // Isso evita loop de produtos voltando para Alugado/Revisar sem ação do usuário.
-  resetarOperacoesRotasUmaVezParaTeste().catch(() => {});
+  sincronizarRotasOperacaoNuvem(true).catch(() => {});
+  // Não zerar Entregue/Recolhido automaticamente em ambiente multiusuário.
+  // A limpeza deve acontecer apenas pelo botão administrativo.
 
   const hoje = new Date();
   const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
@@ -714,8 +742,20 @@ function iniciarRotas() {
 
   setInterval(() => {
     atualizarOrdemRotasDaNuvemSeNecessario();
+    sincronizarRotasOperacaoNuvem(true).catch(() => {});
     renderizarRotas();
   }, 30000);
+
+  if (!window.__rtRotasOperacaoSyncTimer) {
+    window.__rtRotasOperacaoSyncTimer = setInterval(() => {
+      const rotasAtiva = document.getElementById("rotasSection")?.classList.contains("active-section");
+      const ruaAtiva = document.getElementById("ruaMobileSection")?.classList.contains("active-section");
+      const produtosAtiva = document.getElementById("produtosSection")?.classList.contains("active-section");
+      if (rotasAtiva || ruaAtiva || produtosAtiva) {
+        sincronizarRotasOperacaoNuvem(true).catch(() => {});
+      }
+    }, 15000);
+  }
 }
 
 function dataLocalISO(data) {
@@ -1869,6 +1909,17 @@ async function atualizarHorarioRotaEvento(rotaId, novoValor) {
   }
 
   renderizarRotas();
+
+  if (!window.__rtRotasOperacaoSyncTimer) {
+    window.__rtRotasOperacaoSyncTimer = setInterval(() => {
+      const rotasAtiva = document.getElementById("rotasSection")?.classList.contains("active-section");
+      const ruaAtiva = document.getElementById("ruaMobileSection")?.classList.contains("active-section");
+      const produtosAtiva = document.getElementById("produtosSection")?.classList.contains("active-section");
+      if (rotasAtiva || ruaAtiva || produtosAtiva) {
+        sincronizarRotasOperacaoNuvem(true).catch(() => {});
+      }
+    }, 15000);
+  }
 }
 
 

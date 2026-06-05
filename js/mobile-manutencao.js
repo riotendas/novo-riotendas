@@ -21,6 +21,24 @@ function manutMobileEscape(txt) {
     .replaceAll("'", "&#039;");
 }
 
+
+function manutMobileUltimaChecagemProduto(produto = {}) {
+  if (typeof obterUltimaChecagemProduto === "function") return obterUltimaChecagemProduto(produto);
+  const historico = Array.isArray(produto?.historico) ? produto.historico : [];
+  return historico
+    .filter(item => String(item.alteracao || "").toLowerCase().includes("checagem de depósito") || String(item.alteracao || "").toLowerCase().includes("checagem de deposito"))
+    .map(item => ({ ...item, dataObj: new Date(item.data || item.criado_em || item.atualizado_em || 0) }))
+    .filter(item => !Number.isNaN(item.dataObj.getTime()))
+    .sort((a, b) => b.dataObj - a.dataObj)[0] || null;
+}
+
+function manutMobileResumoChecagem(produto = {}) {
+  const ultima = manutMobileUltimaChecagemProduto(produto);
+  if (!ultima) return "Ainda não checado no depósito";
+  const dataTxt = typeof formatarData === "function" ? formatarData(ultima.data || ultima.criado_em || ultima.atualizado_em) : new Date(ultima.data || ultima.criado_em || ultima.atualizado_em).toLocaleString("pt-BR");
+  return `Última checagem: ${dataTxt} por ${ultima.colaborador || "-"}`;
+}
+
 function manutMobileProdutoTitulo(produto = {}) {
   return [produto.categoria || produto.tipo, produto.tamanho, produto.cor].filter(Boolean).join(" · ") || "Produto";
 }
@@ -134,6 +152,14 @@ function abrirManutencaoMobileProduto(id) {
         <textarea id="manutencaoMobileObs" rows="4" placeholder="Ex.: Lavagem completa, troca de lona, costura refeita, reparo de solda...">${manutMobileEscape(produto.observacao || "")}</textarea>
       </label>
 
+      <div class="manut-mobile-checado-box">
+        <div>
+          <strong>Checado no depósito</strong>
+          <small>${manutMobileEscape(manutMobileResumoChecagem(produto))}</small>
+        </div>
+        <button type="button" class="btn-check-produto manut-mobile-check-deposito" id="manutMobileCheckDeposito" title="Marcar produto como checado no depósito">✓</button>
+      </div>
+
       <div class="manut-mobile-checklist">
         ${manutMobileChecklistHtml(produto)}
       </div>
@@ -160,10 +186,54 @@ function abrirManutencaoMobileProduto(id) {
     btn.addEventListener("click", () => salvarManutencaoMobileProduto(btn.dataset.manutStatus));
   });
 
+  document.getElementById("manutMobileCheckDeposito")?.addEventListener("click", () => marcarChecadoDepositoManutencaoMobile());
+
   document.getElementById("manutencaoMobileConcluir")?.addEventListener("click", () => {
     const pronto = document.getElementById("manutCheckPronto")?.checked;
     salvarManutencaoMobileProduto(pronto ? "Livre" : (produto.status || "Revisar"));
   });
+}
+
+
+async function marcarChecadoDepositoManutencaoMobile() {
+  const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(manutencaoMobileProdutoAtualId));
+  if (!produto) return;
+
+  const agora = new Date().toISOString();
+  const colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "Mobile";
+  const observacaoTela = String(document.getElementById("manutencaoMobileObs")?.value || "").trim();
+
+  produto.atualizado_em = agora;
+  produto.colaborador = colaborador;
+  produto.historico = Array.isArray(produto.historico) ? produto.historico : [];
+  produto.historico.push({
+    data: agora,
+    colaborador,
+    alteracao: "Checagem de depósito",
+    observacao: observacaoTela || "Produto conferido no depósito"
+  });
+
+  const salvo = typeof salvarProdutoBanco === "function" ? await salvarProdutoBanco(produto) : produto;
+  if (!salvo) return;
+
+  const index = produtos.findIndex(p => String(p.id) === String(produto.id));
+  if (index >= 0) produtos[index] = salvo;
+
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Mobile Manutenção",
+      acao: "Produto checado no depósito",
+      registro_id: salvo.id,
+      registro_nome: salvo.codigo || "Produto",
+      antes: null,
+      depois: { codigo: salvo.codigo || "-", data: agora, colaborador, observacao: observacaoTela || "Produto conferido no depósito" }
+    });
+  }
+
+  alert(`Produto ${salvo.codigo || ""} marcado como checado no depósito.`);
+  abrirManutencaoMobileProduto(salvo.id);
+  if (typeof renderizarProdutos === "function") renderizarProdutos();
+  if (typeof renderizarRelatorioChecagem === "function") renderizarRelatorioChecagem();
 }
 
 async function salvarManutencaoMobileProduto(novoStatus) {

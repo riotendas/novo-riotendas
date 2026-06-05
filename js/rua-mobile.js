@@ -209,13 +209,17 @@ function iniciarRuaMobile() {
     });
   }
 
-  setTimeout(renderizarRuaMobile, 800);
-  setInterval(() => {
+  setTimeout(async () => {
+    if (typeof sincronizarRotasOperacaoNuvem === "function") await sincronizarRotasOperacaoNuvem(false);
+    renderizarRuaMobile();
+  }, 800);
+  setInterval(async () => {
     const usuario = typeof getUsuarioLogado === "function" ? getUsuarioLogado() : null;
     if (usuario?.perfil === "rua" || document.getElementById("ruaMobileSection")?.classList.contains("active-section")) {
+      if (typeof sincronizarRotasOperacaoNuvem === "function") await sincronizarRotasOperacaoNuvem(false);
       renderizarRuaMobile();
     }
-  }, 30000);
+  }, 15000);
 }
 
 window.renderizarRuaMobile = renderizarRuaMobile;

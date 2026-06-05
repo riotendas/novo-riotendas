@@ -1331,3 +1331,244 @@ function resumoPermissoesUsuario(usuario) {
   return `${liberadas.slice(0, 3).join(", ")} +${liberadas.length - 3}`;
 }
 
+
+/* =====================================================
+   v19-dev: Mobile centralizado por usuário
+   - Reaproveita os usuários existentes.
+   - Permite escolher Sistema Completo, Mobile Rua e Mobile Manutenção.
+   - Em celular, entra direto no Mobile quando o usuário tiver acesso.
+===================================================== */
+(function(){
+  function addPermissao(id, label, posicao) {
+    try {
+      if (typeof paginasPermissaoUsuario !== 'undefined' && Array.isArray(paginasPermissaoUsuario) && !paginasPermissaoUsuario.some(p => p.id === id)) {
+        const item = { id, label };
+        if (typeof posicao === 'number') paginasPermissaoUsuario.splice(posicao, 0, item);
+        else paginasPermissaoUsuario.push(item);
+      }
+    } catch (e) { console.warn('Permissão mobile não adicionada:', id, e); }
+  }
+
+  addPermissao('sistemaCompleto', 'Sistema completo', 0);
+  addPermissao('mobileHubSection', 'Mobile', 1);
+  addPermissao('ruaMobileSection', 'Mobile > Rua', 2);
+  addPermissao('manutencaoMobileSection', 'Mobile > Manutenção', 3);
+  addPermissao('mobileRuaValores', 'Mobile > Rua: ver valores', 4);
+
+  function aplicarDefaultsMobile(obj, perfil) {
+    if (!obj) return obj;
+    if (perfil === 'administrador') {
+      obj.sistemaCompleto = true;
+      obj.mobileHubSection = true;
+      obj.ruaMobileSection = true;
+      obj.manutencaoMobileSection = true;
+      obj.mobileRuaValores = true;
+    } else if (perfil === 'rua') {
+      obj.sistemaCompleto = false;
+      obj.mobileHubSection = true;
+      obj.ruaMobileSection = true;
+      obj.manutencaoMobileSection = false;
+      obj.mobileRuaValores = true;
+    } else if (perfil === 'manutencao') {
+      obj.sistemaCompleto = false;
+      obj.mobileHubSection = true;
+      obj.ruaMobileSection = false;
+      obj.manutencaoMobileSection = true;
+      obj.mobileRuaValores = false;
+    } else {
+      if (typeof obj.sistemaCompleto === 'undefined') obj.sistemaCompleto = true;
+      if (typeof obj.mobileHubSection === 'undefined') obj.mobileHubSection = false;
+      if (typeof obj.ruaMobileSection === 'undefined') obj.ruaMobileSection = false;
+      if (typeof obj.manutencaoMobileSection === 'undefined') obj.manutencaoMobileSection = false;
+      if (typeof obj.mobileRuaValores === 'undefined') obj.mobileRuaValores = false;
+    }
+    return obj;
+  }
+
+  try {
+    if (typeof permissoesPadraoPorPerfilUsuario !== 'undefined') {
+      Object.keys(permissoesPadraoPorPerfilUsuario).forEach(perfil => aplicarDefaultsMobile(permissoesPadraoPorPerfilUsuario[perfil], perfil));
+      if (!permissoesPadraoPorPerfilUsuario.rua) {
+        permissoesPadraoPorPerfilUsuario.rua = aplicarDefaultsMobile({
+          dashboardSection:false, produtosSection:false, clientesSection:false, eventosSection:false,
+          orcamentosSection:false, calendarioSection:false, rotasSection:false, financeiroSection:false,
+          relatoriosSection:false, usuariosSection:false, configSection:false
+        }, 'rua');
+      }
+    }
+  } catch(e) { console.warn('Defaults mobile usuário:', e); }
+
+  const normalizarAnterior = typeof normalizarPermissoesUsuario === 'function' ? normalizarPermissoesUsuario : null;
+  window.normalizarPermissoesUsuarioMobileV19 = function(perfil, permissoes = null) {
+    let base = normalizarAnterior ? normalizarAnterior(perfil, permissoes) : {};
+    base = aplicarDefaultsMobile(base, perfil || 'operacional');
+
+    Object.entries(permissoes || {}).forEach(([chave, valor]) => {
+      base[chave] = Boolean(valor);
+    });
+
+    if (perfil === 'administrador') {
+      Object.keys(base).forEach(k => base[k] = true);
+      base.sistemaCompleto = true;
+    }
+
+    return base;
+  };
+
+  // Sobrescreve a função do arquivo para incluir as chaves mobile.
+  normalizarPermissoesUsuario = window.normalizarPermissoesUsuarioMobileV19;
+
+  window.usuarioPodeVerValoresMobileRua = function() {
+    const usuario = typeof getUsuarioLogado === 'function' ? getUsuarioLogado() : null;
+    if (!usuario) return false;
+    if (usuario.perfil === 'administrador') return true;
+    const p = normalizarPermissoesUsuario(usuario.perfil, usuario.permissoes || null);
+    return Boolean(p.mobileRuaValores);
+  };
+
+  function usuarioTemMobile(permissoes) {
+    return Boolean(permissoes.mobileHubSection || permissoes.ruaMobileSection || permissoes.manutencaoMobileSection);
+  }
+
+  function secaoMobilePreferida(usuario, permissoes) {
+    if (usuario?.perfil === 'rua' && permissoes.ruaMobileSection) return 'ruaMobileSection';
+    if (usuario?.perfil === 'manutencao' && permissoes.manutencaoMobileSection) return 'manutencaoMobileSection';
+    if (permissoes.ruaMobileSection && !permissoes.manutencaoMobileSection) return 'ruaMobileSection';
+    if (permissoes.manutencaoMobileSection && !permissoes.ruaMobileSection) return 'manutencaoMobileSection';
+    return 'mobileHubSection';
+  }
+
+  window.abrirSecaoRioTendas = function(sectionId) {
+    const sec = document.getElementById(sectionId);
+    if (!sec) return;
+    document.querySelectorAll('.tab-btn[data-section]').forEach(btn => btn.classList.toggle('active', btn.dataset.section === sectionId));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active', 'active-section'));
+    sec.style.display = '';
+    sec.classList.add('active', 'active-section');
+    if (sectionId === 'ruaMobileSection' && typeof renderizarRuaMobile === 'function') renderizarRuaMobile();
+    if (sectionId === 'manutencaoMobileSection' && typeof renderizarManutencaoMobile === 'function') renderizarManutencaoMobile();
+  };
+
+  function garantirBotaoSistemaCompletoMobile() {
+    const hub = document.getElementById('mobileHubSection');
+    if (!hub || document.getElementById('mobileSistemaCompletoBtn')) return;
+    const btn = document.createElement('button');
+    btn.id = 'mobileSistemaCompletoBtn';
+    btn.className = 'btn-outline mobile-full-system-btn';
+    btn.type = 'button';
+    btn.textContent = 'Sistema completo';
+    const header = hub.querySelector('.section-header');
+    if (header) header.appendChild(btn);
+    else hub.prepend(btn);
+    btn.addEventListener('click', () => {
+      document.body.classList.remove('modo-mobile-operacional');
+      window.abrirSecaoRioTendas('dashboardSection');
+    });
+  }
+
+  aplicarPermissoesUsuarioIndividual = async function() {
+    const usuario = typeof getUsuarioLogado === 'function' ? getUsuarioLogado() : null;
+    if (!usuario) return;
+
+    const permissoes = normalizarPermissoesUsuario(usuario.perfil, usuario.permissoes || null);
+    const sistemaCompleto = usuario.perfil === 'administrador' || Boolean(permissoes.sistemaCompleto);
+    const temMobile = usuarioTemMobile(permissoes);
+    const telaCelular = window.matchMedia && window.matchMedia('(max-width: 780px)').matches;
+    const somenteMobile = !sistemaCompleto;
+    const entrarMobileAutomatico = temMobile && (somenteMobile || telaCelular);
+
+    document.body.classList.toggle('modo-mobile-operacional', entrarMobileAutomatico || somenteMobile);
+    document.body.classList.toggle('usuario-sem-sistema-completo', somenteMobile);
+
+    document.querySelectorAll('.tab-btn[data-section]').forEach(btn => {
+      const sectionId = btn.dataset.section;
+      const ehMobile = ['mobileHubSection', 'ruaMobileSection', 'manutencaoMobileSection'].includes(sectionId);
+      let permitido = false;
+
+      if (usuario.perfil === 'administrador') permitido = true;
+      else if (ehMobile) permitido = Boolean(permissoes[sectionId]) || (sectionId === 'mobileHubSection' && temMobile);
+      else permitido = sistemaCompleto && Boolean(permissoes[sectionId]);
+
+      btn.style.display = permitido ? '' : 'none';
+      btn.disabled = !permitido;
+    });
+
+    const mobileBtn = document.getElementById('mobileTopBtn');
+    if (mobileBtn) {
+      mobileBtn.style.display = temMobile ? '' : 'none';
+      mobileBtn.disabled = !temMobile;
+    }
+
+    document.querySelectorAll('.section').forEach(sec => {
+      const sectionId = sec.id;
+      const ehMobile = ['mobileHubSection', 'ruaMobileSection', 'manutencaoMobileSection'].includes(sectionId);
+      let permitido = false;
+
+      if (usuario.perfil === 'administrador') permitido = true;
+      else if (ehMobile) permitido = Boolean(permissoes[sectionId]) || (sectionId === 'mobileHubSection' && temMobile);
+      else permitido = sistemaCompleto && Boolean(permissoes[sectionId]);
+
+      if (!permitido) {
+        sec.classList.remove('active', 'active-section');
+        sec.style.display = 'none';
+      } else {
+        sec.style.display = '';
+      }
+    });
+
+    document.querySelectorAll('.admin-only').forEach(el => {
+      el.style.display = usuario.perfil === 'administrador' ? '' : 'none';
+    });
+
+    garantirBotaoSistemaCompletoMobile();
+    const fullBtn = document.getElementById('mobileSistemaCompletoBtn');
+    if (fullBtn) fullBtn.style.display = sistemaCompleto ? '' : 'none';
+
+    if (entrarMobileAutomatico) {
+      window.abrirSecaoRioTendas(secaoMobilePreferida(usuario, permissoes));
+      return;
+    }
+
+    const ativo = document.querySelector('.tab-btn.active[data-section]');
+    if (!ativo || ativo.style.display === 'none' || ativo.disabled) {
+      const primeiro = Array.from(document.querySelectorAll('.tab-btn[data-section]'))
+        .find(btn => btn.style.display !== 'none' && !btn.disabled);
+      if (primeiro) primeiro.click();
+    }
+  };
+
+  function filtrarCardsMobileHub() {
+    const usuario = typeof getUsuarioLogado === 'function' ? getUsuarioLogado() : null;
+    if (!usuario) return;
+    const p = normalizarPermissoesUsuario(usuario.perfil, usuario.permissoes || null);
+    document.querySelectorAll('[data-mobile-open]').forEach(btn => {
+      const destino = btn.dataset.mobileOpen;
+      btn.style.display = (usuario.perfil === 'administrador' || p[destino]) ? '' : 'none';
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const mobileBtn = document.getElementById('mobileTopBtn');
+    if (mobileBtn && !mobileBtn.dataset.mobileCentralListener) {
+      mobileBtn.dataset.mobileCentralListener = '1';
+      mobileBtn.addEventListener('click', () => {
+        const usuario = typeof getUsuarioLogado === 'function' ? getUsuarioLogado() : null;
+        const p = normalizarPermissoesUsuario(usuario?.perfil, usuario?.permissoes || null);
+        document.body.classList.add('modo-mobile-operacional');
+        window.abrirSecaoRioTendas(secaoMobilePreferida(usuario, p));
+        filtrarCardsMobileHub();
+      });
+    }
+
+    document.querySelectorAll('[data-mobile-open]').forEach(btn => {
+      if (btn.dataset.mobileOpenListener) return;
+      btn.dataset.mobileOpenListener = '1';
+      btn.addEventListener('click', () => {
+        document.body.classList.add('modo-mobile-operacional');
+        window.abrirSecaoRioTendas(btn.dataset.mobileOpen);
+      });
+    });
+
+    setTimeout(filtrarCardsMobileHub, 900);
+  });
+})();

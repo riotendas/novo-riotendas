@@ -11187,3 +11187,61 @@ body.perfil-rua .brand h1::after { content: " · Rua Mobile"; font-weight: 600; 
   .manut-mobile-checklist { grid-template-columns: 1fr; }
   .manut-mobile-status-botoes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* v19-dev: Mobile > Manutenção usando o mesmo Checado dos Produtos */
+.manut-mobile-checado-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #dbe4f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+.manut-mobile-checado-box strong {
+  display: block;
+  font-size: 13px;
+  color: #0f172a;
+}
+.manut-mobile-checado-box small {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.25;
+}
+.manut-mobile-check-deposito {
+  flex: 0 0 auto;
+  min-width: 42px;
+  height: 38px;
+}
+@media (max-width: 720px) {
+  .manut-mobile-checado-box {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .manut-mobile-check-deposito {
+    width: 100%;
+  }
+}
+
+/* v19-dev: central mobile operacional */
+.mobile-full-system-btn { margin-left: auto; }
+body.modo-mobile-operacional .tabs { display: none !important; }
+body.modo-mobile-operacional .topbar { position: sticky; top: 0; z-index: 50; padding: 10px 12px; }
+body.modo-mobile-operacional .brand img { width: 42px; height: auto; }
+body.modo-mobile-operacional .brand h1 { font-size: 1rem; margin: 0; }
+body.modo-mobile-operacional .brand span { display: none; }
+body.modo-mobile-operacional .user-box { gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+body.modo-mobile-operacional .user-box span { font-size: .78rem; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.modo-mobile-operacional .section:not(.active-section) { display: none !important; }
+body.usuario-sem-sistema-completo .tabs { display: none !important; }
+@media (max-width: 780px) {
+  body.modo-mobile-operacional main.app { padding: 0; }
+  body.modo-mobile-operacional .section { padding: 12px; }
+  body.modo-mobile-operacional .section-header.split { gap: 8px; align-items: flex-start; }
+  body.modo-mobile-operacional .section-header h2 { font-size: 1.15rem; }
+  body.modo-mobile-operacional .section-header p { font-size: .85rem; }
+}

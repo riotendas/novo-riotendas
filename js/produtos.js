@@ -401,6 +401,19 @@ function iniciarProdutos() {
   filtroStatus.addEventListener("change", renderizarProdutos);
   document.getElementById("buscaProduto").addEventListener("input", renderizarProdutos);
 
+  if (typeof sincronizarRotasOperacaoNuvem === "function") {
+    sincronizarRotasOperacaoNuvem(false).then(() => renderizarProdutos()).catch(() => {});
+  }
+
+  if (!window.__rtProdutosOperacaoSyncTimer) {
+    window.__rtProdutosOperacaoSyncTimer = setInterval(() => {
+      const produtosAtiva = document.getElementById("produtosSection")?.classList.contains("active-section");
+      if (produtosAtiva && typeof sincronizarRotasOperacaoNuvem === "function") {
+        sincronizarRotasOperacaoNuvem(false).then(() => renderizarProdutos()).catch(() => {});
+      }
+    }, 15000);
+  }
+
   ["dispProdutoInicio", "dispProdutoFim", "mostrarSomenteDisponiveis"].forEach(id => {
     const campo = document.getElementById(id);
     if (!campo) return;
@@ -617,6 +630,12 @@ function getEventosDisponibilidadeProduto() {
 
 async function carregarEventosDisponibilidadeProduto() {
   try {
+    // Em ambiente multiusuário, os marcadores Entregue/Recolhido precisam vir da nuvem
+    // antes de calcular Pendente/Disponível na tela de Produtos.
+    if (typeof sincronizarRotasOperacaoNuvem === "function") {
+      await sincronizarRotasOperacaoNuvem(false);
+    }
+
     if (getEventosDisponibilidadeProduto().length) return;
 
     if (typeof carregarEventos === "function") {
