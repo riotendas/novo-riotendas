@@ -1099,9 +1099,12 @@ function intervaloEventoAtual() {
   const termino = document.getElementById("eventoHoraTermino")?.value || "23:59";
   const montagem = document.getElementById("eventoMontagem")?.value;
   const desmontagem = document.getElementById("eventoDesmontagem")?.value;
+  const desmontagemTipo = document.getElementById("eventoDesmontagemTipo")?.value || "";
 
   if (montagem && desmontagem) {
-    return { inicio: montagem, fim: desmontagem };
+    const inicioPeriodo = String(montagem).includes("T") ? montagem : `${montagem}T00:00`;
+    const fimPeriodo = rtFimOperacaoEventoDisponibilidade(desmontagem, desmontagemTipo, data);
+    return { inicio: inicioPeriodo, fim: fimPeriodo };
   }
 
   if (data) {
@@ -1120,6 +1123,23 @@ function dataISOEventoSeguro(valor) {
   return String(valor).slice(0, 10);
 }
 
+function rtFimOperacaoEventoDisponibilidade(valor, tipoSalvo, fallbackData = "") {
+  if (!valor && !fallbackData) return null;
+
+  const tipo = tipoHorarioBase(tipoSalvo);
+  const data = dataISOEventoSeguro(valor || fallbackData);
+  if (!data) return valor || null;
+
+  // Desmontagem Livre/Comercial bloqueia o produto até o fim do dia da retirada.
+  // Evita que o mesmo material apareça livre no próprio dia da desmontagem.
+  if (tipo === "Horário comercial" || tipo === "Livre / combinar" || tipo === "Livre" || tipo === "Comercial") {
+    return `${data}T23:59`;
+  }
+
+  if (String(valor || "").includes("T")) return valor;
+  return `${data}T23:59`;
+}
+
 function intervaloDeEventoParaDisponibilidade(evento) {
   if (!evento) return { inicio: null, fim: null };
 
@@ -1133,6 +1153,8 @@ function intervaloDeEventoParaDisponibilidade(evento) {
     inicio = `${data}T${String(evento.hora_inicio || evento.hora_evento || "00:00").slice(0, 5)}`;
     fim = `${data}T${String(evento.hora_termino || "23:59").slice(0, 5)}`;
   }
+
+  fim = rtFimOperacaoEventoDisponibilidade(fim, evento.desmontagem_tipo, evento.data_evento);
 
   return { inicio, fim };
 }
@@ -1565,14 +1587,9 @@ function quantidadeApoioReservadaNoPeriodo(itemId, eventoAtualId = "") {
 
     if (!itemEvento) return total;
 
-    let inicioEvento = evento.montagem;
-    let fimEvento = evento.desmontagem;
-
-    if (!inicioEvento || !fimEvento) {
-      if (!evento.data_evento) return total;
-      inicioEvento = `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_inicio || evento.hora_evento || "00:00"}`;
-      fimEvento = `${formatarDataCurtaDisponibilidade(evento.data_evento)}T${evento.hora_termino || "23:59"}`;
-    }
+    const intervaloEvento = intervaloDeEventoParaDisponibilidade(evento);
+    const inicioEvento = intervaloEvento.inicio;
+    const fimEvento = intervaloEvento.fim;
 
     if (periodosConflitam(intervaloAtual.inicio, intervaloAtual.fim, inicioEvento, fimEvento)) {
       return total + Number(itemEvento.quantidade || 0);

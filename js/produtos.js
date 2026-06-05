@@ -700,6 +700,27 @@ function dataISOProdutoDisponibilidade(valor) {
   return String(valor).slice(0, 10);
 }
 
+function rtTipoHorarioBaseDisponibilidade(valor) {
+  return String(valor || "").split("|")[0] || "";
+}
+
+function rtFimOperacaoDisponibilidade(valor, tipoSalvo, fallbackData = "") {
+  if (!valor && !fallbackData) return null;
+
+  const tipo = rtTipoHorarioBaseDisponibilidade(tipoSalvo);
+  const data = dataISOProdutoDisponibilidade(valor || fallbackData);
+  if (!data) return valor || null;
+
+  // Em desmontagem Livre/Comercial o material continua comprometido durante todo o dia,
+  // pois a retirada trabalha em logística compartilhada e não possui horário garantido.
+  if (tipo === "Horário comercial" || tipo === "Livre / combinar" || tipo === "Livre" || tipo === "Comercial") {
+    return `${data}T23:59`;
+  }
+
+  if (String(valor || "").includes("T")) return valor;
+  return `${data}T23:59`;
+}
+
 function intervaloEventoDisponibilidade(evento) {
   if (!evento) return { inicio: null, fim: null };
 
@@ -715,6 +736,9 @@ function intervaloEventoDisponibilidade(evento) {
   if (!fim && dataEvento) {
     fim = `${dataEvento}T${String(evento.hora_termino || "23:59").slice(0, 5)}`;
   }
+
+  // Ajuste fino: no dia da desmontagem Livre/Comercial, não libera às 00:00.
+  fim = rtFimOperacaoDisponibilidade(fim, evento.desmontagem_tipo, dataEvento);
 
   // Se só tiver montagem, considera fim no dia do evento/desmontagem se existir.
   if (inicio && !fim) {
