@@ -633,13 +633,36 @@ async function carregarEventosDisponibilidadeProduto() {
   }
 }
 
+function rtTimestampLocalOperacional(valor) {
+  if (!valor) return NaN;
+
+  // Datas/horários de montagem e desmontagem são operacionais locais.
+  // Não usar new Date(valor) aqui, pois valores vindos do Supabase com Z/+00:00
+  // sofrem deslocamento UTC (-3h no Brasil) e liberam material antes do horário real.
+  const texto = String(valor).trim();
+  const dataMatch = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!dataMatch) {
+    const fallback = new Date(texto).getTime();
+    return Number.isNaN(fallback) ? NaN : fallback;
+  }
+
+  const horaMatch = texto.match(/T(\d{2}):(\d{2})/);
+  const ano = Number(dataMatch[1]);
+  const mes = Number(dataMatch[2]) - 1;
+  const dia = Number(dataMatch[3]);
+  const hora = horaMatch ? Number(horaMatch[1]) : 0;
+  const minuto = horaMatch ? Number(horaMatch[2]) : 0;
+
+  return new Date(ano, mes, dia, hora, minuto, 0, 0).getTime();
+}
+
 function periodoProdutoSelecionado() {
   const inicio = document.getElementById("dispProdutoInicio")?.value || "";
   const fim = document.getElementById("dispProdutoFim")?.value || "";
 
   if (!inicio || !fim) return null;
 
-  if (new Date(fim).getTime() <= new Date(inicio).getTime()) {
+  if (rtTimestampLocalOperacional(fim) <= rtTimestampLocalOperacional(inicio)) {
     return { invalido: true, inicio, fim };
   }
 
@@ -649,8 +672,14 @@ function periodoProdutoSelecionado() {
 function conflitoPeriodoProduto(inicioBusca, fimBusca, inicioReserva, fimReserva) {
   if (!inicioBusca || !fimBusca || !inicioReserva || !fimReserva) return false;
 
-  return new Date(inicioBusca).getTime() < new Date(fimReserva).getTime()
-    && new Date(fimBusca).getTime() > new Date(inicioReserva).getTime();
+  const ib = rtTimestampLocalOperacional(inicioBusca);
+  const fb = rtTimestampLocalOperacional(fimBusca);
+  const ir = rtTimestampLocalOperacional(inicioReserva);
+  const fr = rtTimestampLocalOperacional(fimReserva);
+
+  if ([ib, fb, ir, fr].some(Number.isNaN)) return false;
+
+  return ib < fr && fb > ir;
 }
 
 
@@ -711,11 +740,28 @@ function rtFimOperacaoDisponibilidade(valor, tipoSalvo, fallbackData = "") {
   const data = dataISOProdutoDisponibilidade(valor || fallbackData);
   if (!data) return valor || null;
 
-  // Em desmontagem Livre/Comercial o material continua comprometido durante todo o dia,
-  // pois a retirada trabalha em logística compartilhada e não possui horário garantido.
-  if (tipo === "Horário comercial" || tipo === "Livre / combinar" || tipo === "Livre" || tipo === "Comercial") {
-    return `${data}T23:59`;
-  }
+  // Regra segura de desmontagem:
+  // - Exatamente: respeita o horário informado.
+  // - Até / A partir de / Livre / Comercial: o material continua bloqueado até o fim do dia
+  //   ou até o fluxo operacional marcar recolhido/revisado/livre.
+  // Isso evita liberar o material no próprio dia da retirada antes da equipe realmente recolher.
+  const tipoNormalizado = String(tipo || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  const deveSegurarAteFimDoDia = [
+    "horario comercial",
+    "livre / combinar",
+    "livre",
+    "comercial",
+    "ate",
+    "a partir de",
+    "a partir"
+  ].includes(tipoNormalizado);
+
+  if (deveSegurarAteFimDoDia) return `${data}T23:59`;
 
   if (String(valor || "").includes("T")) return valor;
   return `${data}T23:59`;

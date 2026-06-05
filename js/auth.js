@@ -9,6 +9,7 @@ function perfilUsuarioLabel(perfil) {
   if (perfil === "administrador") return "Administrador";
   if (perfil === "operacional") return "Operacional";
   if (perfil === "manutencao") return "Manutenção";
+  if (perfil === "rua") return "Rua";
   return perfil || "-";
 }
 
@@ -234,7 +235,8 @@ function aplicarPermissoesUsuario() {
   document.body.classList.remove(
     "perfil-admin",
     "perfil-operacional",
-    "perfil-manutencao"
+    "perfil-manutencao",
+    "perfil-rua"
   );
 
   document.body.classList.add(`perfil-${usuario.perfil}`);
@@ -280,7 +282,7 @@ function aplicarPermissoesUsuario() {
   // MANUTENÇÃO
   if (usuario.perfil === "manutencao") {
 
-    const permitidas = ["produtosSection"];
+    const permitidas = ["mobileHubSection", "manutencaoMobileSection", "produtosSection"];
 
     document.querySelectorAll(".tab-btn").forEach(btn => {
       const section = btn.dataset.section;
@@ -296,22 +298,50 @@ function aplicarPermissoesUsuario() {
       }
     });
 
-    const produtosBtn = document.querySelector('[data-section="produtosSection"]');
-    const produtosSection = document.getElementById("produtosSection");
+    const mobileBtn = document.querySelector('[data-section="mobileHubSection"]') || document.getElementById("mobileTopBtn");
+    const manutMobileSection = document.getElementById("manutencaoMobileSection");
 
-    if (produtosBtn) produtosBtn.classList.add("active");
+    if (mobileBtn) mobileBtn.classList.add("active");
 
     document.querySelectorAll(".section").forEach(sec => {
-      sec.classList.remove("active");
+      sec.classList.remove("active", "active-section");
     });
 
-    if (produtosSection) {
-      produtosSection.style.display = "";
-      produtosSection.classList.add("active");
+    if (manutMobileSection) {
+      manutMobileSection.style.display = "";
+      manutMobileSection.classList.add("active", "active-section");
     }
 
     esconderAba("usuariosSection");
     esconderAba("configSection");
+  }
+
+
+  // RUA MOBILE: acesso restrito à tela simplificada de rotas.
+  if (usuario.perfil === "rua") {
+    const permitidas = ["ruaMobileSection"];
+
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      const section = btn.dataset.section;
+      if (!permitidas.includes(section)) btn.style.display = "none";
+      else {
+        btn.style.display = "";
+        btn.classList.add("active");
+      }
+    });
+
+    document.querySelectorAll(".section").forEach(sec => {
+      sec.classList.remove("active-section", "active");
+      if (!permitidas.includes(sec.id)) sec.style.display = "none";
+    });
+
+    const ruaSection = document.getElementById("ruaMobileSection");
+    if (ruaSection) {
+      ruaSection.style.display = "";
+      ruaSection.classList.add("active-section", "active");
+    }
+
+    return;
   }
 }
 
@@ -342,7 +372,7 @@ function mostrarAppUsuario(usuario) {
 
   if (typeof carregarProdutos === "function") carregarProdutos();
   if (typeof carregarClientes === "function") carregarClientes();
-  if (typeof carregarEventos === "function") carregarEventos();
+  if (typeof carregarEventos === "function") carregarEventos().then(() => { if (typeof renderizarRuaMobile === "function") renderizarRuaMobile(); });
 
   setTimeout(() => {
     if (typeof renderizarUsuariosSistema === "function") renderizarUsuariosSistema();

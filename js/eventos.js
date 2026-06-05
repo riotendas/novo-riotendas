@@ -1088,9 +1088,39 @@ function fecharEventoModal() {
 }
 
 
+function rtTimestampLocalOperacionalEvento(valor) {
+  if (!valor) return NaN;
+
+  // Horários operacionais da RioTendas devem ser comparados como hora local,
+  // ignorando Z/+00:00 que possa vir do Supabase. Caso contrário 09:00 vira 06:00.
+  const texto = String(valor).trim();
+  const dataMatch = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!dataMatch) {
+    const fallback = new Date(texto).getTime();
+    return Number.isNaN(fallback) ? NaN : fallback;
+  }
+
+  const horaMatch = texto.match(/T(\d{2}):(\d{2})/);
+  const ano = Number(dataMatch[1]);
+  const mes = Number(dataMatch[2]) - 1;
+  const dia = Number(dataMatch[3]);
+  const hora = horaMatch ? Number(horaMatch[1]) : 0;
+  const minuto = horaMatch ? Number(horaMatch[2]) : 0;
+
+  return new Date(ano, mes, dia, hora, minuto, 0, 0).getTime();
+}
+
 function periodosConflitam(inicioA, fimA, inicioB, fimB) {
   if (!inicioA || !fimA || !inicioB || !fimB) return false;
-  return new Date(inicioA) <= new Date(fimB) && new Date(fimA) >= new Date(inicioB);
+
+  const ia = rtTimestampLocalOperacionalEvento(inicioA);
+  const fa = rtTimestampLocalOperacionalEvento(fimA);
+  const ib = rtTimestampLocalOperacionalEvento(inicioB);
+  const fb = rtTimestampLocalOperacionalEvento(fimB);
+
+  if ([ia, fa, ib, fb].some(Number.isNaN)) return false;
+
+  return ia <= fb && fa >= ib;
 }
 
 function intervaloEventoAtual() {
@@ -1130,11 +1160,28 @@ function rtFimOperacaoEventoDisponibilidade(valor, tipoSalvo, fallbackData = "")
   const data = dataISOEventoSeguro(valor || fallbackData);
   if (!data) return valor || null;
 
-  // Desmontagem Livre/Comercial bloqueia o produto até o fim do dia da retirada.
-  // Evita que o mesmo material apareça livre no próprio dia da desmontagem.
-  if (tipo === "Horário comercial" || tipo === "Livre / combinar" || tipo === "Livre" || tipo === "Comercial") {
-    return `${data}T23:59`;
-  }
+  // Regra segura de desmontagem:
+  // - Exatamente: respeita o horário informado.
+  // - Até / A partir de / Livre / Comercial: o material continua bloqueado até o fim do dia
+  //   ou até o fluxo operacional marcar recolhido/revisado/livre.
+  // Isso evita liberar o material no próprio dia da retirada antes da equipe realmente recolher.
+  const tipoNormalizado = String(tipo || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  const deveSegurarAteFimDoDia = [
+    "horario comercial",
+    "livre / combinar",
+    "livre",
+    "comercial",
+    "ate",
+    "a partir de",
+    "a partir"
+  ].includes(tipoNormalizado);
+
+  if (deveSegurarAteFimDoDia) return `${data}T23:59`;
 
   if (String(valor || "").includes("T")) return valor;
   return `${data}T23:59`;
@@ -1486,6 +1533,87 @@ function renderizarExtrasEvento() {
   });
 }
 
+
+const RT_EVENTO_CONJUNTOS_APOIO = {
+  plastico: {
+    descricao: 'Conjunto Plástico (1 mesa plástica + 4 cadeiras)',
+    itens: [
+      { nome: 'Mesa de Plástico Branca', aliases: ['Mesa de Plástico Branca','Mesa Plástica Branca'], qtd: 1 },
+      { nome: 'Cadeira Plástica Branca', aliases: ['Cadeira Plástica Branca'], qtd: 4 }
+    ]
+  },
+  madeira: {
+    descricao: 'Conjunto Madeira (1 mesa madeira + 4 cadeiras)',
+    itens: [
+      { nome: 'Mesa de Madeira', aliases: ['Mesa de Madeira','Mesa Madeira'], qtd: 1 },
+      { nome: 'Cadeira de Madeira', aliases: ['Cadeira de Madeira','Cadeira Madeira'], qtd: 4 }
+    ]
+  },
+  bistro: {
+    descricao: 'Conjunto Bistrô (1 mesa bistrô + 2 banquetas)',
+    itens: [
+      { nome: 'Mesa Bistrô', aliases: ['Mesa Bistrô','Mesa Bistro'], qtd: 1 },
+      { nome: 'Banqueta', aliases: ['Banqueta','Banquetas'], qtd: 2 }
+    ]
+  }
+};
+
+function rtEventoNormalizarApoioNome(valor){
+  return String(valor || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+}
+
+function rtEventoEncontrarApoioPorAliases(aliases){
+  const alvos = (aliases || []).map(rtEventoNormalizarApoioNome).filter(Boolean);
+  if (!Array.isArray(estoqueApoio) || !estoqueApoio.length || !alvos.length) return null;
+  return estoqueApoio.find(i => alvos.includes(rtEventoNormalizarApoioNome(i.nome)))
+    || estoqueApoio.find(i => {
+      const nome = rtEventoNormalizarApoioNome(i.nome);
+      return alvos.some(a => nome.includes(a) || a.includes(nome));
+    });
+}
+
+function rtEventoDisponibilidadeConjunto(chave){
+  const conjunto = RT_EVENTO_CONJUNTOS_APOIO[chave];
+  if (!conjunto) return { disponivel: 0, detalhes: 'Conjunto não configurado' };
+  let menor = Infinity;
+  const detalhes = [];
+  conjunto.itens.forEach(comp => {
+    const apoio = rtEventoEncontrarApoioPorAliases(comp.aliases || [comp.nome]);
+    if (!apoio) {
+      menor = 0;
+      detalhes.push(`${comp.nome}: sem cadastro`);
+      return;
+    }
+    const d = disponibilidadeApoioParaEvento(apoio, 0);
+    const disponivel = Number(d.disponivel || 0);
+    menor = Math.min(menor, Math.floor(disponivel / Number(comp.qtd || 1)));
+    detalhes.push(`${comp.nome}: ${disponivel}`);
+  });
+  if (menor === Infinity) menor = 0;
+  return { disponivel: menor, detalhes: detalhes.join(' / ') };
+}
+
+function rtEventoExpandirConjuntoParaApoio(chave, quantidade){
+  const conjunto = RT_EVENTO_CONJUNTOS_APOIO[chave];
+  if (!conjunto || !quantidade) return [];
+  return conjunto.itens.map(comp => {
+    const apoio = rtEventoEncontrarApoioPorAliases(comp.aliases || [comp.nome]);
+    if (!apoio) return null;
+    return { id: apoio.id, nome: apoio.nome, quantidade: Number(quantidade || 0) * Number(comp.qtd || 1) };
+  }).filter(Boolean);
+}
+
+function rtEventoSomarApoio(lista){
+  const mapa = new Map();
+  (lista || []).forEach(item => {
+    if (!item || Number(item.quantidade || 0) <= 0) return;
+    const chave = String(item.id || item.nome);
+    if (mapa.has(chave)) mapa.get(chave).quantidade += Number(item.quantidade || 0);
+    else mapa.set(chave, { id: item.id, nome: item.nome, quantidade: Number(item.quantidade || 0) });
+  });
+  return [...mapa.values()];
+}
+
 function renderizarApoioEvento(selecionados = []) {
   const area = document.getElementById("eventoApoioLista");
   if (!area) return;
@@ -1508,7 +1636,27 @@ function renderizarApoioEvento(selecionados = []) {
     ...Object.keys(grupos).filter(grupo => !ordemGrupos.includes(grupo))
   ];
 
-  area.innerHTML = gruposOrdenados.map(grupo => `
+  const htmlConjuntos = `
+    <div class="apoio-evento-grupo apoio-evento-conjuntos">
+      <div class="apoio-evento-grupo-titulo">Conjuntos</div>
+      <div class="apoio-evento-grupo-lista">
+        ${Object.entries(RT_EVENTO_CONJUNTOS_APOIO).map(([chave, conjunto]) => {
+          const disponibilidade = rtEventoDisponibilidadeConjunto(chave);
+          return `
+            <label class="apoio-evento-item">
+              <span>
+                <strong>${conjunto.descricao}</strong>
+                <small>Disponível na data: ${disponibilidade.disponivel} conjuntos | ${disponibilidade.detalhes}</small>
+              </span>
+              <input type="number" min="0" max="${disponibilidade.disponivel}" step="1" data-conjunto="${chave}" value="0">
+            </label>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+
+  area.innerHTML = htmlConjuntos + gruposOrdenados.map(grupo => `
     <div class="apoio-evento-grupo">
       <div class="apoio-evento-grupo-titulo">${grupo}</div>
       <div class="apoio-evento-grupo-lista">
@@ -1560,17 +1708,25 @@ function obterProdutosSelecionadosEvento() {
 
 function obterApoioSelecionadoEvento() {
   const inputs = [...document.querySelectorAll("#eventoApoioLista input[type='number']")];
+  const itens = [];
 
-  return inputs.map(input => {
+  inputs.forEach(input => {
     const quantidade = Number(input.value || 0);
-    if (quantidade <= 0) return null;
+    if (quantidade <= 0) return;
 
-    return {
+    if (input.dataset.conjunto) {
+      itens.push(...rtEventoExpandirConjuntoParaApoio(input.dataset.conjunto, quantidade));
+      return;
+    }
+
+    itens.push({
       id: input.dataset.id,
       nome: input.dataset.nome,
       quantidade
-    };
-  }).filter(Boolean);
+    });
+  });
+
+  return rtEventoSomarApoio(itens);
 }
 
 
@@ -2593,7 +2749,27 @@ function renderizarApoioRapido() {
     return;
   }
 
-  area.innerHTML = estoqueApoio.map(item => {
+  const htmlConjuntosRapido = `
+    <div class="apoio-evento-grupo apoio-evento-conjuntos">
+      <div class="apoio-evento-grupo-titulo">Conjuntos</div>
+      <div class="apoio-evento-grupo-lista">
+        ${Object.entries(RT_EVENTO_CONJUNTOS_APOIO).map(([chave, conjunto]) => {
+          const disponibilidade = rtEventoDisponibilidadeConjunto(chave);
+          return `
+            <label class="apoio-evento-item apoio-rapido-item">
+              <span>
+                <strong>${conjunto.descricao}</strong>
+                <small>Disponível para este evento: ${disponibilidade.disponivel} conjuntos | ${disponibilidade.detalhes}</small>
+              </span>
+              <input type="number" min="0" max="${disponibilidade.disponivel}" step="1" data-conjunto-rapido="${chave}" value="0">
+            </label>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+
+  area.innerHTML = htmlConjuntosRapido + estoqueApoio.map(item => {
     const selecionado = apoioRapidoAtual.find(s => String(s.id) === String(item.id) || s.nome === item.nome);
     const total = Number(item.quantidade_total || 0);
     const reservadoNoPeriodo = evento ? quantidadeApoioReservadaNoPeriodoDoEvento(item.id, evento) : 0;
@@ -2629,18 +2805,21 @@ function renderizarApoioRapido() {
 }
 
 function obterApoioRapidoSelecionado() {
-  return [...document.querySelectorAll("#eventoApoioRapidoLista input[type='number']")]
-    .map(input => {
-      const quantidade = Number(input.value || 0);
-      if (quantidade <= 0) return null;
-
-      return {
-        id: input.dataset.apoioRapidoId,
-        nome: input.dataset.apoioRapidoNome,
-        quantidade
-      };
-    })
-    .filter(Boolean);
+  const itens = [];
+  [...document.querySelectorAll("#eventoApoioRapidoLista input[type='number']")].forEach(input => {
+    const quantidade = Number(input.value || 0);
+    if (quantidade <= 0) return;
+    if (input.dataset.conjuntoRapido) {
+      itens.push(...rtEventoExpandirConjuntoParaApoio(input.dataset.conjuntoRapido, quantidade));
+      return;
+    }
+    itens.push({
+      id: input.dataset.apoioRapidoId,
+      nome: input.dataset.apoioRapidoNome,
+      quantidade
+    });
+  });
+  return rtEventoSomarApoio(itens);
 }
 
 async function salvarProdutosRapido() {

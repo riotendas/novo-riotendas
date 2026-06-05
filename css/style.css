@@ -10871,3 +10871,319 @@ button.danger-soft{border-color:#fecaca;background:#fff1f2;color:#991b1b;}
   .orcamento-material-catalog-row .money-input{min-width:0;}
   .orcamento-material-catalog-row button{grid-column:1 / -1;}
 }
+
+/* Ajuste fino: conjuntos de apoio em faixa própria para não quebrar a grade dos materiais unitários */
+.apoio-evento-lista > .apoio-evento-conjuntos {
+  grid-column: 1 / -1;
+}
+
+.apoio-evento-conjuntos {
+  background: #f8fafc;
+}
+
+.apoio-evento-conjuntos .apoio-evento-grupo-lista {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.apoio-evento-conjuntos .apoio-evento-item {
+  min-height: 112px;
+  align-items: center;
+}
+
+.apoio-evento-lista > .apoio-evento-grupo:not(.apoio-evento-conjuntos) {
+  min-height: 0;
+}
+
+@media (max-width: 980px) {
+  .apoio-evento-conjuntos .apoio-evento-grupo-lista {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* v19-dev Rua Mobile */
+.rua-mobile-section .section-header { align-items: flex-start; }
+.rua-mobile-filtros {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  gap: 10px;
+  margin: 10px 0 12px;
+}
+.rua-mobile-filtros label { font-size: 12px; font-weight: 700; color: #334155; }
+.rua-mobile-filtros input,
+.rua-mobile-filtros select { width: 100%; margin-top: 4px; }
+.rua-mobile-resumo {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0 12px;
+}
+.rua-mobile-resumo span {
+  background: #f1f5f9;
+  border: 1px solid #dbe3ee;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.rua-mobile-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+.rua-mobile-card {
+  background: #fff;
+  border: 1px solid #dbe3ee;
+  border-left: 5px solid #64748b;
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+}
+.rua-mobile-card.tipo-montagem { border-left-color: #2563eb; }
+.rua-mobile-card.tipo-desmontagem { border-left-color: #d97706; }
+.rua-mobile-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: flex-start;
+}
+.rua-mobile-card h3 {
+  margin: 2px 0 8px;
+  font-size: 16px;
+  color: #0f172a;
+}
+.rua-mobile-ordem {
+  display: inline-block;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.rua-mobile-badge-wrap { text-align: right; }
+.rua-mobile-cliente {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 8px 0 4px;
+}
+.rua-mobile-cliente small {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  margin-top: 2px;
+}
+.rua-mobile-endereco,
+.rua-mobile-materiais {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.35;
+  margin: 8px 0;
+}
+.rua-mobile-acoes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.rua-mobile-acoes a,
+.rua-mobile-acoes button {
+  flex: 1 1 90px;
+  min-height: 38px;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+}
+body.perfil-rua .topbar { position: sticky; top: 0; z-index: 10; }
+body.perfil-rua .tabs { display: none; }
+body.perfil-rua .app { padding-bottom: 20px; }
+body.perfil-rua .brand span { display: none; }
+body.perfil-rua .brand h1::after { content: " · Rua Mobile"; font-weight: 600; }
+
+@media (max-width: 720px) {
+  .rua-mobile-filtros { grid-template-columns: 1fr; }
+  .rua-mobile-lista { grid-template-columns: 1fr; }
+  .rua-mobile-section { padding: 10px; }
+  .rua-mobile-card { border-radius: 12px; padding: 11px; }
+  .rua-mobile-acoes { gap: 7px; }
+  .rua-mobile-acoes a,
+  .rua-mobile-acoes button { flex-basis: calc(50% - 7px); }
+}
+
+/* v19-dev: Central Mobile no topo, sem poluir menu principal */
+.top-mobile-btn{
+  padding:8px 14px;
+  border-radius:999px;
+  font-weight:800;
+  white-space:nowrap;
+}
+.mobile-hub-section .section-header{align-items:flex-start;}
+.mobile-hub-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:14px;
+  margin-top:12px;
+}
+.mobile-hub-card{
+  text-align:left;
+  border:1px solid var(--border);
+  background:#fff;
+  border-radius:16px;
+  padding:18px;
+  box-shadow:0 8px 22px rgba(15,23,42,.08);
+  cursor:pointer;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  min-height:120px;
+}
+.mobile-hub-card strong{font-size:18px;color:#0f172a;}
+.mobile-hub-card span{font-size:13px;color:#475569;line-height:1.35;}
+.mobile-hub-card:not(.disabled):hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.12);}
+.mobile-hub-card.disabled{opacity:.55;cursor:not-allowed;background:#f8fafc;}
+@media (max-width:720px){
+  .user-box{gap:8px;}
+  .top-mobile-btn{padding:7px 12px;font-size:12px;}
+  .mobile-hub-grid{grid-template-columns:1fr;}
+}
+
+/* v19-dev Mobile Rua: valores no card */
+.rua-mobile-pagamento {
+  margin-top: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.rua-mobile-pagamento strong { font-size: 15px; }
+.rua-mobile-pagamento small { color: #475569; }
+.rua-mobile-pagamento.receber { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; }
+.rua-mobile-pagamento.pago { background: #ecfdf5; border: 1px solid #bbf7d0; color: #166534; }
+
+/* v19-dev Mobile Manutenção */
+.manutencao-mobile-section .section-header { align-items: flex-start; }
+.manutencao-mobile-dashboard {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+.manutencao-mobile-dashboard button {
+  border: 1px solid #dbe4f0;
+  background: #fff;
+  border-radius: 14px;
+  padding: 12px 10px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+.manutencao-mobile-dashboard strong { display: block; font-size: 24px; color: #0f172a; }
+.manutencao-mobile-dashboard span { font-size: 12px; color: #64748b; font-weight: 700; }
+.manutencao-mobile-busca {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  gap: 10px;
+  align-items: end;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 12px;
+}
+.manutencao-mobile-busca label { font-size: 12px; font-weight: 700; color: #334155; }
+.manutencao-mobile-busca input { width: 100%; margin-top: 4px; text-transform: uppercase; }
+.manutencao-mobile-ocr-status { min-height: 20px; margin: 8px 2px 0; font-size: 12px; color: #64748b; }
+.manutencao-mobile-filtros {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 0;
+}
+.manutencao-mobile-filtros button {
+  white-space: nowrap;
+  border: 1px solid #dbe4f0;
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 700;
+  color: #334155;
+}
+.manutencao-mobile-filtros button.active { background: #0f766e; color: #fff; border-color: #0f766e; }
+.manutencao-mobile-lista { display: grid; gap: 10px; margin-top: 8px; }
+.manut-mobile-card,
+.manut-mobile-detalhe-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-left: 5px solid #64748b;
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.07);
+}
+.manut-mobile-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.manut-mobile-card h3,
+.manut-mobile-detalhe-card h3 { margin: 3px 0; font-size: 16px; color: #0f172a; }
+.manut-mobile-codigo {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #e0f2fe;
+  color: #075985;
+  font-weight: 800;
+  font-size: 12px;
+}
+.manut-mobile-card.status-revisar,
+.manut-mobile-detalhe-card.status-revisar { border-left-color: #d97706; }
+.manut-mobile-card.status-limpar,
+.manut-mobile-detalhe-card.status-limpar { border-left-color: #2563eb; }
+.manut-mobile-card.status-consertar,
+.manut-mobile-detalhe-card.status-consertar { border-left-color: #dc2626; }
+.manut-mobile-card.status-bloqueada,
+.manut-mobile-card.status-bloqueado,
+.manut-mobile-detalhe-card.status-bloqueada,
+.manut-mobile-detalhe-card.status-bloqueado { border-left-color: #7c3aed; }
+.manutencao-mobile-detalhe { margin-top: 14px; }
+.manut-mobile-detalhe-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+.manut-mobile-observacao { display: block; margin-top: 12px; font-size: 12px; font-weight: 800; color: #334155; }
+.manut-mobile-observacao textarea { width: 100%; margin-top: 6px; min-height: 94px; resize: vertical; }
+.manut-mobile-checklist {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.manut-mobile-checklist label {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px;
+  font-weight: 700;
+}
+.manut-mobile-status-botoes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.manut-mobile-concluir { width: 100%; margin-top: 12px; min-height: 44px; font-size: 16px; }
+
+@media (max-width: 720px) {
+  .manutencao-mobile-dashboard { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .manutencao-mobile-busca { grid-template-columns: 1fr; }
+  .manut-mobile-card { align-items: stretch; flex-direction: column; }
+  .manut-mobile-card button { width: 100%; }
+  .manut-mobile-detalhe-top { flex-direction: column; }
+  .manut-mobile-checklist { grid-template-columns: 1fr; }
+  .manut-mobile-status-botoes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

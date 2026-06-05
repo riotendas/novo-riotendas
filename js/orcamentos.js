@@ -226,6 +226,79 @@ function rtOrcInferirMaterial(descricao){
   return { categoria: descricao || 'Material', tamanho:'', tipo:'extra' };
 }
 
+
+const RT_ORC_CONJUNTOS = {
+  plastico: {
+    descricao: 'Conjunto Plástico (1 mesa plástica + 4 cadeiras)',
+    itens: [
+      { nome: 'Mesa de Plástico Branca', aliases: ['Mesa de Plástico Branca','Mesa Plástica Branca'], qtd: 1 },
+      { nome: 'Cadeira Plástica Branca', aliases: ['Cadeira Plástica Branca'], qtd: 4 }
+    ]
+  },
+  madeira: {
+    descricao: 'Conjunto Madeira (1 mesa madeira + 4 cadeiras)',
+    itens: [
+      { nome: 'Mesa de Madeira', aliases: ['Mesa de Madeira','Mesa Madeira'], qtd: 1 },
+      { nome: 'Cadeira de Madeira', aliases: ['Cadeira de Madeira','Cadeira Madeira'], qtd: 4 }
+    ]
+  },
+  bistro: {
+    descricao: 'Conjunto Bistrô (1 mesa bistrô + 2 banquetas)',
+    itens: [
+      { nome: 'Mesa Bistrô', aliases: ['Mesa Bistrô','Mesa Bistro'], qtd: 1 },
+      { nome: 'Banqueta', aliases: ['Banqueta','Banquetas'], qtd: 2 }
+    ]
+  }
+};
+
+function rtOrcObterConjunto(chave){
+  return RT_ORC_CONJUNTOS[String(chave || '').toLowerCase()] || null;
+}
+
+function rtOrcEncontrarItemApoioPorAliases(aliases){
+  const lista = Array.isArray(window.estoqueApoio) ? window.estoqueApoio : (typeof estoqueApoio !== 'undefined' && Array.isArray(estoqueApoio) ? estoqueApoio : []);
+  const alvos = (aliases || []).map(rtOrcTextoNormalizadoSimples).filter(Boolean);
+  if (!lista.length || !alvos.length) return null;
+  return lista.find(i => alvos.includes(rtOrcTextoNormalizadoSimples(i.nome)))
+    || lista.find(i => {
+      const nome = rtOrcTextoNormalizadoSimples(i.nome);
+      return alvos.some(a => nome.includes(a) || a.includes(nome));
+    });
+}
+
+function rtOrcDisponibilidadeConjuntoOrcamento(item, info){
+  const conjunto = rtOrcObterConjunto(info.conjunto || info.chave_conjunto);
+  if (!conjunto) return { texto:'Conjunto não configurado', classe:'neutral', info };
+  const qtdConjuntos = Number(item.quantidade || 0) || 0;
+  let menor = Infinity;
+  const detalhes = [];
+  conjunto.itens.forEach(comp => {
+    const apoio = rtOrcEncontrarItemApoioPorAliases(comp.aliases || [comp.nome]);
+    if (!apoio) {
+      detalhes.push(`${comp.nome}: sem cadastro`);
+      menor = 0;
+      return;
+    }
+    let disponivel = Number(apoio.quantidade_total || 0);
+    try {
+      if (typeof disponibilidadeApoioParaEvento === 'function') {
+        const d = disponibilidadeApoioParaEvento(apoio, 0);
+        if (d && typeof d.disponivel !== 'undefined') disponivel = Number(d.disponivel || 0);
+      }
+    } catch(e) {}
+    const completos = Math.floor(disponivel / Number(comp.qtd || 1));
+    menor = Math.min(menor, completos);
+    detalhes.push(`${comp.nome}: ${disponivel}`);
+  });
+  if (menor === Infinity) menor = 0;
+  return {
+    texto: `Disponível na data: ${menor} conjuntos${qtdConjuntos ? ` | solicitado: ${qtdConjuntos}` : ''} (${detalhes.join(' / ')})`,
+    classe: menor >= qtdConjuntos ? 'free' : 'busy',
+    info,
+    livres: menor
+  };
+}
+
 function rtOrcMontarDataHora(data, hora){
   if (!data) return '';
   const h = String(hora || '').slice(0,5);
@@ -303,8 +376,22 @@ function rtOrcDisponibilidadeApoioOrcamento(item, info){
   };
 }
 
+
+function rtOrcDescricaoPdfItem(item){
+  const desc = String(item?.descricao || '');
+  const info = item?.info_material || {};
+  const conjunto = rtOrcObterConjunto(info.conjunto || info.chave_conjunto);
+  if (conjunto) {
+    const curta = desc.replace(/\s*\([^)]*\)\s*$/,'').trim() || conjunto.descricao.replace(/\s*\([^)]*\)\s*$/,'').trim();
+    const detalhe = (conjunto.descricao.match(/\(([^)]*)\)/) || [,''])[1];
+    return detalhe ? `${curta}<br><small>(${detalhe})</small>` : curta;
+  }
+  return rtOrcEscape(desc);
+}
+
 function rtOrcDisponibilidadeMaterial(item){
   const info = item.info_material || rtOrcInferirMaterial(item.descricao);
+  if (info.tipo === 'conjunto') return rtOrcDisponibilidadeConjuntoOrcamento(item, info);
   if (info.tipo === 'apoio') return rtOrcDisponibilidadeApoioOrcamento(item, info);
   if (info.tipo !== 'produto') return { texto:'Extra/serviço — será levado como extra no evento', classe:'neutral', info };
   if (!document.getElementById('orcamentoDataEvento')?.value) return { texto:'Informe a data para verificar disponibilidade', classe:'neutral', info };
@@ -335,12 +422,14 @@ function rtOrcDisponibilidadeParaOpcao(opt){
     tamanho: opt.dataset.tamanho || '',
     detalhes: opt.dataset.detalhes || '',
     tipo: opt.dataset.tipo || 'extra',
-    nome_apoio: opt.dataset.apoio || opt.dataset.categoria || opt.value || ''
+    nome_apoio: opt.dataset.apoio || opt.dataset.categoria || opt.value || '',
+    conjunto: opt.dataset.conjunto || ''
   };
   const itemTemp = { descricao: info.descricao, quantidade: Number(document.getElementById('orcamentoMaterialQtd')?.value || 1), info_material: info };
   const d = rtOrcDisponibilidadeMaterial(itemTemp);
   if (!d) return '';
   if (info.tipo === 'produto' && typeof d.livres !== 'undefined') return `disp. ${d.livres}/${d.total}`;
+  if (info.tipo === 'conjunto' && typeof d.livres !== 'undefined') return `disp. ${d.livres} conj.`;
   if (info.tipo === 'apoio') return (d.texto || '').replace('Disponível na data: ', 'disp. ').replace(' | solicitado: '+itemTemp.quantidade, '');
   return '';
 }
@@ -383,7 +472,8 @@ function rtOrcInfoMaterialSelecionado(){
       tamanho: opt.dataset.tamanho || '',
       detalhes: opt.dataset.detalhes || '',
       tipo: opt.dataset.tipo || 'extra',
-      nome_apoio: opt.dataset.apoio || opt.dataset.categoria || opt.value || ''
+      nome_apoio: opt.dataset.apoio || opt.dataset.categoria || opt.value || '',
+      conjunto: opt.dataset.conjunto || ''
     };
   }
   const descInput = document.getElementById('orcamentoMaterialDescricao');
@@ -412,7 +502,8 @@ function adicionarMaterialOrcamento(){
     tamanho: selecionado.tamanho || '',
     tipo: selecionado.tipo || 'extra',
     nome_apoio: selecionado.nome_apoio || selecionado.categoria || desc,
-    detalhes: selecionado.detalhes || ''
+    detalhes: selecionado.detalhes || '',
+    conjunto: selecionado.conjunto || ''
   };
   materiaisOrcamentoAtual.push({
     id: rtOrcGerarId(),
@@ -639,7 +730,7 @@ function rtOrcAssinaturaResponsavelHtml(){
 
 function gerarPdfOrcamento(o){
   if (!o || !o.nome) { alert('Preencha pelo menos o nome do cliente antes de gerar o PDF.'); return; }
-  const itensTabela = `<table class="doc-table"><thead><tr><th>Qtd</th><th>Descrição</th><th>Valor Unit.</th><th>Total</th></tr></thead><tbody>${(o.materiais||[]).map(i => `<tr><td>${rtOrcEscape(i.quantidade)}</td><td>${rtOrcEscape(i.descricao)}</td><td>${rtOrcMoeda(i.valor_unitario||0)}</td><td>${rtOrcMoeda(Number(i.quantidade||0)*Number(i.valor_unitario||0))}</td></tr>`).join('') || '<tr><td colspan="4">Materiais a combinar.</td></tr>'}</tbody></table>`;
+  const itensTabela = `<table class="doc-table"><thead><tr><th>Qtd</th><th>Descrição</th><th>Valor Unit.</th><th>Total</th></tr></thead><tbody>${(o.materiais||[]).map(i => `<tr><td>${rtOrcEscape(i.quantidade)}</td><td>${rtOrcDescricaoPdfItem(i)}</td><td>${rtOrcMoeda(i.valor_unitario||0)}</td><td>${rtOrcMoeda(Number(i.quantidade||0)*Number(i.valor_unitario||0))}</td></tr>`).join('') || '<tr><td colspan="4">Materiais a combinar.</td></tr>'}</tbody></table>`;
   const hoje = rtOrcDataBR(new Date().toISOString().slice(0,10));
   const validade = new Date(); validade.setDate(validade.getDate()+30);
   const validadeBR = rtOrcDataBR(validade.toISOString().slice(0,10));
@@ -749,6 +840,23 @@ function preencherEventoComOrcamento(o){
         quantidade_pendente: qtd,
         pendente_codigo: true
       });
+    } else if (info.tipo === 'conjunto') {
+      const conjunto = rtOrcObterConjunto(info.conjunto || info.chave_conjunto);
+      if (conjunto) {
+        conjunto.itens.forEach(comp => {
+          const apoio = rtOrcEncontrarItemApoioPorAliases(comp.aliases || [comp.nome]);
+          const quantidadeConvertida = qtd * Number(comp.qtd || 1);
+          if (apoio) {
+            const existente = apoioSelecionado.find(a => String(a.id) === String(apoio.id));
+            if (existente) existente.quantidade += quantidadeConvertida;
+            else apoioSelecionado.push({ id: apoio.id, nome: apoio.nome, quantidade: quantidadeConvertida });
+          } else {
+            extrasOuApoio.push({ id: rtOrcGerarId(), descricao: comp.nome, quantidade: quantidadeConvertida });
+          }
+        });
+      } else {
+        extrasOuApoio.push({ id: rtOrcGerarId(), descricao: m.descricao, quantidade: qtd });
+      }
     } else if (info.tipo === 'apoio') {
       const apoio = rtOrcEncontrarItemApoio(info);
       if (apoio) {

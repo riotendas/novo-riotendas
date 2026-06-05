@@ -39,6 +39,7 @@
       </div>
       <div class="user-box">
         <span>Usuário: <strong id="colaboradorNome"></strong></span>
+        <button id="mobileTopBtn" class="btn-primary tab-btn top-mobile-btn" data-section="mobileHubSection" type="button">Mobile</button>
         <button id="logoutBtn" class="btn-outline">Sair</button>
       </div>
     </header>
@@ -665,6 +666,100 @@
       </div>
     </section>
   
+
+    <section id="mobileHubSection" class="section mobile-hub-section">
+      <div class="section-header split">
+        <div>
+          <h2>Mobile</h2>
+          <p>Central de telas simplificadas para uso no celular.</p>
+        </div>
+      </div>
+
+      <div class="mobile-hub-grid">
+        <button type="button" class="mobile-hub-card" data-mobile-open="ruaMobileSection">
+          <strong>Rua</strong>
+          <span>Rotas do dia, mapa, telefone, WhatsApp, entregue e recolhido.</span>
+        </button>
+        <button type="button" class="mobile-hub-card" data-mobile-open="manutencaoMobileSection">
+          <strong>Manutenção</strong>
+          <span>Buscar produto, registrar observação, checklist e liberar pelo celular.</span>
+        </button>
+      </div>
+    </section>
+
+    <section id="ruaMobileSection" class="section rua-mobile-section">
+      <div class="section-header split">
+        <div>
+          <h2>Rua Mobile</h2>
+          <p>Tela simplificada para equipe de rua acompanhar rotas, abrir mapa e marcar entrega/recolhimento pelo celular.</p>
+        </div>
+        <button id="ruaMobileAtualizarBtn" class="btn-outline" type="button">Atualizar</button>
+      </div>
+
+      <div class="rua-mobile-filtros">
+        <label>Data
+          <input id="ruaMobileData" type="date" />
+        </label>
+        <label>Tipo
+          <select id="ruaMobileTipo">
+            <option value="">Montagens e desmontagens</option>
+            <option value="Montagem">Montagens</option>
+            <option value="Desmontagem">Desmontagens</option>
+          </select>
+        </label>
+        <label>Carro
+          <select id="ruaMobileCarro">
+            <option value="">Todos</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="rua-mobile-resumo" id="ruaMobileResumo">Carregando rotas...</div>
+      <div id="ruaMobileLista" class="rua-mobile-lista">
+        <p class="empty">Nenhuma rota encontrada.</p>
+      </div>
+    </section>
+
+    <section id="manutencaoMobileSection" class="section manutencao-mobile-section">
+      <div class="section-header split">
+        <div>
+          <h2>Manutenção Mobile</h2>
+          <p>Busca rápida por código, observação, checklist e alteração de status dos produtos pelo celular.</p>
+        </div>
+        <button id="manutencaoMobileAtualizarBtn" class="btn-outline" type="button">Atualizar</button>
+      </div>
+
+      <div class="manutencao-mobile-dashboard" id="manutencaoMobileResumo">
+        <button type="button" data-manut-filtro="Revisar"><strong>0</strong><span>Revisar</span></button>
+        <button type="button" data-manut-filtro="Limpar"><strong>0</strong><span>Limpar</span></button>
+        <button type="button" data-manut-filtro="Consertar"><strong>0</strong><span>Consertar</span></button>
+        <button type="button" data-manut-filtro="Bloqueada"><strong>0</strong><span>Bloqueados</span></button>
+      </div>
+
+      <div class="manutencao-mobile-busca">
+        <label>Código do produto
+          <input id="manutencaoMobileCodigo" type="text" placeholder="Ex.: T63021" autocomplete="off" />
+        </label>
+        <button id="manutencaoMobileBuscarBtn" class="btn-primary" type="button">Buscar</button>
+        <button id="manutencaoMobileOCRBtn" class="btn-outline" type="button">📷 Ler código</button>
+        <input id="manutencaoMobileOCRInput" type="file" accept="image/*" capture="environment" style="display:none" />
+      </div>
+      <div id="manutencaoMobileOcrStatus" class="manutencao-mobile-ocr-status"></div>
+
+      <div class="manutencao-mobile-filtros">
+        <button type="button" class="active" data-manut-filtro="">Todos</button>
+        <button type="button" data-manut-filtro="Revisar">Revisar</button>
+        <button type="button" data-manut-filtro="Limpar">Limpar</button>
+        <button type="button" data-manut-filtro="Consertar">Consertar</button>
+        <button type="button" data-manut-filtro="Bloqueada">Bloqueados</button>
+      </div>
+
+      <div id="manutencaoMobileLista" class="manutencao-mobile-lista">
+        <p class="empty">Nenhum produto encontrado.</p>
+      </div>
+
+      <div id="manutencaoMobileDetalhe" class="manutencao-mobile-detalhe" hidden></div>
+    </section>
 
     <section id="relatoriosSection" class="section">
       <div class="section-header split">
@@ -1552,6 +1647,11 @@
             <optgroup label="Produtos">
               <option value="Ombrelone" data-label="Ombrelone" data-tipo="produto" data-categoria="Ombrelone" data-tamanho="">Ombrelone</option>
             </optgroup>
+            <optgroup label="Conjuntos">
+              <option value="Conjunto Plástico" data-label="Conjunto Plástico" data-tipo="conjunto" data-categoria="Conjunto" data-conjunto="plastico">Conjunto Plástico (1 mesa plástica + 4 cadeiras)</option>
+              <option value="Conjunto Madeira" data-label="Conjunto Madeira" data-tipo="conjunto" data-categoria="Conjunto" data-conjunto="madeira">Conjunto Madeira (1 mesa madeira + 4 cadeiras)</option>
+              <option value="Conjunto Bistrô" data-label="Conjunto Bistrô" data-tipo="conjunto" data-categoria="Conjunto" data-conjunto="bistro">Conjunto Bistrô (1 mesa bistrô + 2 banquetas)</option>
+            </optgroup>
             <optgroup label="Materiais de apoio">
               <option value="Mesa de Plástico Branca" data-label="Mesa de Plástico Branca" data-tipo="apoio" data-categoria="Mesa" data-apoio="Mesa de Plástico Branca">Mesa de Plástico Branca</option>
               <option value="Mesa Bistrô" data-label="Mesa Bistrô" data-tipo="apoio" data-categoria="Mesa" data-apoio="Mesa Bistrô">Mesa Bistrô</option>
@@ -1664,6 +1764,7 @@
           <option value="administrador">Administrador</option>
           <option value="operacional">Operacional</option>
           <option value="manutencao">Manutenção</option>
+          <option value="rua">Rua</option>
         </select>
       </label>
 
@@ -1693,6 +1794,8 @@
   <script src="js/orcamentos.js"></script>
   <script src="js/financeiro.js"></script>
   <script src="js/rotas.js"></script>
+  <script src="js/rua-mobile.js"></script>
+  <script src="js/mobile-manutencao.js"></script>
   <script src="js/calendario.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="js/configuracoes.js"></script>
