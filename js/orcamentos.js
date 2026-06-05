@@ -36,17 +36,70 @@ function preencherSelectsHorarioOrcamento(){
   });
 }
 
-function carregarOrcamentos(){
+async function carregarOrcamentos(){
+  if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+    const { data, error } = await supabaseClient
+      .from('orcamentos')
+      .select('*')
+      .order('criado_em', { ascending: false });
+
+    if (error) {
+      console.error('Erro ao buscar orçamentos no Supabase:', error);
+      alert('Erro ao buscar orçamentos no Supabase: ' + (error.message || '') + '\n\nSe aparecer tabela não encontrada, execute o arquivo SQL incluído no ZIP: EXECUTAR-NO-SUPABASE-ORCAMENTOS.sql');
+      orcamentos = [];
+      return orcamentos;
+    }
+
+    orcamentos = (data || []).map(o => ({
+      ...o,
+      materiais: Array.isArray(o.materiais) ? o.materiais : []
+    }));
+    return orcamentos;
+  }
+
   try { orcamentos = JSON.parse(localStorage.getItem(storageOrcamentosKey) || '[]'); }
   catch(e){ orcamentos = []; }
   if (!Array.isArray(orcamentos)) orcamentos = [];
   return orcamentos;
 }
 
+async function salvarOrcamentoBanco(orcamento){
+  if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+    const registro = {
+      ...orcamento,
+      materiais: Array.isArray(orcamento.materiais) ? orcamento.materiais : [],
+      valor_materiais: Number(orcamento.valor_materiais || 0),
+      valor_frete_montagem: Number(orcamento.valor_frete_montagem || 0),
+      valor_desconto: Number(orcamento.valor_desconto || 0),
+      valor_total: Number(orcamento.valor_total || 0),
+      valor_sinal: Number(orcamento.valor_sinal || 0),
+      valor_restante: Number(orcamento.valor_restante || 0),
+      atualizado_em: new Date().toISOString()
+    };
+
+    const { data, error } = await supabaseClient
+      .from('orcamentos')
+      .upsert(registro, { onConflict: 'id' })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao salvar orçamento no Supabase:', error);
+      alert('Erro ao salvar orçamento no Supabase: ' + (error.message || '') + '\n\nSe aparecer tabela não encontrada, execute o arquivo SQL incluído no ZIP: EXECUTAR-NO-SUPABASE-ORCAMENTOS.sql');
+      return null;
+    }
+    return data;
+  }
+
+  const idx = orcamentos.findIndex(x => String(x.id) === String(orcamento.id));
+  if (idx >= 0) orcamentos[idx] = orcamento; else orcamentos.push(orcamento);
+  localStorage.setItem(storageOrcamentosKey, JSON.stringify(orcamentos));
+  return orcamento;
+}
+
 function salvarOrcamentosLocal(){ localStorage.setItem(storageOrcamentosKey, JSON.stringify(orcamentos)); }
 
 function iniciarOrcamentos(){
-  carregarOrcamentos();
   preencherSelectsHorarioOrcamento();
   document.getElementById('novoOrcamentoBtn')?.addEventListener('click', abrirNovoOrcamento);
   document.getElementById('orcamentoForm')?.addEventListener('submit', salvarOrcamentoForm);
@@ -81,8 +134,8 @@ function iniciarOrcamentos(){
     const el = document.getElementById(id);
     el?.addEventListener('change', renderizarMateriaisOrcamento);
   });
-  document.querySelectorAll('[data-section="orcamentosSection"]').forEach(btn => btn.addEventListener('click', renderizarOrcamentos));
-  renderizarOrcamentos();
+  document.querySelectorAll('[data-section="orcamentosSection"]').forEach(btn => btn.addEventListener('click', () => renderizarOrcamentos()));
+  carregarOrcamentos().then(() => renderizarOrcamentos());
 }
 
 document.addEventListener('DOMContentLoaded', iniciarOrcamentos);
@@ -512,20 +565,21 @@ function obterOrcamentoDoForm(temporario=false){
   };
 }
 
-function salvarOrcamentoForm(ev){
+async function salvarOrcamentoForm(ev){
   ev.preventDefault();
   const o = obterOrcamentoDoForm();
   if (!o.nome) { alert('Informe o nome do cliente.'); return; }
   if (!o.data_evento) { alert('Informe a data do evento.'); return; }
+  const salvo = await salvarOrcamentoBanco(o);
+  if (!salvo) return;
   const idx = orcamentos.findIndex(x => String(x.id) === String(o.id));
-  if (idx >= 0) orcamentos[idx] = o; else orcamentos.push(o);
-  salvarOrcamentosLocal();
-  renderizarOrcamentos();
+  if (idx >= 0) orcamentos[idx] = salvo; else orcamentos.push(salvo);
+  await renderizarOrcamentos();
   fecharOrcamentoModal();
 }
 
-function renderizarOrcamentos(){
-  carregarOrcamentos();
+async function renderizarOrcamentos(){
+  await carregarOrcamentos();
   const tbody = document.getElementById('orcamentosTbody');
   if (!tbody) return;
   const busca = (document.getElementById('buscaOrcamento')?.value || '').toLowerCase();
@@ -635,11 +689,14 @@ function aprovarOrcamentoAtual(){
   if (id) aprovarOrcamento(id); else alert('Salve o orçamento antes de aprovar.');
 }
 
-function aprovarOrcamento(id){
+async function aprovarOrcamento(id){
   const o = orcamentos.find(x => String(x.id) === String(id));
   if (!o) return;
   if (!confirm('Aprovar este orçamento e abrir um novo evento com os dados preenchidos?')) return;
-  o.status = 'aprovado'; o.atualizado_em = new Date().toISOString(); salvarOrcamentosLocal(); renderizarOrcamentos();
+  o.status = 'aprovado'; o.atualizado_em = new Date().toISOString();
+  const salvo = await salvarOrcamentoBanco(o);
+  if (!salvo) return;
+  await renderizarOrcamentos();
   fecharOrcamentoModal();
   if (typeof abrirNovoEvento === 'function') abrirNovoEvento();
   setTimeout(() => preencherEventoComOrcamento(o), 250);
