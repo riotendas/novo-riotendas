@@ -12262,3 +12262,233 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
 }
 #manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-concluir-icone,
 #manutencaoMobileDetalhe.manut-mobile-modal-wrap #manutencaoMobileConcluir{display:none !important;}
+
+/* v19-dev: Mobile > Manutenção - Checado + Usabilidade na mesma linha */
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-info-linha{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) minmax(100px,0.72fr) !important;
+  gap:6px !important;
+  align-items:stretch !important;
+}
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-checado-box{
+  display:flex !important;
+  flex-direction:row !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:6px !important;
+  margin:0 !important;
+  padding:7px 8px !important;
+}
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-checado-box small{
+  font-size:10px !important;
+  line-height:1.15 !important;
+}
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-check-deposito{
+  width:32px !important;
+  min-width:32px !important;
+  height:32px !important;
+  padding:0 !important;
+  flex:0 0 32px !important;
+}
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-usabilidade-box{
+  margin:0 !important;
+  padding:7px 8px !important;
+}
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-usabilidade-box select{
+  min-height:32px !important;
+  font-size:11px !important;
+}
+@media (max-width:420px){
+  #manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-info-linha{
+    grid-template-columns:minmax(0,1fr) minmax(92px,0.65fr) !important;
+  }
+}
+
+
+/* =========================
+   Mobile > Eventos
+========================= */
+.eventos-mobile-section {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.eventos-mobile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.eventos-mobile-card,
+.eventos-mobile-preview {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+  margin-bottom: 12px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.eventos-mobile-card-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.eventos-mobile-card-title strong {
+  font-size: 0.98rem;
+}
+
+.eventos-mobile-card-title span,
+.eventos-mobile-voz small,
+.eventos-mobile-preview-alert {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.eventos-mobile-mic {
+  width: 100%;
+  min-height: 42px;
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
+
+.eventos-mobile-card textarea,
+.eventos-mobile-card input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.eventos-mobile-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.eventos-mobile-form textarea,
+.eventos-mobile-form input:nth-child(6) {
+  grid-column: 1 / -1;
+}
+
+.eventos-mobile-actions-inline {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.eventos-mobile-actions-inline button {
+  flex: 1 1 130px;
+}
+
+.eventos-mobile-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.eventos-mobile-preview-grid {
+  display: grid;
+  grid-template-columns: minmax(86px, 0.35fr) minmax(0, 1fr);
+  gap: 6px 10px;
+  font-size: 0.9rem;
+}
+
+.eventos-mobile-preview-grid span {
+  color: #64748b;
+}
+
+.eventos-mobile-preview-grid strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.eventos-mobile-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.eventos-mobile-item {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  padding: 10px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.eventos-mobile-item-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.eventos-mobile-item-top strong,
+.eventos-mobile-item-produtos,
+.eventos-mobile-item-endereco {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.eventos-mobile-item-top span {
+  color: #64748b;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.eventos-mobile-item-produtos {
+  margin-top: 4px;
+  font-size: 0.86rem;
+}
+
+.eventos-mobile-item-endereco {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.eventos-mobile-item-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.eventos-mobile-item-actions button {
+  flex: 1;
+  min-height: 34px;
+}
+
+@media (max-width: 760px) {
+  .eventos-mobile-grid {
+    grid-template-columns: 1fr;
+  }
+  .eventos-mobile-form {
+    grid-template-columns: 1fr 1fr;
+  }
+  .eventos-mobile-form input:nth-child(1),
+  .eventos-mobile-form input:nth-child(2),
+  .eventos-mobile-form input:nth-child(6),
+  .eventos-mobile-form textarea {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .eventos-mobile-card,
+  .eventos-mobile-preview {
+    padding: 10px;
+    border-radius: 12px;
+  }
+  .eventos-mobile-preview-grid {
+    grid-template-columns: 1fr;
+  }
+}

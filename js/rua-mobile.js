@@ -341,6 +341,9 @@ function iniciarCentralMobile() {
       if (destino === 'manutencaoMobileSection' && typeof renderizarManutencaoMobile === 'function') {
         setTimeout(renderizarManutencaoMobile, 50);
       }
+      if (destino === 'eventosMobileSection' && typeof renderizarEventosMobile === 'function') {
+        setTimeout(renderizarEventosMobile, 50);
+      }
     });
   });
 }

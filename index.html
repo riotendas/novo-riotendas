@@ -684,6 +684,10 @@
           <strong>Manutenção</strong>
           <span>Buscar produto, registrar observação, checklist e liberar pelo celular.</span>
         </button>
+        <button type="button" class="mobile-hub-card" data-mobile-open="eventosMobileSection">
+          <strong>Eventos</strong>
+          <span>Criar, buscar e editar eventos pelo celular, com voz para texto e conferência.</span>
+        </button>
       </div>
     </section>
 
@@ -751,6 +755,79 @@
 
       <div id="manutencaoMobileLista" class="manutencao-mobile-lista">
         <p class="empty">Nenhum produto encontrado.</p>
+      </div>
+    </section>
+
+    <section id="eventosMobileSection" class="section eventos-mobile-section">
+      <div class="section-header split">
+        <div>
+          <h2>Eventos Mobile</h2>
+          <p>Crie, busque e edite eventos pelo celular. A voz preenche uma prévia antes de enviar para o cadastro.</p>
+        </div>
+        <button id="eventosMobileAtualizarBtn" class="btn-outline mobile-refresh-btn" type="button" title="Atualizar eventos">↻</button>
+      </div>
+
+      <div class="eventos-mobile-grid">
+        <div class="eventos-mobile-card eventos-mobile-voz">
+          <div class="eventos-mobile-card-title">
+            <strong>🎤 Novo evento por voz</strong>
+            <span>Fale os dados principais e confira antes de salvar.</span>
+          </div>
+          <button id="eventosMobileGravarBtn" class="btn-primary eventos-mobile-mic" type="button">🎤 Gravar</button>
+          <textarea id="eventosMobileTextoVoz" rows="4" placeholder="Ex.: Cliente Dayse. Dia 15 de julho. Montagem às 8h. Desmontagem às 18h. Três tendas 6x3. Dois ombrelones. Endereço Avenida Atlântica 500."></textarea>
+          <div class="eventos-mobile-actions-inline">
+            <button id="eventosMobileInterpretarBtn" class="btn-outline" type="button">Interpretar texto</button>
+            <button id="eventosMobileLimparVozBtn" class="btn-outline" type="button">Limpar</button>
+          </div>
+          <small id="eventosMobileVozStatus">Microfone em modo teste. Sempre confira a prévia antes de salvar.</small>
+        </div>
+
+        <div class="eventos-mobile-card">
+          <div class="eventos-mobile-card-title">
+            <strong>➕ Novo evento manual rápido</strong>
+            <span>Preenchimento enxuto para abrir o cadastro oficial já com dados.</span>
+          </div>
+          <div class="eventos-mobile-form">
+            <input id="eventosMobileNome" type="text" placeholder="Cliente">
+            <input id="eventosMobileTelefone" type="tel" placeholder="Telefone">
+            <input id="eventosMobileData" type="date">
+            <input id="eventosMobileMontagem" type="time" placeholder="Montagem">
+            <input id="eventosMobileDesmontagem" type="time" placeholder="Desmontagem">
+            <input id="eventosMobileEndereco" type="text" placeholder="Endereço">
+            <textarea id="eventosMobileProdutos" rows="2" placeholder="Produtos/materiais. Ex.: 3 tendas 6x3, 2 ombrelones, 1 conjunto plástico"></textarea>
+          </div>
+          <button id="eventosMobilePrepararManualBtn" class="btn-primary" type="button">Pré-visualizar</button>
+        </div>
+      </div>
+
+      <div id="eventosMobilePreview" class="eventos-mobile-preview hidden">
+        <div class="eventos-mobile-preview-header">
+          <strong>Prévia do evento</strong>
+          <button id="eventosMobileFecharPreviewBtn" class="icon-btn" type="button">×</button>
+        </div>
+        <div id="eventosMobilePreviewConteudo"></div>
+        <div class="eventos-mobile-actions-inline">
+          <button id="eventosMobileAbrirCadastroBtn" class="btn-primary" type="button">Abrir cadastro preenchido</button>
+          <button id="eventosMobileEditarPreviewBtn" class="btn-outline" type="button">Editar na tela rápida</button>
+        </div>
+      </div>
+
+      <div class="eventos-mobile-card">
+        <div class="eventos-mobile-card-title">
+          <strong>🔍 Buscar evento</strong>
+          <span>Busca por cliente, telefone, endereço, produto ou data.</span>
+        </div>
+        <input id="eventosMobileBusca" type="search" placeholder="Buscar evento...">
+      </div>
+
+      <div class="eventos-mobile-card">
+        <div class="eventos-mobile-card-title">
+          <strong>📅 Eventos de hoje / resultado da busca</strong>
+          <span>Toque em editar para abrir o cadastro oficial do evento.</span>
+        </div>
+        <div id="eventosMobileLista" class="eventos-mobile-lista">
+          <p class="empty">Nenhum evento encontrado.</p>
+        </div>
       </div>
     </section>
 
@@ -1789,6 +1866,7 @@
   <script src="js/rotas.js"></script>
   <script src="js/rua-mobile.js"></script>
   <script src="js/mobile-manutencao.js"></script>
+  <script src="js/mobile-eventos.js"></script>
   <script src="js/calendario.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="js/configuracoes.js"></script>

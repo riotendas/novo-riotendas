@@ -1353,7 +1353,8 @@ function resumoPermissoesUsuario(usuario) {
   addPermissao('mobileHubSection', 'Mobile', 1);
   addPermissao('ruaMobileSection', 'Mobile > Rua', 2);
   addPermissao('manutencaoMobileSection', 'Mobile > Manutenção', 3);
-  addPermissao('mobileRuaValores', 'Mobile > Rua: ver valores', 4);
+  addPermissao('eventosMobileSection', 'Mobile > Eventos', 4);
+  addPermissao('mobileRuaValores', 'Mobile > Rua: ver valores', 5);
 
   function aplicarDefaultsMobile(obj, perfil) {
     if (!obj) return obj;
@@ -1362,24 +1363,28 @@ function resumoPermissoesUsuario(usuario) {
       obj.mobileHubSection = true;
       obj.ruaMobileSection = true;
       obj.manutencaoMobileSection = true;
+      obj.eventosMobileSection = true;
       obj.mobileRuaValores = true;
     } else if (perfil === 'rua') {
       obj.sistemaCompleto = false;
       obj.mobileHubSection = true;
       obj.ruaMobileSection = true;
       obj.manutencaoMobileSection = false;
+      obj.eventosMobileSection = false;
       obj.mobileRuaValores = true;
     } else if (perfil === 'manutencao') {
       obj.sistemaCompleto = false;
       obj.mobileHubSection = true;
       obj.ruaMobileSection = false;
       obj.manutencaoMobileSection = true;
+      obj.eventosMobileSection = false;
       obj.mobileRuaValores = false;
     } else {
       if (typeof obj.sistemaCompleto === 'undefined') obj.sistemaCompleto = true;
       if (typeof obj.mobileHubSection === 'undefined') obj.mobileHubSection = false;
       if (typeof obj.ruaMobileSection === 'undefined') obj.ruaMobileSection = false;
       if (typeof obj.manutencaoMobileSection === 'undefined') obj.manutencaoMobileSection = false;
+      if (typeof obj.eventosMobileSection === 'undefined') obj.eventosMobileSection = false;
       if (typeof obj.mobileRuaValores === 'undefined') obj.mobileRuaValores = false;
     }
     return obj;
