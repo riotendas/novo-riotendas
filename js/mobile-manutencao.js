@@ -22,6 +22,102 @@ function manutMobileEscape(txt) {
 }
 
 
+function manutMobileHistoricoProduto(produto = {}) {
+  const historico = Array.isArray(produto?.historico) ? produto.historico : [];
+  return historico
+    .map(item => {
+      const texto = String(item.alteracao || item.descricao || item.observacao || item.status || "").trim();
+      const dataTxt = item.data || item.criado_em || item.atualizado_em || item.created_at || "";
+      const dataObj = dataTxt ? new Date(dataTxt) : null;
+      return { ...item, texto, dataObj, ts: dataObj && !Number.isNaN(dataObj.getTime()) ? dataObj.getTime() : 0 };
+    })
+    .filter(item => item.texto || item.ts)
+    .sort((a, b) => b.ts - a.ts);
+}
+
+function manutMobileEhServicoHistorico(texto = "") {
+  const t = manutMobileNormalizar(texto);
+  return ["limpo", "limpa", "revisado", "revisada", "consertado", "consertada", "bloqueado", "bloqueada", "liberado", "liberada", "checado", "checagem"].some(p => t.includes(p));
+}
+
+function manutMobileServicoLabel(texto = "") {
+  const t = manutMobileNormalizar(texto);
+  if (t.includes("limp")) return "Limpo";
+  if (t.includes("revis")) return "Revisado";
+  if (t.includes("consert")) return "Consertado";
+  if (t.includes("bloque")) return "Bloqueado";
+  if (t.includes("liber")) return "Liberado";
+  if (t.includes("chec")) return "Checado";
+  return String(texto || "Serviço").split(" - ")[0].slice(0, 32);
+}
+
+function manutMobileServicoClasse(label = "") {
+  const t = manutMobileNormalizar(label);
+  if (t.includes("limpo")) return "ok";
+  if (t.includes("revis")) return "warn";
+  if (t.includes("consert")) return "danger";
+  if (t.includes("bloque")) return "dark";
+  if (t.includes("liber")) return "ok";
+  return "neutral";
+}
+
+function manutMobileDataCurta(dataObj) {
+  if (!dataObj || Number.isNaN(dataObj.getTime())) return "";
+  return `${String(dataObj.getDate()).padStart(2, "0")}/${String(dataObj.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function manutMobileTempoRelativo(dataObj) {
+  if (!dataObj || Number.isNaN(dataObj.getTime())) return "";
+  const diff = Date.now() - dataObj.getTime();
+  if (diff < 0) return "agora";
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min}min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `há ${h}h`;
+  const d = Math.floor(h / 24);
+  return d === 1 ? "há 1 dia" : `há ${d} dias`;
+}
+
+function manutMobileHistoricoServicos(produto = {}) {
+  return manutMobileHistoricoProduto(produto).filter(item => manutMobileEhServicoHistorico(item.texto));
+}
+
+function manutMobileRenderHistoricoResumo(produto = {}) {
+  const servicos = manutMobileHistoricoServicos(produto);
+  const linhas = servicos.slice(0, 3).map(item => {
+    const data = manutMobileDataCurta(item.dataObj) || "-";
+    const texto = manutMobileServicoLabel(item.texto);
+    return `<div class="manut-mobile-hist-row"><span>${manutMobileEscape(data)}</span><strong>${manutMobileEscape(texto)}</strong></div>`;
+  }).join("");
+
+  return `
+    <div class="manut-mobile-historico-resumo">
+      <div class="manut-mobile-hist-titulo">Histórico recente</div>
+      <div class="manut-mobile-hist-recent">
+        ${linhas || `<div class="manut-mobile-hist-row vazio">Sem histórico registrado.</div>`}
+      </div>
+      <button type="button" class="manut-mobile-hist-more" data-manut-hist-mais>exibir mais</button>
+    </div>
+  `;
+}
+
+
+function manutMobileAbrirHistoricoCompleto(produto = {}) {
+  const historico = manutMobileHistoricoProduto(produto);
+  const linhas = historico.length
+    ? historico.slice(0, 40).map(item => {
+        const data = item.dataObj && !Number.isNaN(item.dataObj.getTime())
+          ? `${manutMobileDataCurta(item.dataObj)} ${String(item.dataObj.getHours()).padStart(2, "0")}:${String(item.dataObj.getMinutes()).padStart(2, "0")}`
+          : "-";
+        const usuario = item.usuario || item.colaborador || item.responsavel || "";
+        return `${data} — ${item.texto || "Registro"}${usuario ? ` — ${usuario}` : ""}`;
+      }).join("\\n")
+    : "Sem histórico registrado para este produto.";
+  alert(`Histórico completo\\n\\n${linhas}`);
+}
+
+
 function manutMobileUltimaChecagemProduto(produto = {}) {
   if (typeof obterUltimaChecagemProduto === "function") return obterUltimaChecagemProduto(produto);
   const historico = Array.isArray(produto?.historico) ? produto.historico : [];
@@ -320,10 +416,6 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
         <small>${manutMobileEscape(dispMobile.detalhe)}</small>
       </div>
 
-      <label class="manut-mobile-observacao">Observação / Reparo realizado
-        <textarea id="manutencaoMobileObs" rows="1" placeholder="Ex.: Lavagem, troca de lona, costura, reparo...">${manutMobileEscape(produto.observacao || "")}</textarea>
-      </label>
-
       <div class="manut-mobile-info-linha">
         <div class="manut-mobile-checado-box manut-mobile-info-card">
           <div>
@@ -332,6 +424,7 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
           </div>
           <button type="button" class="btn-check-produto manut-mobile-check-deposito" id="manutMobileCheckDeposito" title="Marcar produto como checado no depósito">✓</button>
         </div>
+              ${manutMobileRenderHistoricoResumo(produto)}
         <label class="manut-mobile-usabilidade-box manut-mobile-info-card">
           <span>Usabilidade</span>
           <select id="manutMobileUsabilidade" class="usab-${manutMobileUsabilidadeClasse(usabilidadeAtual)}">
@@ -340,7 +433,13 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
         </label>
       </div>
 
-      <div class="manut-mobile-checklist">
+            
+
+
+      <label class="manut-mobile-observacao">Observação / Reparo realizado
+        <textarea id="manutencaoMobileObs" rows="1" placeholder="Ex.: Lavagem, troca de lona, costura, reparo...">${manutMobileEscape(produto.observacao || "")}</textarea>
+      </label>
+<div class="manut-mobile-checklist">
         ${manutMobileChecklistHtml(produto)}
       </div>
 
@@ -654,3 +753,17 @@ window.renderizarManutencaoMobile = renderizarManutencaoMobile;
 window.iniciarManutencaoMobile = iniciarManutencaoMobile;
 
 document.addEventListener("DOMContentLoaded", iniciarManutencaoMobile);
+
+
+document.addEventListener("click", (ev) => {
+  const btn = ev.target?.closest?.("[data-manut-hist-mais]");
+  if (!btn) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  try {
+    const produto = Array.isArray(produtos) ? produtos.find(p => String(p.id) === String(manutencaoMobileProdutoAtualId)) : null;
+    manutMobileAbrirHistoricoCompleto(produto || {});
+  } catch {
+    manutMobileAbrirHistoricoCompleto({});
+  }
+});

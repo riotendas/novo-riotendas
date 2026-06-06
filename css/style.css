@@ -12507,3 +12507,196 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
 .eventos-mobile-lista-title {
   margin-bottom: 8px;
 }
+
+
+/* Mobile Manutenção - histórico compacto entre checagem e observação */
+.manut-mobile-historico-resumo {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 6px 0 8px;
+  padding: 8px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  font-size: 0.78rem;
+  line-height: 1.25;
+  color: #334155;
+}
+
+.manut-mobile-hist-last {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 5px;
+  min-width: 0;
+}
+
+.manut-mobile-hist-last span {
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.manut-mobile-hist-last strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.manut-mobile-hist-last.ok strong { color: #15803d; }
+.manut-mobile-hist-last.warn strong { color: #a16207; }
+.manut-mobile-hist-last.danger strong { color: #b91c1c; }
+.manut-mobile-hist-last.dark strong { color: #334155; }
+.manut-mobile-hist-last.neutral strong { color: #64748b; }
+
+.manut-mobile-hist-recent {
+  display: grid;
+  gap: 2px;
+}
+
+.manut-mobile-hist-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+}
+
+.manut-mobile-hist-row span {
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.manut-mobile-hist-row strong {
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manut-mobile-hist-row.vazio {
+  display: block;
+  color: #64748b;
+}
+
+.manut-mobile-hist-more {
+  margin-top: 4px;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 430px) {
+  .manut-mobile-historico-resumo {
+    padding: 7px;
+    font-size: 0.74rem;
+  }
+}
+
+
+/* Mobile Manutenção - histórico recente entre Checado e Usabilidade */
+.manut-mobile-info-linha {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr) minmax(0, 0.85fr) !important;
+  gap: 8px !important;
+  align-items: stretch !important;
+}
+
+.manut-mobile-checado-box {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+}
+
+.manut-mobile-check-deposito {
+  align-self: flex-end !important;
+  width: 44px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 !important;
+}
+
+.manut-mobile-historico-resumo {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  padding: 7px 8px !important;
+  border-radius: 10px !important;
+  background: #f8fafc !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  font-size: 0.74rem !important;
+  line-height: 1.18 !important;
+  color: #334155 !important;
+  overflow: hidden !important;
+}
+
+.manut-mobile-hist-last {
+  display: none !important;
+}
+
+.manut-mobile-hist-titulo {
+  font-size: 0.72rem !important;
+  color: #64748b !important;
+  margin: 0 0 3px !important;
+  font-weight: 700 !important;
+}
+
+.manut-mobile-hist-recent {
+  display: grid !important;
+  gap: 1px !important;
+}
+
+.manut-mobile-hist-row {
+  display: grid !important;
+  grid-template-columns: 37px minmax(0, 1fr) !important;
+  gap: 4px !important;
+  align-items: center !important;
+}
+
+.manut-mobile-hist-row span {
+  color: #64748b !important;
+  white-space: nowrap !important;
+}
+
+.manut-mobile-hist-row strong {
+  font-weight: 700 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.manut-mobile-hist-more {
+  margin-top: 3px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #2563eb !important;
+  padding: 0 !important;
+  font: inherit !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+}
+
+@media (max-width: 520px) {
+  .manut-mobile-info-linha {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr) minmax(0, 0.85fr) !important;
+    gap: 6px !important;
+  }
+  .manut-mobile-checado-box,
+  .manut-mobile-usabilidade-box,
+  .manut-mobile-historico-resumo {
+    padding: 7px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .manut-mobile-info-linha {
+    grid-template-columns: 1fr !important;
+  }
+}
