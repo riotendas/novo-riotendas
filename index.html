@@ -730,35 +730,28 @@
       </div>
 
       <div class="manutencao-mobile-dashboard" id="manutencaoMobileResumo">
-        <button type="button" data-manut-filtro="pendentes"><strong>0</strong><span>Pendentes</span></button>
+        <button type="button" class="active" data-manut-filtro="pendentes"><strong>0</strong><span>Pendentes</span></button>
         <button type="button" data-manut-filtro="Revisar"><strong>0</strong><span>Revisar</span></button>
         <button type="button" data-manut-filtro="Limpar"><strong>0</strong><span>Limpar</span></button>
         <button type="button" data-manut-filtro="Consertar"><strong>0</strong><span>Consertar</span></button>
         <button type="button" data-manut-filtro="Bloqueada"><strong>0</strong><span>Bloqueados</span></button>
       </div>
+      <button type="button" class="manut-mobile-exibir-todos" data-manut-filtro="todos">Exibir todos</button>
 
       <div class="manutencao-mobile-busca manutencao-mobile-busca-rapida">
         <label>Digite o número do produto
           <input id="manutencaoMobileCodigo" type="tel" inputmode="numeric" pattern="[0-9]*" placeholder="Ex.: 63021" autocomplete="off" enterkeyhint="done" />
         </label>
-        <button id="manutencaoMobileBuscarBtn" class="btn-primary manutencao-mobile-buscar-oculto" type="button" aria-hidden="true" tabindex="-1">Buscar</button>
+        <button id="manutencaoMobileBuscarBtn" class="btn-primary manutencao-mobile-buscar-icone" type="button" title="Buscar produto">🔎</button>
       </div>
       <div id="manutencaoMobileOcrStatus" class="manutencao-mobile-ocr-status">Digite o número. Quando encontrar um código correspondente, o produto abre automaticamente.</div>
 
-      <div class="manutencao-mobile-filtros">
-        <button type="button" class="active" data-manut-filtro="pendentes">Pendentes</button>
-        <button type="button" data-manut-filtro="todos">Todos</button>
-        <button type="button" data-manut-filtro="Revisar">Revisar</button>
-        <button type="button" data-manut-filtro="Limpar">Limpar</button>
-        <button type="button" data-manut-filtro="Consertar">Consertar</button>
-        <button type="button" data-manut-filtro="Bloqueada">Bloqueados</button>
-      </div>
+
+      <div id="manutencaoMobileDetalhe" class="manutencao-mobile-detalhe" hidden></div>
 
       <div id="manutencaoMobileLista" class="manutencao-mobile-lista">
         <p class="empty">Nenhum produto encontrado.</p>
       </div>
-
-      <div id="manutencaoMobileDetalhe" class="manutencao-mobile-detalhe" hidden></div>
     </section>
 
     <section id="relatoriosSection" class="section">

@@ -287,6 +287,10 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
   `;
 
   detalhe.scrollIntoView({ behavior: "smooth", block: "start" });
+  setTimeout(() => {
+    const topo = detalhe.getBoundingClientRect().top + window.scrollY - 74;
+    window.scrollTo({ top: Math.max(0, topo), behavior: "smooth" });
+  }, 80);
 
   document.getElementById("manutMobileFecharDetalhe")?.addEventListener("click", () => {
     detalhe.hidden = true;
@@ -514,7 +518,12 @@ function iniciarManutencaoMobile() {
   document.querySelectorAll("[data-manut-filtro]").forEach(btn => {
     btn.addEventListener("click", () => {
       manutencaoMobileFiltroAtual = btn.dataset.manutFiltro || "pendentes";
-      document.querySelectorAll(".manutencao-mobile-filtros [data-manut-filtro]").forEach(b => b.classList.toggle("active", (b.dataset.manutFiltro || "pendentes") === manutencaoMobileFiltroAtual));
+      document.querySelectorAll("#manutencaoMobileResumo [data-manut-filtro]").forEach(b => {
+        b.classList.toggle("active", (b.dataset.manutFiltro || "pendentes") === manutencaoMobileFiltroAtual);
+      });
+      document.querySelectorAll(".manut-mobile-exibir-todos").forEach(b => {
+        b.classList.toggle("active", manutencaoMobileFiltroAtual === "todos");
+      });
       renderizarManutencaoMobile();
     });
   });

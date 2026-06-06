@@ -26,6 +26,40 @@ function textoHorarioRota(tipoSalvo, horario, dataISO) {
   return horario ? `${tipo} ${horario}` : tipo;
 }
 
+function minutosHorarioOperacionalRota(horario) {
+  if (!horario) return null;
+  const texto = String(horario).trim().slice(0, 5);
+  const m = texto.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(min)) return null;
+  return h * 60 + min;
+}
+
+function horarioForaComercialRota(tipoSalvo, horario) {
+  const tipo = tipoHorarioBaseRota(tipoSalvo);
+  if (tipo === "Horário comercial" || tipo === "Livre / combinar") return false;
+
+  const inicioComercial = 9 * 60;
+  const fimComercial = 18 * 60;
+  const pontos = [];
+
+  const ini = minutosHorarioOperacionalRota(horario);
+  if (ini !== null) pontos.push(ini);
+
+  if (tipo === "Intervalo") {
+    const fim = minutosHorarioOperacionalRota(tipoHorarioFimRota(tipoSalvo));
+    if (fim !== null) pontos.push(fim);
+  }
+
+  return pontos.some(min => min < inicioComercial || min >= fimComercial);
+}
+
+function classeHorarioEspecialRota(tipoSalvo, horario) {
+  return horarioForaComercialRota(tipoSalvo, horario) ? " horario-fora-comercial" : "";
+}
+
 let rotasCarros = {};
 const storageRotasCarrosKey = "novoRioTendasRotasCarrosV1";
 
@@ -1998,7 +2032,7 @@ function renderizarCardRota(rota, index = 0, total = 0) {
         </div>
         <div class="rota-col rota-operacao-data">
           <span>${rota.tipo}</span>
-          <strong>${textoHorarioRota(rota.tipoHorario, rota.horario, rota.data)}</strong>
+          <strong class="rota-horario-destaque${classeHorarioEspecialRota(rota.tipoHorario, rota.horario)}">${textoHorarioRota(rota.tipoHorario, rota.horario, rota.data)}</strong>
         </div>
         <div class="rota-col">
           <span>Cliente</span>
@@ -2354,7 +2388,7 @@ function imprimirRotaData(data) {
 
                   <div class="col">
                     <span>${rota.tipo}</span>
-                    <strong>${textoHorarioRota(rota.tipoHorario, rota.horario, rota.data)}</strong>
+                    <strong class="rota-horario-destaque${classeHorarioEspecialRota(rota.tipoHorario, rota.horario)}">${textoHorarioRota(rota.tipoHorario, rota.horario, rota.data)}</strong>
                   </div>
 
                   <div class="col">

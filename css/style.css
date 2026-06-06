@@ -11694,3 +11694,229 @@ body.usuario-sem-sistema-completo .tabs { display: none !important; }
 .rua-mobile-card-expandido .rua-mobile-cliente{
   clear:both;
 }
+
+/* v19-dev: Mobile > Rua - ajuste fino final solicitado */
+.rua-mobile-toggle-card{display:none !important;}
+.rua-mobile-card-concluido{cursor:pointer;}
+.rua-mobile-endereco-resumo{
+  display:block !important;
+  margin:4px 0 0 !important;
+  font-size:11px !important;
+  color:#64748b !important;
+  white-space:nowrap !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  line-height:1.15 !important;
+}
+.rua-mobile-card-concluido .rua-mobile-endereco-resumo{display:block !important;}
+.rua-mobile-card-expandido .rua-mobile-endereco-resumo{display:none !important;}
+.rua-mobile-pagamento{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  flex-wrap:nowrap !important;
+  gap:6px !important;
+}
+.rua-mobile-pay-main{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:4px !important;
+  white-space:nowrap !important;
+  flex:0 0 auto !important;
+}
+.rua-mobile-pay-dot{
+  display:inline-flex !important;
+  line-height:1 !important;
+  flex:0 0 auto !important;
+}
+.rua-mobile-pagamento strong{
+  display:inline-flex !important;
+  align-items:center !important;
+  margin:0 !important;
+}
+.rua-mobile-pagamento small{
+  min-width:0 !important;
+  flex:1 1 auto !important;
+}
+.rua-mobile-acoes-compactas{
+  display:grid !important;
+  grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+  gap:5px !important;
+  width:100% !important;
+}
+.rua-mobile-acoes-compactas .rua-mobile-acao-btn,
+.rua-mobile-acoes-compactas a.rua-mobile-acao-btn,
+.rua-mobile-acoes-compactas button.rua-mobile-acao-btn,
+.rua-mobile-acoes-compactas .rua-mobile-operacao-btn{
+  flex:unset !important;
+  flex-basis:auto !important;
+  width:100% !important;
+  min-width:0 !important;
+  max-width:none !important;
+  min-height:39px !important;
+  padding:5px 2px !important;
+  border-radius:10px !important;
+  background:#fff !important;
+  color:#334155 !important;
+  border:1px solid #cbd5e1 !important;
+  box-shadow:none !important;
+  outline:none !important;
+  appearance:none !important;
+}
+.rua-mobile-acoes-compactas .rua-mobile-operacao-btn:hover,
+.rua-mobile-acoes-compactas .rua-mobile-operacao-btn:focus{
+  background:#f8fafc !important;
+  color:#0f172a !important;
+  border-color:#cbd5e1 !important;
+}
+@media (max-width:720px){
+  .rua-mobile-acoes a,
+  .rua-mobile-acoes button{flex-basis:auto !important;}
+  .rua-mobile-acoes-compactas{grid-template-columns:repeat(4,minmax(0,1fr)) !important;}
+}
+@media (max-width:360px){
+  .rua-mobile-acoes-compactas .rua-mobile-acao-btn,
+  .rua-mobile-acoes-compactas .rua-mobile-operacao-btn{min-height:37px !important;}
+  .rua-mobile-acoes-compactas .rua-mobile-acao-btn small{font-size:8.5px !important;}
+}
+
+
+/* v19-dev: Mobile > Manutenção - busca/filtros/topo refinados */
+.manutencao-mobile-busca-rapida{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) 38px !important;
+  gap:6px !important;
+  align-items:end !important;
+  padding:8px !important;
+}
+.manutencao-mobile-busca-rapida label{min-width:0 !important;}
+.manutencao-mobile-busca-rapida input{
+  height:42px !important;
+  font-size:20px !important;
+  font-weight:900 !important;
+  text-align:center !important;
+  letter-spacing:1px !important;
+}
+.manutencao-mobile-buscar-icone{
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  width:38px !important;
+  min-width:38px !important;
+  height:42px !important;
+  min-height:42px !important;
+  padding:0 !important;
+  border-radius:12px !important;
+  font-size:17px !important;
+  line-height:1 !important;
+}
+.manutencao-mobile-filtros{
+  display:grid !important;
+  grid-template-columns:repeat(6,minmax(0,1fr)) !important;
+  gap:4px !important;
+  overflow:visible !important;
+  padding:7px 0 !important;
+}
+.manutencao-mobile-filtros button{
+  min-width:0 !important;
+  width:100% !important;
+  padding:6px 2px !important;
+  font-size:10px !important;
+  line-height:1.05 !important;
+  border-radius:999px !important;
+  white-space:nowrap !important;
+}
+.manutencao-mobile-detalhe{
+  margin-top:8px !important;
+  margin-bottom:8px !important;
+  scroll-margin-top:76px !important;
+}
+body.modo-mobile-operacional .user-box{
+  margin-left:auto !important;
+  width:auto !important;
+  flex:1 1 auto !important;
+  justify-content:flex-end !important;
+}
+body.modo-mobile-operacional #logoutBtn{
+  margin-left:0 !important;
+  margin-right:0 !important;
+  padding-left:10px !important;
+  padding-right:10px !important;
+}
+body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
+@media (max-width:380px){
+  .manutencao-mobile-filtros{gap:3px !important;}
+  .manutencao-mobile-filtros button{font-size:8.8px !important;padding-left:1px !important;padding-right:1px !important;}
+  .manutencao-mobile-busca-rapida input{font-size:18px !important;}
+}
+
+/* v19-dev: Mobile > Manutenção sem filtros duplicados */
+.manut-mobile-exibir-todos{
+  width:100%;
+  border:1px solid #cbd5e1;
+  background:#fff;
+  color:#0f172a;
+  border-radius:10px;
+  padding:7px 10px;
+  font-size:12px;
+  font-weight:700;
+  margin:4px 0 8px;
+}
+.manut-mobile-exibir-todos.active{
+  background:#0f766e;
+  color:#fff;
+  border-color:#0f766e;
+}
+.manutencao-mobile-dashboard button.active{
+  outline:2px solid #0f766e;
+  outline-offset:1px;
+}
+
+/* v19-dev: destaque suave para horários fora do comercial
+   Mantém tamanho/peso original e aplica apenas fundo discreto. */
+.rota-horario-destaque.horario-fora-comercial,
+.rua-mobile-horario-destaque.horario-fora-comercial{
+  background:#fffde7 !important;
+  color:inherit !important;
+  border:1px solid #f3e7a2 !important;
+  border-radius:6px !important;
+  padding:1px 4px !important;
+  display:inline !important;
+  font-size:inherit !important;
+  font-weight:inherit !important;
+  line-height:inherit !important;
+  white-space:normal !important;
+}
+
+/* v19-dev correção final: destaque de horário fora do comercial sem aumentar fonte/altura na rota */
+.rota-grid-info .rota-col strong.rota-horario-destaque.horario-fora-comercial,
+.rota-operacao-data strong.rota-horario-destaque.horario-fora-comercial,
+.card .col strong.rota-horario-destaque.horario-fora-comercial{
+  display:inline-block !important;
+  font-size:0.68rem !important;
+  line-height:1.15 !important;
+  font-weight:700 !important;
+  white-space:nowrap !important;
+  background:#fffde7 !important;
+  border:1px solid #f3e7a2 !important;
+  border-radius:4px !important;
+  padding:0 3px !important;
+  color:inherit !important;
+  vertical-align:baseline !important;
+  box-shadow:none !important;
+}
+
+/* Mobile rua: manter o destaque discreto, sem alterar tipografia */
+.rua-mobile-card h3 .rua-mobile-horario-destaque.horario-fora-comercial{
+  display:inline !important;
+  font-size:inherit !important;
+  line-height:inherit !important;
+  font-weight:inherit !important;
+  white-space:nowrap !important;
+  background:#fffde7 !important;
+  border:1px solid #f3e7a2 !important;
+  border-radius:4px !important;
+  padding:0 3px !important;
+  color:inherit !important;
+  box-shadow:none !important;
+}

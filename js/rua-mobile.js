@@ -101,12 +101,12 @@ function ruaMobileHtmlPagamento(evento = {}) {
   const forma = evento.forma_pagamento || "-";
 
   if (quitado) {
-    return `<div class="rua-mobile-pagamento pago">🟢 <strong>Pago</strong><small>Total ${ruaMobileDinheiro(total)} · ${forma}</small></div>`;
+    return `<div class="rua-mobile-pagamento pago"><span class="rua-mobile-pay-main"><span class="rua-mobile-pay-dot">🟢</span><strong>Pago</strong></span><small>Total ${ruaMobileDinheiro(total)} · ${forma}</small></div>`;
   }
 
   return `
     <div class="rua-mobile-pagamento receber">
-      🔴 <strong>Receber ${ruaMobileDinheiro(restante)}</strong>
+      <span class="rua-mobile-pay-main"><span class="rua-mobile-pay-dot">🔴</span><strong>Receber ${ruaMobileDinheiro(restante)}</strong></span>
       <small>Total ${ruaMobileDinheiro(total)} · Sinal ${ruaMobileDinheiro(sinal)} · ${forma}</small>
     </div>
   `;
@@ -188,6 +188,7 @@ function renderizarRuaMobile() {
     const endereco = String(rota.endereco || "").trim();
     const mapa = typeof googleMapsNavigateUrl === "function" ? googleMapsNavigateUrl(endereco) : "#";
     const horario = typeof textoHorarioRota === "function" ? textoHorarioRota(rota.tipoHorario, rota.horario, rota.data) : (rota.horario || "-");
+    const horarioEspecialClasse = typeof classeHorarioEspecialRota === "function" ? classeHorarioEspecialRota(rota.tipoHorario, rota.horario) : "";
     const badge = typeof badgeOperacaoRota === "function" ? badgeOperacaoRota(rota) : "";
     const operacao = typeof obterOperacaoRota === "function" ? obterOperacaoRota(rota.id) : null;
     const concluida = operacao && (operacao.status === "entregue" || operacao.status === "recolhido");
@@ -199,13 +200,12 @@ function renderizarRuaMobile() {
         <div class="rua-mobile-card-top">
           <div>
             <span class="rua-mobile-ordem">#${index + 1} · ${carro}</span>
-            <h3>${rota.tipo} · ${horario}</h3>
+            <h3>${rota.tipo} · <span class="rua-mobile-horario-destaque${horarioEspecialClasse}">${horario}</span></h3>
           </div>
           <div class="rua-mobile-badge-wrap">${badge}</div>
         </div>
-        ${concluida ? `<button type="button" class="btn-outline rua-mobile-toggle-card" data-rua-toggle-card="${rota.id}">${expandido ? "Recolher" : "Expandir"}</button>` : ""}
-
         <div class="rua-mobile-cliente">${ruaMobilePrimeiroNome(rota.cliente)} <small>${rota.cliente || ""}</small></div>
+        ${concluida && !expandido ? `<div class="rua-mobile-endereco-resumo">📍 ${(endereco || "Endereço não informado").slice(0, 72)}${String(endereco || "").length > 72 ? "..." : ""}</div>` : ""}
         <div class="rua-mobile-endereco">📍 ${endereco || "Endereço não informado"}</div>
         <div class="rua-mobile-materiais rua-mobile-materiais-click" title="Clique em um produto para trocar"><strong>Materiais:</strong> ${typeof renderizarMateriaisRotaClicaveis === "function" ? renderizarMateriaisRotaClicaveis(rota) : ruaMobileResumoMateriais(rota)}</div>
         ${ruaMobileHtmlPagamento(rota.evento || {})}
@@ -221,11 +221,10 @@ function renderizarRuaMobile() {
     `;
   }).join("");
 
-  listaEl.querySelectorAll("[data-rua-toggle-card]").forEach(btn => {
-    btn.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      const id = String(btn.dataset.ruaToggleCard || "");
+  listaEl.querySelectorAll(".rua-mobile-card-concluido").forEach(card => {
+    card.addEventListener("click", (ev) => {
+      if (ev.target.closest("a,button,[data-rota-trocar-produto]")) return;
+      const id = String(card.dataset.ruaCardId || "");
       if (!id) return;
       if (ruaMobileCardsExpandidos.has(id)) ruaMobileCardsExpandidos.delete(id);
       else ruaMobileCardsExpandidos.add(id);
