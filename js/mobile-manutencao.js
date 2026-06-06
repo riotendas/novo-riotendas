@@ -189,7 +189,7 @@ function renderizarManutencaoMobile() {
   `).join("");
 
   listaEl.querySelectorAll("[data-manut-abrir]").forEach(btn => {
-    btn.addEventListener("click", () => abrirManutencaoMobileProduto(btn.dataset.manutAbrir));
+    btn.addEventListener("click", () => abrirManutencaoMobileProduto(btn.dataset.manutAbrir, { anchorEl: btn.closest(".manut-mobile-card") }));
   });
 }
 
@@ -290,8 +290,23 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
   const dispMobile = manutMobileDisponibilidadeResumo(produto);
   const usabilidadeAtual = produto.grau_usabilidade || produto.usabilidade || "Bom";
 
+  // Abre a ficha exatamente na região atual de trabalho:
+  // - se veio de um card da lista, posiciona logo abaixo do card clicado;
+  // - se veio da busca, posiciona logo abaixo da mensagem/campo de busca;
+  // - não força scroll para topo nem centraliza na página.
+  try {
+    const anchor = opcoes.anchorEl;
+    const statusBusca = document.getElementById("manutencaoMobileOcrStatus");
+    if (anchor && anchor.parentNode) {
+      anchor.insertAdjacentElement("afterend", detalhe);
+    } else if (statusBusca && statusBusca.parentNode) {
+      statusBusca.insertAdjacentElement("afterend", detalhe);
+    }
+  } catch {}
+
   detalhe.hidden = false;
-  detalhe.classList.add("manut-mobile-modal-wrap");
+  detalhe.classList.remove("manut-mobile-modal-wrap");
+  detalhe.classList.add("manut-mobile-inline-wrap");
   detalhe.innerHTML = `
     <div class="manut-mobile-detalhe-card manut-mobile-modal-card status-${manutMobileNormalizar(produto.status)}" role="dialog" aria-modal="true">
       <div class="manut-mobile-detalhe-top manut-mobile-modal-top">
@@ -309,6 +324,12 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
         <textarea id="manutencaoMobileObs" rows="1" placeholder="Ex.: Lavagem, troca de lona, costura, reparo...">${manutMobileEscape(produto.observacao || "")}</textarea>
       </label>
 
+      <div class="manut-mobile-disponibilidade-box">
+        <strong>Disponibilidade</strong>
+        <span>${manutMobileEscape(dispMobile.titulo)}</span>
+        <small>${manutMobileEscape(dispMobile.detalhe)}</small>
+      </div>
+
       <div class="manut-mobile-info-linha">
         <div class="manut-mobile-checado-box manut-mobile-info-card">
           <div>
@@ -323,12 +344,6 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
             ${manutMobileUsabilidadeOpcoes().map(op => `<option value="${manutMobileEscape(op)}" ${String(op) === String(usabilidadeAtual) ? "selected" : ""}>${manutMobileEscape(op)}</option>`).join("")}
           </select>
         </label>
-      </div>
-
-      <div class="manut-mobile-disponibilidade-box">
-        <strong>Disponibilidade</strong>
-        <span>${manutMobileEscape(dispMobile.titulo)}</span>
-        <small>${manutMobileEscape(dispMobile.detalhe)}</small>
       </div>
 
       <div class="manut-mobile-checklist">
@@ -350,15 +365,10 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
   document.getElementById("manutMobileFecharDetalhe")?.addEventListener("click", () => {
     detalhe.hidden = true;
     detalhe.classList.remove("manut-mobile-modal-wrap");
+    detalhe.classList.remove("manut-mobile-inline-wrap");
     manutencaoMobileProdutoAtualId = null;
     const inputBusca = document.getElementById("manutencaoMobileCodigo");
-    if (inputBusca) {
-      inputBusca.value = "";
-      setTimeout(() => {
-        inputBusca.scrollIntoView({ behavior: "smooth", block: "center" });
-        inputBusca.focus({ preventScroll: true });
-      }, 80);
-    }
+    if (inputBusca) inputBusca.value = "";
     if (typeof window.rtMobilePushState === "function") {
       window.rtMobilePushState("manutencaoMobileSection");
     }
@@ -635,6 +645,8 @@ function manutencaoMobileFecharDetalheVoltar() {
   const detalhe = document.getElementById("manutencaoMobileDetalhe");
   if (detalhe && !detalhe.hidden) {
     detalhe.hidden = true;
+    detalhe.classList.remove("manut-mobile-modal-wrap");
+    detalhe.classList.remove("manut-mobile-inline-wrap");
     manutencaoMobileProdutoAtualId = null;
     return true;
   }
