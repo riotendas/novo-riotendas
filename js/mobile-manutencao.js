@@ -43,6 +43,46 @@ function manutMobileProdutoTitulo(produto = {}) {
   return [produto.categoria || produto.tipo, produto.tamanho, produto.cor].filter(Boolean).join(" · ") || "Produto";
 }
 
+function manutMobileStatusClasse(status) {
+  const st = manutMobileNormalizar(status);
+  if (st === "bloqueado" || st === "bloqueada") return "bloqueado";
+  if (st === "livre") return "livre";
+  if (st === "alugado" || st === "ocupado") return "alugado";
+  if (["revisar", "limpar", "consertar"].includes(st)) return st;
+  return "padrao";
+}
+
+function manutMobileStatusBadge(status) {
+  const texto = manutMobileEscape(status || "-");
+  return `<span class="manut-mobile-status-badge status-${manutMobileStatusClasse(status)}">${texto}</span>`;
+}
+
+function manutMobileRemoverMarcacoesAuto(texto) {
+  return String(texto || "")
+    .split(/\n+/)
+    .map(linha => linha
+      .replace(/(?:^|\s*[,-]\s*)(Limpo|Revisado|Consertado|Pronto para uso)(?=\s*(?:,|-|$))/gi, "")
+      .replace(/^\s*[,|-]\s*/, "")
+      .replace(/\s*[,|-]\s*$/, "")
+      .trim()
+    )
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
+function manutMobileAtualizarObsChecklist() {
+  const textarea = document.getElementById("manutencaoMobileObs");
+  if (!textarea) return;
+  const base = manutMobileRemoverMarcacoesAuto(textarea.value);
+  const marcas = [];
+  if (document.getElementById("manutCheckLimpo")?.checked) marcas.push("Limpo");
+  if (document.getElementById("manutCheckRevisado")?.checked) marcas.push("Revisado");
+  if (document.getElementById("manutCheckConsertado")?.checked) marcas.push("Consertado");
+  if (document.getElementById("manutCheckPronto")?.checked) marcas.push("Pronto para uso");
+  textarea.value = [base, marcas.join(", ")].filter(Boolean).join(base ? " - " : "");
+}
+
 function manutMobileProdutoPendente(produto = {}) {
   const status = manutMobileNormalizar(produto.status);
   return ["revisar", "limpar", "consertar", "bloqueada", "bloqueado"].includes(status);
@@ -101,7 +141,7 @@ function renderizarManutencaoMobile() {
       <div>
         <span class="manut-mobile-codigo">${manutMobileEscape(produto.codigo || "Sem código")}</span>
         <h3>${manutMobileEscape(manutMobileProdutoTitulo(produto))}</h3>
-        <small>Status: <strong>${manutMobileEscape(produto.status || "-")}</strong></small>
+        <small>Status: ${manutMobileStatusBadge(produto.status)}</small>
       </div>
       <button type="button" class="btn-outline" data-manut-abrir="${manutMobileEscape(produto.id)}">Abrir</button>
     </article>
@@ -213,9 +253,9 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
         <div>
           <span class="manut-mobile-codigo">${manutMobileEscape(produto.codigo || "Sem código")}</span>
           <h3>${manutMobileEscape(manutMobileProdutoTitulo(produto))}</h3>
-          <p>Status atual: <strong>${manutMobileEscape(produto.status || "-")}</strong></p>
+          <p>Status atual: ${manutMobileStatusBadge(produto.status)}</p>
         </div>
-        <button type="button" class="btn-outline" id="manutMobileFecharDetalhe">Fechar</button>
+        <button type="button" class="btn-outline manut-mobile-fechar" id="manutMobileFecharDetalhe" title="Fechar">×</button>
       </div>
 
       <label class="manut-mobile-observacao">Observação / Reparo realizado
@@ -239,7 +279,7 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
         <button type="button" class="btn-outline" data-manut-status="Revisar">Revisar</button>
         <button type="button" class="btn-outline" data-manut-status="Consertar">Consertar</button>
         <button type="button" class="btn-outline" data-manut-status="Bloqueado">Bloquear</button>
-        <button type="button" class="btn-primary" data-manut-status="Livre">Liberar</button>
+        <button type="button" class="btn-outline" data-manut-status="Livre">Liberar</button>
       </div>
 
       <button type="button" id="manutencaoMobileConcluir" class="btn-primary manut-mobile-concluir">✓ Concluir</button>
@@ -251,6 +291,14 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
   document.getElementById("manutMobileFecharDetalhe")?.addEventListener("click", () => {
     detalhe.hidden = true;
     manutencaoMobileProdutoAtualId = null;
+    const inputBusca = document.getElementById("manutencaoMobileCodigo");
+    if (inputBusca) {
+      inputBusca.value = "";
+      setTimeout(() => {
+        inputBusca.scrollIntoView({ behavior: "smooth", block: "center" });
+        inputBusca.focus({ preventScroll: true });
+      }, 80);
+    }
     if (typeof window.rtMobilePushState === "function") {
       window.rtMobilePushState("manutencaoMobileSection");
     }
@@ -261,6 +309,10 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
   });
 
   document.getElementById("manutMobileCheckDeposito")?.addEventListener("click", () => marcarChecadoDepositoManutencaoMobile());
+
+  ["manutCheckLimpo", "manutCheckRevisado", "manutCheckConsertado", "manutCheckPronto"].forEach(idCheck => {
+    document.getElementById(idCheck)?.addEventListener("change", manutMobileAtualizarObsChecklist);
+  });
 
   document.getElementById("manutencaoMobileConcluir")?.addEventListener("click", () => {
     const pronto = document.getElementById("manutCheckPronto")?.checked;
@@ -314,7 +366,8 @@ async function salvarManutencaoMobileProduto(novoStatus) {
   const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(manutencaoMobileProdutoAtualId));
   if (!produto) return;
 
-  const observacao = String(document.getElementById("manutencaoMobileObs")?.value || "").trim();
+  const observacaoTela = String(document.getElementById("manutencaoMobileObs")?.value || "").trim();
+  const observacao = manutMobileRemoverMarcacoesAuto(observacaoTela);
   const checks = [];
   if (document.getElementById("manutCheckLimpo")?.checked) checks.push("Limpo");
   if (document.getElementById("manutCheckRevisado")?.checked) checks.push("Revisado");

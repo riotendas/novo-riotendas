@@ -11370,3 +11370,327 @@ body.usuario-sem-sistema-completo .tabs { display: none !important; }
   .rua-mobile-acoes-compactas .rua-mobile-acao-btn span{ font-size:14px !important; }
   .rua-mobile-acoes-compactas .rua-mobile-acao-btn small{ font-size:9px !important; }
 }
+
+/* v19-dev: Mobile > Manutenção - ajustes finos de ergonomia */
+.manutencao-mobile-dashboard{
+  grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+  gap:5px !important;
+  margin:8px 0 !important;
+}
+.manutencao-mobile-dashboard button{
+  padding:7px 4px !important;
+  border-radius:11px !important;
+  text-align:center !important;
+  min-width:0 !important;
+}
+.manutencao-mobile-dashboard strong{
+  font-size:17px !important;
+  line-height:1 !important;
+}
+.manutencao-mobile-dashboard span{
+  font-size:9.5px !important;
+  line-height:1.05 !important;
+  white-space:nowrap !important;
+}
+.manut-mobile-detalhe-card{
+  position:relative !important;
+  padding-top:10px !important;
+}
+.manut-mobile-detalhe-top{
+  padding-right:30px !important;
+  align-items:flex-start !important;
+}
+.manut-mobile-fechar{
+  position:absolute !important;
+  top:8px !important;
+  right:8px !important;
+  width:24px !important;
+  height:24px !important;
+  min-width:24px !important;
+  min-height:24px !important;
+  padding:0 !important;
+  border-radius:999px !important;
+  font-size:16px !important;
+  line-height:1 !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+}
+.manut-mobile-observacao textarea{
+  min-height:34px !important;
+  max-height:46px !important;
+  line-height:1.15 !important;
+  padding:6px 8px !important;
+}
+.manut-mobile-status-botoes button[data-manut-status="Livre"]{
+  background:#fff !important;
+  color:#334155 !important;
+  border-color:#dbe4f0 !important;
+}
+.manut-mobile-status-botoes button[data-manut-status="Livre"]:hover{
+  background:#ecfdf5 !important;
+  color:#166534 !important;
+  border-color:#86efac !important;
+}
+.manut-mobile-status-badge{
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  border-radius:999px !important;
+  padding:3px 8px !important;
+  font-weight:800 !important;
+  font-size:11px !important;
+  line-height:1 !important;
+  border:1px solid #dbe4f0 !important;
+  background:#f8fafc !important;
+  color:#334155 !important;
+}
+.manut-mobile-status-badge.status-revisar{background:#fff7ed !important;color:#9a3412 !important;border-color:#fed7aa !important;}
+.manut-mobile-status-badge.status-limpar{background:#eff6ff !important;color:#1d4ed8 !important;border-color:#bfdbfe !important;}
+.manut-mobile-status-badge.status-consertar{background:#fef2f2 !important;color:#b91c1c !important;border-color:#fecaca !important;}
+.manut-mobile-status-badge.status-bloqueado{background:#f5f3ff !important;color:#6d28d9 !important;border-color:#ddd6fe !important;}
+.manut-mobile-status-badge.status-livre{background:#ecfdf5 !important;color:#166534 !important;border-color:#bbf7d0 !important;}
+.manut-mobile-status-badge.status-alugado{background:#eef2ff !important;color:#3730a3 !important;border-color:#c7d2fe !important;}
+@media (max-width:720px){
+  .manutencao-mobile-dashboard{
+    grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+    gap:4px !important;
+  }
+  .manutencao-mobile-dashboard button{padding:6px 2px !important;}
+  .manutencao-mobile-dashboard strong{font-size:15px !important;}
+  .manutencao-mobile-dashboard span{font-size:8.5px !important;}
+  .manut-mobile-detalhe-top{flex-direction:row !important;}
+}
+@media (max-width:360px){
+  .manutencao-mobile-dashboard span{font-size:7.5px !important;}
+  .manutencao-mobile-dashboard strong{font-size:14px !important;}
+}
+
+
+/* v19-dev: Mobile > Manutenção - ajustes finos solicitados */
+.manut-mobile-checklist{
+  display:grid !important;
+  grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+  gap:4px !important;
+}
+.manut-mobile-checklist label{
+  min-height:28px !important;
+  padding:4px 2px !important;
+  font-size:10px !important;
+  line-height:1 !important;
+  white-space:nowrap !important;
+}
+.manut-mobile-checklist input[type="checkbox"]{
+  width:12px !important;
+  height:12px !important;
+}
+.manut-mobile-status-botoes button,
+.manut-mobile-status-botoes button[data-manut-status="Livre"],
+.manut-mobile-status-botoes button[data-manut-status="Limpar"],
+.manut-mobile-status-botoes button[data-manut-status="Revisar"],
+.manut-mobile-status-botoes button[data-manut-status="Consertar"],
+.manut-mobile-status-botoes button[data-manut-status="Bloqueado"]{
+  background:#fff !important;
+  color:#334155 !important;
+  border:1px solid #dbe4f0 !important;
+  box-shadow:none !important;
+}
+.manut-mobile-status-botoes button:hover,
+.manut-mobile-status-botoes button[data-manut-status="Livre"]:hover{
+  background:#f8fafc !important;
+  color:#0f172a !important;
+  border-color:#cbd5e1 !important;
+}
+.manut-mobile-card .manut-mobile-codigo,
+.manut-mobile-detalhe-card .manut-mobile-codigo{
+  font-size:18px !important;
+  font-weight:900 !important;
+  letter-spacing:.3px !important;
+  padding:5px 10px !important;
+}
+.manut-mobile-card h3,
+.manut-mobile-detalhe-card h3{
+  font-size:13px !important;
+  font-weight:700 !important;
+  line-height:1.15 !important;
+  color:#475569 !important;
+}
+@media (max-width:360px){
+  .manut-mobile-checklist label{font-size:9px !important;padding-left:1px !important;padding-right:1px !important;}
+  .manut-mobile-card .manut-mobile-codigo,
+  .manut-mobile-detalhe-card .manut-mobile-codigo{font-size:17px !important;}
+}
+
+/* v19-dev: ajustes Mobile > Rua - cards mais compactos e troca de produto */
+.rua-mobile-card-top h3{
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px !important;
+  margin: 2px 0 0 !important;
+}
+.rua-mobile-pagamento{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:6px !important;
+  padding:5px 8px !important;
+  line-height:1.1 !important;
+}
+.rua-mobile-pagamento strong{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:4px !important;
+  font-size:13px !important;
+  white-space:nowrap !important;
+}
+.rua-mobile-pagamento small{
+  display:block !important;
+  font-size:10px !important;
+  line-height:1.1 !important;
+  text-align:right !important;
+}
+.rua-mobile-materiais-click .rota-material-click{
+  border:1px solid #cbd5e1 !important;
+  background:#f8fafc !important;
+  color:#0f172a !important;
+  border-radius:999px !important;
+  padding:3px 7px !important;
+  margin:2px 3px 2px 0 !important;
+  font-size:11px !important;
+  line-height:1.1 !important;
+  display:inline-flex !important;
+  max-width:100% !important;
+}
+.rua-mobile-materiais-click .rota-material-click::after{
+  content:"↔";
+  font-size:10px;
+  opacity:.65;
+  margin-left:4px;
+}
+.rua-mobile-operacao-btn{
+  background:#ffffff !important;
+  color:#334155 !important;
+  border:1px solid #cbd5e1 !important;
+  box-shadow:none !important;
+}
+.rua-mobile-operacao-btn:hover,
+.rua-mobile-operacao-btn:focus{
+  background:#f8fafc !important;
+  color:#0f172a !important;
+}
+.rua-mobile-acoes-compactas .rua-mobile-acao-btn{
+  min-width:0 !important;
+}
+
+
+/* v19-dev: Mobile > Rua - ajuste fino de card, pagamento e status */
+.rua-mobile-badge-wrap{
+  max-width:46%;
+  min-width:0;
+  display:flex;
+  justify-content:flex-end;
+}
+.rua-mobile-badge-wrap .rota-operacao-badge{
+  max-width:100%;
+  margin-left:0 !important;
+  padding:4px 6px !important;
+  font-size:9.5px !important;
+  line-height:1.05 !important;
+  white-space:normal !important;
+  text-align:center !important;
+  justify-content:center !important;
+}
+.rua-mobile-pagamento{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:6px !important;
+  padding:5px 7px !important;
+  min-height:0 !important;
+}
+.rua-mobile-pay-main{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:4px !important;
+  min-width:0 !important;
+  white-space:nowrap !important;
+}
+.rua-mobile-pay-dot{
+  display:inline-flex !important;
+  width:auto !important;
+  line-height:1 !important;
+}
+.rua-mobile-pagamento strong{
+  font-size:12px !important;
+  white-space:nowrap !important;
+}
+.rua-mobile-pagamento small{
+  flex:1 1 auto !important;
+  min-width:0 !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+  text-align:right !important;
+  font-size:9.5px !important;
+}
+.rua-mobile-acoes-compactas .rua-mobile-operacao-btn,
+.rua-mobile-acoes-compactas .rua-mobile-operacao-btn:hover,
+.rua-mobile-acoes-compactas .rua-mobile-operacao-btn:focus{
+  background:#ffffff !important;
+  color:#334155 !important;
+  border:1px solid #cbd5e1 !important;
+  box-shadow:none !important;
+  filter:none !important;
+}
+.rua-mobile-card-concluido{
+  padding:9px 10px !important;
+  opacity:.96;
+}
+.rua-mobile-card-concluido .rua-mobile-endereco,
+.rua-mobile-card-concluido .rua-mobile-materiais,
+.rua-mobile-card-concluido .rua-mobile-pagamento,
+.rua-mobile-card-concluido .rua-mobile-acoes{
+  display:none !important;
+}
+.rua-mobile-card-concluido .rua-mobile-cliente{
+  margin:5px 0 0 !important;
+  font-size:15px !important;
+}
+.rua-mobile-card-concluido .rua-mobile-card-top{
+  align-items:center !important;
+}
+@media (max-width:380px){
+  .rua-mobile-badge-wrap{max-width:42%;}
+  .rua-mobile-card-top h3{font-size:12px !important;}
+  .rua-mobile-pagamento strong{font-size:11px !important;}
+  .rua-mobile-pagamento small{font-size:9px !important;}
+}
+
+
+/* v19-dev: Mobile > Rua - card concluído recolhível/expansível */
+.rua-mobile-toggle-card{
+  width:auto !important;
+  min-height:0 !important;
+  padding:4px 8px !important;
+  margin:5px 0 2px auto !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  border-radius:999px !important;
+  font-size:11px !important;
+  line-height:1 !important;
+  float:right;
+}
+.rua-mobile-card-expandido .rua-mobile-endereco,
+.rua-mobile-card-expandido .rua-mobile-materiais,
+.rua-mobile-card-expandido .rua-mobile-pagamento,
+.rua-mobile-card-expandido .rua-mobile-acoes{
+  display:flex !important;
+}
+.rua-mobile-card-expandido .rua-mobile-materiais{
+  display:block !important;
+}
+.rua-mobile-card-expandido .rua-mobile-cliente{
+  clear:both;
+}

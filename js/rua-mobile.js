@@ -69,6 +69,18 @@ function ruaMobileDinheiro(valor) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+
+const ruaMobileCardsExpandidos = new Set();
+
+function ruaMobileCardKey(rota) {
+  return String(rota?.id || "");
+}
+
+function ruaMobileCardExpandido(rota) {
+  const key = ruaMobileCardKey(rota);
+  return key && ruaMobileCardsExpandidos.has(key);
+}
+
 function ruaMobilePodeVerValores() {
   try {
     const usuario = typeof getUsuarioLogado === "function" ? getUsuarioLogado() : window.usuarioLogadoSistema;
@@ -177,9 +189,13 @@ function renderizarRuaMobile() {
     const mapa = typeof googleMapsNavigateUrl === "function" ? googleMapsNavigateUrl(endereco) : "#";
     const horario = typeof textoHorarioRota === "function" ? textoHorarioRota(rota.tipoHorario, rota.horario, rota.data) : (rota.horario || "-");
     const badge = typeof badgeOperacaoRota === "function" ? badgeOperacaoRota(rota) : "";
+    const operacao = typeof obterOperacaoRota === "function" ? obterOperacaoRota(rota.id) : null;
+    const concluida = operacao && (operacao.status === "entregue" || operacao.status === "recolhido");
+    const expandido = concluida && ruaMobileCardExpandido(rota);
+    const classeConclusao = concluida ? (expandido ? "rua-mobile-card-concluido rua-mobile-card-expandido" : "rua-mobile-card-concluido") : "";
 
     return `
-      <article class="rua-mobile-card tipo-${String(rota.tipo || "").toLowerCase()}">
+      <article class="rua-mobile-card tipo-${String(rota.tipo || "").toLowerCase()} ${classeConclusao}" data-rua-card-id="${rota.id}">
         <div class="rua-mobile-card-top">
           <div>
             <span class="rua-mobile-ordem">#${index + 1} · ${carro}</span>
@@ -187,22 +203,35 @@ function renderizarRuaMobile() {
           </div>
           <div class="rua-mobile-badge-wrap">${badge}</div>
         </div>
+        ${concluida ? `<button type="button" class="btn-outline rua-mobile-toggle-card" data-rua-toggle-card="${rota.id}">${expandido ? "Recolher" : "Expandir"}</button>` : ""}
 
         <div class="rua-mobile-cliente">${ruaMobilePrimeiroNome(rota.cliente)} <small>${rota.cliente || ""}</small></div>
         <div class="rua-mobile-endereco">📍 ${endereco || "Endereço não informado"}</div>
-        <div class="rua-mobile-materiais"><strong>Materiais:</strong> ${ruaMobileResumoMateriais(rota)}</div>
+        <div class="rua-mobile-materiais rua-mobile-materiais-click" title="Clique em um produto para trocar"><strong>Materiais:</strong> ${typeof renderizarMateriaisRotaClicaveis === "function" ? renderizarMateriaisRotaClicaveis(rota) : ruaMobileResumoMateriais(rota)}</div>
         ${ruaMobileHtmlPagamento(rota.evento || {})}
 
         <div class="rua-mobile-acoes rua-mobile-acoes-compactas">
           ${endereco ? `<a class="btn-outline rua-mobile-acao-btn" href="${mapa}" target="_blank" rel="noopener" title="Abrir mapa" aria-label="Abrir mapa"><span>🗺️</span><small>Mapa</small></a>` : ""}
           ${tel ? `<a class="btn-outline rua-mobile-acao-btn" href="tel:${tel}" title="Ligar" aria-label="Ligar"><span>☎️</span><small>Ligar</small></a>` : ""}
           ${whats ? `<a class="btn-outline rua-mobile-acao-btn" href="${whats}" target="_blank" rel="noopener" title="WhatsApp" aria-label="WhatsApp"><span>💬</span><small>Zap</small></a>` : ""}
-          ${rota.tipo === "Montagem" ? `<button type="button" class="btn-primary rua-mobile-acao-btn" data-rua-operacao="entregue" data-rota-id="${rota.id}" title="Marcar entregue" aria-label="Marcar entregue"><span>✅</span><small>Entregue</small></button>` : ""}
-          ${rota.tipo === "Desmontagem" ? `<button type="button" class="btn-primary rua-mobile-acao-btn" data-rua-operacao="recolhido" data-rota-id="${rota.id}" title="Marcar recolhido" aria-label="Marcar recolhido"><span>↩️</span><small>Recolhido</small></button>` : ""}
+          ${rota.tipo === "Montagem" ? `<button type="button" class="btn-outline rua-mobile-acao-btn rua-mobile-operacao-btn" data-rua-operacao="entregue" data-rota-id="${rota.id}" title="Marcar entregue" aria-label="Marcar entregue"><span>✅</span><small>Entregue</small></button>` : ""}
+          ${rota.tipo === "Desmontagem" ? `<button type="button" class="btn-outline rua-mobile-acao-btn rua-mobile-operacao-btn" data-rua-operacao="recolhido" data-rota-id="${rota.id}" title="Marcar recolhido" aria-label="Marcar recolhido"><span>↩️</span><small>Recolhido</small></button>` : ""}
         </div>
       </article>
     `;
   }).join("");
+
+  listaEl.querySelectorAll("[data-rua-toggle-card]").forEach(btn => {
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const id = String(btn.dataset.ruaToggleCard || "");
+      if (!id) return;
+      if (ruaMobileCardsExpandidos.has(id)) ruaMobileCardsExpandidos.delete(id);
+      else ruaMobileCardsExpandidos.add(id);
+      renderizarRuaMobile();
+    });
+  });
 
   listaEl.querySelectorAll("[data-rua-operacao]").forEach(btn => {
     btn.addEventListener("click", async () => {
@@ -211,6 +240,23 @@ function renderizarRuaMobile() {
         return;
       }
       await marcarOperacaoRota(btn.dataset.rotaId, btn.dataset.ruaOperacao);
+      ruaMobileCardsExpandidos.delete(String(btn.dataset.rotaId || ""));
+      renderizarRuaMobile();
+    });
+  });
+
+  // Mobile > Rua: permite trocar produto clicando no item da listagem,
+  // reaproveitando o mesmo modal/fluxo de troca rápida da tela de Rotas.
+  listaEl.querySelectorAll("[data-rota-trocar-produto]").forEach(btn => {
+    btn.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (typeof abrirTrocaProdutoRota !== "function") {
+        alert("Troca de produto indisponível nesta versão.");
+        return;
+      }
+      await abrirTrocaProdutoRota(btn.dataset.eventoId, btn.dataset.produtoIndex);
+      if (typeof sincronizarRotasOperacaoNuvem === "function") await sincronizarRotasOperacaoNuvem(false);
       renderizarRuaMobile();
     });
   });
