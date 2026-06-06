@@ -12072,3 +12072,127 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
   .manut-mobile-codigo-destaque,
   .manut-mobile-detalhe-card .manut-mobile-codigo{font-size:20px !important;}
 }
+
+
+/* v19-dev: ajustes mobile rua/manutenção - agrupamento, modal e ficha */
+.rota-horario-destaque.horario-fora-comercial,
+.rua-mobile-horario-destaque.horario-fora-comercial,
+.rota-grid-info .rota-col strong.rota-horario-destaque.horario-fora-comercial,
+.rota-operacao-data strong.rota-horario-destaque.horario-fora-comercial,
+.card .col strong.rota-horario-destaque.horario-fora-comercial,
+.rua-mobile-card h3 .rua-mobile-horario-destaque.horario-fora-comercial{
+  background:#fff1a8 !important;
+  border:1px solid #e2c85a !important;
+  color:inherit !important;
+  border-radius:5px !important;
+  padding:0 3px !important;
+  display:inline !important;
+  font-size:inherit !important;
+  font-weight:inherit !important;
+  line-height:inherit !important;
+  white-space:nowrap !important;
+  vertical-align:baseline !important;
+  box-shadow:none !important;
+}
+
+.manut-mobile-modal-wrap{
+  align-items:center !important;
+  padding:12px !important;
+  overscroll-behavior:contain !important;
+}
+.manut-mobile-modal-card{
+  max-height:calc(100dvh - 24px) !important;
+  margin:auto !important;
+}
+.manut-mobile-info-linha{
+  display:grid !important;
+  grid-template-columns:minmax(0,1.25fr) minmax(110px,.75fr) !important;
+  gap:8px !important;
+  align-items:stretch !important;
+  margin:8px 0 !important;
+}
+.manut-mobile-info-card,
+.manut-mobile-disponibilidade-box{
+  border:1px solid #e2e8f0 !important;
+  background:#f8fafc !important;
+  border-radius:12px !important;
+  padding:8px !important;
+  min-width:0 !important;
+}
+.manut-mobile-info-card small,
+.manut-mobile-disponibilidade-box small{
+  display:block !important;
+  font-size:11px !important;
+  line-height:1.25 !important;
+  color:#64748b !important;
+  overflow-wrap:anywhere !important;
+}
+.manut-mobile-usabilidade-box span{
+  display:block !important;
+  font-size:11px !important;
+  font-weight:800 !important;
+  color:#475569 !important;
+  margin-bottom:4px !important;
+}
+.manut-mobile-usabilidade-box select{
+  width:100% !important;
+  min-height:34px !important;
+  border-radius:10px !important;
+  border:1px solid #cbd5e1 !important;
+  padding:4px 6px !important;
+  font-size:12px !important;
+  font-weight:700 !important;
+  background:#fff !important;
+}
+.manut-mobile-usabilidade-box select.usab-excelente{background:#ecfdf5 !important;border-color:#86efac !important;color:#166534 !important;}
+.manut-mobile-usabilidade-box select.usab-bom{background:#f0fdf4 !important;border-color:#bbf7d0 !important;color:#15803d !important;}
+.manut-mobile-usabilidade-box select.usab-regular{background:#fffbeb !important;border-color:#fde68a !important;color:#92400e !important;}
+.manut-mobile-usabilidade-box select.usab-ruim,
+.manut-mobile-usabilidade-box select.usab-baixa{background:#fff1f2 !important;border-color:#fecdd3 !important;color:#be123c !important;}
+.manut-mobile-disponibilidade-box{
+  display:grid !important;
+  grid-template-columns:auto 1fr !important;
+  column-gap:6px !important;
+  row-gap:2px !important;
+  align-items:center !important;
+  margin:7px 0 !important;
+}
+.manut-mobile-disponibilidade-box strong{font-size:11px !important;color:#475569 !important;}
+.manut-mobile-disponibilidade-box span{font-size:12px !important;font-weight:800 !important;color:#0f172a !important;}
+.manut-mobile-disponibilidade-box small{grid-column:1 / -1 !important;}
+@media (max-width:420px){
+  .manut-mobile-info-linha{grid-template-columns:1fr !important;gap:6px !important;}
+  .manut-mobile-modal-wrap{align-items:flex-start !important;padding-top:8px !important;}
+}
+
+/* Mobile > Manutenção: botão concluir grande restaurado no final da ficha */
+.manut-mobile-concluir-grande {
+  width: 100%;
+  margin-top: 10px;
+  min-height: 42px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+
+/* v19-dev ajuste real: Mobile > Manutenção - apenas X no topo e ordem correta dos campos */
+.manut-mobile-concluir-icone,
+#manutencaoMobileConcluir{
+  display:none !important;
+}
+.manut-mobile-modal-card{
+  display:flex !important;
+  flex-direction:column !important;
+}
+.manut-mobile-modal-top{ order:1 !important; }
+.manut-mobile-observacao{ order:2 !important; }
+.manut-mobile-info-linha{ order:3 !important; }
+.manut-mobile-disponibilidade-box{ order:4 !important; }
+.manut-mobile-checklist{ order:5 !important; }
+.manut-mobile-status-botoes{ order:6 !important; }
+.manut-mobile-concluir-grande{ order:7 !important; display:flex !important; align-items:center !important; justify-content:center !important; width:100% !important; margin-top:10px !important; }
+.manut-mobile-modal-acoes-topo{
+  display:flex !important;
+  justify-content:flex-end !important;
+  align-items:flex-start !important;
+}

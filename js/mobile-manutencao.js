@@ -57,6 +57,47 @@ function manutMobileStatusBadge(status) {
   return `<span class="manut-mobile-status-badge status-${manutMobileStatusClasse(status)}">${texto}</span>`;
 }
 
+
+function manutMobileUsabilidadeOpcoes() {
+  return (typeof grausUsabilidade !== "undefined" && Array.isArray(grausUsabilidade) && grausUsabilidade.length)
+    ? grausUsabilidade
+    : ["Excelente", "Bom", "Regular", "Ruim", "Venda / Baixa"];
+}
+
+function manutMobileDisponibilidadeResumo(produto = {}) {
+  try {
+    if (typeof disponibilidadePeriodoProduto === "function") {
+      const disp = disponibilidadePeriodoProduto(produto) || {};
+      return {
+        titulo: disp.texto || "Disponibilidade",
+        detalhe: disp.detalhe || "Sem detalhe de disponibilidade"
+      };
+    }
+    if (typeof proximoUsoProduto === "function") {
+      const proximo = proximoUsoProduto(produto);
+      if (proximo) {
+        const dataTxt = typeof formatarDataHoraProdutoDisp === "function"
+          ? `${formatarDataHoraProdutoDisp(proximo.intervalo?.inicio)} até ${formatarDataHoraProdutoDisp(proximo.intervalo?.fim)}`
+          : "Próximo evento encontrado";
+        return { titulo: "Próximo uso", detalhe: `${proximo.evento?.nome || "Cliente"} — ${dataTxt}` };
+      }
+    }
+  } catch (erro) {
+    console.warn("Não foi possível calcular disponibilidade mobile:", erro);
+  }
+  return { titulo: produto.status || "Livre", detalhe: "Nenhum uso futuro encontrado" };
+}
+
+function manutMobileUsabilidadeClasse(valor) {
+  const v = manutMobileNormalizar(valor);
+  if (v.includes("excelente")) return "excelente";
+  if (v.includes("bom")) return "bom";
+  if (v.includes("regular")) return "regular";
+  if (v.includes("ruim")) return "ruim";
+  if (v.includes("venda") || v.includes("baixa")) return "baixa";
+  return "padrao";
+}
+
 function manutMobileRemoverMarcacoesAuto(texto) {
   return String(texto || "")
     .split(/\n+/)
@@ -238,6 +279,7 @@ function manutMobileChecklistHtml(produto = {}) {
 }
 
 function abrirManutencaoMobileProduto(id, opcoes = {}) {
+  try { document.activeElement && document.activeElement.blur && document.activeElement.blur(); } catch {}
   manutencaoMobileProdutoAtualId = id;
   if (!opcoes.semHistorico && typeof window.rtMobilePushState === "function") {
     window.rtMobilePushState("manutencaoMobileSection", { detalheProdutoId: String(id || "") });
@@ -245,6 +287,8 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
   const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(id));
   const detalhe = document.getElementById("manutencaoMobileDetalhe");
   if (!detalhe || !produto) return;
+  const dispMobile = manutMobileDisponibilidadeResumo(produto);
+  const usabilidadeAtual = produto.grau_usabilidade || produto.usabilidade || "Bom";
 
   detalhe.hidden = false;
   detalhe.classList.add("manut-mobile-modal-wrap");
@@ -257,7 +301,6 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
           <p>Status atual: ${manutMobileStatusBadge(produto.status)}</p>
         </div>
         <div class="manut-mobile-modal-acoes-topo">
-          <button type="button" class="btn-outline manut-mobile-concluir-icone" id="manutencaoMobileConcluir" title="Concluir">✓</button>
           <button type="button" class="btn-outline manut-mobile-fechar" id="manutMobileFecharDetalhe" title="Fechar">×</button>
         </div>
       </div>
@@ -266,12 +309,26 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
         <textarea id="manutencaoMobileObs" rows="1" placeholder="Ex.: Lavagem, troca de lona, costura, reparo...">${manutMobileEscape(produto.observacao || "")}</textarea>
       </label>
 
-      <div class="manut-mobile-checado-box">
-        <div>
-          <strong>Checado no depósito</strong>
-          <small>${manutMobileEscape(manutMobileResumoChecagem(produto))}</small>
+      <div class="manut-mobile-info-linha">
+        <div class="manut-mobile-checado-box manut-mobile-info-card">
+          <div>
+            <strong>Checado no depósito</strong>
+            <small>${manutMobileEscape(manutMobileResumoChecagem(produto))}</small>
+          </div>
+          <button type="button" class="btn-check-produto manut-mobile-check-deposito" id="manutMobileCheckDeposito" title="Marcar produto como checado no depósito">✓</button>
         </div>
-        <button type="button" class="btn-check-produto manut-mobile-check-deposito" id="manutMobileCheckDeposito" title="Marcar produto como checado no depósito">✓</button>
+        <label class="manut-mobile-usabilidade-box manut-mobile-info-card">
+          <span>Usabilidade</span>
+          <select id="manutMobileUsabilidade" class="usab-${manutMobileUsabilidadeClasse(usabilidadeAtual)}">
+            ${manutMobileUsabilidadeOpcoes().map(op => `<option value="${manutMobileEscape(op)}" ${String(op) === String(usabilidadeAtual) ? "selected" : ""}>${manutMobileEscape(op)}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+
+      <div class="manut-mobile-disponibilidade-box">
+        <strong>Disponibilidade</strong>
+        <span>${manutMobileEscape(dispMobile.titulo)}</span>
+        <small>${manutMobileEscape(dispMobile.detalhe)}</small>
       </div>
 
       <div class="manut-mobile-checklist">
@@ -285,13 +342,10 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
         <button type="button" class="btn-outline" data-manut-status="Bloqueado">Bloquear</button>
         <button type="button" class="btn-outline" data-manut-status="Livre">Liberar</button>
       </div>
+
+      <button type="button" class="btn-primary manut-mobile-concluir-grande" id="manutencaoMobileConcluirGrande">✓ Concluir</button>
     </div>
   `;
-
-  setTimeout(() => {
-    const obs = document.getElementById("manutencaoMobileObs");
-    if (obs) obs.focus({ preventScroll: true });
-  }, 80);
 
   document.getElementById("manutMobileFecharDetalhe")?.addEventListener("click", () => {
     detalhe.hidden = true;
@@ -315,17 +369,60 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
   });
 
   document.getElementById("manutMobileCheckDeposito")?.addEventListener("click", () => marcarChecadoDepositoManutencaoMobile());
+  document.getElementById("manutMobileUsabilidade")?.addEventListener("change", (ev) => alterarUsabilidadeManutencaoMobile(ev.currentTarget.value));
 
   ["manutCheckLimpo", "manutCheckRevisado", "manutCheckConsertado", "manutCheckPronto"].forEach(idCheck => {
     document.getElementById(idCheck)?.addEventListener("change", manutMobileAtualizarObsChecklist);
   });
 
-  document.getElementById("manutencaoMobileConcluir")?.addEventListener("click", () => {
+  function concluirManutencaoMobileProduto() {
     const pronto = document.getElementById("manutCheckPronto")?.checked;
     salvarManutencaoMobileProduto(pronto ? "Livre" : (produto.status || "Revisar"));
-  });
+  }
+
+  document.getElementById("manutencaoMobileConcluirGrande")?.addEventListener("click", concluirManutencaoMobileProduto);
 }
 
+
+
+async function alterarUsabilidadeManutencaoMobile(novaUsabilidade) {
+  const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(manutencaoMobileProdutoAtualId));
+  if (!produto) return;
+  if ((produto.grau_usabilidade || "Bom") === novaUsabilidade) return;
+
+  const anterior = produto.grau_usabilidade || "Bom";
+  const agora = new Date().toISOString();
+  const colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "Mobile";
+
+  produto.grau_usabilidade = novaUsabilidade;
+  produto.atualizado_em = agora;
+  produto.colaborador = colaborador;
+  produto.historico = Array.isArray(produto.historico) ? produto.historico : [];
+  produto.historico.push({
+    data: agora,
+    colaborador,
+    alteracao: `Usabilidade alterada via mobile para ${novaUsabilidade}`,
+    observacao: produto.observacao || "-"
+  });
+
+  const salvo = typeof salvarProdutoBanco === "function" ? await salvarProdutoBanco(produto) : produto;
+  if (!salvo) return;
+  const idx = produtos.findIndex(p => String(p.id) === String(produto.id));
+  if (idx >= 0) produtos[idx] = salvo;
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Mobile Manutenção",
+      acao: "Usabilidade alterada",
+      registro_id: salvo.id,
+      registro_nome: salvo.codigo || "Produto",
+      antes: { grau_usabilidade: anterior },
+      depois: { grau_usabilidade: novaUsabilidade }
+    });
+  }
+  const select = document.getElementById("manutMobileUsabilidade");
+  if (select) select.className = `usab-${manutMobileUsabilidadeClasse(novaUsabilidade)}`;
+  if (typeof renderizarProdutos === "function") renderizarProdutos();
+}
 
 async function marcarChecadoDepositoManutencaoMobile() {
   const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(manutencaoMobileProdutoAtualId));

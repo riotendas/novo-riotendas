@@ -182,8 +182,22 @@ function renderizarRuaMobile() {
   }
 
   const ruaMobileAgruparPorCarro = !(document.getElementById("ruaMobileCarro")?.value || "");
-  let ruaMobileCarroAnterior = null;
-  listaEl.innerHTML = rotas.map((rota, index) => {
+  const rotasRender = ruaMobileAgruparPorCarro
+    ? (() => {
+        const grupos = new Map();
+        rotas.forEach((rota, idx) => {
+          const carroGrupo = String(ruaMobileCarroDaRota(rota) || "Sem carro").trim() || "Sem carro";
+          if (!grupos.has(carroGrupo)) grupos.set(carroGrupo, []);
+          grupos.get(carroGrupo).push({ rota, idx });
+        });
+        return Array.from(grupos.entries()).flatMap(([carroGrupo, itens]) =>
+          itens.map((item, pos) => ({ ...item, carroGrupo, inicioGrupo: pos === 0 }))
+        );
+      })()
+    : rotas.map((rota, idx) => ({ rota, idx, carroGrupo: ruaMobileCarroDaRota(rota), inicioGrupo: false }));
+
+  listaEl.innerHTML = rotasRender.map(({ rota, idx, carroGrupo, inicioGrupo }) => {
+    const index = idx;
     const carro = ruaMobileCarroDaRota(rota);
     const tel = ruaMobileTelefoneLimpo(rota.telefone);
     const whats = ruaMobileWhatsappUrl(rota.telefone);
@@ -196,10 +210,9 @@ function renderizarRuaMobile() {
     const concluida = operacao && (operacao.status === "entregue" || operacao.status === "recolhido");
     const expandido = concluida && ruaMobileCardExpandido(rota);
     const classeConclusao = concluida ? (expandido ? "rua-mobile-card-concluido rua-mobile-card-expandido" : "rua-mobile-card-concluido") : "";
-    const ruaMobileGrupoCarro = ruaMobileAgruparPorCarro && carro !== ruaMobileCarroAnterior
-      ? `<div class="rua-mobile-carro-grupo">${carro}</div>`
+    const ruaMobileGrupoCarro = ruaMobileAgruparPorCarro && inicioGrupo
+      ? `<div class="rua-mobile-carro-grupo">${carroGrupo}</div>`
       : "";
-    ruaMobileCarroAnterior = carro;
 
     return `
       ${ruaMobileGrupoCarro}
