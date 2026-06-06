@@ -181,6 +181,8 @@ function renderizarRuaMobile() {
     return;
   }
 
+  const ruaMobileAgruparPorCarro = !(document.getElementById("ruaMobileCarro")?.value || "");
+  let ruaMobileCarroAnterior = null;
   listaEl.innerHTML = rotas.map((rota, index) => {
     const carro = ruaMobileCarroDaRota(rota);
     const tel = ruaMobileTelefoneLimpo(rota.telefone);
@@ -194,8 +196,13 @@ function renderizarRuaMobile() {
     const concluida = operacao && (operacao.status === "entregue" || operacao.status === "recolhido");
     const expandido = concluida && ruaMobileCardExpandido(rota);
     const classeConclusao = concluida ? (expandido ? "rua-mobile-card-concluido rua-mobile-card-expandido" : "rua-mobile-card-concluido") : "";
+    const ruaMobileGrupoCarro = ruaMobileAgruparPorCarro && carro !== ruaMobileCarroAnterior
+      ? `<div class="rua-mobile-carro-grupo">${carro}</div>`
+      : "";
+    ruaMobileCarroAnterior = carro;
 
     return `
+      ${ruaMobileGrupoCarro}
       <article class="rua-mobile-card tipo-${String(rota.tipo || "").toLowerCase()} ${classeConclusao}" data-rua-card-id="${rota.id}">
         <div class="rua-mobile-card-top">
           <div>

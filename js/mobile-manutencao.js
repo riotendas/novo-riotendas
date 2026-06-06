@@ -247,19 +247,23 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
   if (!detalhe || !produto) return;
 
   detalhe.hidden = false;
+  detalhe.classList.add("manut-mobile-modal-wrap");
   detalhe.innerHTML = `
-    <div class="manut-mobile-detalhe-card status-${manutMobileNormalizar(produto.status)}">
-      <div class="manut-mobile-detalhe-top">
-        <div>
-          <span class="manut-mobile-codigo">${manutMobileEscape(produto.codigo || "Sem código")}</span>
+    <div class="manut-mobile-detalhe-card manut-mobile-modal-card status-${manutMobileNormalizar(produto.status)}" role="dialog" aria-modal="true">
+      <div class="manut-mobile-detalhe-top manut-mobile-modal-top">
+        <div class="manut-mobile-produto-titulo">
+          <span class="manut-mobile-codigo manut-mobile-codigo-destaque">${manutMobileEscape(produto.codigo || "Sem código")}</span>
           <h3>${manutMobileEscape(manutMobileProdutoTitulo(produto))}</h3>
           <p>Status atual: ${manutMobileStatusBadge(produto.status)}</p>
         </div>
-        <button type="button" class="btn-outline manut-mobile-fechar" id="manutMobileFecharDetalhe" title="Fechar">×</button>
+        <div class="manut-mobile-modal-acoes-topo">
+          <button type="button" class="btn-outline manut-mobile-concluir-icone" id="manutencaoMobileConcluir" title="Concluir">✓</button>
+          <button type="button" class="btn-outline manut-mobile-fechar" id="manutMobileFecharDetalhe" title="Fechar">×</button>
+        </div>
       </div>
 
       <label class="manut-mobile-observacao">Observação / Reparo realizado
-        <textarea id="manutencaoMobileObs" rows="2" placeholder="Ex.: Lavagem, troca de lona, costura, reparo...">${manutMobileEscape(produto.observacao || "")}</textarea>
+        <textarea id="manutencaoMobileObs" rows="1" placeholder="Ex.: Lavagem, troca de lona, costura, reparo...">${manutMobileEscape(produto.observacao || "")}</textarea>
       </label>
 
       <div class="manut-mobile-checado-box">
@@ -281,19 +285,17 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
         <button type="button" class="btn-outline" data-manut-status="Bloqueado">Bloquear</button>
         <button type="button" class="btn-outline" data-manut-status="Livre">Liberar</button>
       </div>
-
-      <button type="button" id="manutencaoMobileConcluir" class="btn-primary manut-mobile-concluir">✓ Concluir</button>
     </div>
   `;
 
-  detalhe.scrollIntoView({ behavior: "smooth", block: "start" });
   setTimeout(() => {
-    const topo = detalhe.getBoundingClientRect().top + window.scrollY - 74;
-    window.scrollTo({ top: Math.max(0, topo), behavior: "smooth" });
+    const obs = document.getElementById("manutencaoMobileObs");
+    if (obs) obs.focus({ preventScroll: true });
   }, 80);
 
   document.getElementById("manutMobileFecharDetalhe")?.addEventListener("click", () => {
     detalhe.hidden = true;
+    detalhe.classList.remove("manut-mobile-modal-wrap");
     manutencaoMobileProdutoAtualId = null;
     const inputBusca = document.getElementById("manutencaoMobileCodigo");
     if (inputBusca) {

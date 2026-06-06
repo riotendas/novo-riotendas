@@ -11920,3 +11920,155 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
   color:inherit !important;
   box-shadow:none !important;
 }
+
+/* v19-dev: ajuste consolidado Mobile/Rotas - 2026-06-06 */
+/* Horário fora do comercial: amarelo um pouco mais visível, sem mudar fonte/peso/tamanho */
+.rota-horario-destaque.horario-fora-comercial,
+.rua-mobile-horario-destaque.horario-fora-comercial,
+.rota-grid-info .rota-col strong.rota-horario-destaque.horario-fora-comercial,
+.rota-operacao-data strong.rota-horario-destaque.horario-fora-comercial,
+.card .col strong.rota-horario-destaque.horario-fora-comercial,
+.rua-mobile-card h3 .rua-mobile-horario-destaque.horario-fora-comercial{
+  background:#fff4b8 !important;
+  border:1px solid #ead46a !important;
+  color:inherit !important;
+  border-radius:5px !important;
+  padding:0 3px !important;
+  display:inline !important;
+  font-size:inherit !important;
+  font-weight:inherit !important;
+  line-height:inherit !important;
+  white-space:nowrap !important;
+  vertical-align:baseline !important;
+  box-shadow:none !important;
+}
+
+/* Mobile > Rua: impedir textos longos de estourarem a largura e separar por carro */
+.rua-mobile-section,
+.rua-mobile-lista,
+.rua-mobile-card{
+  max-width:100% !important;
+  overflow-x:hidden !important;
+  box-sizing:border-box !important;
+}
+.rua-mobile-card *{box-sizing:border-box !important;}
+.rua-mobile-card-top,
+.rua-mobile-cliente,
+.rua-mobile-endereco,
+.rua-mobile-endereco-resumo,
+.rua-mobile-materiais,
+.rua-mobile-pagamento,
+.rua-mobile-pagamento small{
+  min-width:0 !important;
+  max-width:100% !important;
+  overflow-wrap:anywhere !important;
+  word-break:break-word !important;
+}
+.rua-mobile-card-top{grid-template-columns:minmax(0,1fr) auto !important;}
+.rua-mobile-card-top > div:first-child{min-width:0 !important;}
+.rua-mobile-card h3,
+.rua-mobile-ordem,
+.rua-mobile-cliente small{
+  min-width:0 !important;
+  max-width:100% !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+}
+.rua-mobile-materiais .rota-material-click{
+  max-width:100% !important;
+  white-space:normal !important;
+  overflow-wrap:anywhere !important;
+}
+.rua-mobile-carro-grupo{
+  margin:12px 0 6px !important;
+  padding:7px 10px !important;
+  border-radius:12px !important;
+  background:#eaf2ff !important;
+  border:1px solid #c9ddff !important;
+  color:#073b76 !important;
+  font-weight:800 !important;
+  font-size:13px !important;
+  letter-spacing:.02em !important;
+  text-transform:uppercase !important;
+}
+.rua-mobile-carro-grupo:first-child{margin-top:0 !important;}
+
+/* Mobile > Manutenção: produto em popup e ações do topo compactas */
+.manut-mobile-modal-wrap[hidden]{display:none !important;}
+.manut-mobile-modal-wrap{
+  position:fixed !important;
+  inset:0 !important;
+  z-index:9999 !important;
+  display:flex !important;
+  align-items:flex-start !important;
+  justify-content:center !important;
+  padding:10px !important;
+  background:rgba(15,23,42,.38) !important;
+  overflow:auto !important;
+  scroll-margin-top:0 !important;
+}
+.manut-mobile-modal-card{
+  width:min(96vw,520px) !important;
+  max-height:calc(100vh - 20px) !important;
+  overflow:auto !important;
+  margin:0 !important;
+  border-radius:16px !important;
+  box-shadow:0 18px 45px rgba(15,23,42,.22) !important;
+}
+.manut-mobile-modal-top{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) auto !important;
+  align-items:start !important;
+  gap:8px !important;
+}
+.manut-mobile-produto-titulo{min-width:0 !important;}
+.manut-mobile-modal-acoes-topo{
+  display:flex !important;
+  gap:5px !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  flex:0 0 auto !important;
+}
+.manut-mobile-concluir-icone,
+.manut-mobile-fechar{
+  width:32px !important;
+  min-width:32px !important;
+  height:32px !important;
+  min-height:32px !important;
+  padding:0 !important;
+  border-radius:999px !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  font-size:18px !important;
+  line-height:1 !important;
+  font-weight:800 !important;
+}
+.manut-mobile-concluir-icone{
+  color:#166534 !important;
+  border-color:#86efac !important;
+  background:#f0fdf4 !important;
+}
+.manut-mobile-codigo-destaque,
+.manut-mobile-detalhe-card .manut-mobile-codigo{
+  font-size:22px !important;
+  line-height:1.05 !important;
+  font-weight:900 !important;
+  letter-spacing:.02em !important;
+}
+.manut-mobile-detalhe-card h3{
+  font-size:13px !important;
+  line-height:1.15 !important;
+  font-weight:700 !important;
+  color:#475569 !important;
+  margin:4px 0 2px !important;
+}
+.manut-mobile-detalhe-card p{margin:3px 0 !important;}
+.manut-mobile-concluir{display:none !important;}
+@media (max-width:380px){
+  .manut-mobile-modal-wrap{padding:6px !important;}
+  .manut-mobile-modal-card{width:98vw !important;}
+  .manut-mobile-codigo-destaque,
+  .manut-mobile-detalhe-card .manut-mobile-codigo{font-size:20px !important;}
+}
