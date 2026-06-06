@@ -290,23 +290,17 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
   const dispMobile = manutMobileDisponibilidadeResumo(produto);
   const usabilidadeAtual = produto.grau_usabilidade || produto.usabilidade || "Bom";
 
-  // Abre a ficha exatamente na região atual de trabalho:
-  // - se veio de um card da lista, posiciona logo abaixo do card clicado;
-  // - se veio da busca, posiciona logo abaixo da mensagem/campo de busca;
-  // - não força scroll para topo nem centraliza na página.
+  // Abre sempre como modal fixo e visível.
+  // Evita que a ficha apareça perdida no topo/meio/lista após várias aberturas.
   try {
-    const anchor = opcoes.anchorEl;
-    const statusBusca = document.getElementById("manutencaoMobileOcrStatus");
-    if (anchor && anchor.parentNode) {
-      anchor.insertAdjacentElement("afterend", detalhe);
-    } else if (statusBusca && statusBusca.parentNode) {
-      statusBusca.insertAdjacentElement("afterend", detalhe);
+    if (detalhe.parentElement !== document.body) {
+      document.body.appendChild(detalhe);
     }
   } catch {}
 
   detalhe.hidden = false;
-  detalhe.classList.remove("manut-mobile-modal-wrap");
-  detalhe.classList.add("manut-mobile-inline-wrap");
+  detalhe.classList.remove("manut-mobile-inline-wrap");
+  detalhe.classList.add("manut-mobile-modal-wrap");
   detalhe.innerHTML = `
     <div class="manut-mobile-detalhe-card manut-mobile-modal-card status-${manutMobileNormalizar(produto.status)}" role="dialog" aria-modal="true">
       <div class="manut-mobile-detalhe-top manut-mobile-modal-top">
@@ -320,15 +314,15 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
         </div>
       </div>
 
-      <label class="manut-mobile-observacao">Observação / Reparo realizado
-        <textarea id="manutencaoMobileObs" rows="1" placeholder="Ex.: Lavagem, troca de lona, costura, reparo...">${manutMobileEscape(produto.observacao || "")}</textarea>
-      </label>
-
       <div class="manut-mobile-disponibilidade-box">
         <strong>Disponibilidade</strong>
         <span>${manutMobileEscape(dispMobile.titulo)}</span>
         <small>${manutMobileEscape(dispMobile.detalhe)}</small>
       </div>
+
+      <label class="manut-mobile-observacao">Observação / Reparo realizado
+        <textarea id="manutencaoMobileObs" rows="1" placeholder="Ex.: Lavagem, troca de lona, costura, reparo...">${manutMobileEscape(produto.observacao || "")}</textarea>
+      </label>
 
       <div class="manut-mobile-info-linha">
         <div class="manut-mobile-checado-box manut-mobile-info-card">
