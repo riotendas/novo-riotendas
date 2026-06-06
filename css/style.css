@@ -12492,3 +12492,18 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
     grid-template-columns: 1fr;
   }
 }
+
+.eventos-mobile-dia-nav {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.eventos-mobile-dia-nav button {
+  min-height: 36px;
+  padding: 6px 8px;
+}
+.eventos-mobile-lista-title {
+  margin-bottom: 8px;
+}

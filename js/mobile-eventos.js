@@ -4,11 +4,34 @@
 
 let eventosMobilePreviewAtual = null;
 let eventosMobileRecognition = null;
+let eventosMobileDataSelecionada = null;
 
 function eventosMobileHojeISO() {
   if (typeof dataLocalISO === "function") return dataLocalISO(new Date());
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function eventosMobileDataAtual() {
+  if (!eventosMobileDataSelecionada) eventosMobileDataSelecionada = eventosMobileHojeISO();
+  return eventosMobileDataSelecionada;
+}
+
+function eventosMobileMoverDia(delta) {
+  const base = eventosMobileDataAtual();
+  const [ano, mes, dia] = String(base).split("-").map(Number);
+  const d = new Date(ano, (mes || 1) - 1, dia || 1, 12, 0, 0, 0);
+  d.setDate(d.getDate() + delta);
+  eventosMobileDataSelecionada = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  renderizarEventosMobile();
+}
+
+function eventosMobileTituloData(dataISO) {
+  if (!dataISO) return "📅 Eventos do dia";
+  const hoje = eventosMobileHojeISO();
+  const texto = eventosMobileFormatarData(dataISO);
+  if (dataISO === hoje) return `📅 Eventos de hoje · ${texto}`;
+  return `📅 Eventos de ${texto}`;
 }
 
 function eventosMobileEscape(txt) {
@@ -87,7 +110,9 @@ function renderizarEventosMobile() {
   if (!listaEl) return;
 
   const busca = eventosMobileNormalizar(document.getElementById("eventosMobileBusca")?.value || "");
-  const hoje = eventosMobileHojeISO();
+  const dataSelecionada = eventosMobileDataAtual();
+  const tituloData = document.getElementById("eventosMobileTituloData");
+  if (tituloData) tituloData.textContent = busca ? "🔍 Resultado da busca" : eventosMobileTituloData(dataSelecionada);
   let lista = eventosMobileListaBase();
 
   if (busca) {
@@ -99,13 +124,13 @@ function renderizarEventosMobile() {
       return texto.includes(busca);
     });
   } else {
-    lista = lista.filter(ev => String(ev.data_evento || "").slice(0, 10) === hoje);
+    lista = lista.filter(ev => String(ev.data_evento || "").slice(0, 10) === dataSelecionada);
   }
 
   lista = eventosMobileOrdenar(lista).slice(0, 80);
 
   if (!lista.length) {
-    listaEl.innerHTML = `<p class="empty">${busca ? "Nenhum evento encontrado." : "Nenhum evento hoje."}</p>`;
+    listaEl.innerHTML = `<p class="empty">${busca ? "Nenhum evento encontrado." : "Nenhum evento nesta data."}</p>`;
     return;
   }
 
@@ -404,6 +429,14 @@ function iniciarEventosMobile() {
   });
 
   document.getElementById("eventosMobileBusca")?.addEventListener("input", renderizarEventosMobile);
+  document.getElementById("eventosMobileDiaAnteriorBtn")?.addEventListener("click", () => eventosMobileMoverDia(-1));
+  document.getElementById("eventosMobileHojeBtn")?.addEventListener("click", () => {
+    eventosMobileDataSelecionada = eventosMobileHojeISO();
+    const busca = document.getElementById("eventosMobileBusca");
+    if (busca) busca.value = "";
+    renderizarEventosMobile();
+  });
+  document.getElementById("eventosMobileDiaProximoBtn")?.addEventListener("click", () => eventosMobileMoverDia(1));
   document.getElementById("eventosMobileGravarBtn")?.addEventListener("click", eventosMobileIniciarReconhecimento);
 
   document.getElementById("eventosMobileInterpretarBtn")?.addEventListener("click", () => {

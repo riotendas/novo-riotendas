@@ -821,8 +821,13 @@
       </div>
 
       <div class="eventos-mobile-card">
-        <div class="eventos-mobile-card-title">
-          <strong>📅 Eventos de hoje / resultado da busca</strong>
+        <div class="eventos-mobile-dia-nav">
+          <button id="eventosMobileDiaAnteriorBtn" class="btn-outline" type="button" title="Dia anterior">←</button>
+          <button id="eventosMobileHojeBtn" class="btn-primary" type="button">Hoje</button>
+          <button id="eventosMobileDiaProximoBtn" class="btn-outline" type="button" title="Próximo dia">→</button>
+        </div>
+        <div class="eventos-mobile-card-title eventos-mobile-lista-title">
+          <strong id="eventosMobileTituloData">📅 Eventos do dia</strong>
           <span>Toque em editar para abrir o cadastro oficial do evento.</span>
         </div>
         <div id="eventosMobileLista" class="eventos-mobile-lista">
