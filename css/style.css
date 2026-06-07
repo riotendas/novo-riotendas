@@ -13732,3 +13732,96 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
     grid-template-columns: 1fr;
   }
 }
+
+/* Mobile Manutenção - pesquisa no histórico completo */
+.manut-mobile-hist-search{
+  width:100%;
+  box-sizing:border-box;
+  margin:6px 0 4px;
+  padding:8px 10px;
+  border:1px solid #d9e2ef;
+  border-radius:10px;
+  font:inherit;
+  font-size:.9rem;
+}
+.manut-mobile-hist-count{
+  font-size:.75rem;
+  color:#64748b;
+  margin:0 0 6px;
+}
+.manut-mobile-hist-modal-row[hidden]{
+  display:none!important;
+}
+
+/* v19-dev: Manutenção Mobile - ações executadas acima da observação, sem Pronto para uso */
+.manut-mobile-bloco-titulo{
+  grid-column:1 / -1;
+  font-size:11px;
+  font-weight:900;
+  color:#334155;
+  margin-bottom:2px;
+}
+.manut-mobile-acoes-executadas{
+  grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  gap:6px !important;
+  margin-top:8px !important;
+}
+.manut-mobile-acoes-executadas .manut-acao-btn{
+  min-height:34px;
+  border-radius:10px;
+  font-size:11px;
+  font-weight:800;
+  padding:6px 4px;
+}
+.manut-mobile-status-grupo{
+  margin-top:8px;
+}
+.manut-mobile-status-grupo .manut-mobile-status-botoes{
+  grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+  gap:6px !important;
+  margin-top:4px !important;
+}
+.manut-mobile-status-grupo .manut-mobile-status-botoes button{
+  min-height:34px;
+  padding:6px 3px;
+  font-size:10.5px;
+  line-height:1.05;
+  white-space:nowrap;
+}
+.manut-mobile-acoes-executadas .manut-acao-btn.manut-status-selecionado{
+  background:#2563eb !important;
+  color:#fff !important;
+  border-color:#1d4ed8 !important;
+  box-shadow:0 0 0 2px rgba(37,99,235,.16) !important;
+}
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-acoes-executadas{order:4 !important;}
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-observacao{order:5 !important;}
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-status-grupo{order:6 !important;}
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-status-botoes{order:initial !important;}
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-concluir-grande{order:7 !important;}
+.manut-mobile-inline-wrap .manut-mobile-acoes-executadas{order:4 !important;}
+.manut-mobile-inline-wrap .manut-mobile-observacao{order:5 !important;}
+.manut-mobile-inline-wrap .manut-mobile-status-grupo{order:6 !important;}
+.manut-mobile-inline-wrap .manut-mobile-concluir-grande{order:7 !important;}
+
+/* v19-dev: Manutenção Mobile - status completo em uma linha */
+.manut-mobile-status-botoes button[data-manut-status="Limpar"].manut-status-selecionado{
+  background:#f59e0b !important;
+  border-color:#d97706 !important;
+  color:#ffffff !important;
+}
+.manut-mobile-status-botoes button[data-manut-status="Revisar"].manut-status-selecionado{
+  background:#7c3aed !important;
+  border-color:#6d28d9 !important;
+  color:#ffffff !important;
+}
+@media (max-width:420px){
+  .manut-mobile-status-grupo .manut-mobile-status-botoes{
+    gap:4px !important;
+  }
+  .manut-mobile-status-grupo .manut-mobile-status-botoes button{
+    font-size:9.5px !important;
+    padding-left:2px !important;
+    padding-right:2px !important;
+  }
+}

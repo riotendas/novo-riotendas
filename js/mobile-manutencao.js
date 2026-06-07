@@ -41,8 +41,7 @@ function manutMobileExtrairChecklist(item = {}) {
   if (/\blimp/.test(t)) itens.push("Limpo");
   if (/revisad/.test(t) || /checklist[^|]*revis/.test(t)) itens.push("Revisado");
   if (/\bconsert/.test(t)) itens.push("Consertado");
-  if (/pronto/.test(t)) itens.push("Pronto");
-  if (/\bbloque/.test(t)) itens.push("Bloqueado");
+    if (/\bbloque/.test(t)) itens.push("Bloqueado");
   if (/\bliber/.test(t) || /para uso/.test(t)) itens.push("Liberado");
   return [...new Set(itens)];
 }
@@ -156,14 +155,26 @@ function manutMobileAbrirHistoricoCompleto(produto = {}) {
   const historico = manutMobileHistoricoProduto(produto);
   const titulo = manutMobileEscape(produto.codigo || produto.numero || produto.id || "Produto");
   const linhas = historico.length
-    ? historico.slice(0, 50).map(item => {
+    ? historico.slice(0, 120).map(item => {
         const data = item.dataObj && !Number.isNaN(item.dataObj.getTime())
           ? `${manutMobileDataCurta(item.dataObj)} ${String(item.dataObj.getHours()).padStart(2, "0")}:${String(item.dataObj.getMinutes()).padStart(2, "0")}`
           : "-";
         const usuario = item.usuario || item.colaborador || item.responsavel || "";
-        const texto = manutMobileEscape(manutMobileTextoHistoricoCompacto(item) || "Registro");
+        const textoOriginal = manutMobileTextoHistoricoCompacto(item) || "Registro";
+        const texto = manutMobileEscape(textoOriginal);
+        const termosBusca = manutMobileNormalizar([
+          data,
+          usuario,
+          textoOriginal,
+          item.texto,
+          item.alteracao,
+          item.observacao,
+          item.descricao,
+          item.status,
+          Array.isArray(item.checklist) ? item.checklist.join(" ") : item.checklist
+        ].filter(Boolean).join(" "));
         return `
-          <div class="manut-mobile-hist-modal-row">
+          <div class="manut-mobile-hist-modal-row" data-hist-text="${manutMobileEscape(termosBusca)}">
             <span>${manutMobileEscape(data)}</span>
             <strong>${texto}</strong>
             ${usuario ? `<em>${manutMobileEscape(usuario)}</em>` : ""}
@@ -185,11 +196,31 @@ function manutMobileAbrirHistoricoCompleto(produto = {}) {
       <h2>Histórico ${titulo}</h2>
       <button type="button" class="icon-btn" id="manutMobileFecharHistorico">×</button>
     </div>
+    ${historico.length ? `
+      <input type="search" id="manutMobileBuscaHistorico" class="manut-mobile-hist-search" placeholder="🔎 Pesquisar no histórico...">
+      <div class="manut-mobile-hist-count" id="manutMobileHistCount">${historico.length} registro(s)</div>
+    ` : ""}
     <div class="manut-mobile-hist-modal-lista">${linhas}</div>
   `;
 
   modal.querySelector("#manutMobileFecharHistorico")?.addEventListener("click", () => modal.close());
+  const busca = modal.querySelector("#manutMobileBuscaHistorico");
+  const contador = modal.querySelector("#manutMobileHistCount");
+  if (busca) {
+    busca.addEventListener("input", () => {
+      const termo = manutMobileNormalizar(busca.value);
+      const rows = [...modal.querySelectorAll(".manut-mobile-hist-modal-row")];
+      let visiveis = 0;
+      rows.forEach(row => {
+        const ok = !termo || String(row.dataset.histText || "").includes(termo);
+        row.hidden = !ok;
+        if (ok) visiveis += 1;
+      });
+      if (contador) contador.textContent = termo ? `${visiveis} resultado(s)` : `${rows.length} registro(s)`;
+    });
+  }
   try { modal.showModal(); } catch { modal.setAttribute("open", "open"); }
+  setTimeout(() => busca?.focus?.(), 80);
 }
 
 
@@ -281,7 +312,7 @@ function manutMobileRemoverMarcacoesAuto(texto) {
   return String(texto || "")
     .split(/\n+/)
     .map(linha => linha
-      .replace(/(?:^|\s*[,-]\s*)(Limpo|Revisado|Consertado|Pronto para uso)(?=\s*(?:,|-|$))/gi, "")
+      .replace(/(?:^|\s*[,-]\s*)(Limpo|Revisado|Consertado)(?=\s*(?:,|-|$))/gi, "")
       .replace(/^\s*[,|-]\s*/, "")
       .replace(/\s*[,|-]\s*$/, "")
       .trim()
@@ -292,15 +323,8 @@ function manutMobileRemoverMarcacoesAuto(texto) {
 }
 
 function manutMobileAtualizarObsChecklist() {
-  const textarea = document.getElementById("manutencaoMobileObs");
-  if (!textarea) return;
-  const base = manutMobileRemoverMarcacoesAuto(textarea.value);
-  const marcas = [];
-  if (document.getElementById("manutCheckLimpo")?.checked) marcas.push("Limpo");
-  if (document.getElementById("manutCheckRevisado")?.checked) marcas.push("Revisado");
-  if (document.getElementById("manutCheckConsertado")?.checked) marcas.push("Consertado");
-  if (document.getElementById("manutCheckPronto")?.checked) marcas.push("Pronto para uso");
-  textarea.value = [base, marcas.join(", ")].filter(Boolean).join(base ? " - " : "");
+  // As ações executadas agora ficam registradas no histórico, sem poluir a observação.
+  return;
 }
 
 function manutMobileProdutoPendente(produto = {}) {
@@ -461,12 +485,9 @@ function manutMobileSnapshotProduto(produto = {}) {
 }
 
 function manutMobileChecksSelecionados() {
-  const checks = [];
-  if (document.getElementById("manutCheckLimpo")?.checked) checks.push("Limpo");
-  if (document.getElementById("manutCheckRevisado")?.checked) checks.push("Revisado");
-  if (document.getElementById("manutCheckConsertado")?.checked) checks.push("Consertado");
-  if (document.getElementById("manutCheckPronto")?.checked) checks.push("Pronto para uso");
-  return checks;
+  return Array.from(document.querySelectorAll("#manutencaoMobileDetalhe [data-manut-check].manut-status-selecionado"))
+    .map(btn => btn.dataset.manutCheck)
+    .filter(Boolean);
 }
 
 function manutMobileTemEdicaoPendente(produto = {}) {
@@ -542,13 +563,11 @@ function manutMobileIniciarSincronizacaoAutomatica() {
 }
 
 function manutMobileChecklistHtml(produto = {}) {
-  const status = manutMobileNormalizar(produto.status);
-  const limpo = status === "limpar" ? "" : "";
   return `
-    <label><input type="checkbox" id="manutCheckLimpo" ${limpo}> Limpo</label>
-    <label><input type="checkbox" id="manutCheckRevisado"> Revisado</label>
-    <label><input type="checkbox" id="manutCheckConsertado"> Consertado</label>
-    <label><input type="checkbox" id="manutCheckPronto"> Pronto para uso</label>
+    <div class="manut-mobile-bloco-titulo">Ações executadas</div>
+    <button type="button" class="btn-outline manut-acao-btn" data-manut-check="Limpo">Limpo</button>
+    <button type="button" class="btn-outline manut-acao-btn" data-manut-check="Revisado">Revisado</button>
+    <button type="button" class="btn-outline manut-acao-btn" data-manut-check="Consertado">Consertado</button>
   `;
 }
 
@@ -613,20 +632,23 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
 
       <div id="manutMobileSyncAviso" class="manut-mobile-sync-aviso" hidden></div>
 
+      <div class="manut-mobile-checklist manut-mobile-acoes-executadas">
+        ${manutMobileChecklistHtml(produto)}
+      </div>
+
       <label class="manut-mobile-observacao manut-mobile-info-card">Observação / Reparo realizado
         <textarea id="manutencaoMobileObs" rows="1" placeholder="Ex.: Lavagem, troca de lona, costura, reparo...">${manutMobileEscape(produto.observacao || "")}</textarea>
       </label>
 
-      <div class="manut-mobile-checklist">
-        ${manutMobileChecklistHtml(produto)}
-      </div>
-
-      <div class="manut-mobile-status-botoes">
-        <button type="button" class="btn-outline" data-manut-status="Limpar">Limpar</button>
-        <button type="button" class="btn-outline" data-manut-status="Revisar">Revisar</button>
-        <button type="button" class="btn-outline" data-manut-status="Consertar">Consertar</button>
-        <button type="button" class="btn-outline" data-manut-status="Bloqueado">Bloquear</button>
-        <button type="button" class="btn-outline" data-manut-status="Livre">Liberar</button>
+      <div class="manut-mobile-status-grupo">
+        <div class="manut-mobile-bloco-titulo">Status do produto</div>
+        <div class="manut-mobile-status-botoes manut-mobile-status-botoes-5">
+          <button type="button" class="btn-outline" data-manut-status="Limpar">Limpar</button>
+          <button type="button" class="btn-outline" data-manut-status="Revisar">Revisar</button>
+          <button type="button" class="btn-outline" data-manut-status="Consertar">Consertar</button>
+          <button type="button" class="btn-outline" data-manut-status="Bloqueado">Bloquear</button>
+          <button type="button" class="btn-outline" data-manut-status="Livre">Liberar</button>
+        </div>
       </div>
 
       <button type="button" class="btn-primary manut-mobile-concluir-grande" id="manutencaoMobileConcluirGrande">✓ Concluir</button>
@@ -646,6 +668,13 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
     }
   });
 
+  detalhe.querySelectorAll("[data-manut-check]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      btn.classList.toggle("manut-status-selecionado");
+      manutMobileAtualizarObsChecklist();
+    });
+  });
+
   detalhe.querySelectorAll("[data-manut-status]").forEach(btn => {
     btn.addEventListener("click", () => {
       const status = btn.dataset.manutStatus || "";
@@ -663,13 +692,8 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
   document.getElementById("manutMobileCheckDeposito")?.addEventListener("click", () => marcarChecadoDepositoManutencaoMobile());
   document.getElementById("manutMobileUsabilidade")?.addEventListener("change", (ev) => alterarUsabilidadeManutencaoMobile(ev.currentTarget.value));
 
-  ["manutCheckLimpo", "manutCheckRevisado", "manutCheckConsertado", "manutCheckPronto"].forEach(idCheck => {
-    document.getElementById(idCheck)?.addEventListener("change", manutMobileAtualizarObsChecklist);
-  });
-
   function concluirManutencaoMobileProduto() {
-    const pronto = document.getElementById("manutCheckPronto")?.checked;
-    const statusFinal = manutencaoMobileStatusSelecionado || (pronto ? "Livre" : (produto.status || "Revisar"));
+    const statusFinal = manutencaoMobileStatusSelecionado || (produto.status || "Revisar");
     salvarManutencaoMobileProduto(statusFinal);
   }
 
