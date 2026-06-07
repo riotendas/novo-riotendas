@@ -12700,3 +12700,432 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
     grid-template-columns: 1fr !important;
   }
 }
+
+
+/* Ajuste 3 cards na mesma faixa */
+.manut-mobile-info-linha{
+  grid-template-columns:22% 48% 30% !important;
+  align-items:stretch !important;
+}
+.manut-mobile-checado-box{
+  display:flex !important;
+  flex-direction:column !important;
+}
+.manut-mobile-check-deposito{
+  margin-top:auto !important;
+  align-self:center !important;
+}
+.manut-mobile-historico-resumo{
+  height:100% !important;
+}
+.manut-mobile-usabilidade-box{
+  min-width:0 !important;
+}
+
+
+/* AJUSTE REAL - Mobile Manutenção: Checado + Histórico + Usabilidade na mesma linha */
+.manutencao-mobile-section .manut-mobile-info-linha-3cards,
+.manutencao-mobile-section .manut-mobile-info-linha {
+  display: grid !important;
+  grid-template-columns: 22% 48% 30% !important;
+  column-gap: 6px !important;
+  row-gap: 0 !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > *,
+.manutencao-mobile-section .manut-mobile-info-linha > * {
+  min-width: 0 !important;
+  width: auto !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+}
+
+.manutencao-mobile-section .manut-mobile-checado-box,
+.manutencao-mobile-section .manut-mobile-historico-card,
+.manutencao-mobile-section .manut-mobile-usabilidade-box {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  padding: 7px !important;
+  min-height: 86px !important;
+  overflow: hidden !important;
+}
+
+.manutencao-mobile-section .manut-mobile-checado-box strong,
+.manutencao-mobile-section .manut-mobile-usabilidade-box span,
+.manutencao-mobile-section .manut-mobile-hist-titulo {
+  font-size: 0.72rem !important;
+  line-height: 1.1 !important;
+}
+
+.manutencao-mobile-section .manut-mobile-checado-box small {
+  font-size: 0.64rem !important;
+  line-height: 1.1 !important;
+}
+
+.manutencao-mobile-section .manut-mobile-check-deposito {
+  margin-top: auto !important;
+  align-self: center !important;
+  width: 38px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 !important;
+  font-size: 0.9rem !important;
+}
+
+.manutencao-mobile-section .manut-mobile-historico-resumo {
+  background: #f8fafc !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  border-radius: 10px !important;
+  font-size: 0.70rem !important;
+  line-height: 1.12 !important;
+}
+
+.manutencao-mobile-section .manut-mobile-hist-row {
+  display: grid !important;
+  grid-template-columns: 34px minmax(0, 1fr) !important;
+  gap: 3px !important;
+}
+
+.manutencao-mobile-section .manut-mobile-hist-row span,
+.manutencao-mobile-section .manut-mobile-hist-row strong {
+  font-size: 0.68rem !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.manutencao-mobile-section .manut-mobile-hist-more {
+  margin-top: 3px !important;
+  font-size: 0.68rem !important;
+  line-height: 1.1 !important;
+}
+
+.manutencao-mobile-section .manut-mobile-usabilidade-box select {
+  width: 100% !important;
+  min-width: 0 !important;
+  font-size: 0.72rem !important;
+  padding: 4px !important;
+}
+
+@media (max-width: 360px) {
+  .manutencao-mobile-section .manut-mobile-info-linha-3cards,
+  .manutencao-mobile-section .manut-mobile-info-linha {
+    grid-template-columns: 24% 46% 30% !important;
+    column-gap: 4px !important;
+  }
+  .manutencao-mobile-section .manut-mobile-checado-box,
+  .manutencao-mobile-section .manut-mobile-historico-card,
+  .manutencao-mobile-section .manut-mobile-usabilidade-box {
+    padding: 5px !important;
+  }
+}
+
+
+/* FINAL REAL: Mobile Manutenção - 3 cards na mesma faixa */
+.manutencao-mobile-section .manut-mobile-info-linha-3cards {
+  display: grid !important;
+  grid-template-columns: 22% 48% 30% !important;
+  gap: 6px !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-checado-box,
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-historico-resumo,
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-usabilidade-box {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  min-height: 86px !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-checado-box {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  padding: 7px !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards .manut-mobile-check-deposito {
+  align-self: center !important;
+  margin-top: auto !important;
+  width: 38px !important;
+  min-width: 38px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-historico-resumo {
+  padding: 7px !important;
+  font-size: 0.70rem !important;
+  line-height: 1.12 !important;
+  overflow: hidden !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-usabilidade-box {
+  padding: 7px !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-usabilidade-box select {
+  width: 100% !important;
+  min-width: 0 !important;
+  font-size: 0.72rem !important;
+  padding: 4px !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards .manut-mobile-checado-box strong,
+.manutencao-mobile-section .manut-mobile-info-linha-3cards .manut-mobile-usabilidade-box span {
+  font-size: 0.72rem !important;
+  line-height: 1.1 !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards .manut-mobile-checado-box small {
+  font-size: 0.64rem !important;
+  line-height: 1.1 !important;
+}
+
+@media (max-width: 390px) {
+  .manutencao-mobile-section .manut-mobile-info-linha-3cards {
+    grid-template-columns: 24% 46% 30% !important;
+    gap: 4px !important;
+  }
+  .manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-checado-box,
+  .manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-historico-resumo,
+  .manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-usabilidade-box {
+    padding: 5px !important;
+  }
+}
+
+
+/* FINAL: Mobile Manutenção - três cards no mesmo container real */
+.manutencao-mobile-section .manut-mobile-info-linha-3cards {
+  display: grid !important;
+  grid-template-columns: minmax(82px, 22%) minmax(0, 48%) minmax(96px, 30%) !important;
+  gap: 6px !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 8px 0 !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-checado-box,
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-historico-resumo,
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-usabilidade-box {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  min-height: 88px !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-checado-box {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  padding: 7px !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards .manut-mobile-check-deposito {
+  align-self: center !important;
+  margin-top: auto !important;
+  width: 38px !important;
+  min-width: 38px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 !important;
+  font-size: 0.9rem !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards .manut-mobile-checado-box strong,
+.manutencao-mobile-section .manut-mobile-info-linha-3cards .manut-mobile-usabilidade-box span,
+.manutencao-mobile-section .manut-mobile-info-linha-3cards .manut-mobile-hist-titulo {
+  font-size: 0.72rem !important;
+  line-height: 1.1 !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards .manut-mobile-checado-box small {
+  font-size: 0.64rem !important;
+  line-height: 1.1 !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-historico-resumo {
+  padding: 7px !important;
+  background: #f8fafc !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  font-size: 0.70rem !important;
+  line-height: 1.12 !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards .manut-mobile-hist-row {
+  display: grid !important;
+  grid-template-columns: 34px minmax(0, 1fr) !important;
+  gap: 3px !important;
+  align-items: center !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards .manut-mobile-hist-row span,
+.manutencao-mobile-section .manut-mobile-info-linha-3cards .manut-mobile-hist-row strong {
+  font-size: 0.68rem !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards .manut-mobile-hist-more {
+  margin-top: 3px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #2563eb !important;
+  padding: 0 !important;
+  font: inherit !important;
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  line-height: 1.1 !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-usabilidade-box {
+  padding: 7px !important;
+}
+
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-usabilidade-box select {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  font-size: 0.72rem !important;
+  padding: 4px !important;
+}
+
+.manut-mobile-produto-titulo-inline {
+  display: inline-flex !important;
+  align-items: baseline !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+  margin: 0 !important;
+}
+
+.manut-mobile-produto-titulo-inline .manut-mobile-title-produto {
+  font: inherit !important;
+  font-weight: inherit !important;
+  color: inherit !important;
+  opacity: 0.88 !important;
+}
+
+.manut-mobile-hist-modal {
+  max-width: 560px;
+  width: min(92vw, 560px);
+}
+
+.manut-mobile-hist-modal-lista {
+  display: grid;
+  gap: 6px;
+  max-height: 70vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.manut-mobile-hist-modal-row {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 0.86rem;
+}
+
+.manut-mobile-hist-modal-row span {
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.manut-mobile-hist-modal-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.manut-mobile-hist-modal-row em {
+  font-style: normal;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+@media (max-width: 390px) {
+  .manutencao-mobile-section .manut-mobile-info-linha-3cards {
+    grid-template-columns: minmax(74px, 24%) minmax(0, 46%) minmax(86px, 30%) !important;
+    gap: 4px !important;
+  }
+  .manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-checado-box,
+  .manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-historico-resumo,
+  .manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-usabilidade-box {
+    padding: 5px !important;
+  }
+  .manut-mobile-hist-modal-row {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+  .manut-mobile-hist-modal-row em {
+    display: none;
+  }
+}
+
+
+/* v19-dev ajuste fino: reduzir apenas Checado no depósito */
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-checado-box{
+  flex: 0 0 22% !important;
+  max-width:22% !important;
+}
+
+
+/* v19-dev ajuste 30/40/30 */
+.manutencao-mobile-section .manut-mobile-info-linha-3cards{
+  display:grid !important;
+  grid-template-columns:30% 40% 30% !important;
+  flex-wrap:nowrap !important;
+}
+.manutencao-mobile-section .manut-mobile-info-linha-3cards > .manut-mobile-checado-box{
+  max-width:100% !important;
+  flex:none !important;
+}
+
+/* v19-dev CORRECAO DEFINITIVA: Mobile Manutencao - cards Checado/Historico/Usabilidade em 30/40/30 */
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-info-linha.manut-mobile-info-linha-3cards,
+#manutencaoMobileSection .manut-mobile-info-linha.manut-mobile-info-linha-3cards,
+.manutencao-mobile-section .manut-mobile-info-linha.manut-mobile-info-linha-3cards {
+  display: grid !important;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 4fr) minmax(0, 3fr) !important;
+  gap: 6px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  align-items: stretch !important;
+  box-sizing: border-box !important;
+}
+
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-info-linha.manut-mobile-info-linha-3cards > .manut-mobile-checado-box,
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-info-linha.manut-mobile-info-linha-3cards > .manut-mobile-historico-resumo,
+#manutencaoMobileDetalhe.manut-mobile-modal-wrap .manut-mobile-info-linha.manut-mobile-info-linha-3cards > .manut-mobile-usabilidade-box,
+#manutencaoMobileSection .manut-mobile-info-linha.manut-mobile-info-linha-3cards > .manut-mobile-checado-box,
+#manutencaoMobileSection .manut-mobile-info-linha.manut-mobile-info-linha-3cards > .manut-mobile-historico-resumo,
+#manutencaoMobileSection .manut-mobile-info-linha.manut-mobile-info-linha-3cards > .manut-mobile-usabilidade-box,
+.manutencao-mobile-section .manut-mobile-info-linha.manut-mobile-info-linha-3cards > .manut-mobile-checado-box,
+.manutencao-mobile-section .manut-mobile-info-linha.manut-mobile-info-linha-3cards > .manut-mobile-historico-resumo,
+.manutencao-mobile-section .manut-mobile-info-linha.manut-mobile-info-linha-3cards > .manut-mobile-usabilidade-box {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  flex: initial !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+}

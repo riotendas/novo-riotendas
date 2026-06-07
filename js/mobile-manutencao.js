@@ -92,7 +92,7 @@ function manutMobileRenderHistoricoResumo(produto = {}) {
   }).join("");
 
   return `
-    <div class="manut-mobile-historico-resumo">
+    <div class="manut-mobile-historico-resumo manut-mobile-historico-card">
       <div class="manut-mobile-hist-titulo">Histórico recente</div>
       <div class="manut-mobile-hist-recent">
         ${linhas || `<div class="manut-mobile-hist-row vazio">Sem histórico registrado.</div>`}
@@ -103,19 +103,48 @@ function manutMobileRenderHistoricoResumo(produto = {}) {
 }
 
 
+
+
 function manutMobileAbrirHistoricoCompleto(produto = {}) {
   const historico = manutMobileHistoricoProduto(produto);
+  const titulo = manutMobileEscape(produto.codigo || produto.numero || produto.id || "Produto");
   const linhas = historico.length
-    ? historico.slice(0, 40).map(item => {
+    ? historico.slice(0, 50).map(item => {
         const data = item.dataObj && !Number.isNaN(item.dataObj.getTime())
           ? `${manutMobileDataCurta(item.dataObj)} ${String(item.dataObj.getHours()).padStart(2, "0")}:${String(item.dataObj.getMinutes()).padStart(2, "0")}`
           : "-";
         const usuario = item.usuario || item.colaborador || item.responsavel || "";
-        return `${data} — ${item.texto || "Registro"}${usuario ? ` — ${usuario}` : ""}`;
-      }).join("\\n")
-    : "Sem histórico registrado para este produto.";
-  alert(`Histórico completo\\n\\n${linhas}`);
+        const texto = manutMobileEscape(item.texto || "Registro");
+        return `
+          <div class="manut-mobile-hist-modal-row">
+            <span>${manutMobileEscape(data)}</span>
+            <strong>${texto}</strong>
+            ${usuario ? `<em>${manutMobileEscape(usuario)}</em>` : ""}
+          </div>
+        `;
+      }).join("")
+    : `<p class="empty">Sem histórico registrado para este produto.</p>`;
+
+  let modal = document.getElementById("manutMobileHistoricoDialog");
+  if (!modal) {
+    modal = document.createElement("dialog");
+    modal.id = "manutMobileHistoricoDialog";
+    modal.className = "modal manut-mobile-hist-modal";
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = `
+    <div class="modal-header">
+      <h2>Histórico ${titulo}</h2>
+      <button type="button" class="icon-btn" id="manutMobileFecharHistorico">×</button>
+    </div>
+    <div class="manut-mobile-hist-modal-lista">${linhas}</div>
+  `;
+
+  modal.querySelector("#manutMobileFecharHistorico")?.addEventListener("click", () => modal.close());
+  try { modal.showModal(); } catch { modal.setAttribute("open", "open"); }
 }
+
 
 
 function manutMobileUltimaChecagemProduto(produto = {}) {
@@ -137,6 +166,13 @@ function manutMobileResumoChecagem(produto = {}) {
 
 function manutMobileProdutoTitulo(produto = {}) {
   return [produto.categoria || produto.tipo, produto.tamanho, produto.cor].filter(Boolean).join(" · ") || "Produto";
+}
+
+
+function manutMobileTituloInline(produto = {}) {
+  const codigo = produto.codigo || produto.numero || produto.id || "";
+  const nome = manutMobileProdutoTitulo(produto);
+  return `<span class="manut-mobile-codigo-destaque">${manutMobileEscape(codigo)}</span> <span class="manut-mobile-title-produto">${manutMobileEscape(nome)}</span>`;
 }
 
 function manutMobileStatusClasse(status) {
@@ -276,8 +312,7 @@ function renderizarManutencaoMobile() {
   listaEl.innerHTML = lista.map(produto => `
     <article class="manut-mobile-card status-${manutMobileNormalizar(produto.status)}" data-manut-produto-id="${manutMobileEscape(produto.id)}">
       <div>
-        <span class="manut-mobile-codigo">${manutMobileEscape(produto.codigo || "Sem código")}</span>
-        <h3>${manutMobileEscape(manutMobileProdutoTitulo(produto))}</h3>
+        <h3 class="manut-mobile-produto-titulo-inline">${manutMobileTituloInline(produto)}</h3>
         <small>Status: ${manutMobileStatusBadge(produto.status)}</small>
       </div>
       <button type="button" class="btn-outline" data-manut-abrir="${manutMobileEscape(produto.id)}">Abrir</button>
@@ -401,8 +436,7 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
     <div class="manut-mobile-detalhe-card manut-mobile-modal-card status-${manutMobileNormalizar(produto.status)}" role="dialog" aria-modal="true">
       <div class="manut-mobile-detalhe-top manut-mobile-modal-top">
         <div class="manut-mobile-produto-titulo">
-          <span class="manut-mobile-codigo manut-mobile-codigo-destaque">${manutMobileEscape(produto.codigo || "Sem código")}</span>
-          <h3>${manutMobileEscape(manutMobileProdutoTitulo(produto))}</h3>
+          <h3 class="manut-mobile-produto-titulo-inline">${manutMobileTituloInline(produto)}</h3>
           <p>Status atual: ${manutMobileStatusBadge(produto.status)}</p>
         </div>
         <div class="manut-mobile-modal-acoes-topo">
@@ -416,7 +450,7 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
         <small>${manutMobileEscape(dispMobile.detalhe)}</small>
       </div>
 
-      <div class="manut-mobile-info-linha">
+      <div class="manut-mobile-info-linha manut-mobile-info-linha-3cards">
         <div class="manut-mobile-checado-box manut-mobile-info-card">
           <div>
             <strong>Checado no depósito</strong>
@@ -424,7 +458,7 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
           </div>
           <button type="button" class="btn-check-produto manut-mobile-check-deposito" id="manutMobileCheckDeposito" title="Marcar produto como checado no depósito">✓</button>
         </div>
-              ${manutMobileRenderHistoricoResumo(produto)}
+        ${manutMobileRenderHistoricoResumo(produto)}
         <label class="manut-mobile-usabilidade-box manut-mobile-info-card">
           <span>Usabilidade</span>
           <select id="manutMobileUsabilidade" class="usab-${manutMobileUsabilidadeClasse(usabilidadeAtual)}">
@@ -433,13 +467,11 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
         </label>
       </div>
 
-            
-
-
-      <label class="manut-mobile-observacao">Observação / Reparo realizado
+      <label class="manut-mobile-observacao manut-mobile-info-card">Observação / Reparo realizado
         <textarea id="manutencaoMobileObs" rows="1" placeholder="Ex.: Lavagem, troca de lona, costura, reparo...">${manutMobileEscape(produto.observacao || "")}</textarea>
       </label>
-<div class="manut-mobile-checklist">
+
+      <div class="manut-mobile-checklist">
         ${manutMobileChecklistHtml(produto)}
       </div>
 
