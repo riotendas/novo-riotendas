@@ -3,6 +3,7 @@
 
 let manutencaoMobileFiltroAtual = "pendentes";
 let manutencaoMobileProdutoAtualId = null;
+let manutencaoMobileStatusSelecionado = "";
 
 function manutMobileNormalizar(txt) {
   return String(txt || "")
@@ -22,11 +23,52 @@ function manutMobileEscape(txt) {
 }
 
 
+function manutMobileLimparPrefixoHistorico(texto = "") {
+  return String(texto || "")
+    .replace(/^\s*manuten[cç][aã]o\s+mobile\s*:?\s*/i, "")
+    .trim();
+}
+
+function manutMobileExtrairChecklist(item = {}) {
+  const bruto = [item.checklist, item.observacao, item.descricao, item.alteracao]
+    .filter(Boolean)
+    .join(" | ");
+  const t = manutMobileNormalizar(bruto);
+  const itens = [];
+  if (/\blimp/.test(t)) itens.push("Limpo");
+  if (/\brevis/.test(t)) itens.push("Revisado");
+  if (/\bconsert/.test(t)) itens.push("Consertado");
+  if (/pronto/.test(t)) itens.push("Pronto");
+  if (/\bbloque/.test(t)) itens.push("Bloqueado");
+  if (/\bliber/.test(t) || /para uso/.test(t)) itens.push("Liberado");
+  return [...new Set(itens)];
+}
+
+function manutMobileStatusHistorico(item = {}) {
+  const texto = manutMobileLimparPrefixoHistorico(item.alteracao || item.texto || "");
+  const m = texto.match(/([^:|]+?)\s*→\s*([^|]+)/);
+  if (!m) return "";
+  return `Status: ${m[1].trim()} → ${m[2].trim()}`;
+}
+
+function manutMobileTextoHistoricoCompacto(item = {}) {
+  const checks = manutMobileExtrairChecklist(item);
+  const status = manutMobileStatusHistorico(item);
+  const partes = [];
+  if (checks.length) partes.push(checks.map(c => `✓ ${c}`).join(" "));
+  if (status) partes.push(status);
+  if (!partes.length) {
+    partes.push(manutMobileLimparPrefixoHistorico(item.texto || item.alteracao || item.observacao || "Registro"));
+  }
+  return partes.join(" • ");
+}
+
+
 function manutMobileHistoricoProduto(produto = {}) {
   const historico = Array.isArray(produto?.historico) ? produto.historico : [];
   return historico
     .map(item => {
-      const texto = String(item.alteracao || item.descricao || item.observacao || item.status || "").trim();
+      const texto = manutMobileLimparPrefixoHistorico(String(item.alteracao || item.descricao || item.observacao || item.status || "").trim());
       const dataTxt = item.data || item.criado_em || item.atualizado_em || item.created_at || "";
       const dataObj = dataTxt ? new Date(dataTxt) : null;
       return { ...item, texto, dataObj, ts: dataObj && !Number.isNaN(dataObj.getTime()) ? dataObj.getTime() : 0 };
@@ -84,10 +126,12 @@ function manutMobileHistoricoServicos(produto = {}) {
 }
 
 function manutMobileRenderHistoricoResumo(produto = {}) {
-  const servicos = manutMobileHistoricoServicos(produto);
-  const linhas = servicos.slice(0, 3).map(item => {
-    const data = manutMobileDataCurta(item.dataObj) || "-";
-    const texto = manutMobileServicoLabel(item.texto);
+  const historico = manutMobileHistoricoProduto(produto);
+  const linhas = historico.slice(0, 3).map(item => {
+    const data = item.dataObj && !Number.isNaN(item.dataObj.getTime())
+      ? `${manutMobileDataCurta(item.dataObj)} ${String(item.dataObj.getHours()).padStart(2, "0")}:${String(item.dataObj.getMinutes()).padStart(2, "0")}`
+      : "-";
+    const texto = manutMobileTextoHistoricoCompacto(item);
     return `<div class="manut-mobile-hist-row"><span>${manutMobileEscape(data)}</span><strong>${manutMobileEscape(texto)}</strong></div>`;
   }).join("");
 
@@ -114,7 +158,7 @@ function manutMobileAbrirHistoricoCompleto(produto = {}) {
           ? `${manutMobileDataCurta(item.dataObj)} ${String(item.dataObj.getHours()).padStart(2, "0")}:${String(item.dataObj.getMinutes()).padStart(2, "0")}`
           : "-";
         const usuario = item.usuario || item.colaborador || item.responsavel || "";
-        const texto = manutMobileEscape(item.texto || "Registro");
+        const texto = manutMobileEscape(manutMobileTextoHistoricoCompacto(item) || "Registro");
         return `
           <div class="manut-mobile-hist-modal-row">
             <span>${manutMobileEscape(data)}</span>
@@ -412,6 +456,7 @@ function manutMobileChecklistHtml(produto = {}) {
 function abrirManutencaoMobileProduto(id, opcoes = {}) {
   try { document.activeElement && document.activeElement.blur && document.activeElement.blur(); } catch {}
   manutencaoMobileProdutoAtualId = id;
+  manutencaoMobileStatusSelecionado = "";
   if (!opcoes.semHistorico && typeof window.rtMobilePushState === "function") {
     window.rtMobilePushState("manutencaoMobileSection", { detalheProdutoId: String(id || "") });
   }
@@ -500,7 +545,17 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
   });
 
   detalhe.querySelectorAll("[data-manut-status]").forEach(btn => {
-    btn.addEventListener("click", () => salvarManutencaoMobileProduto(btn.dataset.manutStatus));
+    btn.addEventListener("click", () => {
+      const status = btn.dataset.manutStatus || "";
+      if (manutencaoMobileStatusSelecionado === status) {
+        manutencaoMobileStatusSelecionado = "";
+        btn.classList.remove("manut-status-selecionado");
+        return;
+      }
+      manutencaoMobileStatusSelecionado = status;
+      detalhe.querySelectorAll("[data-manut-status]").forEach(outro => outro.classList.remove("manut-status-selecionado"));
+      btn.classList.add("manut-status-selecionado");
+    });
   });
 
   document.getElementById("manutMobileCheckDeposito")?.addEventListener("click", () => marcarChecadoDepositoManutencaoMobile());
@@ -512,7 +567,8 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
 
   function concluirManutencaoMobileProduto() {
     const pronto = document.getElementById("manutCheckPronto")?.checked;
-    salvarManutencaoMobileProduto(pronto ? "Livre" : (produto.status || "Revisar"));
+    const statusFinal = manutencaoMobileStatusSelecionado || (pronto ? "Livre" : (produto.status || "Revisar"));
+    salvarManutencaoMobileProduto(statusFinal);
   }
 
   document.getElementById("manutencaoMobileConcluirGrande")?.addEventListener("click", concluirManutencaoMobileProduto);
@@ -631,7 +687,7 @@ async function salvarManutencaoMobileProduto(novoStatus) {
   produto.historico.push({
     data: dataAgora,
     colaborador,
-    alteracao: `Manutenção mobile: ${statusAnterior || "-"} → ${produto.status}`,
+    alteracao: `${statusAnterior || "-"} → ${produto.status}`,
     observacao: obsHistorico || obsAnterior || "-"
   });
 
@@ -653,7 +709,17 @@ async function salvarManutencaoMobileProduto(novoStatus) {
 
     alert(`Produto ${salvo.codigo || ""} atualizado para ${salvo.status}.`);
     renderizarManutencaoMobile();
-    abrirManutencaoMobileProduto(salvo.id);
+    const detalhe = document.getElementById("manutencaoMobileDetalhe");
+    if (detalhe) {
+      detalhe.hidden = true;
+      detalhe.classList.remove("manut-mobile-modal-wrap");
+      detalhe.classList.remove("manut-mobile-inline-wrap");
+    }
+    manutencaoMobileProdutoAtualId = null;
+    manutencaoMobileStatusSelecionado = "";
+    const inputBusca = document.getElementById("manutencaoMobileCodigo");
+    if (inputBusca) inputBusca.value = "";
+    if (typeof window.rtMobilePushState === "function") window.rtMobilePushState("manutencaoMobileSection");
     if (typeof renderizarProdutos === "function") renderizarProdutos();
     if (typeof rtAtualizarDashboardProdutosLeve === "function") rtAtualizarDashboardProdutosLeve();
   }

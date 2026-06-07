@@ -13597,3 +13597,36 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
     margin-top: 0 !important;
   }
 }
+
+/* v19-dev: manutenção mobile - ações como botões selecionáveis e histórico compacto */
+.manut-mobile-status-botoes button.manut-status-selecionado{
+  background:#2563eb !important;
+  color:#ffffff !important;
+  border-color:#1d4ed8 !important;
+  box-shadow:0 0 0 2px rgba(37,99,235,.16) !important;
+  font-weight:800 !important;
+}
+.manut-mobile-status-botoes button[data-manut-status="Livre"].manut-status-selecionado{
+  background:#16a34a !important;
+  border-color:#15803d !important;
+  color:#ffffff !important;
+}
+.manut-mobile-status-botoes button[data-manut-status="Bloqueado"].manut-status-selecionado{
+  background:#dc2626 !important;
+  border-color:#b91c1c !important;
+  color:#ffffff !important;
+}
+.manut-mobile-status-botoes button[data-manut-status="Consertar"].manut-status-selecionado{
+  background:#ea580c !important;
+  border-color:#c2410c !important;
+  color:#ffffff !important;
+}
+.manut-mobile-hist-row strong{
+  font-size:10.5px !important;
+  line-height:1.15 !important;
+  white-space:normal !important;
+}
+.manut-mobile-hist-row span{
+  min-width:62px !important;
+  font-size:10px !important;
+}
