@@ -16,34 +16,54 @@ function calendarioDataBR(dataISO) {
   return `${dia}/${mes}/${ano}`;
 }
 
-function calendarioHoraDeDatetime(valor, evento = null, tipo = "") {
-  if (!valor) return "";
+function calendarioTipoHorarioTexto(tipoHorario) {
+  const texto = String(tipoHorario || "").trim().toLowerCase();
+  if (!texto) return "";
+  if (texto.includes("livre")) return "Livre";
+  if (texto.includes("comercial")) return "Comercial";
+  return "";
+}
 
-  const texto = String(valor);
+function calendarioHoraLimpa(valor) {
+  const texto = String(valor || "").trim();
+  if (!texto) return "";
   let hora = "";
+  if (texto.includes("T")) hora = texto.slice(11, 16);
+  else if (/^\d{1,2}:\d{2}/.test(texto)) hora = texto.slice(0, 5).padStart(5, "0");
+  if (!hora || hora === "00:00" || hora === "--:--") return "";
+  return hora;
+}
 
-  if (texto.includes("T")) {
-    hora = texto.slice(11, 16);
-  }
+function calendarioHoraDeDatetime(valor, evento = null, tipo = "") {
+  // v19-dev: no calendário, cada card mostra o horário/tipo da própria operação:
+  // montagem usa montagem, desmontagem usa desmontagem e evento usa o horário do evento.
+  const tipoHorario = tipo === "montagem"
+    ? (evento?.montagem_tipo || evento?.tipo_montagem)
+    : tipo === "desmontagem"
+      ? (evento?.desmontagem_tipo || evento?.tipo_desmontagem)
+      : "";
 
-  // Se estiver salvo como 00:00, provavelmente veio de data sem horário real.
-  // Usa fallback do horário do evento para não exibir horário falso no calendário.
-  if ((!hora || hora === "00:00") && evento) {
+  const textoTipo = calendarioTipoHorarioTexto(tipoHorario);
+  if (textoTipo) return textoTipo;
+
+  let hora = calendarioHoraLimpa(valor);
+
+  if (!hora && evento) {
     if (tipo === "montagem") {
-      hora = evento.hora_montagem || evento.montagem_hora || evento.hora_inicio || evento.hora_evento || "";
+      hora = calendarioHoraLimpa(evento.hora_montagem || evento.montagem_hora || evento.hora_inicio || evento.hora_evento);
     } else if (tipo === "desmontagem") {
-      hora = evento.hora_desmontagem || evento.desmontagem_hora || evento.hora_termino || "";
+      hora = calendarioHoraLimpa(evento.hora_desmontagem || evento.desmontagem_hora || evento.hora_termino);
     } else {
-      hora = evento.hora_inicio || evento.hora_evento || "";
+      hora = calendarioHoraLimpa(evento.hora_inicio || evento.hora_evento || evento.inicio);
     }
   }
 
-  hora = String(hora || "").slice(0, 5);
-
-  // Se ainda assim for 00:00, não mostra horário para evitar informação errada.
-  if (hora === "00:00") return "";
-
   return hora;
+}
+
+function calendarioHoraExibicao(item) {
+  if (item?.hora) return item.hora;
+  return "Sem horário";
 }
 
 function calendarioMesAnoTexto(data) {
@@ -110,7 +130,7 @@ function calendarioItensEvento(evento) {
       eventoId: evento.id,
       tipo: "evento",
       data: evento.data_evento,
-      hora: evento.hora_inicio || evento.hora_evento || "",
+      hora: calendarioHoraDeDatetime(evento.data_evento || evento.inicio || "", evento, "evento"),
       titulo: evento.nome || "Evento",
       evento
     });
@@ -419,7 +439,7 @@ function renderizarPainelDiaCalendario() {
       <div class="calendar-panel-card ${calendarioClasseItem(item)}">
         <div class="calendar-panel-top">
           <strong>${calendarioLabelTipo(item.tipo)} — ${evento.nome || "-"}</strong>
-          <span>${item.hora || "--:--"}</span>
+          <span class="calendar-panel-time">${calendarioHoraExibicao(item)}</span>
         </div>
         <div class="calendar-panel-info">
           <span>${evento.telefone || "-"}</span>
@@ -432,7 +452,7 @@ function renderizarPainelDiaCalendario() {
         <div class="calendar-panel-actions">
           <button type="button" class="btn-outline" data-cal-abrir-evento="${evento.id}">Abrir evento</button>
           <button type="button" class="btn-outline" data-cal-editar-evento="${evento.id}">Editar evento</button>
-          ${rtCalBadgeCarro(item)}\n          ${rtCalBadgeCarro(item)}
+          ${rtCalBadgeCarro(item)}
         </div>
       </div>
     `;

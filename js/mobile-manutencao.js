@@ -1,9 +1,12 @@
 // v19-dev: Mobile > Manutenção
+// Correção real: sync automático + sem histórico vazio + histórico recente só status.
 // Busca rápida por número/código, observação, checklist e atualização de status.
 
 let manutencaoMobileFiltroAtual = "pendentes";
 let manutencaoMobileProdutoAtualId = null;
 let manutencaoMobileStatusSelecionado = "";
+let manutMobileSyncTimer = null;
+let manutMobileSyncExecutando = false;
 
 function manutMobileNormalizar(txt) {
   return String(txt || "")
@@ -36,7 +39,7 @@ function manutMobileExtrairChecklist(item = {}) {
   const t = manutMobileNormalizar(bruto);
   const itens = [];
   if (/\blimp/.test(t)) itens.push("Limpo");
-  if (/\brevis/.test(t)) itens.push("Revisado");
+  if (/revisad/.test(t) || /checklist[^|]*revis/.test(t)) itens.push("Revisado");
   if (/\bconsert/.test(t)) itens.push("Consertado");
   if (/pronto/.test(t)) itens.push("Pronto");
   if (/\bbloque/.test(t)) itens.push("Bloqueado");
@@ -126,20 +129,20 @@ function manutMobileHistoricoServicos(produto = {}) {
 }
 
 function manutMobileRenderHistoricoResumo(produto = {}) {
-  const historico = manutMobileHistoricoProduto(produto);
-  const linhas = historico.slice(0, 3).map(item => {
-    const data = item.dataObj && !Number.isNaN(item.dataObj.getTime())
-      ? `${manutMobileDataCurta(item.dataObj)} ${String(item.dataObj.getHours()).padStart(2, "0")}:${String(item.dataObj.getMinutes()).padStart(2, "0")}`
-      : "-";
-    const texto = manutMobileTextoHistoricoCompacto(item);
-    return `<div class="manut-mobile-hist-row"><span>${manutMobileEscape(data)}</span><strong>${manutMobileEscape(texto)}</strong></div>`;
+  const historicoStatus = manutMobileHistoricoProduto(produto)
+    .map(item => ({ item, status: manutMobileStatusHistorico(item) }))
+    .filter(reg => reg.status)
+    .slice(0, 3);
+  const linhas = historicoStatus.map(({ item, status }) => {
+    const data = item.dataObj && !Number.isNaN(item.dataObj.getTime()) ? manutMobileDataCurta(item.dataObj) : "-";
+    return `<div class="manut-mobile-hist-row"><span>${manutMobileEscape(data)}</span><strong>${manutMobileEscape(status.replace(/^Status:\s*/i, ""))}</strong></div>`;
   }).join("");
 
   return `
     <div class="manut-mobile-historico-resumo manut-mobile-historico-card">
       <div class="manut-mobile-hist-titulo">Histórico recente</div>
       <div class="manut-mobile-hist-recent">
-        ${linhas || `<div class="manut-mobile-hist-row vazio">Sem histórico registrado.</div>`}
+        ${linhas || `<div class="manut-mobile-hist-row vazio">Sem mudança de status.</div>`}
       </div>
       <button type="button" class="manut-mobile-hist-more" data-manut-hist-mais>exibir mais</button>
     </div>
@@ -442,6 +445,102 @@ function manutMobileBuscaAutomatica() {
   }, 250);
 }
 
+
+function manutMobileSnapshotProduto(produto = {}) {
+  const historicoLen = Array.isArray(produto.historico) ? produto.historico.length : 0;
+  const ultimoHist = historicoLen ? JSON.stringify(produto.historico[historicoLen - 1] || {}) : "";
+  return [
+    produto.id || "",
+    produto.status || "",
+    produto.observacao || "",
+    produto.grau_usabilidade || produto.usabilidade || "",
+    produto.atualizado_em || produto.updated_at || "",
+    historicoLen,
+    ultimoHist
+  ].join("||");
+}
+
+function manutMobileChecksSelecionados() {
+  const checks = [];
+  if (document.getElementById("manutCheckLimpo")?.checked) checks.push("Limpo");
+  if (document.getElementById("manutCheckRevisado")?.checked) checks.push("Revisado");
+  if (document.getElementById("manutCheckConsertado")?.checked) checks.push("Consertado");
+  if (document.getElementById("manutCheckPronto")?.checked) checks.push("Pronto para uso");
+  return checks;
+}
+
+function manutMobileTemEdicaoPendente(produto = {}) {
+  const detalhe = document.getElementById("manutencaoMobileDetalhe");
+  if (!detalhe || detalhe.hidden) return false;
+  const obsTela = manutMobileRemoverMarcacoesAuto(String(document.getElementById("manutencaoMobileObs")?.value || "").trim());
+  const obsOriginal = String(produto.observacao || "").trim();
+  return !!manutencaoMobileStatusSelecionado
+    || manutMobileChecksSelecionados().length > 0
+    || obsTela !== obsOriginal;
+}
+
+function manutMobileFecharDetalheLimpo() {
+  const detalhe = document.getElementById("manutencaoMobileDetalhe");
+  if (detalhe) {
+    detalhe.hidden = true;
+    detalhe.classList.remove("manut-mobile-modal-wrap");
+    detalhe.classList.remove("manut-mobile-inline-wrap");
+  }
+  manutencaoMobileProdutoAtualId = null;
+  manutencaoMobileStatusSelecionado = "";
+  const inputBusca = document.getElementById("manutencaoMobileCodigo");
+  if (inputBusca) inputBusca.value = "";
+  if (typeof window.rtMobilePushState === "function") window.rtMobilePushState("manutencaoMobileSection");
+}
+
+function manutMobileMostrarAvisoSincronizacao(produtoId) {
+  const aviso = document.getElementById("manutMobileSyncAviso");
+  if (!aviso) return;
+  aviso.hidden = false;
+  aviso.innerHTML = `Este produto foi atualizado por outro usuário. <button type="button" class="btn-outline btn-mini" id="manutMobileSyncAplicar">Atualizar dados</button>`;
+  document.getElementById("manutMobileSyncAplicar")?.addEventListener("click", () => {
+    const produtoAtualizado = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(produtoId));
+    if (produtoAtualizado) abrirManutencaoMobileProduto(produtoAtualizado.id, { semHistorico: true });
+  });
+}
+
+async function manutMobileSincronizarProdutosAutomatico() {
+  const section = document.getElementById("manutencaoMobileSection");
+  if (!section || !section.classList.contains("active-section")) return;
+  if (manutMobileSyncExecutando) return;
+  if (typeof carregarProdutos !== "function") return;
+  manutMobileSyncExecutando = true;
+  const produtoAbertoId = manutencaoMobileProdutoAtualId;
+  const detalhe = document.getElementById("manutencaoMobileDetalhe");
+  const snapshotAnterior = detalhe?.dataset?.manutSnapshot || "";
+  try {
+    await carregarProdutos(true);
+    renderizarManutencaoMobile();
+    if (produtoAbertoId && detalhe && !detalhe.hidden) {
+      const produtoAtualizado = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(produtoAbertoId));
+      if (produtoAtualizado) {
+        const novoSnapshot = manutMobileSnapshotProduto(produtoAtualizado);
+        if (snapshotAnterior && novoSnapshot !== snapshotAnterior) {
+          if (manutMobileTemEdicaoPendente(produtoAtualizado)) {
+            manutMobileMostrarAvisoSincronizacao(produtoAbertoId);
+          } else {
+            abrirManutencaoMobileProduto(produtoAbertoId, { semHistorico: true });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Falha ao sincronizar manutenção mobile", err);
+  } finally {
+    manutMobileSyncExecutando = false;
+  }
+}
+
+function manutMobileIniciarSincronizacaoAutomatica() {
+  clearInterval(manutMobileSyncTimer);
+  manutMobileSyncTimer = setInterval(manutMobileSincronizarProdutosAutomatico, 20000);
+}
+
 function manutMobileChecklistHtml(produto = {}) {
   const status = manutMobileNormalizar(produto.status);
   const limpo = status === "limpar" ? "" : "";
@@ -512,6 +611,8 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
         </label>
       </div>
 
+      <div id="manutMobileSyncAviso" class="manut-mobile-sync-aviso" hidden></div>
+
       <label class="manut-mobile-observacao manut-mobile-info-card">Observação / Reparo realizado
         <textarea id="manutencaoMobileObs" rows="1" placeholder="Ex.: Lavagem, troca de lona, costura, reparo...">${manutMobileEscape(produto.observacao || "")}</textarea>
       </label>
@@ -531,6 +632,7 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
       <button type="button" class="btn-primary manut-mobile-concluir-grande" id="manutencaoMobileConcluirGrande">✓ Concluir</button>
     </div>
   `;
+  detalhe.dataset.manutSnapshot = manutMobileSnapshotProduto(produto);
 
   document.getElementById("manutMobileFecharDetalhe")?.addEventListener("click", () => {
     detalhe.hidden = true;
@@ -656,40 +758,68 @@ async function marcarChecadoDepositoManutencaoMobile() {
   if (typeof renderizarRelatorioChecagem === "function") renderizarRelatorioChecagem();
 }
 
+
+function manutMobileStatusIgual(a, b) {
+  const na = manutMobileNormalizar(a || "");
+  const nb = manutMobileNormalizar(b || "");
+  if ((na === "bloqueado" && nb === "bloqueada") || (na === "bloqueada" && nb === "bloqueado")) return true;
+  return na === nb;
+}
+
+function manutMobileAlteracaoReal(statusAnterior, statusDesejado, obsAnterior, obsAtual, checks) {
+  const statusFoiEscolhido = !!manutencaoMobileStatusSelecionado;
+  const statusMudou = statusFoiEscolhido && !manutMobileStatusIgual(statusAnterior, statusDesejado);
+  const obsMudou = String(obsAtual || "").trim() !== String(obsAnterior || "").trim();
+  const checklistMudou = Array.isArray(checks) && checks.length > 0;
+  return { statusMudou, obsMudou, checklistMudou, houve: statusMudou || obsMudou || checklistMudou };
+}
+
 async function salvarManutencaoMobileProduto(novoStatus) {
   const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(manutencaoMobileProdutoAtualId));
   if (!produto) return;
 
   const observacaoTela = String(document.getElementById("manutencaoMobileObs")?.value || "").trim();
   const observacao = manutMobileRemoverMarcacoesAuto(observacaoTela);
-  const checks = [];
-  if (document.getElementById("manutCheckLimpo")?.checked) checks.push("Limpo");
-  if (document.getElementById("manutCheckRevisado")?.checked) checks.push("Revisado");
-  if (document.getElementById("manutCheckConsertado")?.checked) checks.push("Consertado");
-  if (document.getElementById("manutCheckPronto")?.checked) checks.push("Pronto para uso");
+  const checks = manutMobileChecksSelecionados();
 
-  if (!observacao && String(novoStatus || "").toLowerCase() === "livre") {
+  const statusAnterior = produto.status || "";
+  const obsAnterior = produto.observacao || "";
+  const statusDesejado = manutencaoMobileStatusSelecionado || produto.status || "Revisar";
+  const statusNormalizado = manutMobileNormalizar(statusDesejado || produto.status || "Revisar");
+  const alteracaoReal = manutMobileAlteracaoReal(statusAnterior, statusDesejado, obsAnterior, observacao, checks);
+  const statusMudou = alteracaoReal.statusMudou;
+  const obsMudou = alteracaoReal.obsMudou;
+
+  if (!alteracaoReal.houve) {
+    // Sem botão selecionado efetivo, sem checklist e sem alteração de observação:
+    // não grava status Livre → Livre e não registra histórico.
+    manutMobileFecharDetalheLimpo();
+    renderizarManutencaoMobile();
+    return;
+  }
+
+  if (!observacao && statusNormalizado === "livre" && statusMudou) {
     const ok = confirm("Deseja liberar sem preencher observação de manutenção?");
     if (!ok) return;
   }
 
-  const statusAnterior = produto.status || "";
-  const obsAnterior = produto.observacao || "";
   const colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "Mobile";
   const dataAgora = new Date().toISOString();
   const obsHistorico = [observacao, checks.length ? `Checklist: ${checks.join(", ")}` : ""].filter(Boolean).join(" | ");
 
-  produto.status = novoStatus || produto.status || "Revisar";
-  produto.observacao = String(produto.status || "").toLowerCase() === "livre" ? "" : observacao;
+  produto.status = statusMudou ? statusDesejado : (produto.status || "Revisar");
+  produto.observacao = manutMobileNormalizar(produto.status) === "livre" ? "" : observacao;
   produto.colaborador = colaborador;
   produto.atualizado_em = dataAgora;
   produto.historico = Array.isArray(produto.historico) ? produto.historico : [];
-  produto.historico.push({
-    data: dataAgora,
-    colaborador,
-    alteracao: `${statusAnterior || "-"} → ${produto.status}`,
-    observacao: obsHistorico || obsAnterior || "-"
-  });
+  if (statusMudou || obsHistorico || obsMudou) {
+    produto.historico.push({
+      data: dataAgora,
+      colaborador,
+      alteracao: statusMudou ? `${statusAnterior || "-"} → ${produto.status}` : "Checklist / observação atualizados",
+      observacao: obsHistorico || (obsMudou ? observacao : "-")
+    });
+  }
 
   const salvo = typeof salvarProdutoBanco === "function" ? await salvarProdutoBanco(produto) : produto;
   if (salvo) {
@@ -709,17 +839,7 @@ async function salvarManutencaoMobileProduto(novoStatus) {
 
     alert(`Produto ${salvo.codigo || ""} atualizado para ${salvo.status}.`);
     renderizarManutencaoMobile();
-    const detalhe = document.getElementById("manutencaoMobileDetalhe");
-    if (detalhe) {
-      detalhe.hidden = true;
-      detalhe.classList.remove("manut-mobile-modal-wrap");
-      detalhe.classList.remove("manut-mobile-inline-wrap");
-    }
-    manutencaoMobileProdutoAtualId = null;
-    manutencaoMobileStatusSelecionado = "";
-    const inputBusca = document.getElementById("manutencaoMobileCodigo");
-    if (inputBusca) inputBusca.value = "";
-    if (typeof window.rtMobilePushState === "function") window.rtMobilePushState("manutencaoMobileSection");
+    manutMobileFecharDetalheLimpo();
     if (typeof renderizarProdutos === "function") renderizarProdutos();
     if (typeof rtAtualizarDashboardProdutosLeve === "function") rtAtualizarDashboardProdutosLeve();
   }
@@ -811,7 +931,7 @@ function iniciarManutencaoMobile() {
   });
 
   document.getElementById("manutencaoMobileAtualizarBtn")?.addEventListener("click", async () => {
-    if (typeof carregarProdutos === "function") await carregarProdutos();
+    if (typeof carregarProdutos === "function") await carregarProdutos(true);
     renderizarManutencaoMobile();
   });
 
@@ -829,6 +949,7 @@ function iniciarManutencaoMobile() {
   });
 
   setTimeout(renderizarManutencaoMobile, 900);
+  manutMobileIniciarSincronizacaoAutomatica();
 }
 
 
