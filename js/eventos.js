@@ -1,3 +1,4 @@
+// v19-dev-pacote-operacional
 window.RT_ASSINATURA_RODRIGO_PADRAO = window.RT_ASSINATURA_RODRIGO_PADRAO || "data:image/gif;base64,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";
 
 // v19-dev: limite visual de eventos + visor sobreposto na data
@@ -492,6 +493,67 @@ async function excluirEventoBanco(id) {
   return true;
 }
 
+
+async function atualizarPeriodoRecorrenciaAposExclusao(eventoExcluido) {
+  try {
+    if (!eventoExcluido || !eventoExcluido.recorrencia_grupo_id) return;
+    const grupoId = String(eventoExcluido.recorrencia_grupo_id);
+    const restantes = (Array.isArray(eventos) ? eventos : [])
+      .filter(e => String(e.recorrencia_grupo_id || "") === grupoId && String(e.id) !== String(eventoExcluido.id))
+      .sort((a, b) => String(a.data_evento || "").localeCompare(String(b.data_evento || "")));
+
+    if (!restantes.length) return;
+
+    const datas = restantes.map(e => e.data_evento).filter(Boolean).sort();
+    if (!datas.length) return;
+
+    const novoInicio = datas[0];
+    const novoFim = datas[datas.length - 1];
+
+    restantes.forEach((e, idx) => {
+      e.recorrencia_inicio = novoInicio;
+      e.recorrencia_fim = novoFim;
+      e.recorrencia_ordem = idx + 1;
+    });
+
+    if (!supabaseClient) {
+      localStorage.setItem(storageEventosKey, JSON.stringify(eventos));
+      return;
+    }
+
+    await Promise.all(restantes.map((e, idx) =>
+      supabaseClient
+        .from("eventos")
+        .update({
+          recorrencia_inicio: novoInicio,
+          recorrencia_fim: novoFim,
+          recorrencia_ordem: idx + 1
+        })
+        .eq("id", e.id)
+    ));
+
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({
+        modulo: "Eventos Recorrentes",
+        acao: "Período de recorrência atualizado após exclusão",
+        registro_id: grupoId,
+        registro_nome: eventoExcluido.nome || "Recorrência",
+        antes: {
+          recorrencia_inicio: eventoExcluido.recorrencia_inicio || null,
+          recorrencia_fim: eventoExcluido.recorrencia_fim || null
+        },
+        depois: {
+          recorrencia_inicio: novoInicio,
+          recorrencia_fim: novoFim,
+          ocorrencias_restantes: restantes.length
+        }
+      });
+    }
+  } catch (err) {
+    console.warn("Não foi possível atualizar o período restante da recorrência:", err);
+  }
+}
+
 async function garantirClienteDoEvento(evento) {
   if (!evento.nome) return;
 
@@ -556,20 +618,25 @@ function iniciarEventos() {
   onEventoSeguro("fecharEventoDetalheModal", "click", () => document.getElementById("eventoDetalheDialog").close());
   onEventoSeguro("eventoForm", "submit", salvarEventoForm);
 
-  ["eventoValorTotal", "eventoValorSinal"].forEach(id => {
+  ["eventoValorTotal", "eventoValorSinal", "eventoValorSinal2"].forEach(id => {
     const campo = document.getElementById(id);
     campo.addEventListener("input", calcularRestanteEvento);
     campo.addEventListener("blur", () => { formatarCampoMoeda(campo); calcularRestanteEvento(); });
   });
   iniciarIconesFormaPagamentoEvento();
+  iniciarSinal2Evento();
   rtIniciarPagarInlocoEvento();
   onEventoSeguro("eventoFormaPagamento", "input", atualizarIconesFormaPagamentoEvento);
   onEventoSeguro("eventoBuscaCliente", "change", preencherClienteSelecionado);
+  rtEventoPrepararValidadorEndereco();
   onEventoSeguro("eventoMontagemTipo", "change", () => atualizarCampoHoraFinalOperacao("Montagem"));
   onEventoSeguro("eventoDesmontagemTipo", "change", () => atualizarCampoHoraFinalOperacao("Desmontagem"));
   onEventoSeguro("btnMontagemDiaAnterior", "click", () => definirOperacaoDiaRelativo("Montagem", -1));
   onEventoSeguro("btnDesmontagemDiaPosterior", "click", () => definirOperacaoDiaRelativo("Desmontagem", 1));
   onEventoSeguro("adicionarProdutoEvento", "click", adicionarProdutoSelecionadoAoEvento);
+  document.querySelectorAll("[data-produto-atalho]").forEach(btn => {
+    btn.addEventListener("click", () => adicionarProdutoAtalhoEvento(btn.dataset.produtoAtalho));
+  });
   const btnExtraEvento = document.getElementById("adicionarExtraEvento");
   if (btnExtraEvento) btnExtraEvento.addEventListener("click", adicionarExtraAoEvento);
   document.getElementById("fecharEventoProdutosRapido").addEventListener("click", fecharProdutosRapido);
@@ -584,6 +651,7 @@ function iniciarEventos() {
       popularSelectProdutosEvento();
       renderizarProdutosSelecionadosEvento();
       renderizarApoioEvento(obterApoioSelecionadoEvento());
+      atualizarAlertasOperacaoEvento();
     });
   });
 
@@ -627,6 +695,54 @@ function definirOperacaoDiaRelativo(prefixo, deslocamentoDias) {
   popularSelectProdutosEvento();
   renderizarProdutosSelecionadosEvento();
   renderizarApoioEvento(obterApoioSelecionadoEvento());
+  atualizarAlertasOperacaoEvento();
+}
+
+
+function dataChaveOperacaoEvento(valor) {
+  return String(valor || "").slice(0, 10);
+}
+
+function contarOperacoesDiaEvento(dataISO, tipo) {
+  if (!dataISO || !Array.isArray(eventos)) return 0;
+  const idAtual = document.getElementById("eventoId")?.value || "";
+  const campo = tipo === "montagem" ? "montagem" : "desmontagem";
+  return eventos.filter(e => String(e.id || "") !== String(idAtual || "") && dataChaveOperacaoEvento(e[campo]) === dataISO).length;
+}
+
+function classeAlertaOperacaoQtd(qtd) {
+  if (qtd >= 7) return "critico";
+  if (qtd >= 4) return "medio";
+  return "baixo";
+}
+
+function renderAlertaOperacaoEvento(prefixo, tipo) {
+  const data = document.getElementById(`evento${prefixo}`)?.value || "";
+  const el = document.getElementById(`evento${prefixo}AlertaDia`);
+  if (!el) return;
+  if (!data) { el.innerHTML = ""; el.className = "evento-dia-operacao-alerta"; return; }
+  const qtd = contarOperacoesDiaEvento(data, tipo);
+  const plural = tipo === "montagem" ? (qtd === 1 ? "montagem" : "montagens") : (qtd === 1 ? "desmontagem" : "desmontagens");
+  el.className = `evento-dia-operacao-alerta ${classeAlertaOperacaoQtd(qtd)}`;
+  el.innerHTML = `⚠ ${qtd} ${plural} neste dia · <button type="button" class="link-button alerta-ver-rota" data-rota-alerta-data="${data}" data-rota-alerta-tipo="${tipo}">Ver rota</button>`;
+  el.querySelector("button")?.addEventListener("click", abrirRotaPeloAlertaEvento);
+}
+
+function atualizarAlertasOperacaoEvento() {
+  renderAlertaOperacaoEvento("Montagem", "montagem");
+  renderAlertaOperacaoEvento("Desmontagem", "desmontagem");
+}
+
+function abrirRotaPeloAlertaEvento(ev) {
+  const data = ev.currentTarget?.dataset?.rotaAlertaData || "";
+  const tipo = ev.currentTarget?.dataset?.rotaAlertaTipo || "";
+  const rotaTipo = tipo === "desmontagem" ? "Desmontagem" : "Montagem";
+  const url = new URL(window.location.href);
+  url.searchParams.set("section", "rotas");
+  url.searchParams.set("rotaData", data);
+  url.searchParams.set("rotaTipo", rotaTipo);
+  url.searchParams.set("rotaSomenteData", "1");
+  window.open(url.toString(), "_blank", "noopener,noreferrer");
 }
 
 function atualizarDatalistClientes() {
@@ -648,13 +764,129 @@ function preencherClienteSelecionado() {
   document.getElementById("eventoTelefone").value = cliente.telefone || "";
   document.getElementById("eventoEmail").value = cliente.email || "";
   document.getElementById("eventoEndereco").value = cliente.endereco || "";
+  rtEventoSetEnderecoStatus("", "neutro");
   document.getElementById("eventoClienteObservacao").value = cliente.observacao_cliente || "";
 }
 
+
+function rtEventoSetEnderecoStatus(texto, classe) {
+  const el = document.getElementById("eventoEnderecoStatus");
+  if (!el) return;
+  el.textContent = texto || "";
+  el.className = `endereco-validacao-status ${classe || "neutro"}`;
+}
+
+function rtEventoExtrairEnderecoPrincipal(texto) {
+  const original = String(texto || "").trim();
+  if (!original) return { principal: "", complemento: "", separador: "" };
+
+  const linhas = original.split(/\n+/).map(l => l.trim()).filter(Boolean);
+  if (linhas.length > 1) {
+    return { principal: linhas[0], complemento: linhas.slice(1).join(" - "), separador: "\n" };
+  }
+
+  const partes = original.split(/\s+-\s+/).map(p => p.trim()).filter(Boolean);
+  const termosComplemento = /^(ap|apt|apto|apartamento|bloco|bl\.?|casa|fundos|frente|loja|sala|sobrado|cobertura|port[aã]o|entrada|condom[ií]nio|quadra|lote|refer[eê]ncia|pr[oó]ximo|em frente|ao lado)/i;
+  if (partes.length > 1) {
+    const idx = partes.findIndex((parte, i) => i > 0 && termosComplemento.test(parte));
+    if (idx > 0) {
+      return {
+        principal: partes.slice(0, idx).join(" - "),
+        complemento: partes.slice(idx).join(" - "),
+        separador: " - "
+      };
+    }
+  }
+
+  return { principal: original, complemento: "", separador: "" };
+}
+
+function rtEventoAplicarEnderecoSugerido(textoOriginal, enderecoSugerido) {
+  const partes = rtEventoExtrairEnderecoPrincipal(textoOriginal);
+  const complemento = partes.complemento ? `${partes.separador || " - "}${partes.complemento}` : "";
+  return `${enderecoSugerido}${complemento}`.trim();
+}
+
+function rtEventoAbrirEnderecoNoMaps() {
+  const campo = document.getElementById("eventoEndereco");
+  if (!campo) return;
+  const textoCompleto = campo.value.trim();
+  if (!textoCompleto) {
+    rtEventoSetEnderecoStatus("Digite um endereço para verificar", "alerta");
+    return;
+  }
+  const partes = rtEventoExtrairEnderecoPrincipal(textoCompleto);
+  const consulta = partes.principal || textoCompleto;
+  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(consulta)}`;
+  rtEventoSetEnderecoStatus("", "neutro");
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function rtEventoPrepararValidadorEndereco() {
+  const campo = document.getElementById("eventoEndereco");
+  const btn = document.getElementById("validarEventoEndereco");
+  if (!campo) return;
+  campo.addEventListener("input", () => rtEventoSetEnderecoStatus("", "neutro"));
+  if (btn) btn.addEventListener("click", () => rtEventoAbrirEnderecoNoMaps());
+}
+
 function calcularRestanteEvento() {
-  const total = moedaParaNumero(document.getElementById("eventoValorTotal").value);
-  const sinal = moedaParaNumero(document.getElementById("eventoValorSinal").value);
-  document.getElementById("eventoValorRestante").value = numeroParaMoeda(Math.max(total - sinal, 0));
+  const total = moedaParaNumero(document.getElementById("eventoValorTotal")?.value || 0);
+  const sinal = moedaParaNumero(document.getElementById("eventoValorSinal")?.value || 0);
+  const sinal2 = moedaParaNumero(document.getElementById("eventoValorSinal2")?.value || 0);
+  const restante = Math.max(total - sinal - sinal2, 0);
+  const campoRestante = document.getElementById("eventoValorRestante");
+  if (campoRestante) campoRestante.value = numeroParaMoeda(restante);
+  atualizarQuitadoAutomaticoEvento();
+}
+
+function atualizarQuitadoAutomaticoEvento() {
+  const chk = document.getElementById("eventoPagamentoQuitado");
+  if (!chk) return;
+  const total = moedaParaNumero(document.getElementById("eventoValorTotal")?.value || 0);
+  const sinal = moedaParaNumero(document.getElementById("eventoValorSinal")?.value || 0);
+  const sinal2 = moedaParaNumero(document.getElementById("eventoValorSinal2")?.value || 0);
+  const forma = String(document.getElementById("eventoFormaPagamento")?.value || "").toLowerCase();
+  const temPgTotal = /(^|\n)\s*pg\s*total\s*-/i.test(forma);
+  if ((total > 0 && sinal + sinal2 >= total) || temPgTotal) chk.checked = true;
+}
+
+function iniciarSinal2Evento() {
+  const btn = document.getElementById("adicionarSinal2Evento");
+  if (btn) {
+    btn.classList.add("hidden");
+    btn.setAttribute("aria-hidden", "true");
+    btn.tabIndex = -1;
+  }
+}
+
+function mostrarSinal2Evento(mostrar) {
+  const btn = document.getElementById("adicionarSinal2Evento");
+  const box = document.getElementById("eventoSinal2Box");
+  if (!box) return;
+  box.classList.toggle("hidden", !mostrar);
+  if (btn) btn.classList.add("hidden");
+}
+
+function extrairValorSinal2FormaPagamento(texto) {
+  const m = String(texto || "").match(/Sinal 2 Valor:\s*(R\$\s*[\d.]+,\d{2})/i);
+  return m ? m[1] : numeroParaMoeda(0);
+}
+
+function sincronizarSinal2FormaPagamentoEvento() {
+  const campo = document.getElementById("eventoFormaPagamento");
+  if (!campo) return;
+
+  // O segundo sinal não deve criar outro campo visual. Ele fica como mais uma linha
+  // dentro de Forma de pagamento, usando o mesmo padrão do primeiro sinal.
+  const linhas = String(campo.value || "")
+    .split(/\n+/)
+    .map(l => l.trim())
+    .filter(Boolean)
+    .filter(l => !/^Sinal 2 Valor:/i.test(l))
+    .map(l => l.replace(/^Sinal\s*2\s*-/i, "Sinal -"));
+
+  campo.value = linhas.join("\n");
 }
 
 function iniciarIconesFormaPagamentoEvento() {
@@ -674,14 +906,20 @@ function aplicarFormaPagamentoEvento(tipo, forma) {
   const campo = document.getElementById("eventoFormaPagamento");
   if (!campo || !tipo || !forma) return;
 
+  // Segundo sinal: não abre campo separado. Cada novo clique em ícone de Sinal
+  // adiciona uma nova linha no campo Forma de pagamento.
+  const ehSinal = tipo === "Sinal" || tipo === "Sinal 2";
+  if (tipo === "Sinal 2") tipo = "Sinal";
+
   if (tipo === "Pg Total") {
     const inloco = document.getElementById("eventoPagarInloco");
     if (inloco?.checked) {
       inloco.checked = false;
       rtSincronizarPagarInlocoFormaPagamento();
     }
+    const quitado = document.getElementById("eventoPagamentoQuitado");
+    if (quitado) quitado.checked = true;
   }
-
   const marcadorData = "";
   const novaLinha = `${tipo} - ${forma} -`;
   const linhas = String(campo.value || "")
@@ -690,22 +928,29 @@ function aplicarFormaPagamentoEvento(tipo, forma) {
     .filter(Boolean);
 
   const prefixo = `${tipo} - `;
-  const idx = linhas.findIndex(l => l.toLowerCase().startsWith(prefixo.toLowerCase()));
 
-  if (idx >= 0) {
-    const linhaAtual = linhas[idx];
-    const temDataPreenchida = /\b\d{2}\/\d{2}\/\d{2,4}\b/.test(linhaAtual);
-    if (temDataPreenchida && !confirm(`${tipo} já possui data preenchida. Deseja substituir a forma de pagamento?`)) {
-      return;
-    }
-    linhas[idx] = novaLinha;
-  } else {
+  if (ehSinal) {
+    // Permite sinal em duas ou mais etapas no mesmo campo Forma de pagamento.
     linhas.push(novaLinha);
+  } else {
+    const idx = linhas.findIndex(l => l.toLowerCase().startsWith(prefixo.toLowerCase()));
+
+    if (idx >= 0) {
+      const linhaAtual = linhas[idx];
+      const temDataPreenchida = /\b\d{2}\/\d{2}\/\d{2,4}\b/.test(linhaAtual);
+      if (temDataPreenchida && !confirm(`${tipo} já possui data preenchida. Deseja substituir a forma de pagamento?`)) {
+        return;
+      }
+      linhas[idx] = novaLinha;
+    } else {
+      linhas.push(novaLinha);
+    }
   }
 
   campo.value = linhas.join("\n");
   campo.focus();
   atualizarIconesFormaPagamentoEvento();
+  atualizarQuitadoAutomaticoEvento();
 }
 
 function atualizarIconesFormaPagamentoEvento() {
@@ -878,10 +1123,10 @@ function montarEventoRecorrenteBase(id, existente) {
     valor_total: moedaParaNumero(document.getElementById("eventoValorTotal").value),
     valor_sinal: moedaParaNumero(document.getElementById("eventoValorSinal").value),
     valor_restante: moedaParaNumero(document.getElementById("eventoValorRestante").value),
-    forma_pagamento: (rtSincronizarPagarInlocoFormaPagamento(), document.getElementById("eventoFormaPagamento").value.trim()),
+    forma_pagamento: (sincronizarSinal2FormaPagamentoEvento(), rtSincronizarPagarInlocoFormaPagamento(), document.getElementById("eventoFormaPagamento").value.trim()),
     pagar_inloco: Boolean(document.getElementById("eventoPagarInloco")?.checked),
     pagamento_quitado: document.getElementById("eventoPagamentoQuitado").checked,
-    colaborador: getColaboradorLogado(),
+    colaborador: obterColaboradorFormularioEvento(existente),
     criado_em: existente?.criado_em || new Date().toISOString(),
     atualizado_em: new Date().toISOString()
   };
@@ -961,6 +1206,9 @@ function abrirNovoEvento() {
 
   document.getElementById("eventoValorTotal").value = numeroParaMoeda(0);
   document.getElementById("eventoValorSinal").value = numeroParaMoeda(0);
+  const campoSinal2Novo = document.getElementById("eventoValorSinal2");
+  if (campoSinal2Novo) campoSinal2Novo.value = numeroParaMoeda(0);
+  mostrarSinal2Evento(false);
   document.getElementById("eventoValorRestante").value = numeroParaMoeda(0);
   document.getElementById("eventoFormaPagamento").value = "";
   atualizarIconesFormaPagamentoEvento();
@@ -976,6 +1224,7 @@ function abrirNovoEvento() {
   if (fimRec) fimRec.value = "";
   atualizarBoxRecorrencia();
   atualizarCampoDiasRecorrencia();
+  configurarCampoColaboradorEvento(getColaboradorLogado());
   produtosSelecionadosEventoAtual = [];
   produtosExtrasEventoAtual = [];
   atualizarDatalistClientes();
@@ -983,6 +1232,8 @@ function abrirNovoEvento() {
   renderizarProdutosSelecionadosEvento();
   renderizarExtrasEvento();
   renderizarApoioEvento([]);
+  atualizarAlertasOperacaoEvento();
+  rtEventoSetEnderecoStatus("", "neutro");
   document.getElementById("eventoDialog").showModal();
 }
 
@@ -998,6 +1249,7 @@ function abrirEditarEvento(id) {
   document.getElementById("eventoTelefone").value = e.telefone || "";
   document.getElementById("eventoEmail").value = e.cliente_email || e.email || "";
   document.getElementById("eventoEndereco").value = e.endereco || "";
+  rtEventoSetEnderecoStatus("", "neutro");
   document.getElementById("eventoClienteObservacao").value = e.cliente_observacao || "";
   document.getElementById("eventoData").value = e.data_evento || "";
   document.getElementById("eventoHoraInicio").value = e.hora_inicio || e.hora_evento || "";
@@ -1017,8 +1269,17 @@ function abrirEditarEvento(id) {
   if (campoDesmontagemHora) campoDesmontagemHora.value = (partesDesmontagem.hora && partesDesmontagem.hora !== "00:00") ? partesDesmontagem.hora : "";
   document.getElementById("eventoValorTotal").value = numeroParaMoeda(e.valor_total || 0);
   document.getElementById("eventoValorSinal").value = numeroParaMoeda(e.valor_sinal || 0);
+  const campoSinal2Editar = document.getElementById("eventoValorSinal2");
+  if (campoSinal2Editar) campoSinal2Editar.value = numeroParaMoeda(0);
+  mostrarSinal2Evento(false);
   document.getElementById("eventoValorRestante").value = numeroParaMoeda(e.valor_restante || 0);
-  document.getElementById("eventoFormaPagamento").value = e.forma_pagamento || "";
+  document.getElementById("eventoFormaPagamento").value = String(e.forma_pagamento || "")
+    .split(/\n+/)
+    .map(l => l.trim())
+    .filter(Boolean)
+    .filter(l => !/^Sinal 2 Valor:/i.test(l))
+    .map(l => l.replace(/^Sinal\s*2\s*-/i, "Sinal -"))
+    .join("\n");
   const chkInloco = document.getElementById("eventoPagarInloco");
   if (chkInloco) chkInloco.checked = rtEventoPagarInlocoMarcado(e);
   atualizarIconesFormaPagamentoEvento();
@@ -1035,6 +1296,7 @@ function abrirEditarEvento(id) {
   if (fimRec) fimRec.value = e.recorrencia_fim || e.data_evento || "";
   atualizarBoxRecorrencia();
   atualizarCampoDiasRecorrencia();
+  configurarCampoColaboradorEvento(e.colaborador || getColaboradorLogado());
 
   produtosSelecionadosEventoAtual = Array.isArray(e.tendas) ? [...e.tendas] : [];
   produtosExtrasEventoAtual = Array.isArray(e.produtos_extras) ? [...e.produtos_extras] : [];
@@ -1043,6 +1305,7 @@ function abrirEditarEvento(id) {
   renderizarProdutosSelecionadosEvento();
   renderizarExtrasEvento();
   renderizarApoioEvento(e.itens_apoio || []);
+  atualizarAlertasOperacaoEvento();
 
   document.getElementById("eventoModalTitulo").textContent = "Editar evento";
   atualizarVisibilidadeDuplicarEvento(true);
@@ -1230,8 +1493,125 @@ function produtoJaSelecionadoNoEvento(lista, produto, ignorarIndex = -1) {
   });
 }
 
+function rtTextoProdutoEvento(produto) {
+  return String([
+    produto?.codigo,
+    produto?.categoria || produto?.tipo,
+    produto?.tamanho,
+    produto?.cor,
+    produto?.modelo,
+    produto?.descricao,
+    produto?.status
+  ].filter(Boolean).join(" "));
+}
+
+function rtNormalizarEventoTexto(valor) {
+  return String(valor || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function produtoEventoEstaBloqueado(produto) {
+  const status = rtNormalizarEventoTexto(produto?.status || produto?.situacao || produto?.estado || "");
+  return status === "bloqueada" || status === "bloqueado";
+}
+
+function rtDescricaoProdutoEvento(produto) {
+  return [produto?.categoria || produto?.tipo || "", produto?.tamanho || "", produto?.cor || ""].filter(Boolean).join(" ").trim();
+}
+
+function rtProdutoCompatAtalho(produto, tipo) {
+  if (!produto || produtoEventoEstaBloqueado(produto)) return false;
+  if ((produto.categoria || produto.tipo) === "Materiais de Apoio") return false;
+  const texto = rtNormalizarEventoTexto(rtTextoProdutoEvento(produto));
+  const tam = rtNormalizarEventoTexto(produto.tamanho || "");
+  const cat = rtNormalizarEventoTexto(produto.categoria || produto.tipo || "");
+  const cor = rtNormalizarEventoTexto(produto.cor || produto.modelo || "");
+  const ehBranco = texto.includes("branc") || cor.includes("branc");
+  if (tipo === "ombrelone") return (texto.includes("ombrelone") || cat.includes("ombrelone")) && ehBranco;
+  if (!ehBranco) return false;
+  if (!texto.includes("tenda") && !cat.includes("tenda")) return false;
+  if (tipo === "3x3") return tam.includes("3x3") || texto.includes("3x3");
+  if (tipo === "4.5x3") return tam.includes("4 5x3") || tam.includes("4 50x3") || tam.includes("45x3") || texto.includes("4 5x3") || texto.includes("4 50x3") || texto.includes("45x3");
+  if (tipo === "6x3") return tam.includes("6x3") || texto.includes("6x3");
+  return false;
+}
+
+function rtAdicionarProdutoObjetoEvento(p) {
+  produtosSelecionadosEventoAtual.push({
+    id: p.id,
+    codigo: p.codigo || "",
+    categoria: p.categoria || p.tipo || "",
+    tamanho: p.tamanho || "",
+    cor: p.cor || ""
+  });
+}
+
+function adicionarProdutoAtalhoEvento(tipo) {
+  const ids = new Set(produtosSelecionadosEventoAtual.map(p => String(p.id)));
+  const candidato = (Array.isArray(produtos) ? produtos : [])
+    .filter(p => !ids.has(String(p.id)))
+    .filter(p => rtProdutoCompatAtalho(p, tipo))
+    .map(p => ({ produto: p, disp: disponibilidadeProdutoParaEvento(p.id) }))
+    .filter(item => item.disp?.livre)
+    .sort((a, b) => String(a.produto.codigo || "").localeCompare(String(b.produto.codigo || ""), "pt-BR", { numeric: true }))
+    [0]?.produto;
+
+  if (!candidato) {
+    alert("Nenhum produto disponível para este atalho na data/período informado.");
+    return;
+  }
+
+  rtAdicionarProdutoObjetoEvento(candidato);
+  popularSelectProdutosEvento();
+  renderizarProdutosSelecionadosEvento();
+}
+
+function rtEventoUsuarioAdmin() {
+  try { return typeof usuarioEhAdministrador === "function" && usuarioEhAdministrador(); } catch { return false; }
+}
+
+function rtListaColaboradoresEvento() {
+  const nomes = [];
+  try {
+    if (Array.isArray(usuariosSistema)) {
+      usuariosSistema.forEach(u => { if (u && (u.nome || u.usuario)) nomes.push(u.nome || u.usuario); });
+    }
+  } catch {}
+  try {
+    const local = JSON.parse(localStorage.getItem("novoRioTendasUsuariosSistemaV1") || "[]");
+    if (Array.isArray(local)) local.forEach(u => { if (u && (u.nome || u.usuario)) nomes.push(u.nome || u.usuario); });
+  } catch {}
+  const atual = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "";
+  if (atual) nomes.push(atual);
+  return [...new Set(nomes.filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b), "pt-BR"));
+}
+
+function configurarCampoColaboradorEvento(valorAtual = "") {
+  const campo = document.getElementById("eventoColaboradorSelect");
+  const hint = document.getElementById("eventoColaboradorHint");
+  if (!campo) return;
+  const admin = rtEventoUsuarioAdmin();
+  const valor = valorAtual || (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "");
+  const nomes = rtListaColaboradoresEvento();
+  if (valor && !nomes.includes(valor)) nomes.unshift(valor);
+  campo.innerHTML = nomes.map(nome => `<option value="${rtEventoEscape(nome)}">${rtEventoEscape(nome)}</option>`).join("");
+  if (!campo.innerHTML) campo.innerHTML = `<option value="${rtEventoEscape(valor)}">${rtEventoEscape(valor || "-")}</option>`;
+  campo.value = valor;
+  campo.disabled = !admin;
+  if (hint) hint.textContent = admin ? "Administrador pode corrigir o colaborador deste evento." : "Somente Administrador pode alterar este campo.";
+}
+
+function obterColaboradorFormularioEvento(existente) {
+  const campo = document.getElementById("eventoColaboradorSelect");
+  if (rtEventoUsuarioAdmin() && campo && campo.value) return campo.value;
+  return existente?.colaborador || (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "");
+}
+
 function produtoEstaDisponivelNoEvento(produto, evento, ignorarIndex = -1) {
   if (!produto || !evento) return { livre: false, texto: "Produto inválido", classe: "busy" };
+
+  if (produtoEventoEstaBloqueado(produto)) {
+    return { livre: false, texto: "Produto bloqueado", classe: "busy" };
+  }
 
   if (produtoJaSelecionadoNoEvento(produtosRapidoAtual || evento.tendas || [], produto, ignorarIndex)) {
     return { livre: false, texto: "Já selecionado neste evento", classe: "busy" };
@@ -1289,6 +1669,10 @@ function disponibilidadeProdutoParaEvento(produtoId) {
   const intervaloAtual = intervaloEventoAtual();
   const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(produtoId)) || { id: produtoId };
 
+  if (produtoEventoEstaBloqueado(produto)) {
+    return { livre: false, texto: "Produto bloqueado", classe: "busy" };
+  }
+
   if (!intervaloAtual.inicio || !intervaloAtual.fim) {
     return { livre: true, texto: "Defina a data para verificar", classe: "neutral" };
   }
@@ -1342,9 +1726,7 @@ function adicionarProdutoSelecionadoAoEvento() {
     return;
   }
 
-  produtosSelecionadosEventoAtual.push({
-    id: p.id, codigo: p.codigo || "", categoria: p.categoria || p.tipo || "", tamanho: p.tamanho || "", cor: p.cor || ""
-  });
+  rtAdicionarProdutoObjetoEvento(p);
   select.value = "";
   popularSelectProdutosEvento();
   renderizarProdutosSelecionadosEvento();
@@ -1465,12 +1847,13 @@ function renderizarProdutosSelecionadosEvento() {
     }
     const disp = disponibilidadeProdutoParaEvento(p.id);
     return `
-      <div class="selected-item">
+      <div class="selected-item evento-produto-selecionado-compacto">
         <span>
-          <strong>${p.codigo || "Sem código"}</strong> — ${p.categoria || ""} ${p.tamanho || ""} ${p.cor || ""}
+          <strong>${p.codigo || "Sem código"}</strong>
+          <em>${rtDescricaoProdutoEvento(p)}</em>
           <small class="availability-badge ${disp.classe}">${disp.texto}</small>
         </span>
-        <button type="button" class="btn-outline" data-remove-produto="${p.id}">Remover</button>
+        <button type="button" class="btn-outline" data-remove-produto="${p.id}">×</button>
       </div>`;
   }).join("");
   area.querySelectorAll("[data-remove-produto]").forEach(btn => {
@@ -1550,10 +1933,10 @@ const RT_EVENTO_CONJUNTOS_APOIO = {
     ]
   },
   bistro: {
-    descricao: 'Conjunto Bistrô (1 mesa bistrô + 2 banquetas)',
+    descricao: 'Conjunto Bistrô (1 mesa bistrô + 2 cadeiras bistrô)',
     itens: [
       { nome: 'Mesa Bistrô', aliases: ['Mesa Bistrô','Mesa Bistro'], qtd: 1 },
-      { nome: 'Banqueta', aliases: ['Banqueta','Banquetas'], qtd: 2 }
+      { nome: 'Cadeira Bistrô', aliases: ['Cadeira Bistrô','Cadeira Bistro','Banqueta','Banquetas'], qtd: 2 }
     ]
   }
 };
@@ -1772,6 +2155,16 @@ function disponibilidadeApoioParaEvento(item, quantidadeDesejada = 0) {
 }
 
 function validarProdutosDoEvento() {
+  const bloqueados = produtosSelecionadosEventoAtual
+    .filter(p => !p.pendente_codigo)
+    .map(p => (Array.isArray(produtos) ? produtos : []).find(prod => String(prod.id) === String(p.id)) || p)
+    .filter(produtoEventoEstaBloqueado);
+
+  if (bloqueados.length) {
+    alert("Não é possível salvar este evento. Existem produtos bloqueados:\n\n" + bloqueados.map(p => `${p.codigo || "Sem código"} — ${rtDescricaoProdutoEvento(p)}`).join("\n"));
+    return false;
+  }
+
   const indisponiveis = produtosSelecionadosEventoAtual
     .filter(p => !p.pendente_codigo)
     .map(p => ({ produto: p, disponibilidade: disponibilidadeProdutoParaEvento(p.id) }))
@@ -1888,6 +2281,18 @@ async function salvarEventoForm(event) {
   const i = eventos.findIndex(e => e.id === salvo.id);
   if (i >= 0) eventos[i] = salvo;
   else eventos.push(salvo);
+
+  if (existente && String(existente.colaborador || "") !== String(evento.colaborador || "") && typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Eventos",
+      acao: "Colaborador alterado",
+      registro_id: evento.id,
+      registro_nome: evento.nome || "Evento",
+      antes: { colaborador: existente.colaborador || "" },
+      depois: { colaborador: evento.colaborador || "" },
+      detalhes: `Colaborador alterado por administrador: ${existente.colaborador || "-"} → ${evento.colaborador || "-"}`
+    });
+  }
 
   if (existente && isEventoRecorrente(existente) && modoAplicacaoRecorrente !== "somente") {
     const alvos = rtEventosAfetadosRecorrencia(existente, modoAplicacaoRecorrente).filter(e => String(e.id) !== String(evento.id));
@@ -2286,7 +2691,7 @@ function renderizarEventos() {
           <small class="event-hour-under">${horarioEventoAbaixoData(e) || "-"}</small>
         </td>
         <td class="mont-desm-cell">${montagemDesmontagemCompacta(e)}</td>
-        <td><button class="code-link" data-action="detalhe" data-id="${e.id}">${e.nome || "-"}</button></td>
+        <td><button class="code-link" data-action="editar" data-id="${e.id}">${e.nome || "-"}</button></td>
         <td>${e.telefone || "-"}</td>
         <td><div class="cell-scroll cell-endereco">${e.endereco || "-"}</div></td>
         <td>
@@ -2321,7 +2726,7 @@ function renderizarEventos() {
       <td class="clientes-actions"><div class="clientes-actions-row">${dataCompactaComDiaRecorrente(e.data_evento)}</td>
       <td>${periodoRecorrenciaTexto(e)}</td>
       <td>${recorrenciaLabel(e.recorrencia_tipo, e.recorrencia_dias)}</td>
-      <td><button class="code-link" data-action="detalhe" data-id="${e.id}">${e.nome || "-"}</button></td>
+      <td><button class="code-link" data-action="editar" data-id="${e.id}">${e.nome || "-"}</button></td>
       <td>${e.telefone || "-"}</td>
       <td><div class="cell-scroll cell-endereco">${e.endereco || "-"}</div></td>
       <td>
@@ -2357,6 +2762,7 @@ async function lidarAcaoEvento(event) {
     if (!ok) return;
 
     eventos = eventos.filter(x => x.id !== id);
+    await atualizarPeriodoRecorrenciaAposExclusao(e);
     normalizarOrdemEventosGlobal();
     renderizarEventos();
   }
@@ -2634,7 +3040,10 @@ function adicionarProdutoRapido() {
 
   const disp = disponibilidadeProdutoRapido(produto.id);
   if (!disp.livre) {
-    alert("Este produto está indisponível para este evento.");
+    const msg = produtoEventoEstaBloqueado(produto)
+      ? "Produto bloqueado.\n\nEste item não pode ser reservado."
+      : "Este produto está indisponível para este evento.";
+    alert(msg);
     select.value = "";
     return;
   }

@@ -1,3 +1,4 @@
+// v19-dev-pacote-operacional
 
 
 function tipoHorarioBaseRota(valor) {
@@ -729,6 +730,28 @@ async function atualizarOrdemRotasDaNuvemSeNecessario() {
   }
 }
 
+
+function aplicarParametrosRotaLinkSeExistirem() {
+  try {
+    const params = window.__riotendasRotaLinkParams || (() => {
+      const q = new URLSearchParams(window.location.search);
+      if (q.get("section") !== "rotas") return null;
+      return { data: q.get("rotaData") || "", tipo: q.get("rotaTipo") || "" };
+    })();
+    if (!params || !params.data) return;
+    const rotaPeriodo = document.getElementById("rotaPeriodo");
+    const rotaData = document.getElementById("rotaData");
+    const rotaTipo = document.getElementById("rotaTipoFiltro");
+    const rotaCarro = document.getElementById("rotaCarroFiltro");
+    if (rotaPeriodo) rotaPeriodo.value = "data";
+    if (rotaData) rotaData.value = params.data;
+    if (rotaTipo && params.tipo) rotaTipo.value = params.tipo;
+    if (rotaCarro) rotaCarro.value = "";
+  } catch (err) {
+    console.warn("Não foi possível travar data/tipo da rota pelo link", err);
+  }
+}
+
 function iniciarRotas() {
   if (!document.getElementById("rotasConteudo")) return;
 
@@ -744,6 +767,7 @@ function iniciarRotas() {
   const hoje = new Date();
   const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
   document.getElementById("rotaMes").value = mesAtual;
+  aplicarParametrosRotaLinkSeExistirem();
 
   ["rotaPeriodo", "rotaMes", "rotaData", "rotaTipoFiltro", "rotaCarroFiltro"].forEach(id => {
     const el = document.getElementById(id);
@@ -1568,6 +1592,7 @@ function rtAbrirGoogleMapsRotas(listaRotas) {
 }
 
 function renderizarRotas() {
+  aplicarParametrosRotaLinkSeExistirem();
   const container = document.getElementById("rotasConteudo");
   if (!container) return;
 
@@ -2139,6 +2164,9 @@ function imprimirRotaData(data) {
 
   const grupos = agruparPorDataECarro(rotasData);
   const carros = Object.keys(grupos[data] || {}).sort((a, b) => ordemCarro(a) - ordemCarro(b));
+  const usuarioRotaLayout = (typeof getUsuarioLogado === "function" ? getUsuarioLogado() : null) || {};
+  const rotaLayoutUsuarioKey = String(usuarioRotaLayout.id || usuarioRotaLayout.usuario || usuarioRotaLayout.nome || "padrao").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const rotaLayoutIsAdmin = usuarioRotaLayout.perfil === "administrador";
 
   const html = `
     <html>
@@ -2232,7 +2260,7 @@ function imprimirRotaData(data) {
 
           .grid {
             display:grid;
-            grid-template-columns: 0.9fr 0.85fr 1fr 1.0fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr;
+            grid-template-columns: var(--rota-colunas-editaveis, 0.9fr 0.85fr 1fr 1fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr);
             gap:4px;
             margin-top:4px;
           }
@@ -2242,6 +2270,35 @@ function imprimirRotaData(data) {
             border-radius:6px;
             padding:3px 4px;
             background:#fff;
+            position:relative;
+          }
+
+          .rota-col-resizer {
+            position:absolute;
+            top:0;
+            right:-4px;
+            width:8px;
+            height:100%;
+            cursor:col-resize;
+            z-index:5;
+            user-select:none;
+            touch-action:none;
+          }
+
+          .rota-col-resizer::after {
+            content:"";
+            position:absolute;
+            top:18%;
+            bottom:18%;
+            left:3px;
+            width:2px;
+            border-radius:2px;
+            background:rgba(15,61,102,.22);
+          }
+
+          body.rota-redimensionando {
+            cursor:col-resize;
+            user-select:none;
           }
 
           .col span {
@@ -2287,6 +2344,11 @@ function imprimirRotaData(data) {
             color:#b00020;
           }
 
+          .toolbar-rota-editavel { position: sticky; top:0; z-index:10; display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 10px; margin:-8px -8px 8px; background:#0f3d66; color:#fff; font-size:12px; }
+          .toolbar-rota-editavel button { border:0; border-radius:8px; padding:7px 10px; cursor:pointer; font-weight:700; }
+          .toolbar-rota-editavel .secondary { background:#e9eef5; color:#123; }
+          .rota-editavel-page:focus { outline:2px dashed #7aa7d9; outline-offset:4px; }
+          @media print { .toolbar-rota-editavel { display:none !important; } body { padding:0; } }
           @page {
             size: landscape;
             margin: 6mm;
@@ -2295,7 +2357,7 @@ function imprimirRotaData(data) {
 
           /* Ajuste final: PDF/Imprimir com 10 campos na mesma linha */
           .grid {
-            grid-template-columns: 0.9fr 0.85fr 1fr 1.0fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr !important;
+            grid-template-columns: var(--rota-colunas-editaveis, 0.9fr 0.85fr 1fr 1fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr) !important;
             gap:4px !important;
           }
 
@@ -2328,7 +2390,7 @@ function imprimirRotaData(data) {
 
 /* Refino final PDF: fonte maior, endereço maior, valores menores */
 .grid {
-  grid-template-columns: 0.9fr 0.85fr 1fr 1.0fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr !important;
+  grid-template-columns: var(--rota-colunas-editaveis, 0.9fr 0.85fr 1fr 1fr 1.95fr 0.5fr 0.5fr 0.55fr 0.7fr 0.85fr) !important;
 }
 
 .col span {
@@ -2357,6 +2419,16 @@ function imprimirRotaData(data) {
 </style>
       </head>
       <body>
+        <div class="toolbar-rota-editavel">
+          <strong>Rota editável — ajuste textos e arraste as colunas antes de imprimir/salvar PDF</strong>
+          <div>
+            <button type="button" class="secondary" onclick="window.print()">Imprimir / salvar PDF</button>
+            <button type="button" class="secondary" id="rotaResetColunasBtn">Restaurar colunas</button>
+            ${rotaLayoutIsAdmin ? '<button type="button" class="secondary" id="rotaSalvarGlobalColunasBtn">Salvar layout para todos</button>' : ''}
+            <button type="button" onclick="window.close()">Fechar</button>
+          </div>
+        </div>
+        <main class="rota-editavel-page" contenteditable="true">
         <div class="topo">
           <img src="https://riotendas.smartwebinfo.com.br/webapp/public/img/logo.png">
           <div>
@@ -2443,6 +2515,163 @@ function imprimirRotaData(data) {
             `;
           }).join("")}
         `).join("")}
+        </main>
+
+        <script>
+          (function() {
+            const DEFAULT_COLS = [0.9,0.85,1,1,1.95,0.5,0.5,0.55,0.7,0.85];
+            const usuarioKey = "${rotaLayoutUsuarioKey}";
+            const isAdmin = ${rotaLayoutIsAdmin ? "true" : "false"};
+            const localUserKey = "rt_rota_colunas_usuario_" + usuarioKey;
+            const localGlobalKey = "rt_rota_colunas_global";
+            const cloudUserKey = "rota_colunas_layout_usuario_" + usuarioKey;
+            const cloudGlobalKey = "rota_colunas_layout_global";
+            let cols = DEFAULT_COLS.slice();
+            let saveTimer = null;
+
+            function normalizar(lista) {
+              if (!Array.isArray(lista) || lista.length !== 10) return null;
+              const nums = lista.map(Number);
+              if (nums.some(v => !Number.isFinite(v) || v <= 0)) return null;
+              return nums;
+            }
+
+            function template(lista) {
+              return lista.map(v => Math.max(0.25, Number(v) || 0.5).toFixed(3) + "fr").join(" ");
+            }
+
+            function aplicar(lista) {
+              const validas = normalizar(lista) || DEFAULT_COLS.slice();
+              cols = validas.slice();
+              document.documentElement.style.setProperty("--rota-colunas-editaveis", template(cols));
+            }
+
+            function lerLocal(key) {
+              try { return normalizar(JSON.parse(localStorage.getItem(key) || "null")); } catch(e) { return null; }
+            }
+
+            function salvarLocal(key, value) {
+              try { localStorage.setItem(key, JSON.stringify(value)); } catch(e) {}
+            }
+
+            async function lerCloud(key) {
+              try {
+                const sb = window.opener && window.opener.supabaseClient;
+                if (!sb) return null;
+                const resp = await sb.from("configuracoes_sistema").select("valor").eq("chave", key).maybeSingle();
+                if (resp.error) return null;
+                return normalizar(resp.data && resp.data.valor && resp.data.valor.colunas);
+              } catch(e) { return null; }
+            }
+
+            async function salvarCloud(key, value) {
+              try {
+                const sb = window.opener && window.opener.supabaseClient;
+                if (!sb) return false;
+                const resp = await sb.from("configuracoes_sistema").upsert({
+                  chave: key,
+                  valor: { colunas: value, atualizado_em: new Date().toISOString() },
+                  atualizado_em: new Date().toISOString()
+                }, { onConflict: "chave" });
+                return !resp.error;
+              } catch(e) { return false; }
+            }
+
+            async function carregarLayout() {
+              const userCloud = await lerCloud(cloudUserKey);
+              const globalCloud = await lerCloud(cloudGlobalKey);
+              const userLocal = lerLocal(localUserKey);
+              const globalLocal = lerLocal(localGlobalKey);
+              aplicar(userCloud || userLocal || globalCloud || globalLocal || DEFAULT_COLS);
+              if (globalCloud) salvarLocal(localGlobalKey, globalCloud);
+              if (userCloud) salvarLocal(localUserKey, userCloud);
+            }
+
+            function agendarSalvarUsuario() {
+              clearTimeout(saveTimer);
+              saveTimer = setTimeout(async () => {
+                salvarLocal(localUserKey, cols);
+                await salvarCloud(cloudUserKey, cols);
+              }, 250);
+            }
+
+            function primeiraGrid() {
+              return document.querySelector(".grid");
+            }
+
+            function iniciarResize(idx, evento) {
+              evento.preventDefault();
+              evento.stopPropagation();
+              const grid = primeiraGrid();
+              if (!grid) return;
+              const cells = Array.from(grid.children);
+              const startX = (evento.touches && evento.touches[0] ? evento.touches[0].clientX : evento.clientX);
+              const startWidths = cells.map(c => c.getBoundingClientRect().width);
+              const total = startWidths.reduce((a,b) => a + b, 0) || 1;
+              const min = 34;
+              document.body.classList.add("rota-redimensionando");
+
+              function mover(ev) {
+                const x = (ev.touches && ev.touches[0] ? ev.touches[0].clientX : ev.clientX);
+                const dx = x - startX;
+                const widths = startWidths.slice();
+                widths[idx] = Math.max(min, startWidths[idx] + dx);
+                widths[idx + 1] = Math.max(min, startWidths[idx + 1] - dx);
+                const novoTotal = widths.reduce((a,b) => a + b, 0) || total;
+                cols = widths.map(w => (w / novoTotal) * 10);
+                aplicar(cols);
+              }
+
+              function parar() {
+                document.body.classList.remove("rota-redimensionando");
+                document.removeEventListener("mousemove", mover);
+                document.removeEventListener("mouseup", parar);
+                document.removeEventListener("touchmove", mover);
+                document.removeEventListener("touchend", parar);
+                agendarSalvarUsuario();
+              }
+
+              document.addEventListener("mousemove", mover);
+              document.addEventListener("mouseup", parar);
+              document.addEventListener("touchmove", mover, { passive:false });
+              document.addEventListener("touchend", parar);
+            }
+
+            function criarHandles() {
+              document.querySelectorAll(".grid").forEach(grid => {
+                Array.from(grid.children).forEach((col, idx) => {
+                  if (idx >= 9 || col.querySelector(".rota-col-resizer")) return;
+                  const h = document.createElement("span");
+                  h.className = "rota-col-resizer";
+                  h.contentEditable = "false";
+                  h.title = "Arraste para ajustar a largura da coluna";
+                  h.addEventListener("mousedown", ev => iniciarResize(idx, ev));
+                  h.addEventListener("touchstart", ev => iniciarResize(idx, ev), { passive:false });
+                  col.appendChild(h);
+                });
+              });
+            }
+
+            document.addEventListener("DOMContentLoaded", async () => {
+              await carregarLayout();
+              criarHandles();
+              const resetBtn = document.getElementById("rotaResetColunasBtn");
+              if (resetBtn) resetBtn.addEventListener("click", async () => {
+                aplicar(DEFAULT_COLS);
+                salvarLocal(localUserKey, cols);
+                await salvarCloud(cloudUserKey, cols);
+              });
+              const globalBtn = document.getElementById("rotaSalvarGlobalColunasBtn");
+              if (globalBtn) globalBtn.addEventListener("click", async () => {
+                if (!isAdmin) return;
+                if (!confirm("Salvar este layout de colunas como padrão para todos os usuários?")) return;
+                salvarLocal(localGlobalKey, cols);
+                const ok = await salvarCloud(cloudGlobalKey, cols);
+                if (ok) { alert("Layout salvo como padrão para todos."); } else { console.warn("Não foi possível salvar o layout na nuvem."); }
+              });
+            });
+          })();
+        </script>
       </body>
     </html>
   `;
@@ -2451,7 +2680,6 @@ function imprimirRotaData(data) {
   janela.document.write(html);
   janela.document.close();
   janela.focus();
-  janela.print();
 }
 
 document.addEventListener("DOMContentLoaded", iniciarRotas);

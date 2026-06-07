@@ -1473,9 +1473,13 @@ function renderizarCarrosConfig() {
   const config = carregarConfiguracoes();
   
 const materiaisApoioStyle = document.getElementById('materiais-apoio-align-style') || (()=>{const s=document.createElement('style');s.id='materiais-apoio-align-style';s.textContent=`
-#configModalProdutos .materiais-apoio-cabecalho,#configModalProdutos .material-apoio-config-item{display:grid;grid-template-columns:260px 112px 190px;align-items:center;column-gap:12px;justify-content:start;width:fit-content}
+#configModalProdutos .materiais-apoio-toolbar{display:flex;justify-content:flex-end;align-items:center;margin:8px 0 12px;gap:8px}
+#configModalProdutos .materiais-apoio-tabela{width:100%;max-width:760px}
+#configModalProdutos .materiais-apoio-cabecalho,#configModalProdutos .material-apoio-config-item{display:grid!important;grid-template-columns:minmax(260px,1fr) 120px 110px!important;align-items:center!important;column-gap:10px!important;width:100%!important;box-sizing:border-box!important}
 #configModalProdutos .materiais-apoio-cabecalho span:nth-child(2),#configModalProdutos .materiais-apoio-cabecalho span:nth-child(3){text-align:center}
-#configModalProdutos .material-apoio-config-item .config-actions{display:flex;gap:8px;justify-content:center;width:190px}
+#configModalProdutos .material-apoio-config-item .config-actions{display:flex;gap:8px;justify-content:center;width:auto}
+#configModalProdutos .material-apoio-config-item input{min-width:0}
+#configModalProdutos .salvar-materiais-apoio-unico{min-width:150px}
 `;document.head.appendChild(s);return s;})();
 
 const lista = document.getElementById("listaCarrosConfig");
@@ -1680,26 +1684,55 @@ async function renderizarMateriaisApoioConfig() {
   }, {});
   const ordemGrupos = ["Materiais Gerais", "Caixas Térmicas", "Toalhas", "Acessórios de Tendas"];
 
-  lista.innerHTML = ordemGrupos.filter(grupo => grupos[grupo]?.length).map(grupo => `
+  lista.innerHTML = `
+    <div class="materiais-apoio-toolbar">
+      <button type="button" class="btn-primary salvar-materiais-apoio-unico" id="salvarMateriaisApoioTodos">Salvar alterações</button>
+    </div>
+  ` + ordemGrupos.filter(grupo => grupos[grupo]?.length).map(grupo => `
     <div class="config-subsection-title">${grupo}</div>
     <div class="materiais-apoio-tabela">
       <div class="materiais-apoio-cabecalho">
         <span>Nome</span>
         <span>Qtd.</span>
-        <span>Ações</span>
+        <span>Excluir</span>
       </div>
       ${grupos[grupo].map(item => `
       <div class="config-list-item material-apoio-config-item" data-material-id="${item.id}">
         <input type="text" class="material-apoio-nome" aria-label="Nome" value="${String(item.nome || "").replace(/"/g, "&quot;")}">
         <input type="number" min="0" step="1" class="material-apoio-qtd" aria-label="Quantidade total" value="${Number(item.quantidade_total || 0)}">
         <div class="config-actions">
-          <button type="button" class="btn-outline" data-salvar-material-apoio="${item.id}">Salvar</button>
           <button type="button" class="btn-outline danger" data-remover-material-apoio="${item.id}">Excluir</button>
         </div>
       </div>
       `).join("")}
     </div>
   `).join("");
+
+
+
+  const salvarTodosBtn = lista.querySelector("#salvarMateriaisApoioTodos");
+  if (salvarTodosBtn) {
+    salvarTodosBtn.addEventListener("click", async () => {
+      const linhas = Array.from(lista.querySelectorAll("[data-material-id]"));
+      for (const linha of linhas) {
+        const id = linha.dataset.materialId;
+        const original = materiais.find(i => String(i.id) === String(id));
+        if (!original) continue;
+        const nome = linha.querySelector(".material-apoio-nome")?.value.trim();
+        const quantidade = Math.max(Number(linha.querySelector(".material-apoio-qtd")?.value || 0), 0);
+        if (!nome) { alert("Informe o nome de todos os materiais de apoio."); return; }
+        const mudouNome = String(original.nome || "").trim().toLowerCase() !== nome.toLowerCase();
+        const mudouQtd = Number(original.quantidade_total || 0) !== quantidade;
+        if (!mudouNome && !mudouQtd) continue;
+        if (mudouNome && typeof marcarMaterialApoioExcluido === "function") marcarMaterialApoioExcluido(original.nome);
+        if (typeof desmarcarMaterialApoioExcluido === "function") desmarcarMaterialApoioExcluido(nome);
+        await salvarMaterialApoioConfig({ ...original, nome, quantidade_total: quantidade });
+      }
+      await atualizarMateriaisApoioNasTelas();
+      renderizarMateriaisApoioConfig();
+      alert("Materiais de apoio salvos.");
+    });
+  }
 
   lista.querySelectorAll("[data-salvar-material-apoio]").forEach(btn => {
     btn.addEventListener("click", async () => {

@@ -70,6 +70,81 @@ function ruaMobileDinheiro(valor) {
 }
 
 
+function ruaMobileAlterarData(dias) {
+  const input = document.getElementById("ruaMobileData");
+  if (!input) return;
+  const base = input.value ? new Date(`${input.value}T12:00:00`) : new Date();
+  base.setDate(base.getDate() + Number(dias || 0));
+  input.value = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
+  renderizarRuaMobile();
+}
+
+function ruaMobileRotaEstaPendente(rota) {
+  const operacao = typeof obterOperacaoRota === "function" ? obterOperacaoRota(rota.id) : null;
+  if (!operacao || !operacao.status) return true;
+  if (rota.tipo === "Montagem") return operacao.status !== "entregue";
+  if (rota.tipo === "Desmontagem") return operacao.status !== "recolhido";
+  return true;
+}
+
+function ruaMobileRotasPendentesPorCarro(carroAlvo) {
+  if (typeof criarRotasDosEventos !== "function") return [];
+  const data = document.getElementById("ruaMobileData")?.value || ruaMobileHojeISO();
+  const tipo = document.getElementById("ruaMobileTipo")?.value || "";
+  const carro = String(carroAlvo || "").trim();
+  const lista = criarRotasDosEventos().filter(rota => {
+    const carroRota = String(ruaMobileCarroDaRota(rota) || "Sem carro").trim() || "Sem carro";
+    return rota.data === data
+      && (!tipo || rota.tipo === tipo)
+      && (!carro || carroRota === carro)
+      && ruaMobileRotaEstaPendente(rota)
+      && String(rota.endereco || "").trim();
+  });
+  if (typeof ordenarRotasPorOrdemManual === "function") return ordenarRotasPorOrdemManual(lista);
+  return lista;
+}
+
+function ruaMobileEncodeMaps(valor) {
+  return encodeURIComponent(String(valor || "").trim());
+}
+
+async function ruaMobileOrigemAtualParaMaps() {
+  if (!navigator.geolocation) return "Current+Location";
+  try {
+    const pos = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 3500, maximumAge: 60000 });
+    });
+    return `${pos.coords.latitude},${pos.coords.longitude}`;
+  } catch {
+    return "Current+Location";
+  }
+}
+
+async function abrirGoogleMapsPendenciasCarro(carroAlvo) {
+  const pendentes = ruaMobileRotasPendentesPorCarro(carroAlvo);
+  if (!pendentes.length) {
+    alert("Não há endereços pendentes para este carro na data/filtro selecionado.");
+    return;
+  }
+
+  const janela = window.open("about:blank", "_blank");
+  const origem = await ruaMobileOrigemAtualParaMaps();
+  const enderecos = pendentes.map(r => String(r.endereco || "").trim()).filter(Boolean).slice(0, 10);
+  const destino = enderecos[enderecos.length - 1];
+  const waypoints = enderecos.slice(0, -1);
+  const params = new URLSearchParams({
+    api: "1",
+    origin: origem,
+    destination: destino,
+    travelmode: "driving"
+  });
+  if (waypoints.length) params.set("waypoints", waypoints.join("|"));
+  const url = `https://www.google.com/maps/dir/?${params.toString()}`;
+  if (janela) janela.location.href = url;
+  else window.open(url, "_blank", "noopener");
+}
+
+
 const ruaMobileCardsExpandidos = new Set();
 
 function ruaMobileCardKey(rota) {
@@ -196,7 +271,12 @@ function renderizarRuaMobile() {
       })()
     : rotas.map((rota, idx) => ({ rota, idx, carroGrupo: ruaMobileCarroDaRota(rota), inicioGrupo: false }));
 
-  listaEl.innerHTML = rotasRender.map(({ rota, idx, carroGrupo, inicioGrupo }) => {
+  const ruaMobileCarroSelecionado = document.getElementById("ruaMobileCarro")?.value || "";
+  const ruaMobileHeaderCarroSelecionado = ruaMobileCarroSelecionado
+    ? `<div class="rua-mobile-carro-selecionado"><span>🚚 ${ruaMobileCarroSelecionado}</span><button type="button" class="rua-mobile-carro-maps-btn" data-rua-maps-carro="${String(ruaMobileCarroSelecionado).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Abrir rota pendente do carro no Google Maps">🗺️</button></div>`
+    : "";
+
+  listaEl.innerHTML = ruaMobileHeaderCarroSelecionado + rotasRender.map(({ rota, idx, carroGrupo, inicioGrupo }) => {
     const index = idx;
     const carro = ruaMobileCarroDaRota(rota);
     const tel = ruaMobileTelefoneLimpo(rota.telefone);
@@ -211,7 +291,7 @@ function renderizarRuaMobile() {
     const expandido = concluida && ruaMobileCardExpandido(rota);
     const classeConclusao = concluida ? (expandido ? "rua-mobile-card-concluido rua-mobile-card-expandido" : "rua-mobile-card-concluido") : "";
     const ruaMobileGrupoCarro = ruaMobileAgruparPorCarro && inicioGrupo
-      ? `<div class="rua-mobile-carro-grupo">${carroGrupo}</div>`
+      ? `<div class="rua-mobile-carro-grupo"><span>🚚 ${carroGrupo}</span><button type="button" class="rua-mobile-carro-maps-btn" data-rua-maps-carro="${String(carroGrupo).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Abrir rota pendente do carro no Google Maps">🗺️</button></div>`
       : "";
 
     return `
@@ -240,6 +320,14 @@ function renderizarRuaMobile() {
       </article>
     `;
   }).join("");
+
+  listaEl.querySelectorAll("[data-rua-maps-carro]").forEach(btn => {
+    btn.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      await abrirGoogleMapsPendenciasCarro(btn.dataset.ruaMapsCarro || "");
+    });
+  });
 
   listaEl.querySelectorAll(".rua-mobile-card-concluido").forEach(card => {
     card.addEventListener("click", (ev) => {
@@ -295,6 +383,13 @@ function iniciarRuaMobile() {
       el.addEventListener("change", renderizarRuaMobile);
     }
   });
+
+  const anteriorBtn = document.getElementById("ruaMobileDiaAnteriorBtn");
+  const hojeBtn = document.getElementById("ruaMobileHojeBtn");
+  const proximoBtn = document.getElementById("ruaMobileDiaProximoBtn");
+  if (anteriorBtn) anteriorBtn.addEventListener("click", () => ruaMobileAlterarData(-1));
+  if (hojeBtn) hojeBtn.addEventListener("click", () => { if (dataInput) dataInput.value = ruaMobileHojeISO(); renderizarRuaMobile(); });
+  if (proximoBtn) proximoBtn.addEventListener("click", () => ruaMobileAlterarData(1));
 
   const atualizarBtn = document.getElementById("ruaMobileAtualizarBtn");
   if (atualizarBtn) {

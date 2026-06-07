@@ -391,7 +391,7 @@ function iniciarProdutos() {
   popularSelect(statusSelect, statusProdutos);
   popularSelect(usabilidadeSelect, grausUsabilidade);
   popularSelect(filtroCategoria, Object.keys(categorias), "Todas");
-  popularSelect(filtroStatus, statusProdutos, "Todos");
+  popularSelect(filtroStatus, [...statusProdutos, "Em manutenção"], "Todos");
   atualizarTamanhos();
   atualizarFiltroTamanhos();
 
@@ -1041,7 +1041,7 @@ function filtrarProdutos() {
 
     return (!categoria || (p.categoria || p.tipo) === categoria)
       && (!tamanho || p.tamanho === tamanho)
-      && (!status || p.status === status)
+      && (!status || (status === "Em manutenção" ? ["Bloqueada", "Revisar", "Limpar", "Consertar"].includes(p.status) : p.status === status))
       && (!busca || texto.includes(busca))
       && (!somenteDisponiveis || disp.classe === "livre");
   });

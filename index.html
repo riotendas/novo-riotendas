@@ -107,7 +107,7 @@
         <button id="novoProdutoBtn">Novo produto</button>
       </div>
 
-      <div class="filters-bar">
+      <div class="filters-bar produtos-filtros-compactos">
         <label>Categoria
           <select id="filtroCategoria"><option value="">Todas</option></select>
         </label>
@@ -118,27 +118,21 @@
           <select id="filtroStatus"><option value="">Todos</option></select>
         </label>
         <label>Busca
-          <input id="buscaProduto" type="search" placeholder="Código, cor, observação..." />
+          <input id="buscaProduto" type="search" placeholder="Código, cor, obs..." />
         </label>
+        <label>Início
+          <input id="dispProdutoInicio" type="datetime-local">
+        </label>
+        <label>Fim
+          <input id="dispProdutoFim" type="datetime-local">
+        </label>
+        <label class="checkbox-line produtos-disponiveis-compacto">
+          <input id="mostrarSomenteDisponiveis" type="checkbox">
+          Disponíveis
+        </label>
+        <button type="button" id="limparDisponibilidadeProdutos" class="btn-outline">Limpar</button>
       </div>
-
-      <div class="availability-filter-panel">
-        <h3>Verificar disponibilidade por período</h3>
-        <div class="availability-filter-grid">
-          <label>Início
-            <input id="dispProdutoInicio" type="datetime-local">
-          </label>
-          <label>Fim
-            <input id="dispProdutoFim" type="datetime-local">
-          </label>
-          <label class="checkbox-line">
-            <input id="mostrarSomenteDisponiveis" type="checkbox">
-            Mostrar somente disponíveis
-          </label>
-          <button type="button" id="limparDisponibilidadeProdutos" class="btn-outline">Limpar período</button>
-        </div>
-        <p class="hint">A disponibilidade considera montagem/entrega até desmontagem/retirada.</p>
-      </div>
+      <p class="hint produtos-disp-hint">Disponibilidade considera montagem/entrega até desmontagem/retirada.</p>
 
       <div class="summary-row">
         <span>Total: <strong id="prodTotal">0</strong></span>
@@ -716,6 +710,11 @@
             <option value="">Todos</option>
           </select>
         </label>
+      </div>
+      <div class="rua-mobile-data-nav" aria-label="Navegação rápida de data">
+        <button id="ruaMobileDiaAnteriorBtn" class="btn-outline" type="button">◀</button>
+        <button id="ruaMobileHojeBtn" class="btn-outline" type="button">Hoje</button>
+        <button id="ruaMobileDiaProximoBtn" class="btn-outline" type="button">▶</button>
       </div>
 
       <div class="rua-mobile-resumo" id="ruaMobileResumo">Carregando rotas...</div>
@@ -1316,13 +1315,20 @@
             <input id="eventoEmail" type="email">
           </label>
           <label class="evento-endereco-wide">Endereço
-            <input id="eventoEndereco" type="text">
+            <textarea id="eventoEndereco" rows="2" placeholder="Digite endereço e complemento no mesmo campo"></textarea>
+            <div class="endereco-validacao-row">
+              <span id="eventoEnderecoStatus" class="endereco-validacao-status neutro">Endereço ainda não validado</span>
+              <button type="button" id="validarEventoEndereco" class="btn-outline btn-mini endereco-validacao-btn">📍 Verificar no Maps</button>
+            </div>
           </label>
           <label class="evento-observacao-wide">Observação do cliente
             <input id="eventoClienteObservacao" type="text" placeholder="Indicação, referência ou preferência">
           </label>
+          <label class="evento-colaborador-admin-field">Colaborador do evento
+            <select id="eventoColaboradorSelect"></select>
+            <small id="eventoColaboradorHint">Somente Administrador pode alterar este campo.</small>
+          </label>
         </div>
-        <p class="hint">Se o cliente ainda não existir, ele será cadastrado automaticamente ao salvar o evento.</p>
       </div>
 
       <div class="subpanel">
@@ -1387,6 +1393,7 @@
             <label class="campo-hora-final" id="eventoMontagemFimBox">Hora final
               <select id="eventoMontagemFim" class="time-list-select"></select>
             </label>
+            <div id="eventoMontagemAlertaDia" class="evento-dia-operacao-alerta" aria-live="polite"></div>
           </div>
 
           <div class="form-row event-operation-row event-operation-row-fast">
@@ -1407,6 +1414,7 @@
             <label class="campo-hora-final" id="eventoDesmontagemFimBox">Hora final
               <select id="eventoDesmontagemFim" class="time-list-select"></select>
             </label>
+            <div id="eventoDesmontagemAlertaDia" class="evento-dia-operacao-alerta" aria-live="polite"></div>
           </div>
         </div>
       </div>
@@ -1428,6 +1436,15 @@
               <button type="button" class="pagamento-icone" data-pagamento-forma="Pix/Transferência" title="Sinal - Pix/Transferência">📱</button>
               <button type="button" class="pagamento-icone" data-pagamento-forma="Dinheiro" title="Sinal - Dinheiro">💵</button>
               <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão" title="Sinal - Cartão">💳</button>
+            </span>
+          </label>
+          <button type="button" id="adicionarSinal2Evento" class="btn-outline btn-sinal2-evento hidden" aria-hidden="true" tabindex="-1">+ outro sinal</button>
+          <label id="eventoSinal2Box" class="evento-sinal2-box hidden">Sinal 2
+            <input id="eventoValorSinal2" class="money-input" type="text" inputmode="decimal" value="R$ 0,00">
+            <span class="pagamento-icones" data-pagamento-tipo="Sinal 2">
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Pix/Transferência" title="Sinal 2 - Pix/Transferência">📱</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Dinheiro" title="Sinal 2 - Dinheiro">💵</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão" title="Sinal 2 - Cartão">💳</button>
             </span>
           </label>
           <label>Restante
@@ -1455,8 +1472,16 @@
       </div>
 
       <div class="subpanel">
-        <h3>Produtos com código</h3>
-        <div class="produto-adder">
+        <div class="produtos-codigo-header">
+          <h3>Produtos com código</h3>
+          <div class="produto-atalhos-rapidos" aria-label="Atalhos rápidos de produtos">
+            <button type="button" class="btn-outline" data-produto-atalho="3x3">3x3</button>
+            <button type="button" class="btn-outline" data-produto-atalho="4.5x3">4,5x3</button>
+            <button type="button" class="btn-outline" data-produto-atalho="6x3">6x3</button>
+            <button type="button" class="btn-outline" data-produto-atalho="ombrelone">Omb</button>
+          </div>
+        </div>
+        <div class="produto-adder produto-adder-compacto">
           <select id="eventoProdutoSelect">
             <option value="">Selecione um produto para adicionar</option>
           </select>

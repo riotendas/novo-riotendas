@@ -10906,13 +10906,47 @@ button.danger-soft{border-color:#fecaca;background:#fff1f2;color:#991b1b;}
 .rua-mobile-section .section-header { align-items: flex-start; }
 .rua-mobile-filtros {
   display: grid;
-  grid-template-columns: repeat(3, minmax(160px, 1fr));
-  gap: 10px;
-  margin: 10px 0 12px;
+  grid-template-columns: 35% 30% 35%;
+  gap: 8px;
+  margin: 10px 0 8px;
+  align-items: end;
 }
-.rua-mobile-filtros label { font-size: 12px; font-weight: 700; color: #334155; }
+.rua-mobile-filtros label { min-width: 0; font-size: 12px; font-weight: 700; color: #334155; }
 .rua-mobile-filtros input,
-.rua-mobile-filtros select { width: 100%; margin-top: 4px; }
+.rua-mobile-filtros select { width: 100%; margin-top: 4px; min-width: 0; }
+.rua-mobile-data-nav {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr 1fr;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.rua-mobile-data-nav button { min-height: 36px; justify-content: center; }
+.rua-mobile-carro-grupo,
+.rua-mobile-carro-selecionado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  border: 1px solid #dbe3ee;
+  font-weight: 800;
+  color: #0f172a;
+}
+.rua-mobile-carro-maps-btn {
+  margin-left: auto;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  border-radius: 999px;
+  min-width: 38px;
+  min-height: 32px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-weight: 800;
+}
+.rua-mobile-carro-maps-btn:hover { background: #e2e8f0; }
 .rua-mobile-resumo {
   display: flex;
   gap: 8px;
@@ -11001,7 +11035,9 @@ body.perfil-rua .brand span { display: none; }
 body.perfil-rua .brand h1::after { content: " · Rua Mobile"; font-weight: 600; }
 
 @media (max-width: 720px) {
-  .rua-mobile-filtros { grid-template-columns: 1fr; }
+  .rua-mobile-filtros { grid-template-columns: 35% 30% 35%; gap: 6px; }
+  .rua-mobile-filtros label { font-size: 11px; }
+  .rua-mobile-filtros input, .rua-mobile-filtros select { font-size: 12px; padding-left: 6px; padding-right: 6px; }
   .rua-mobile-lista { grid-template-columns: 1fr; }
   .rua-mobile-section { padding: 10px; }
   .rua-mobile-card { border-radius: 12px; padding: 11px; }
@@ -13128,4 +13164,436 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
   flex: initial !important;
   box-sizing: border-box !important;
   margin: 0 !important;
+}
+
+
+/* v19-dev: Rotas - badge amarelo fora do horário comercial sem aumentar fonte */
+.rota-grid-info .rota-col strong.rota-horario-destaque.horario-fora-comercial,
+.rota-operacao-data strong.rota-horario-destaque.horario-fora-comercial,
+.card .col strong.rota-horario-destaque.horario-fora-comercial{
+  background:#fff1a8 !important;
+  border:1px solid #e2c85a !important;
+  color:inherit !important;
+  border-radius:5px !important;
+  padding:0 3px !important;
+  display:inline !important;
+  font-size:0.68rem !important;
+  line-height:1.15 !important;
+  font-weight:600 !important;
+  white-space:nowrap !important;
+  vertical-align:baseline !important;
+  box-shadow:none !important;
+}
+.rua-mobile-card h3 .rua-mobile-horario-destaque.horario-fora-comercial{
+  background:#fff1a8 !important;
+  border:1px solid #e2c85a !important;
+  color:inherit !important;
+  border-radius:5px !important;
+  padding:0 3px !important;
+  display:inline !important;
+  font-size:inherit !important;
+  line-height:inherit !important;
+  font-weight:inherit !important;
+  white-space:nowrap !important;
+  vertical-align:baseline !important;
+  box-shadow:none !important;
+}
+
+
+/* Ajustes Eventos: colaborador admin, atalhos rápidos e lista compacta */
+.evento-colaborador-admin-field {
+  grid-column: span 2;
+}
+.evento-colaborador-admin-field small {
+  display:block;
+  margin-top:4px;
+  color:#64748b;
+  font-size:11px;
+}
+.produto-atalhos-rapidos {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin:0 0 8px 0;
+}
+.produto-atalhos-rapidos .btn-outline {
+  min-height:30px;
+  padding:5px 8px;
+  font-size:12px;
+  white-space:nowrap;
+}
+.produto-adder-compacto select {
+  flex:0 1 68%;
+  min-width:170px;
+}
+.evento-produto-selecionado-compacto {
+  padding:5px 7px;
+  min-height:32px;
+}
+.evento-produto-selecionado-compacto span {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-width:0;
+  white-space:nowrap;
+  overflow:hidden;
+}
+.evento-produto-selecionado-compacto span em {
+  font-style:normal;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.evento-produto-selecionado-compacto .availability-badge {
+  width:auto;
+  white-space:nowrap;
+  font-size:11px;
+  flex:0 0 auto;
+}
+.evento-produto-selecionado-compacto button {
+  min-width:28px;
+  width:28px;
+  height:26px;
+  padding:0;
+  justify-content:center;
+}
+@media (max-width:700px){
+  .produto-adder-compacto { flex-direction:row; align-items:center; }
+  .produto-adder-compacto select { min-width:0; flex:1 1 auto; }
+  .evento-produto-selecionado-compacto { flex-direction:row; align-items:center; }
+  .evento-produto-selecionado-compacto span { font-size:12px; }
+}
+
+
+/* Ajuste Eventos: endereço em 2 linhas, atalhos ao lado do título e bloqueados visíveis */
+.evento-endereco-wide textarea#eventoEndereco {
+  width:100%;
+  min-height:52px;
+  resize:vertical;
+  line-height:1.35;
+}
+.produtos-codigo-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  margin:0 0 8px 0;
+}
+.produtos-codigo-header h3 {
+  margin:0;
+  flex:0 0 auto;
+}
+.produtos-codigo-header .produto-atalhos-rapidos {
+  margin:0 0 0 auto;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+}
+.produtos-codigo-header .produto-atalhos-rapidos .btn-outline {
+  min-height:28px;
+  padding:4px 8px;
+  font-size:11px;
+  line-height:1;
+}
+@media (max-width:700px){
+  .produtos-codigo-header { align-items:flex-start; gap:8px; }
+  .produtos-codigo-header .produto-atalhos-rapidos { gap:4px; }
+  .produtos-codigo-header .produto-atalhos-rapidos .btn-outline { padding:4px 6px; font-size:10.5px; }
+}
+
+
+/* v19-dev: aviso de versão/cache */
+.rt-versao-cache-banner {
+  position: fixed;
+  left: 12px; right: 12px; bottom: 12px;
+  z-index: 9999;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #0f172a; color: #fff;
+  box-shadow: 0 12px 30px rgba(15,23,42,.28);
+  font-size: 13px;
+}
+.rt-versao-cache-banner button {
+  border: 0; border-radius: 999px; padding: 7px 12px; font-weight: 800; cursor: pointer;
+}
+.rt-versao-cache-banner .rt-versao-depois { background: transparent; color: #cbd5e1; }
+.rt-versao-cache-banner .rt-versao-atualizar { background: #fff; color: #0f172a; }
+.rt-versao-rodape {
+  position: fixed; right: 10px; bottom: 4px; z-index: 1000;
+  font-size: 10px; color: #94a3b8; pointer-events: none;
+}
+@media (max-width: 720px){ .rt-versao-cache-banner{flex-direction:column; align-items:stretch;} .rt-versao-cache-banner-actions{display:flex; gap:8px;} .rt-versao-cache-banner-actions button{flex:1;} }
+
+/* v19-dev: filtros compactos de produtos + alertas operacionais de eventos */
+.produtos-filtros-compactos{
+  display:grid;
+  grid-template-columns: minmax(105px,.75fr) minmax(90px,.65fr) minmax(120px,.8fr) minmax(135px,1fr) minmax(145px,.9fr) minmax(145px,.9fr) auto auto;
+  align-items:end;
+  gap:8px;
+  margin-bottom:4px;
+}
+.produtos-filtros-compactos label{ min-width:0; }
+.produtos-filtros-compactos select,
+.produtos-filtros-compactos input{ width:100%; min-width:0; }
+.produtos-filtros-compactos .produtos-disponiveis-compacto{
+  align-self:center;
+  white-space:nowrap;
+  padding-top:18px;
+}
+.produtos-filtros-compactos #limparDisponibilidadeProdutos{
+  align-self:end;
+  padding-left:10px;
+  padding-right:10px;
+}
+.produtos-disp-hint{ margin:2px 0 10px; }
+.event-operation-row-fast .evento-dia-operacao-alerta{
+  align-self:end;
+  min-height:34px;
+  display:flex;
+  align-items:center;
+  gap:4px;
+  padding:7px 10px;
+  border-radius:10px;
+  font-size:12px;
+  font-weight:700;
+  white-space:nowrap;
+  background:#eef2ff;
+  color:#334155;
+  border:1px solid #c7d2fe;
+}
+.event-operation-row-fast .evento-dia-operacao-alerta:empty{
+  display:none;
+}
+.event-operation-row-fast .evento-dia-operacao-alerta.medio{
+  background:#fef3c7;
+  color:#92400e;
+  border-color:#fbbf24;
+}
+.event-operation-row-fast .evento-dia-operacao-alerta.critico{
+  background:#fee2e2;
+  color:#991b1b;
+  border-color:#fca5a5;
+}
+.link-button.alerta-ver-rota{
+  appearance:none;
+  border:0;
+  background:transparent;
+  color:inherit;
+  font:inherit;
+  font-weight:800;
+  text-decoration:underline;
+  cursor:pointer;
+  padding:0;
+}
+.btn-sinal2-evento{
+  align-self:end;
+  min-height:36px;
+  padding:6px 10px;
+  white-space:nowrap;
+}
+.evento-sinal2-box.hidden,
+.btn-sinal2-evento.hidden{ display:none !important; }
+.finance-row-inline .evento-sinal2-box{ min-width:130px; }
+@media (max-width: 980px){
+  .produtos-filtros-compactos{ grid-template-columns: repeat(4, minmax(0,1fr)); }
+}
+@media (max-width: 680px){
+  .produtos-filtros-compactos{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .event-operation-row-fast .evento-dia-operacao-alerta{ white-space:normal; }
+}
+
+
+/* v19-dev: Sinal 2 alinhado sem espremer forma de pagamento */
+.finance-row-inline #eventoSinal2Box.evento-sinal2-box:not(.hidden){
+  display:flex !important;
+  flex-direction:column;
+  grid-column:1 / -1;
+  width:100%;
+  max-width:320px;
+  margin-top:2px;
+}
+.finance-row-inline #eventoSinal2Box .pagamento-icones{margin-top:4px;}
+.finance-row-inline .finance-payment-field{min-width:260px;flex:1 1 320px;}
+@media (max-width: 760px){
+  .finance-row-inline #eventoSinal2Box.evento-sinal2-box:not(.hidden){max-width:none;}
+  .finance-row-inline .finance-payment-field{flex-basis:100%;}
+}
+
+
+/* v19-dev correção: segundo sinal apenas no campo Forma de pagamento */
+#eventoSinal2Box,
+#adicionarSinal2Evento {
+  display: none !important;
+}
+.finance-payment-field textarea,
+#eventoFormaPagamento {
+  min-height: 72px;
+}
+
+/* v19-dev correção: Materiais de apoio em uma linha por item */
+#configModalProdutos .materiais-apoio-tabela,
+#configModalMateriais .materiais-apoio-tabela {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+#configModalProdutos .materiais-apoio-cabecalho,
+#configModalMateriais .materiais-apoio-cabecalho,
+#configModalProdutos .material-apoio-config-item,
+#configModalMateriais .material-apoio-config-item {
+  display: grid !important;
+  grid-template-columns: minmax(260px, 1fr) 120px 110px !important;
+  gap: 10px !important;
+  align-items: center !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+#configModalProdutos .material-apoio-config-item,
+#configModalMateriais .material-apoio-config-item {
+  padding: 8px 10px !important;
+  min-height: 48px !important;
+}
+#configModalProdutos .material-apoio-config-item input,
+#configModalMateriais .material-apoio-config-item input {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+#configModalProdutos .material-apoio-config-item .config-actions,
+#configModalMateriais .material-apoio-config-item .config-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+#configModalProdutos .material-apoio-config-item .config-actions button,
+#configModalMateriais .material-apoio-config-item .config-actions button {
+  width: auto !important;
+  white-space: nowrap !important;
+  margin: 0 !important;
+}
+#configModalProdutos .materiais-apoio-cabecalho span:nth-child(2),
+#configModalMateriais .materiais-apoio-cabecalho span:nth-child(2),
+#configModalProdutos .materiais-apoio-cabecalho span:nth-child(3),
+#configModalMateriais .materiais-apoio-cabecalho span:nth-child(3) {
+  text-align: center !important;
+}
+
+
+/* Validação inteligente de endereço no cadastro de evento */
+.endereco-validacao-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-top:4px;
+}
+.endereco-validacao-status {
+  font-size:11px;
+  line-height:1.2;
+  color:#64748b;
+}
+.endereco-validacao-status.ok { color:#15803d; font-weight:700; }
+.endereco-validacao-status.alerta { color:#b45309; font-weight:700; }
+.endereco-validacao-status.erro { color:#b91c1c; font-weight:700; }
+.endereco-validacao-status.neutro { color:#64748b; }
+.endereco-validacao-btn {
+  flex:0 0 auto;
+  padding:4px 8px !important;
+  font-size:11px !important;
+  min-height:24px !important;
+}
+@media (max-width:700px){
+  .endereco-validacao-row { align-items:flex-start; flex-direction:column; gap:4px; }
+}
+
+
+/* v19-dev: evento endereço/observação/colaborador alinhados + Maps gratuito */
+#eventoDialog .compact-client-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  align-items: start !important;
+}
+#eventoDialog .compact-client-grid .evento-endereco-wide {
+  grid-column: 1 / span 3 !important;
+}
+#eventoDialog .compact-client-grid .evento-observacao-wide {
+  grid-column: 4 / span 3 !important;
+}
+#eventoDialog .compact-client-grid .evento-colaborador-admin-field {
+  grid-column: 4 / span 3 !important;
+}
+#eventoDialog #eventoEndereco,
+#eventoDialog #eventoClienteObservacao {
+  width: 100% !important;
+  min-height: 74px !important;
+  height: 74px !important;
+  box-sizing: border-box !important;
+}
+#eventoDialog #eventoClienteObservacao {
+  display: block !important;
+}
+#eventoDialog .endereco-validacao-row {
+  margin-top: 6px !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+#eventoDialog .endereco-validacao-status {
+  display: none !important;
+}
+#eventoDialog .endereco-validacao-btn {
+  white-space: nowrap !important;
+}
+#eventoDialog .evento-colaborador-admin-field small {
+  margin-top: 4px !important;
+}
+@media (max-width: 900px) {
+  #eventoDialog .compact-client-grid {
+    grid-template-columns: 1fr !important;
+  }
+  #eventoDialog .compact-client-grid .evento-endereco-wide,
+  #eventoDialog .compact-client-grid .evento-observacao-wide,
+  #eventoDialog .compact-client-grid .evento-colaborador-admin-field {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+
+/* v19-dev: limpeza final cadastro evento - primeira linha distribuida e sem espaço morto */
+#eventoDialog .compact-client-grid {
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  column-gap: 10px !important;
+  row-gap: 8px !important;
+  align-items: start !important;
+}
+#eventoDialog .compact-client-grid > label:nth-child(1){ grid-column: 1 / -1 !important; }
+#eventoDialog .compact-client-grid > label:nth-child(2){ grid-column: 1 / span 3 !important; }
+#eventoDialog .compact-client-grid > label:nth-child(3){ grid-column: 4 / span 2 !important; }
+#eventoDialog .compact-client-grid > label:nth-child(4){ grid-column: 6 / span 2 !important; }
+#eventoDialog .compact-client-grid > label:nth-child(5){ grid-column: 8 / span 5 !important; }
+#eventoDialog .compact-client-grid .evento-endereco-wide{ grid-column: 1 / span 6 !important; }
+#eventoDialog .compact-client-grid .evento-observacao-wide{ grid-column: 7 / span 6 !important; }
+#eventoDialog .compact-client-grid .evento-colaborador-admin-field{
+  grid-column: 7 / span 6 !important;
+  margin-top: -42px !important;
+}
+#eventoDialog .subpanel:has(.compact-client-grid) > .hint{
+  display:none !important;
+}
+#eventoDialog #eventoClienteObservacao{
+  min-height: 74px !important;
+  height: 74px !important;
+}
+#eventoDialog .evento-colaborador-admin-field select{
+  width:100% !important;
+}
+@media (max-width: 900px){
+  #eventoDialog .compact-client-grid{ grid-template-columns: 1fr !important; }
+  #eventoDialog .compact-client-grid > label,
+  #eventoDialog .compact-client-grid .evento-endereco-wide,
+  #eventoDialog .compact-client-grid .evento-observacao-wide,
+  #eventoDialog .compact-client-grid .evento-colaborador-admin-field{
+    grid-column: 1 / -1 !important;
+    margin-top: 0 !important;
+  }
 }
