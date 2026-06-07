@@ -187,6 +187,52 @@ function ruaMobileHtmlPagamento(evento = {}) {
   `;
 }
 
+
+function ruaMobileUsuarioAdmin() {
+  try {
+    const usuario = typeof getUsuarioLogado === "function" ? getUsuarioLogado() : window.usuarioLogadoSistema;
+    const perfil = String(usuario?.perfil || "").toLowerCase();
+    return perfil === "admin" || perfil === "administrador";
+  } catch { return false; }
+}
+
+function ruaMobileEscAttr(valor) {
+  return String(valor ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function ruaMobileCarrosParaEdicao() {
+  const carros = typeof carrosDisponiveisRotas === "function" ? carrosDisponiveisRotas() : ["Saveiro", "Dupla", "Caminhão"];
+  return [...new Set([...(carros || []), "Sem carro"].map(c => String(c || "").trim()).filter(Boolean))];
+}
+
+function ruaMobileOptionsCarro(carroAtual) {
+  const atual = String(carroAtual || "Sem carro");
+  return ruaMobileCarrosParaEdicao().map(carro => `<option value="${ruaMobileEscAttr(carro)}" ${carro === atual ? "selected" : ""}>${carro}</option>`).join("");
+}
+
+async function ruaMobileTrocarCarroRota(rotaId, novoCarro) {
+  const id = String(rotaId || "");
+  if (!id) return;
+  rotasCarros[id] = String(novoCarro || "Sem carro").trim() || "Sem carro";
+  if (typeof salvarRotasCarrosLocal === "function") salvarRotasCarrosLocal();
+  else localStorage.setItem("novoRioTendasRotasCarrosV1", JSON.stringify(rotasCarros || {}));
+  if (typeof sincronizarRotasCarrosNuvem === "function") sincronizarRotasCarrosNuvem();
+  renderizarRuaMobile();
+}
+
+function ruaMobileMoverRotaNoGrupo(rotaId, direcao) {
+  const id = String(rotaId || "");
+  if (!id || typeof moverOrdemRota !== "function") return;
+  const todas = obterRotasRuaMobile();
+  const rotaAtual = todas.find(r => String(r.id) === id);
+  if (!rotaAtual) return;
+  const carroAtual = String(ruaMobileCarroDaRota(rotaAtual) || "Sem carro");
+  const grupo = todas.filter(r => String(ruaMobileCarroDaRota(r) || "Sem carro") === carroAtual);
+  if (typeof inicializarOrdemManualRotas === "function") inicializarOrdemManualRotas(grupo);
+  moverOrdemRota(id, direcao, grupo);
+  renderizarRuaMobile();
+}
+
 function atualizarFiltroCarrosRuaMobile() {
   const select = document.getElementById("ruaMobileCarro");
   if (!select) return;
@@ -299,7 +345,13 @@ function renderizarRuaMobile() {
       <article class="rua-mobile-card tipo-${String(rota.tipo || "").toLowerCase()} ${classeConclusao}" data-rua-card-id="${rota.id}">
         <div class="rua-mobile-card-top">
           <div>
-            <span class="rua-mobile-ordem">#${index + 1} · ${carro}</span>
+            ${ruaMobileUsuarioAdmin() ? `
+              <span class="rua-mobile-ordem rua-mobile-ordem-editavel">
+                <span>#${index + 1} ·</span>
+                <select class="rua-mobile-carro-card-select" data-rua-carro-rota-id="${ruaMobileEscAttr(rota.id)}" title="Trocar carro desta rota">${ruaMobileOptionsCarro(carro)}</select>
+                <button type="button" class="rua-mobile-ordem-btn" data-rua-ordem-rota-id="${ruaMobileEscAttr(rota.id)}" data-rua-ordem-dir="up" title="Subir na rota">▲</button>
+                <button type="button" class="rua-mobile-ordem-btn" data-rua-ordem-rota-id="${ruaMobileEscAttr(rota.id)}" data-rua-ordem-dir="down" title="Descer na rota">▼</button>
+              </span>` : `<span class="rua-mobile-ordem">#${index + 1} · ${carro}</span>`}
             <h3>${rota.tipo} · <span class="rua-mobile-horario-destaque${horarioEspecialClasse}">${horario}</span></h3>
           </div>
           <div class="rua-mobile-badge-wrap">${badge}</div>
@@ -320,6 +372,23 @@ function renderizarRuaMobile() {
       </article>
     `;
   }).join("");
+
+  listaEl.querySelectorAll("[data-rua-carro-rota-id]").forEach(select => {
+    select.addEventListener("click", ev => ev.stopPropagation());
+    select.addEventListener("change", async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      await ruaMobileTrocarCarroRota(select.dataset.ruaCarroRotaId, select.value);
+    });
+  });
+
+  listaEl.querySelectorAll("[data-rua-ordem-rota-id]").forEach(btn => {
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      ruaMobileMoverRotaNoGrupo(btn.dataset.ruaOrdemRotaId, btn.dataset.ruaOrdemDir);
+    });
+  });
 
   listaEl.querySelectorAll("[data-rua-maps-carro]").forEach(btn => {
     btn.addEventListener("click", async (ev) => {
