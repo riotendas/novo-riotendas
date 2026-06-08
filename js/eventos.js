@@ -822,6 +822,15 @@ function rtEventoExtrairEnderecoPrincipal(texto) {
   const original = String(texto || "").trim();
   if (!original) return { principal: "", complemento: "", separador: "" };
 
+  // Para validação/Google Maps usa somente o endereço principal antes do primeiro parêntese.
+  // O complemento permanece salvo/exibido no campo completo.
+  const idxParenteses = original.indexOf("(");
+  if (idxParenteses > 0) {
+    const principal = original.slice(0, idxParenteses).trim();
+    const complemento = original.slice(idxParenteses).trim();
+    if (principal) return { principal, complemento, separador: " " };
+  }
+
   const linhas = original.split(/\n+/).map(l => l.trim()).filter(Boolean);
   if (linhas.length > 1) {
     return { principal: linhas[0], complemento: linhas.slice(1).join(" - "), separador: "\n" };

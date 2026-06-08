@@ -14795,3 +14795,512 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
   justify-content:center!important;
   box-sizing:border-box!important;
 }
+
+/* v19-dev-eventos-mobile-layout-responsivo: melhorias apenas para cadastro/edição de eventos no celular */
+@media (max-width: 768px) {
+  body:has(#eventoDialog[open]) {
+    overflow: hidden !important;
+  }
+
+  #eventoDialog.modal.large-modal,
+  #eventoDialog.large-modal {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    border: 0 !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  #eventoDialog::backdrop {
+    background: rgba(15, 23, 42, 0.55) !important;
+  }
+
+  #eventoDialog #eventoForm {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 0 10px 92px !important;
+    box-sizing: border-box !important;
+    background: #f6f8fb !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  #eventoDialog .modal-header {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 30 !important;
+    margin: 0 -10px 8px !important;
+    padding: 10px 12px !important;
+    min-height: 48px !important;
+    background: #ffffff !important;
+    border-bottom: 1px solid #d8e2ee !important;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08) !important;
+  }
+
+  #eventoDialog .modal-header h2 {
+    font-size: 17px !important;
+    line-height: 1.15 !important;
+    margin: 0 !important;
+  }
+
+  #eventoDialog .modal-header .icon-btn {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    font-size: 20px !important;
+  }
+
+  #eventoDialog .subpanel {
+    margin: 8px 0 !important;
+    padding: 0 !important;
+    border: 1px solid #dbe5ef !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04) !important;
+  }
+
+  #eventoDialog .subpanel > h3 {
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    padding: 10px 12px !important;
+    min-height: 40px !important;
+    background: #f1f6fb !important;
+    border-bottom: 1px solid #dbe5ef !important;
+    color: #163b5c !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    user-select: none !important;
+  }
+
+  #eventoDialog .subpanel > h3::after {
+    content: "▾" !important;
+    font-size: 13px !important;
+    color: #47708f !important;
+    transition: transform 0.18s ease !important;
+  }
+
+  #eventoDialog .subpanel.rt-mobile-collapsed > h3::after {
+    transform: rotate(-90deg) !important;
+  }
+
+  #eventoDialog .subpanel.rt-mobile-collapsed > :not(h3) {
+    display: none !important;
+  }
+
+  #eventoDialog .subpanel > :not(h3) {
+    margin-left: 10px !important;
+    margin-right: 10px !important;
+  }
+
+  #eventoDialog .subpanel > :last-child {
+    margin-bottom: 10px !important;
+  }
+
+  #eventoDialog .form-grid,
+  #eventoDialog .form-row,
+  #eventoDialog .compact-client-grid,
+  #eventoDialog .event-date-row,
+  #eventoDialog .event-date-row-4,
+  #eventoDialog .event-operation-row,
+  #eventoDialog .event-operation-row-fast,
+  #eventoDialog .finance-row,
+  #eventoDialog .finance-row-inline,
+  #eventoDialog .extra-row,
+  #eventoDialog .recurrence-row,
+  #eventoDialog .produto-adder,
+  #eventoDialog .produto-adder-compacto {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-top: 10px !important;
+    box-sizing: border-box !important;
+  }
+
+  #eventoDialog .compact-client-grid label,
+  #eventoDialog .form-grid label,
+  #eventoDialog .form-row label,
+  #eventoDialog .finance-row label,
+  #eventoDialog .extra-row label,
+  #eventoDialog .recurrence-row label,
+  #eventoDialog .evento-endereco-wide,
+  #eventoDialog .evento-observacao-wide,
+  #eventoDialog .evento-colaborador-admin-field,
+  #eventoDialog .finance-payment-field,
+  #eventoDialog .span-2 {
+    grid-column: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+    box-sizing: border-box !important;
+  }
+
+  #eventoDialog label,
+  #eventoDialog small,
+  #eventoDialog .hint {
+    font-size: 12px !important;
+  }
+
+  #eventoDialog input,
+  #eventoDialog select,
+  #eventoDialog textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 34px !important;
+    height: auto !important;
+    padding: 7px 9px !important;
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+    border-radius: 9px !important;
+    box-sizing: border-box !important;
+  }
+
+  #eventoDialog textarea {
+    min-height: 56px !important;
+    resize: vertical !important;
+  }
+
+  #eventoDialog #eventoEndereco,
+  #eventoDialog #eventoClienteObservacao,
+  #eventoDialog #eventoFormaPagamento {
+    min-height: 58px !important;
+  }
+
+  #eventoDialog .date-time-pair {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(86px, 0.72fr) !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  #eventoDialog .btn-mini-fast,
+  #eventoDialog .btn-outline,
+  #eventoDialog button:not(.icon-btn) {
+    min-height: 34px !important;
+    padding: 7px 10px !important;
+    font-size: 12px !important;
+    border-radius: 9px !important;
+    white-space: nowrap !important;
+  }
+
+  #eventoDialog .endereco-validacao-row {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 5px !important;
+    margin-top: 5px !important;
+  }
+
+  #eventoDialog .endereco-validacao-status {
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+  }
+
+  #eventoDialog .produtos-codigo-header {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+    align-items: stretch !important;
+    margin: 10px 10px 0 !important;
+  }
+
+  #eventoDialog .produtos-codigo-header h3 {
+    margin: 0 !important;
+    font-size: 14px !important;
+  }
+
+  #eventoDialog .produto-atalhos-rapidos {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 5px !important;
+    width: 100% !important;
+  }
+
+  #eventoDialog .produto-atalhos-rapidos button {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 6px 4px !important;
+    font-size: 11px !important;
+  }
+
+  #eventoDialog .selected-list,
+  #eventoDialog .apoio-evento-lista,
+  #eventoDialog .extras-list {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    font-size: 12px !important;
+  }
+
+  #eventoDialog .selected-list > *,
+  #eventoDialog .apoio-evento-lista > *,
+  #eventoDialog .extras-list > * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  #eventoDialog .finance-check-stack {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  #eventoDialog .checkbox-line {
+    min-width: 0 !important;
+    width: 100% !important;
+    font-size: 12px !important;
+    justify-content: flex-start !important;
+  }
+
+  #eventoDialog .pagamento-icones {
+    display: flex !important;
+    gap: 4px !important;
+    flex-wrap: nowrap !important;
+    margin-top: 4px !important;
+  }
+
+  #eventoDialog .pagamento-icone {
+    min-width: 30px !important;
+    width: 30px !important;
+    min-height: 28px !important;
+    height: 28px !important;
+    padding: 0 !important;
+  }
+
+  #eventoDialog .evento-modal-actions,
+  #eventoDialog .evento-rodape-documentos-final {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 35 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 7px !important;
+    width: calc(100% + 20px) !important;
+    max-width: calc(100% + 20px) !important;
+    margin: 12px -10px 0 !important;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important;
+    background: rgba(255,255,255,0.98) !important;
+    border-top: 1px solid #d8e2ee !important;
+    box-shadow: 0 -2px 10px rgba(15, 23, 42, 0.10) !important;
+    box-sizing: border-box !important;
+  }
+
+  #eventoDialog .evento-doc-actions,
+  #eventoDialog .evento-save-actions {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  #eventoDialog .evento-save-actions {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  }
+
+  #eventoDialog .evento-save-actions #duplicarEventoBtn:not([style*="display:none"]),
+  #eventoDialog .evento-save-actions #duplicarEventoBtn:not(.hidden) {
+    display: inline-flex !important;
+  }
+
+  #eventoDialog .evento-rodape-spacer {
+    display: none !important;
+  }
+
+  #eventoDialog .evento-doc-actions button,
+  #eventoDialog .evento-save-actions button {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 6px 5px !important;
+    font-size: 11px !important;
+    line-height: 1 !important;
+  }
+
+  #eventoDialog .evento-save-actions button[type="submit"] {
+    font-weight: 700 !important;
+  }
+
+  #eventoDialog .import-produtos-modal-lista,
+  #eventoDialog .table-wrapper {
+    overflow-x: auto !important;
+  }
+}
+
+@media (min-width: 769px) {
+  #eventoDialog .subpanel.rt-mobile-collapsed > :not(h3) {
+    display: initial !important;
+  }
+}
+
+/* v19-dev-eventos-mobile-modal-corrigido-real: mobile apenas */
+@media (max-width: 768px) {
+  #eventoDialog .compact-client-grid,
+  #eventoDialog .compact-client-grid * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  #eventoDialog .compact-client-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  #eventoDialog .compact-client-grid > label,
+  #eventoDialog .compact-client-grid .evento-endereco-wide,
+  #eventoDialog .compact-client-grid .evento-observacao-wide,
+  #eventoDialog .compact-client-grid .evento-colaborador-admin-field {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+  }
+  #eventoDialog .compact-client-grid input,
+  #eventoDialog .compact-client-grid select,
+  #eventoDialog .compact-client-grid textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+  #eventoDialog #eventoEndereco,
+  #eventoDialog #eventoClienteObservacao {
+    min-height: 72px !important;
+  }
+  #eventoDialog .evento-modal-actions,
+  #eventoDialog .evento-rodape-documentos-final {
+    position: static !important;
+    bottom: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 12px 0 0 !important;
+    padding: 10px 0 16px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+}
+
+/* v19-dev - Eventos Mobile: sem voz + IA local + rodapé compacto */
+@media (max-width: 760px) {
+  #eventoModal .evento-rodape-documentos-final,
+  #eventoDialog .evento-rodape-documentos-final,
+  dialog#eventoModal .evento-rodape-documentos-final,
+  dialog#eventoDialog .evento-rodape-documentos-final {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    padding-bottom: 10px !important;
+  }
+
+  #eventoModal .evento-rodape-documentos-final .evento-doc-actions,
+  #eventoDialog .evento-rodape-documentos-final .evento-doc-actions {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    width: 100% !important;
+    gap: 7px !important;
+    margin: 0 !important;
+  }
+
+  #eventoModal .evento-rodape-documentos-final .evento-doc-actions .btn-doc-evento,
+  #eventoDialog .evento-rodape-documentos-final .evento-doc-actions .btn-doc-evento {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  #eventoModal .evento-rodape-documentos-final .evento-rodape-spacer,
+  #eventoDialog .evento-rodape-documentos-final .evento-rodape-spacer {
+    display: none !important;
+  }
+
+  #eventoModal .evento-rodape-documentos-final .evento-save-actions,
+  #eventoDialog .evento-rodape-documentos-final .evento-save-actions {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    width: 100% !important;
+    gap: 7px !important;
+    margin: 0 !important;
+  }
+
+  #eventoModal .evento-rodape-documentos-final .evento-save-actions button,
+  #eventoDialog .evento-rodape-documentos-final .evento-save-actions button {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+
+  .eventos-mobile-ia textarea {
+    min-height: 118px;
+  }
+
+  .eventos-mobile-ia .btn-primary {
+    font-weight: 700;
+  }
+}
+
+
+/* v19-dev: rodapé mobile do evento - Duplicar / Cancelar / Salvar na mesma linha */
+@media (max-width: 760px) {
+  #eventoDialog .evento-rodape-documentos-final .evento-save-actions {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  #eventoDialog .evento-rodape-documentos-final .evento-save-actions button {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+  }
+}
+
+
+/* v19-dev: acabamento mobile botões evento + PIX rota mobile */
+@media (max-width: 720px){
+  #duplicarEventoBtn, #cancelarEventoBtn, #salvarEventoBtn{
+    display:flex !important; align-items:center !important; justify-content:center !important; text-align:center !important; line-height:1.1 !important;
+  }
+  .evento-mobile-actions, .evento-modal-actions-mobile, .modal-actions.evento-mobile-final-actions{
+    display:flex !important; flex-direction:row !important; gap:8px !important; align-items:stretch !important;
+  }
+  .evento-mobile-actions #duplicarEventoBtn, .evento-mobile-actions #cancelarEventoBtn, .evento-mobile-actions #salvarEventoBtn,
+  .evento-modal-actions-mobile #duplicarEventoBtn, .evento-modal-actions-mobile #cancelarEventoBtn, .evento-modal-actions-mobile #salvarEventoBtn,
+  .modal-actions.evento-mobile-final-actions #duplicarEventoBtn, .modal-actions.evento-mobile-final-actions #cancelarEventoBtn, .modal-actions.evento-mobile-final-actions #salvarEventoBtn{
+    flex:1 1 0 !important; width:auto !important; min-width:0 !important; height:38px !important; padding:0 6px !important;
+  }
+}
+.rua-mobile-endereco a{ color:inherit; text-decoration:underline; text-underline-offset:2px; }
+.rua-mobile-pix-dialog{ max-width:420px; width:calc(100vw - 24px); }
+.rua-mobile-pix-body{ display:grid; gap:10px; padding:14px; }
+.rua-mobile-pix-resumo{ color:#123; font-size:14px; line-height:1.35; }
+.rua-mobile-pix-qr{ width:220px; height:220px; justify-self:center; border:1px solid #d7e2ef; border-radius:12px; padding:8px; background:white; }
+#ruaMobilePixPayload{ width:100%; font-size:11px; border:1px solid #d7e2ef; border-radius:10px; padding:8px; resize:vertical; }

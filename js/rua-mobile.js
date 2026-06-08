@@ -88,6 +88,119 @@ function ruaMobileDinheiro(valor) {
 }
 
 
+
+// v19-dev: PIX estático na Rota Mobile (sem API bancária).
+function ruaMobilePixValorDevido(evento = {}) {
+  const restante = Math.max(Number(evento.valor_restante || 0), 0);
+  if (restante > 0) return restante;
+  const total = Number(evento.valor_total || 0);
+  const sinal = Number(evento.valor_sinal || 0);
+  return Math.max(total - sinal, 0);
+}
+
+function ruaMobilePixConfig() {
+  try {
+    const cfgSistema = (typeof carregarConfiguracoes === "function")
+      ? carregarConfiguracoes()
+      : (window.configRioTendas || {});
+    const cfgGlobal = (typeof config !== 'undefined' && config && typeof config === 'object') ? config : {};
+    const pix = cfgSistema.pix || cfgGlobal.pix || cfgGlobal.pixItau || {};
+    const local = JSON.parse(localStorage.getItem('riotendas_pix_config') || '{}');
+    return {
+      chave: pix.chave || pix.chavePix || local.chave || '',
+      nome: pix.nome || local.nome || 'RIOTENDAS',
+      cidade: pix.cidade || local.cidade || 'RIO DE JANEIRO',
+      banco: pix.banco || local.banco || 'Itaú'
+    };
+  } catch { return { chave: '', nome: 'RIOTENDAS', cidade: 'RIO DE JANEIRO', banco: 'Itaú' }; }
+}
+
+function ruaMobilePixCampo(id, valor) {
+  const v = String(valor ?? '');
+  return String(id).padStart(2, '0') + String(v.length).padStart(2, '0') + v;
+}
+
+function ruaMobilePixCRC16(payload) {
+  let crc = 0xFFFF;
+  for (let i = 0; i < payload.length; i++) {
+    crc ^= payload.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
+      crc &= 0xFFFF;
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+
+function ruaMobileGerarPixCopiaCola({ chave, nome, cidade, valor, descricao }) {
+  const merchantAccount = ruaMobilePixCampo('00', 'BR.GOV.BCB.PIX') + ruaMobilePixCampo('01', chave);
+  const txid = 'RT' + String(Date.now()).slice(-10);
+  const adicional = ruaMobilePixCampo('05', txid);
+  let payload = '';
+  payload += ruaMobilePixCampo('00', '01');
+  payload += ruaMobilePixCampo('26', merchantAccount);
+  payload += ruaMobilePixCampo('52', '0000');
+  payload += ruaMobilePixCampo('53', '986');
+  if (Number(valor) > 0) payload += ruaMobilePixCampo('54', Number(valor).toFixed(2));
+  payload += ruaMobilePixCampo('58', 'BR');
+  payload += ruaMobilePixCampo('59', String(nome || 'RIOTENDAS').normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 25).toUpperCase());
+  payload += ruaMobilePixCampo('60', String(cidade || 'RIO DE JANEIRO').normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 15).toUpperCase());
+  payload += ruaMobilePixCampo('62', adicional);
+  payload += '6304';
+  return payload + ruaMobilePixCRC16(payload);
+}
+
+function ruaMobileGarantirPixModal() {
+  let modal = document.getElementById('ruaMobilePixDialog');
+  if (modal) return modal;
+  modal = document.createElement('dialog');
+  modal.id = 'ruaMobilePixDialog';
+  modal.className = 'modal rua-mobile-pix-dialog';
+  modal.innerHTML = `
+    <div class="modal-header">
+      <h2>Receber por Pix</h2>
+      <button type="button" class="icon-btn" id="ruaMobilePixFechar">×</button>
+    </div>
+    <div class="rua-mobile-pix-body">
+      <div class="rua-mobile-pix-resumo" id="ruaMobilePixResumo"></div>
+      <img id="ruaMobilePixQr" class="rua-mobile-pix-qr" alt="QR Code Pix">
+      <textarea id="ruaMobilePixPayload" rows="4" readonly></textarea>
+      <button type="button" class="btn-primary" id="ruaMobilePixCopiar">Copiar Pix</button>
+      <small>Pix estático com valor. Para baixa automática bancária seria necessária API do banco.</small>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.querySelector('#ruaMobilePixFechar')?.addEventListener('click', () => modal.close());
+  modal.querySelector('#ruaMobilePixCopiar')?.addEventListener('click', async () => {
+    const txt = modal.querySelector('#ruaMobilePixPayload')?.value || '';
+    try { await navigator.clipboard.writeText(txt); alert('Pix copia e cola copiado.'); }
+    catch { prompt('Copie o Pix:', txt); }
+  });
+  return modal;
+}
+
+function ruaMobileAbrirPixRota(rotaId) {
+  const rota = (typeof criarRotasDosEventos === 'function' ? criarRotasDosEventos() : []).find(r => String(r.id) === String(rotaId));
+  if (!rota) { alert('Rota não encontrada.'); return; }
+  const evento = rota.evento || {};
+  const valor = ruaMobilePixValorDevido(evento);
+  if (!valor || valor <= 0) { alert('Este evento não possui valor devido para cobrar.'); return; }
+  let cfg = ruaMobilePixConfig();
+  if (!cfg.chave) {
+    alert('Configure a chave Pix em Configurações > Preferências do aplicativo antes de gerar a cobrança.');
+    if (typeof abrirConfigModal === "function") {
+      try { abrirConfigModal("configModalPreferencias"); } catch {}
+    }
+    return;
+  }
+  const payload = ruaMobileGerarPixCopiaCola({ ...cfg, valor, descricao: rota.cliente || 'RioTendas' });
+  const modal = ruaMobileGarantirPixModal();
+  modal.querySelector('#ruaMobilePixResumo').innerHTML = `<strong>${rota.cliente || 'Cliente'}</strong><br>Valor devido: <strong>${ruaMobileDinheiro(valor)}</strong>`;
+  modal.querySelector('#ruaMobilePixPayload').value = payload;
+  modal.querySelector('#ruaMobilePixQr').src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(payload)}`;
+  if (typeof modal.showModal === 'function') modal.showModal(); else modal.setAttribute('open', 'open');
+}
+
 function ruaMobileAlterarData(dias) {
   const input = document.getElementById("ruaMobileData");
   if (!input) return;
@@ -123,8 +236,15 @@ function ruaMobileRotasPendentesPorCarro(carroAlvo) {
   return lista;
 }
 
+function ruaMobileEnderecoPrincipalMaps(valor) {
+  if (typeof rtEnderecoPrincipalMaps === "function") return rtEnderecoPrincipalMaps(valor);
+  const texto = String(valor || "").trim();
+  const idx = texto.indexOf("(");
+  return (idx > 0 ? texto.slice(0, idx) : texto).trim();
+}
+
 function ruaMobileEncodeMaps(valor) {
-  return encodeURIComponent(String(valor || "").trim());
+  return encodeURIComponent(ruaMobileEnderecoPrincipalMaps(valor));
 }
 
 async function ruaMobileOrigemAtualParaMaps() {
@@ -148,7 +268,7 @@ async function abrirGoogleMapsPendenciasCarro(carroAlvo) {
 
   const janela = window.open("about:blank", "_blank");
   const origem = await ruaMobileOrigemAtualParaMaps();
-  const enderecos = pendentes.map(r => String(r.endereco || "").trim()).filter(Boolean).slice(0, 10);
+  const enderecos = pendentes.map(r => ruaMobileEnderecoPrincipalMaps(r.endereco)).filter(Boolean).slice(0, 10);
   const destino = enderecos[enderecos.length - 1];
   const waypoints = enderecos.slice(0, -1);
   const params = new URLSearchParams({
@@ -411,12 +531,12 @@ function renderizarRuaMobile() {
         </div>
         <div class="rua-mobile-cliente">${ruaMobileHtmlClienteEvento(rota)}</div>
         ${concluida && !expandido ? `<div class="rua-mobile-endereco-resumo">📍 ${(endereco || "Endereço não informado").slice(0, 72)}${String(endereco || "").length > 72 ? "..." : ""}</div>` : ""}
-        <div class="rua-mobile-endereco">📍 ${endereco || "Endereço não informado"}</div>
+        <div class="rua-mobile-endereco">📍 ${endereco ? `<a href="${mapa}" target="_blank" rel="noopener">${ruaMobileEscAttr(endereco)}</a>` : "Endereço não informado"}</div>
         <div class="rua-mobile-materiais rua-mobile-materiais-click" title="Clique em um produto para trocar"><strong>Materiais:</strong> ${typeof renderizarMateriaisRotaClicaveis === "function" ? renderizarMateriaisRotaClicaveis(rota) : ruaMobileResumoMateriais(rota)}</div>
         ${ruaMobileHtmlPagamento(rota.evento || {})}
 
         <div class="rua-mobile-acoes rua-mobile-acoes-compactas">
-          ${endereco ? `<a class="btn-outline rua-mobile-acao-btn" href="${mapa}" target="_blank" rel="noopener" title="Abrir mapa" aria-label="Abrir mapa"><span>🗺️</span><small>Mapa</small></a>` : ""}
+          ${ruaMobilePixValorDevido(rota.evento || {}) > 0 ? `<button type="button" class="btn-outline rua-mobile-acao-btn rua-mobile-pix-btn" data-rua-pix-rota-id="${ruaMobileEscAttr(rota.id)}" title="Gerar Pix" aria-label="Gerar Pix"><span>🔳</span><small>Pix</small></button>` : ""}
           ${tel ? `<a class="btn-outline rua-mobile-acao-btn" href="tel:${tel}" title="Ligar" aria-label="Ligar"><span>☎️</span><small>Ligar</small></a>` : ""}
           ${whats ? `<a class="btn-outline rua-mobile-acao-btn" href="${whats}" target="_blank" rel="noopener" title="WhatsApp" aria-label="WhatsApp"><span>💬</span><small>Zap</small></a>` : ""}
           ${rota.tipo === "Montagem" ? `<button type="button" class="btn-outline rua-mobile-acao-btn rua-mobile-operacao-btn" data-rua-operacao="entregue" data-rota-id="${rota.id}" title="Marcar entregue" aria-label="Marcar entregue"><span>✅</span><small>Entregue</small></button>` : ""}
@@ -454,6 +574,15 @@ function renderizarRuaMobile() {
       ev.preventDefault();
       ev.stopPropagation();
       await abrirGoogleMapsPendenciasCarro(btn.dataset.ruaMapsCarro || "");
+    });
+  });
+
+
+  listaEl.querySelectorAll("[data-rua-pix-rota-id]").forEach(btn => {
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      ruaMobileAbrirPixRota(btn.dataset.ruaPixRotaId || "");
     });
   });
 

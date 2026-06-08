@@ -253,30 +253,175 @@ function eventosMobileExtrairCampo(texto, palavras, atePalavras = []) {
   return "";
 }
 
+
+function eventosMobileAddDiasISO(dataISO, dias) {
+  if (!dataISO) return "";
+  const d = new Date(`${dataISO}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  d.setDate(d.getDate() + Number(dias || 0));
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function eventosMobileParseDataDepoisPalavra(texto, palavras) {
+  const bruto = String(texto || "");
+  const normal = eventosMobileNormalizar(bruto);
+  const lista = Array.isArray(palavras) ? palavras : [palavras];
+  for (const palavra of lista) {
+    const alvo = eventosMobileNormalizar(palavra);
+    const idx = normal.indexOf(alvo);
+    if (idx < 0) continue;
+    const trecho = bruto.slice(Math.max(0, idx), Math.min(bruto.length, idx + 90));
+    const data = eventosMobileParseData(trecho);
+    if (data) return data;
+  }
+  return "";
+}
+
+function eventosMobileParseHoraDepoisPalavras(texto, palavras) {
+  for (const p of (Array.isArray(palavras) ? palavras : [palavras])) {
+    const h = eventosMobileParseHoraDepois(texto, p);
+    if (h) return h;
+  }
+  return "";
+}
+
+function eventosMobileParseValores(texto) {
+  const bruto = String(texto || "");
+  const normal = eventosMobileNormalizar(bruto);
+  const moeda = (valor) => {
+    if (!valor) return 0;
+    const limpo = String(valor).replace(/r\$|reais|real/gi, '').trim();
+    const temDecimalVirgula = /,\d{2}\b/.test(limpo);
+    let v = limpo.replace(/\./g, '').replace(',', '.').replace(/[^0-9.]/g, '');
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const achar = (regexes) => {
+    for (const rg of regexes) {
+      const m = bruto.match(rg);
+      if (m) return moeda(m[1]);
+    }
+    return 0;
+  };
+  const total = achar([/(?:valor\s*total|total|valor)\s*(?:de|:)?\s*(?:r\$\s*)?([\d\.]+(?:,\d{2})?)/i]);
+  const sinal = achar([/(?:sinal|entrada)\s*(?:de|:)?\s*(?:r\$\s*)?([\d\.]+(?:,\d{2})?)/i]);
+  const restante = achar([/(?:restante|resto|saldo)\s*(?:de|:)?\s*(?:r\$\s*)?([\d\.]+(?:,\d{2})?)/i]);
+  const formas = [];
+  const addForma = (tipo, palavras) => {
+    const janela = normal;
+    const temTipo = janela.includes(eventosMobileNormalizar(tipo));
+    for (const f of palavras) {
+      if (janela.includes(eventosMobileNormalizar(f))) {
+        formas.push(`${tipo} - ${f === 'cartao' ? 'Cartão' : f === 'pix' ? 'Pix/Transferência' : f.charAt(0).toUpperCase()+f.slice(1)}`);
+        return;
+      }
+    }
+    if (temTipo) formas.push(tipo);
+  };
+  addForma('Sinal', ['pix', 'dinheiro', 'cartao', 'cartão', 'transferencia', 'transferência']);
+  addForma('Restante', ['pix', 'dinheiro', 'cartao', 'cartão', 'transferencia', 'transferência']);
+  if (normal.includes('pagamento') && !formas.length) {
+    if (normal.includes('pix')) formas.push('Pagamento - Pix/Transferência');
+    else if (normal.includes('dinheiro')) formas.push('Pagamento - Dinheiro');
+    else if (normal.includes('cartao') || normal.includes('cartão')) formas.push('Pagamento - Cartão');
+  }
+  return { total, sinal, restante, formaPagamento: formas.join('\n') };
+}
+
+function eventosMobileDetectarProdutosTexto(texto) {
+  const bruto = String(texto || "");
+  const itens = [];
+  const numeroPalavra = { uma:1, um:1, duas:2, dois:2, tres:3, três:3, quatro:4, cinco:5, seis:6, sete:7, oito:8, nove:9, dez:10 };
+  const regex = /(?:(\d+|um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove|dez)\s+)?(tenda(?:\s+sanfonada)?|tendas|ombrelone|ombrelones)\s*(?:de|da|do)?\s*([0-9]+(?:[,.][0-9]+)?\s*x\s*[0-9]+(?:[,.][0-9]+)?|[0-9]+(?:[,.][0-9]+)?m?)?\s*([a-zçãáéíóúâêô ]{0,25})/gi;
+  let m;
+  while ((m = regex.exec(bruto))) {
+    const qtdRaw = String(m[1] || '1').toLowerCase();
+    const quantidade = Number(qtdRaw) || numeroPalavra[qtdRaw] || 1;
+    const tipo = /ombrelone/i.test(m[2]) ? 'ombrelone' : 'tenda';
+    const tamanho = String(m[3] || '').replace(/\s+/g, '').replace(',', '.');
+    const cor = String(m[4] || '').trim();
+    itens.push({ quantidade: Math.max(1, quantidade), tipo, tamanho, cor, texto: m[0].trim() });
+  }
+  return itens;
+}
+
+function eventosMobileProdutoBate(info, produto) {
+  if (!produto) return false;
+  const texto = eventosMobileNormalizar([produto.codigo, produto.categoria || produto.tipo, produto.tamanho, produto.cor, produto.modelo, produto.descricao].filter(Boolean).join(' '));
+  if (info.tipo === 'tenda' && !texto.includes('tenda')) return false;
+  if (info.tipo === 'ombrelone' && !texto.includes('ombrelone')) return false;
+  if (info.tamanho) {
+    const tam = eventosMobileNormalizar(info.tamanho).replace(/\s+/g, '');
+    const txt = texto.replace(/\s+/g, '');
+    const alt = tam.replace('.', '');
+    if (!txt.includes(tam) && !txt.includes(alt)) return false;
+  }
+  const cor = eventosMobileNormalizar(info.cor || '');
+  if (cor.includes('branc') && !texto.includes('branc')) return false;
+  if (cor.includes('azul') && !texto.includes('azul')) return false;
+  if (cor.includes('preta') && !texto.includes('pret')) return false;
+  return true;
+}
+
+function eventosMobileAplicarProdutosInterpretados(dados) {
+  if (!dados || !Array.isArray(dados.produtosDetectados) || !dados.produtosDetectados.length) return;
+  if (typeof produtosSelecionadosEventoAtual === 'undefined' || !Array.isArray(produtos)) return;
+  const ja = new Set((produtosSelecionadosEventoAtual || []).map(p => String(p.id)));
+  dados.produtosDetectados.forEach(info => {
+    const candidatos = produtos
+      .filter(p => (p.categoria || p.tipo) !== 'Materiais de Apoio')
+      .filter(p => !ja.has(String(p.id)))
+      .filter(p => eventosMobileProdutoBate(info, p))
+      .map(p => ({ p, disp: typeof disponibilidadeProdutoParaEvento === 'function' ? disponibilidadeProdutoParaEvento(p.id) : { livre:true } }))
+      .filter(x => x.disp && x.disp.livre)
+      .sort(() => Math.random() - 0.5);
+    candidatos.slice(0, info.quantidade).forEach(x => {
+      if (typeof rtAdicionarProdutoObjetoEvento === 'function') rtAdicionarProdutoObjetoEvento(x.p);
+      ja.add(String(x.p.id));
+    });
+  });
+  if (typeof popularSelectProdutosEvento === 'function') popularSelectProdutosEvento();
+  if (typeof renderizarProdutosSelecionadosEvento === 'function') renderizarProdutosSelecionadosEvento();
+}
+
 function eventosMobileInterpretarTexto(texto) {
   const bruto = String(texto || "").trim();
-  const data = eventosMobileParseData(bruto);
-  const montagemHora = eventosMobileParseHoraDepois(bruto, "montagem") || eventosMobileParseHoraDepois(bruto, "entrega");
-  const desmontagemHora = eventosMobileParseHoraDepois(bruto, "desmontagem") || eventosMobileParseHoraDepois(bruto, "retirada");
-  const nome = eventosMobileExtrairCampo(bruto, ["cliente", "nome"], [" dia ", " montagem", " desmontagem", " endereco", " endereço", " telefone", " produto", " produtos"]);
+  const data = eventosMobileParseDataDepoisPalavra(bruto, ["dia", "evento", "data"]) || eventosMobileParseData(bruto);
+  const montagemDataTexto = eventosMobileParseDataDepoisPalavra(bruto, ["montagem", "entrega"]);
+  const desmontagemDataTexto = eventosMobileParseDataDepoisPalavra(bruto, ["desmontagem", "retirada"]);
+  const montagemData = montagemDataTexto || (data ? eventosMobileAddDiasISO(data, -1) : "");
+  const desmontagemData = desmontagemDataTexto || (data ? eventosMobileAddDiasISO(data, 1) : "");
+  const montagemHora = eventosMobileParseHoraDepoisPalavras(bruto, ["montagem", "entrega"]);
+  const desmontagemHora = eventosMobileParseHoraDepoisPalavras(bruto, ["desmontagem", "retirada"]);
+  const nome = eventosMobileExtrairCampo(bruto, ["cliente", "nome"], [" dia ", " data ", " evento", " montagem", " desmontagem", " endereco", " endereço", " telefone", " produto", " produtos", " valor", " total", " sinal", " restante"]);
   const telefoneMatch = bruto.replace(/\D/g, " ").match(/\b\d{8,13}\b/);
   const telefone = telefoneMatch ? telefoneMatch[0] : "";
-  const endereco = eventosMobileExtrairCampo(bruto, ["endereco", "endereço", "local"], [" telefone", " produto", " produtos", " valor", " pagamento"]);
-  let produtosTexto = eventosMobileExtrairCampo(bruto, ["produtos", "produto", "material", "materiais"], [" endereco", " endereço", " telefone", " valor", " pagamento"]);
+  const endereco = eventosMobileExtrairCampo(bruto, ["endereco", "endereço", "local"], [" telefone", " produto", " produtos", " valor", " pagamento", " total", " sinal", " restante"]);
+  let produtosTexto = eventosMobileExtrairCampo(bruto, ["produtos", "produto", "material", "materiais"], [" endereco", " endereço", " telefone", " valor", " pagamento", " total", " sinal", " restante"]);
+  const produtosDetectados = eventosMobileDetectarProdutosTexto(bruto);
+  if (!produtosTexto && produtosDetectados.length) produtosTexto = produtosDetectados.map(p => `${p.quantidade} ${p.tipo} ${p.tamanho || ""} ${p.cor || ""}`.trim()).join(", ");
   if (!produtosTexto) {
     const prodMatch = bruto.match(/((?:\d+\s+)?(?:tenda|tendas|ombrelone|ombrelones|mesa|mesas|cadeira|cadeiras|conjunto|conjuntos|bistro|bistrô|banqueta|banquetas)[\s\S]*)/i);
     produtosTexto = prodMatch ? prodMatch[1].trim() : "";
   }
+  const valores = eventosMobileParseValores(bruto);
 
   return {
     modo: "novo",
     nome,
     telefone,
     data,
+    montagemData,
+    desmontagemData,
     montagemHora,
     desmontagemHora,
     endereco,
     produtosTexto,
+    produtosDetectados,
+    valorTotal: valores.total,
+    valorSinal: valores.sinal,
+    valorRestante: valores.restante,
+    formaPagamento: valores.formaPagamento,
     textoOriginal: bruto
   };
 }
@@ -318,10 +463,11 @@ function eventosMobileRenderPreview() {
       <span>Cliente</span><strong>${eventosMobileEscape(d.nome || "-")}</strong>
       <span>Telefone</span><strong>${eventosMobileEscape(d.telefone || "-")}</strong>
       <span>Data</span><strong>${eventosMobileEscape(eventosMobileFormatarData(d.data) || "-")}</strong>
-      <span>Montagem</span><strong>${eventosMobileEscape(d.montagemHora || "-")}</strong>
-      <span>Desmontagem</span><strong>${eventosMobileEscape(d.desmontagemHora || "-")}</strong>
+      <span>Montagem</span><strong>${eventosMobileEscape([eventosMobileFormatarData(d.montagemData), d.montagemHora || "Livre"].filter(Boolean).join(" · ") || "-")}</strong>
+      <span>Desmontagem</span><strong>${eventosMobileEscape([eventosMobileFormatarData(d.desmontagemData), d.desmontagemHora || "Livre"].filter(Boolean).join(" · ") || "-")}</strong>
       <span>Endereço</span><strong>${eventosMobileEscape(d.endereco || "-")}</strong>
       <span>Produtos / alteração</span><strong>${eventosMobileEscape(d.produtosTexto || "-")}</strong>
+      <span>Valores</span><strong>${eventosMobileEscape([d.valorTotal ? `Total R$ ${d.valorTotal}` : "", d.valorSinal ? `Sinal R$ ${d.valorSinal}` : "", d.valorRestante ? `Restante R$ ${d.valorRestante}` : ""].filter(Boolean).join(" · ") || "-")}</strong>
     </div>
     <p class="eventos-mobile-preview-alert">Confira os dados. Nesta primeira versão, o botão abaixo abre o cadastro oficial já preenchido para você revisar e salvar.</p>
   `;
@@ -358,24 +504,28 @@ function eventosMobileAbrirCadastroPreenchido() {
     set("eventoData", d.data || "");
     set("eventoHoraInicio", d.montagemHora || "");
     set("eventoHoraTermino", d.desmontagemHora || "");
-    set("eventoMontagem", d.data || "");
-    set("eventoDesmontagem", d.data || "");
+    set("eventoMontagem", d.montagemData || (d.data ? eventosMobileAddDiasISO(d.data, -1) : ""));
+    set("eventoDesmontagem", d.desmontagemData || (d.data ? eventosMobileAddDiasISO(d.data, 1) : ""));
     set("eventoMontagemHora", d.montagemHora || "");
     set("eventoDesmontagemHora", d.desmontagemHora || "");
+    if (d.valorTotal && typeof numeroParaMoeda === "function") set("eventoValorTotal", numeroParaMoeda(d.valorTotal));
+    if (d.valorSinal && typeof numeroParaMoeda === "function") set("eventoValorSinal", numeroParaMoeda(d.valorSinal));
+    if (d.formaPagamento) set("eventoFormaPagamento", d.formaPagamento);
     const mt = document.getElementById("eventoMontagemTipo");
     const dt = document.getElementById("eventoDesmontagemTipo");
-    if (mt && d.montagemHora) mt.value = "Exatamente";
-    if (dt && d.desmontagemHora) dt.value = "Exatamente";
+    if (mt) mt.value = d.montagemHora ? "Exatamente" : "Livre / combinar";
+    if (dt) dt.value = d.desmontagemHora ? "Exatamente" : "Livre / combinar";
     if (typeof atualizarCampoHoraFinalOperacao === "function") {
       atualizarCampoHoraFinalOperacao("Montagem");
       atualizarCampoHoraFinalOperacao("Desmontagem");
     }
+    if (typeof calcularRestanteEvento === "function") calcularRestanteEvento();
+    if (typeof atualizarIconesFormaPagamentoEvento === "function") atualizarIconesFormaPagamentoEvento();
+    setTimeout(() => eventosMobileAplicarProdutosInterpretados(d), 120);
 
-    // Primeira fase: o texto de produtos entra como observação para conferência.
-    // A seleção automática de códigos entra na fase seguinte.
     const obs = document.getElementById("eventoClienteObservacao");
-    if (obs && d.produtosTexto) {
-      obs.value = [obs.value, `Produtos por voz: ${d.produtosTexto}`].filter(Boolean).join(" | ");
+    if (obs && d.produtosTexto && (!d.produtosDetectados || !d.produtosDetectados.length)) {
+      obs.value = [obs.value, `Produtos interpretados: ${d.produtosTexto}`].filter(Boolean).join(" | ");
     }
   }, 250);
 }
@@ -438,7 +588,6 @@ function iniciarEventosMobile() {
     renderizarEventosMobile();
   });
   document.getElementById("eventosMobileDiaProximoBtn")?.addEventListener("click", () => eventosMobileMoverDia(1));
-  document.getElementById("eventosMobileGravarBtn")?.addEventListener("click", eventosMobileIniciarReconhecimento);
 
   document.getElementById("eventosMobileInterpretarBtn")?.addEventListener("click", () => {
     const txt = document.getElementById("eventosMobileTextoVoz")?.value || "";

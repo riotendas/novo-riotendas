@@ -693,7 +693,8 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
   document.getElementById("manutMobileUsabilidade")?.addEventListener("change", (ev) => alterarUsabilidadeManutencaoMobile(ev.currentTarget.value));
 
   function concluirManutencaoMobileProduto() {
-    const statusFinal = manutencaoMobileStatusSelecionado || (produto.status || "Revisar");
+    const checks = manutMobileChecksSelecionados();
+    const statusFinal = checks.length ? "Livre" : (manutencaoMobileStatusSelecionado || (produto.status || "Revisar"));
     salvarManutencaoMobileProduto(statusFinal);
   }
 
@@ -791,10 +792,10 @@ function manutMobileStatusIgual(a, b) {
 }
 
 function manutMobileAlteracaoReal(statusAnterior, statusDesejado, obsAnterior, obsAtual, checks) {
-  const statusFoiEscolhido = !!manutencaoMobileStatusSelecionado;
+  const checklistMudou = Array.isArray(checks) && checks.length > 0;
+  const statusFoiEscolhido = !!manutencaoMobileStatusSelecionado || checklistMudou;
   const statusMudou = statusFoiEscolhido && !manutMobileStatusIgual(statusAnterior, statusDesejado);
   const obsMudou = String(obsAtual || "").trim() !== String(obsAnterior || "").trim();
-  const checklistMudou = Array.isArray(checks) && checks.length > 0;
   return { statusMudou, obsMudou, checklistMudou, houve: statusMudou || obsMudou || checklistMudou };
 }
 
@@ -808,7 +809,8 @@ async function salvarManutencaoMobileProduto(novoStatus) {
 
   const statusAnterior = produto.status || "";
   const obsAnterior = produto.observacao || "";
-  const statusDesejado = manutencaoMobileStatusSelecionado || produto.status || "Revisar";
+  // Ao executar serviço (Limpo/Consertado/Revisado), libera automaticamente para uso.
+  const statusDesejado = checks.length ? "Livre" : (manutencaoMobileStatusSelecionado || novoStatus || produto.status || "Revisar");
   const statusNormalizado = manutMobileNormalizar(statusDesejado || produto.status || "Revisar");
   const alteracaoReal = manutMobileAlteracaoReal(statusAnterior, statusDesejado, obsAnterior, observacao, checks);
   const statusMudou = alteracaoReal.statusMudou;
@@ -822,7 +824,8 @@ async function salvarManutencaoMobileProduto(novoStatus) {
     return;
   }
 
-  if (!observacao && statusNormalizado === "livre" && statusMudou) {
+  // Quando há serviço executado selecionado, não exige observação para concluir/liberar.
+  if (!observacao && statusNormalizado === "livre" && statusMudou && !checks.length) {
     const ok = confirm("Deseja liberar sem preencher observação de manutenção?");
     if (!ok) return;
   }

@@ -704,7 +704,7 @@
         </button>
         <button type="button" class="mobile-hub-card" data-mobile-open="eventosMobileSection">
           <strong>Eventos</strong>
-          <span>Criar, buscar e editar eventos pelo celular, com voz para texto e conferência.</span>
+          <span>Criar, buscar e editar eventos pelo celular, com cadastro rápido e interpretação de texto.</span>
         </button>
       </div>
     </section>
@@ -785,24 +785,23 @@
       <div class="section-header split">
         <div>
           <h2>Eventos Mobile</h2>
-          <p>Crie, busque e edite eventos pelo celular. A voz preenche uma prévia antes de enviar para o cadastro.</p>
+          <p>Crie, busque e edite eventos pelo celular. O texto interpretado preenche uma prévia antes de enviar para o cadastro.</p>
         </div>
         <button id="eventosMobileAtualizarBtn" class="btn-outline mobile-refresh-btn" type="button" title="Atualizar eventos">↻</button>
       </div>
 
       <div class="eventos-mobile-grid">
-        <div class="eventos-mobile-card eventos-mobile-voz">
+        <div class="eventos-mobile-card eventos-mobile-ia">
           <div class="eventos-mobile-card-title">
-            <strong>🎤 Novo evento por voz</strong>
-            <span>Fale os dados principais e confira antes de salvar.</span>
+            <strong>✨ Interpretar texto</strong>
+            <span>Cole uma mensagem do cliente para a IA local identificar data, montagem, desmontagem, endereço, produtos e valores.</span>
           </div>
-          <button id="eventosMobileGravarBtn" class="btn-primary eventos-mobile-mic" type="button">🎤 Gravar</button>
-          <textarea id="eventosMobileTextoVoz" rows="4" placeholder="Ex.: Cliente Dayse. Dia 15 de julho. Montagem às 8h. Desmontagem às 18h. Três tendas 6x3. Dois ombrelones. Endereço Avenida Atlântica 500."></textarea>
+          <textarea id="eventosMobileTextoVoz" rows="5" placeholder="Ex.: Cliente Dayse. Dia 15 de julho. Montagem dia 14 livre. Desmontagem dia 16 às 18h. Endereço Avenida Atlântica 500. 1 tenda 6x3 branca. Total 1000, sinal 300 pix, restante 700 dinheiro."></textarea>
           <div class="eventos-mobile-actions-inline">
-            <button id="eventosMobileInterpretarBtn" class="btn-outline" type="button">Interpretar texto</button>
+            <button id="eventosMobileInterpretarBtn" class="btn-primary" type="button">Interpretar texto</button>
             <button id="eventosMobileLimparVozBtn" class="btn-outline" type="button">Limpar</button>
           </div>
-          <small id="eventosMobileVozStatus">Microfone em modo teste. Sempre confira a prévia antes de salvar.</small>
+          <small id="eventosMobileVozStatus">Modo IA local: confira a prévia antes de abrir o cadastro preenchido.</small>
         </div>
 
         <div class="eventos-mobile-card">
@@ -1191,6 +1190,10 @@
               <input id="configAssinaturaResponsavel" type="hidden">
             </label>
             <label>Período padrão das rotas<select id="configPeriodoRotas"><option value="7">Próximos 7 dias</option><option value="15">Próximos 15 dias</option><option value="30">Próximos 30 dias</option></select></label>
+            <label>Chave Pix<input id="configPixChave" type="text" placeholder="E-mail, CPF/CNPJ, telefone ou chave aleatória"></label>
+            <label>Nome recebedor Pix<input id="configPixNome" type="text" placeholder="RIOTENDAS"></label>
+            <label>Cidade Pix<input id="configPixCidade" type="text" placeholder="RIO DE JANEIRO"></label>
+            <label>Banco Pix<input id="configPixBanco" type="text" placeholder="Itaú"></label>
           </div>
           <div class="assinatura-config-box">
             <strong>Prévia da assinatura nos documentos</strong>
@@ -1529,17 +1532,17 @@
         <div id="eventoExtrasSelecionados" class="selected-list extras-list"></div>
       </div>
 
-      <div class="modal-actions evento-modal-actions evento-rodape-documentos-final" style="display:flex!important;justify-content:space-between!important;align-items:center!important;width:100%!important;max-width:100%!important;margin-top:14px!important;gap:12px!important;box-sizing:border-box!important;">
-        <div class="evento-doc-actions" style="display:flex!important;justify-content:flex-start!important;align-items:center!important;gap:6px!important;flex:0 0 auto!important;margin-right:auto!important;width:auto!important;">
-          <button type="button" class="btn-outline btn-doc-evento" id="gerarGuiaServicoEvento" title="Gerar guia de serviço" style="width:auto!important;min-width:74px!important;max-width:98px!important;padding:5px 8px!important;font-size:11px!important;min-height:30px!important;height:30px!important;line-height:1!important;white-space:nowrap!important;">📄 Guia</button>
-          <button type="button" class="btn-outline btn-doc-evento" id="gerarContratoEvento" title="Gerar contrato" style="width:auto!important;min-width:86px!important;max-width:108px!important;padding:5px 8px!important;font-size:11px!important;min-height:30px!important;height:30px!important;line-height:1!important;white-space:nowrap!important;">📑 Contrato</button>
-          <button type="button" class="btn-outline btn-doc-evento" id="gerarReciboEvento" title="Gerar recibo" style="width:auto!important;min-width:78px!important;max-width:98px!important;padding:5px 8px!important;font-size:11px!important;min-height:30px!important;height:30px!important;line-height:1!important;white-space:nowrap!important;">🧾 Recibo</button>
+      <div class="modal-actions evento-modal-actions evento-rodape-documentos-final">
+        <div class="evento-doc-actions">
+          <button type="button" class="btn-outline btn-doc-evento" id="gerarGuiaServicoEvento" title="Gerar guia de serviço">📄 Guia</button>
+          <button type="button" class="btn-outline btn-doc-evento" id="gerarContratoEvento" title="Gerar contrato">📑 Contrato</button>
+          <button type="button" class="btn-outline btn-doc-evento" id="gerarReciboEvento" title="Gerar recibo">🧾 Recibo</button>
         </div>
-        <div class="evento-rodape-spacer" style="flex:1 1 auto!important;min-width:20px!important;"></div>
-        <div class="evento-save-actions" style="display:flex!important;justify-content:flex-end!important;align-items:center!important;gap:8px!important;flex:0 0 auto!important;margin-left:auto!important;width:auto!important;">
+        <div class="evento-rodape-spacer"></div>
+        <div class="evento-save-actions">
           <button type="button" class="btn-outline" id="duplicarEventoBtn" style="display:none;">Duplicar</button>
           <button type="button" class="btn-outline" id="cancelarEvento">Cancelar</button>
-          <button type="submit">Salvar evento</button>
+          <button type="submit">Salvar</button>
         </div>
       </div>
     </form>
@@ -1921,6 +1924,7 @@
   <script src="js/rua-mobile.js"></script>
   <script src="js/mobile-manutencao.js"></script>
   <script src="js/mobile-eventos.js"></script>
+  <script src="js/eventos-mobile-layout.js"></script>
   <script src="js/calendario.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="js/configuracoes.js"></script>

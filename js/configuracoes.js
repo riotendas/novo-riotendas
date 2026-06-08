@@ -144,6 +144,12 @@ function configPadrao() {
     logoEmpresa: "https://riotendas.smartwebinfo.com.br/webapp/public/img/logo.png",
     assinaturaResponsavel: window.RT_ASSINATURA_RODRIGO_PADRAO || "",
     periodoRotas: "30",
+    pix: {
+      chave: "",
+      nome: "RIOTENDAS",
+      cidade: "RIO DE JANEIRO",
+      banco: "Itaú"
+    },
     modelosDocumentos: modelosDocumentosPadrao()
   };
 }
@@ -1467,6 +1473,16 @@ function preencherPreferenciasConfig() {
   document.getElementById("configLogoEmpresa").value = config.logoEmpresa || "";
   atualizarPreviewAssinaturaResponsavelConfig(config.assinaturaResponsavel || window.RT_ASSINATURA_RODRIGO_PADRAO || "");
   document.getElementById("configPeriodoRotas").value = config.periodoRotas || "30";
+
+  const pix = config.pix || {};
+  const pixChave = document.getElementById("configPixChave");
+  const pixNome = document.getElementById("configPixNome");
+  const pixCidade = document.getElementById("configPixCidade");
+  const pixBanco = document.getElementById("configPixBanco");
+  if (pixChave) pixChave.value = pix.chave || pix.chavePix || "";
+  if (pixNome) pixNome.value = pix.nome || "RIOTENDAS";
+  if (pixCidade) pixCidade.value = pix.cidade || "RIO DE JANEIRO";
+  if (pixBanco) pixBanco.value = pix.banco || "Itaú";
 }
 
 function renderizarCarrosConfig() {
@@ -2034,6 +2050,12 @@ function salvarPreferenciasConfig() {
   config.logoEmpresa = document.getElementById("configLogoEmpresa").value.trim() || configPadrao().logoEmpresa;
   config.assinaturaResponsavel = document.getElementById("configAssinaturaResponsavel")?.value || "";
   config.periodoRotas = document.getElementById("configPeriodoRotas").value || "30";
+  config.pix = {
+    chave: document.getElementById("configPixChave")?.value.trim() || "",
+    nome: document.getElementById("configPixNome")?.value.trim() || "RIOTENDAS",
+    cidade: document.getElementById("configPixCidade")?.value.trim() || "RIO DE JANEIRO",
+    banco: document.getElementById("configPixBanco")?.value.trim() || "Itaú"
+  };
 
   salvarConfiguracoes(config);
   if (typeof registrarLogSistema === "function") {

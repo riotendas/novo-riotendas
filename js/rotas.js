@@ -1042,7 +1042,19 @@ function montarMateriaisRotaDetalhados(evento) {
 function renderizarMateriaisRotaClicaveis(rota) {
   if (rota && rota.atendimentoExtra && String(rota.atendimentoExtra.tipo || '').toLowerCase().includes('troca')) {
     const novas = rtTendasNovasAtendimento(rota);
-    if (novas.length) return novas.map(nova => `<span>${nova}</span>`).join('');
+    if (novas.length) {
+      const atendimentoId = rota.atendimentoExtra.id || rota.id || "";
+      return novas.map((nova, idx) => `
+        <button
+          type="button"
+          class="rota-material-click"
+          title="Clique para substituir este produto"
+          data-rota-trocar-produto="1"
+          data-evento-id="${rota.evento?.id || rota.evento_id || ""}"
+          data-produto-index="extra:${atendimentoId}:${idx}"
+        >${nova}</button>
+      `).join('');
+    }
     if (Array.isArray(rota.materiais) && rota.materiais.length) return rota.materiais.map(m => `<span>${m}</span>`).join('');
     return `<span>Troca de tenda</span>`;
   }
@@ -1229,7 +1241,173 @@ function garantirModalTrocaProdutoRota() {
   return modal;
 }
 
+
+function rtProdutoPorTextoTrocaRota(texto) {
+  const raw = String(texto || "").trim();
+  if (!raw) return null;
+  const lista = Array.isArray(produtos) ? produtos : [];
+  const codigo = (raw.match(/^\s*([^\s-]+)/) || [])[1] || "";
+  const norm = raw.toLowerCase().replace(/\s+/g, " ").trim();
+  return lista.find(p => {
+    const cod = String(p.codigo || p.id || p.numero || "").trim();
+    const desc = produtoDescricaoRota(p).toLowerCase().replace(/\s+/g, " " ).trim();
+    return (codigo && cod && cod === codigo) || desc === norm || norm.includes(desc) || desc.includes(norm);
+  }) || null;
+}
+
+function rtPseudoProdutoTrocaAtendimento(texto) {
+  const achado = rtProdutoPorTextoTrocaRota(texto);
+  if (achado) return achado;
+  const raw = String(texto || "").trim();
+  const partes = raw.split(/\s+-\s+/).map(x => x.trim()).filter(Boolean);
+  return {
+    id: raw,
+    codigo: partes[0] || "",
+    categoria: partes[1] || "Tenda",
+    tipo: partes[1] || "Tenda",
+    tamanho: partes[2] || rtTamanhoProduto({ descricao: raw, tamanho: raw }) || "",
+    cor: partes[3] || "",
+    descricao: raw
+  };
+}
+
+function rtListaTendasEntrarAtendimento(item) {
+  const val = String(item?.tenda_entrar || item?.tendas_entrar || "").trim();
+  if (!val) return [];
+  return val.split(/\s*[,;]\s*/).map(v => v.trim()).filter(Boolean);
+}
+
+function rtEncontrarAtendimentoExtraEvento(evento, atendimentoId) {
+  const lista = Array.isArray(evento?.produtos_extras) ? evento.produtos_extras : [];
+  return lista.find(x => String(x?.id || "") === String(atendimentoId || ""));
+}
+
+async function abrirTrocaProdutoAtendimentoExtraRota(eventoId, produtoIndex) {
+  if (typeof carregarProdutos === "function") {
+    try { await carregarProdutos(); } catch {}
+  }
+
+  const partes = String(produtoIndex || "").split(":");
+  const atendimentoId = partes[1] || "";
+  const tendaIdx = Number(partes[2] || 0);
+  const evento = (Array.isArray(eventos) ? eventos : []).find(e => String(e.id) === String(eventoId));
+  const atendimento = rtEncontrarAtendimentoExtraEvento(evento, atendimentoId);
+  const tendas = rtListaTendasEntrarAtendimento(atendimento);
+  const textoAtual = tendas[tendaIdx] || atendimento?.tenda_entrar || "";
+
+  if (!evento || !atendimento || !textoAtual) {
+    alert("Atendimento extra não encontrado para troca de produto.");
+    return;
+  }
+
+  const produtoAtual = rtPseudoProdutoTrocaAtendimento(textoAtual);
+  const opcoes = produtosDisponiveisParaTrocaRota(produtoAtual, evento);
+  const modal = garantirModalTrocaProdutoRota();
+
+  document.getElementById("trocaRotaEventoId").value = evento.id;
+  document.getElementById("trocaRotaProdutoIndex").value = produtoIndex;
+  document.getElementById("trocaRotaProdutoAtual").textContent = rtFormatarTendaTroca(textoAtual);
+
+  const select = document.getElementById("trocaRotaProdutoSelect");
+  if (!opcoes.length) {
+    select.innerHTML = `<option value="">Nenhum produto compatível encontrado</option>`;
+    document.getElementById("confirmarTrocaProdutoRota").disabled = true;
+  } else {
+    const opcoesComStatus = opcoes.map(p => {
+      const st = statusTrocaRotaProduto(p, evento);
+      return { produto: p, livre: st.livre, texto: st.texto };
+    });
+    select.innerHTML = `
+      <option value="">Selecione o produto substituto</option>
+      ${opcoesComStatus.map(item => `
+        <option value="${item.produto.id}" ${item.livre ? "" : "disabled"}>
+          ${produtoDescricaoRota(item.produto)} | ${item.livre ? "Disponível" : item.texto}
+        </option>
+      `).join("")}
+    `;
+    document.getElementById("confirmarTrocaProdutoRota").disabled = !opcoesComStatus.some(item => item.livre);
+  }
+
+  modal.showModal();
+}
+
+async function confirmarTrocaProdutoAtendimentoExtraRota(eventoId, produtoIndex, novoProdutoId) {
+  if (!eventoId || !produtoIndex || !novoProdutoId) {
+    alert("Selecione um produto para realizar a troca.");
+    return;
+  }
+
+  const partes = String(produtoIndex || "").split(":");
+  const atendimentoId = partes[1] || "";
+  const tendaIdx = Number(partes[2] || 0);
+  const evento = (Array.isArray(eventos) ? eventos : []).find(e => String(e.id) === String(eventoId));
+  const novoProduto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(novoProdutoId));
+  const atendimento = rtEncontrarAtendimentoExtraEvento(evento, atendimentoId);
+  const tendas = rtListaTendasEntrarAtendimento(atendimento);
+  const antigoTexto = tendas[tendaIdx] || atendimento?.tenda_entrar || "";
+
+  if (!evento || !novoProduto || !atendimento || !antigoTexto) {
+    alert("Não foi possível localizar o atendimento extra ou o produto selecionado.");
+    return;
+  }
+
+  const produtoAtual = rtPseudoProdutoTrocaAtendimento(antigoTexto);
+  if (String(produtoAtual.id || "") === String(novoProduto.id || "") ||
+      (String(produtoAtual.codigo || "").trim() && String(produtoAtual.codigo || "").trim() === String(novoProduto.codigo || "").trim())) {
+    alert("O produto escolhido é o mesmo produto atual.");
+    return;
+  }
+
+  const validacaoTroca = produtoDisponivelParaTrocaRota(novoProduto, evento);
+  if (!validacaoTroca.livre) {
+    alert(validacaoTroca.texto || "Este produto não está disponível para este atendimento.");
+    return;
+  }
+
+  const novoTexto = produtoDescricaoRota(novoProduto);
+  tendas[tendaIdx] = novoTexto;
+  atendimento.tenda_entrar = tendas.join("; ");
+
+  evento.atualizado_em = new Date().toISOString();
+  evento.colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : evento.colaborador;
+
+  const salvo = typeof salvarEventoBanco === "function" ? await salvarEventoBanco(evento) : null;
+  if (!salvo) {
+    alert("Não foi possível salvar a troca no atendimento extra.");
+    return;
+  }
+
+  const idx = eventos.findIndex(e => String(e.id) === String(evento.id));
+  if (idx >= 0) eventos[idx] = salvo;
+
+  document.getElementById("rotaTrocaProdutoDialog")?.close();
+
+  if (typeof carregarEventos === "function") await carregarEventos();
+  if (typeof renderizarEventos === "function") renderizarEventos();
+  if (typeof renderizarCalendario === "function") renderizarCalendario();
+  renderizarRotas();
+  window.dispatchEvent(new CustomEvent("riotendas:eventos-atualizados"));
+
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Rotas",
+      acao: "Troca rápida de atendimento extra",
+      registro_id: evento.id,
+      registro_nome: evento.nome || "Evento",
+      antes: antigoTexto,
+      depois: novoTexto,
+      detalhes: `${rtFormatarTendaTroca(antigoTexto)} → ${novoTexto}`
+    });
+  }
+
+  alert(`Produto trocado:\n${rtFormatarTendaTroca(antigoTexto)}\n→ ${novoTexto}`);
+}
+
 async function abrirTrocaProdutoRota(eventoId, produtoIndex) {
+  if (String(produtoIndex || "").startsWith("extra:")) {
+    return abrirTrocaProdutoAtendimentoExtraRota(eventoId, produtoIndex);
+  }
+
   if (typeof carregarProdutos === "function") {
     try { await carregarProdutos(); } catch {}
   }
@@ -1283,8 +1461,14 @@ async function abrirTrocaProdutoRota(eventoId, produtoIndex) {
 
 async function confirmarTrocaProdutoRota() {
   const eventoId = document.getElementById("trocaRotaEventoId")?.value;
-  const produtoIndex = Number(document.getElementById("trocaRotaProdutoIndex")?.value);
+  const produtoIndexRaw = document.getElementById("trocaRotaProdutoIndex")?.value;
   const novoProdutoId = document.getElementById("trocaRotaProdutoSelect")?.value;
+
+  if (String(produtoIndexRaw || "").startsWith("extra:")) {
+    return confirmarTrocaProdutoAtendimentoExtraRota(eventoId, produtoIndexRaw, novoProdutoId);
+  }
+
+  const produtoIndex = Number(produtoIndexRaw);
 
   if (!eventoId || !Number.isFinite(produtoIndex) || !novoProdutoId) {
     alert("Selecione um produto para realizar a troca.");
@@ -1697,8 +1881,15 @@ function rtAbrirContadorCarro(listaRotas = [], carro = "Carro") {
 }
 
 // v19-dev: gerar rota no Google Maps por carro/dia
+function rtEnderecoPrincipalMaps(endereco) {
+  const texto = String(endereco || "").trim();
+  if (!texto) return "";
+  const idx = texto.indexOf("(");
+  return (idx > 0 ? texto.slice(0, idx) : texto).trim();
+}
+
 function rtEnderecoRotaValido(endereco) {
-  return String(endereco || "").trim();
+  return rtEnderecoPrincipalMaps(endereco);
 }
 
 function rtGoogleMapsUrlRotas(listaRotas) {
@@ -2162,12 +2353,14 @@ function limparTelefoneRota(telefone) {
 }
 
 function googleMapsSearchUrl(endereco) {
-  const query = encodeURIComponent(String(endereco || "").trim());
+  const consulta = typeof rtEnderecoPrincipalMaps === "function" ? rtEnderecoPrincipalMaps(endereco) : String(endereco || "").trim();
+  const query = encodeURIComponent(consulta);
   return query ? `https://www.google.com/maps/search/?api=1&query=${query}` : "#";
 }
 
 function googleMapsNavigateUrl(endereco) {
-  const query = encodeURIComponent(String(endereco || "").trim());
+  const consulta = typeof rtEnderecoPrincipalMaps === "function" ? rtEnderecoPrincipalMaps(endereco) : String(endereco || "").trim();
+  const query = encodeURIComponent(consulta);
   return query ? `https://www.google.com/maps/dir/?api=1&destination=${query}` : "#";
 }
 
@@ -2198,7 +2391,8 @@ function linkGoogleMapsEndereco(endereco) {
   const texto = String(endereco || "").trim();
   if (!texto || texto === "-") return "-";
 
-  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(texto)}`;
+  const consulta = typeof rtEnderecoPrincipalMaps === "function" ? rtEnderecoPrincipalMaps(texto) : texto;
+  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(consulta)}`;
 
   return `<a class="rota-endereco-link" href="${url}" target="_blank" rel="noopener" title="Abrir no Google Maps">${texto}</a>`;
 }
