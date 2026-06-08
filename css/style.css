@@ -15304,3 +15304,480 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
 .rua-mobile-pix-resumo{ color:#123; font-size:14px; line-height:1.35; }
 .rua-mobile-pix-qr{ width:220px; height:220px; justify-self:center; border:1px solid #d7e2ef; border-radius:12px; padding:8px; background:white; }
 #ruaMobilePixPayload{ width:100%; font-size:11px; border:1px solid #d7e2ef; border-radius:10px; padding:8px; resize:vertical; }
+
+
+/* v19-dev: Produtos - filtro Usabilidade na mesma linha e controles mais compactos */
+.produtos-filtros-compactos{
+  grid-template-columns:minmax(92px,.62fr) minmax(78px,.52fr) minmax(92px,.58fr) minmax(100px,.62fr) minmax(112px,.82fr) minmax(112px,.70fr) minmax(112px,.70fr) minmax(58px,.34fr) 38px !important;
+  gap:6px !important;
+}
+.produtos-filtros-compactos label{font-size:11px !important;}
+.produtos-filtros-compactos select,
+.produtos-filtros-compactos input{font-size:12px !important; min-height:34px !important; padding:6px 8px !important;}
+.produtos-filtros-compactos .produtos-disponiveis-compacto{
+  min-height:34px !important;
+  padding:6px 7px !important;
+  align-self:end !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:4px !important;
+  font-size:11px !important;
+  white-space:nowrap !important;
+}
+.produtos-filtros-compactos #limparDisponibilidadeProdutos{
+  min-width:34px !important;
+  width:34px !important;
+  height:34px !important;
+  padding:0 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  font-size:15px !important;
+}
+@media (max-width:900px){
+  .produtos-filtros-compactos{grid-template-columns:repeat(3,minmax(0,1fr)) !important;}
+}
+
+/* v19-dev: Rota Mobile - ações sempre lado a lado, inclusive em card recolhido */
+.rua-mobile-card .rua-mobile-acoes-compactas,
+.rua-mobile-card-concluido .rua-mobile-acoes-compactas{
+  display:grid !important;
+  grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+  gap:5px !important;
+  width:100% !important;
+}
+.rua-mobile-card .rua-mobile-acoes-compactas .rua-mobile-acao-btn,
+.rua-mobile-card-concluido .rua-mobile-acoes-compactas .rua-mobile-acao-btn{
+  width:100% !important;
+  min-width:0 !important;
+  max-width:none !important;
+  min-height:40px !important;
+  padding:5px 2px !important;
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:center !important;
+  justify-content:center !important;
+  text-align:center !important;
+  gap:1px !important;
+}
+.rua-mobile-card-concluido:not(.rua-mobile-card-expandido) .rua-mobile-acoes-compactas{
+  grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+}
+
+/* v19-dev: Eventos Mobile - formulário rápido com datas de montagem/desmontagem */
+.eventos-mobile-form input#eventosMobileMontagemData::before,
+.eventos-mobile-form input#eventosMobileDesmontagemData::before{content:'';}
+
+/* v19-dev correcoes usabilidade/eventos-mobile */
+.eventos-mobile-date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #17466f;
+}
+.eventos-mobile-date-field input {
+  width: 100%;
+}
+.rua-mobile-card-concluido:not(.rua-mobile-card-expandido) .rua-mobile-acoes {
+  display: none !important;
+}
+
+
+/* v19-dev: Produtos - coerência visual do status Bloqueado/Bloqueada */
+.status-select.status-bloqueado,
+.status-select.status-bloqueada{
+  color:#7c2d12 !important;
+  border-color:#f59e0b !important;
+  background:#fff7ed !important;
+}
+
+/* v19-dev: Eventos Mobile - manual rápido recolhível e datas na mesma linha */
+.eventos-mobile-manual-card{
+  padding:0 !important;
+}
+.eventos-mobile-manual-card > summary{
+  list-style:none;
+  cursor:pointer;
+  padding:12px;
+  margin:0 !important;
+  position:relative;
+}
+.eventos-mobile-manual-card > summary::-webkit-details-marker{display:none;}
+.eventos-mobile-manual-card > summary::after{
+  content:'▸';
+  position:absolute;
+  right:12px;
+  top:14px;
+  color:#17466f;
+  font-size:12px;
+}
+.eventos-mobile-manual-card[open] > summary::after{content:'▾';}
+.eventos-mobile-manual-form{
+  padding:0 12px 12px;
+}
+.eventos-mobile-datas-row{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:6px;
+  grid-column:1 / -1;
+}
+.eventos-mobile-manual-card .eventos-mobile-preview-btn{
+  margin:0 12px 12px;
+  width:calc(100% - 24px);
+}
+@media (max-width:480px){
+  .eventos-mobile-datas-row{gap:5px;}
+  .eventos-mobile-date-field span{font-size:10px;}
+  .eventos-mobile-date-field input{font-size:11px; padding:7px 5px;}
+}
+
+/* v19-dev: Eventos desktop mais compacto - filtros em linha única */
+#eventosSection.eventos-compact-section { padding-top: 14px; }
+#eventosSection .eventos-header-compact{
+  margin-bottom: 8px;
+  align-items: flex-start;
+}
+#eventosSection .eventos-header-compact h2{font-size:26px;line-height:1.05;}
+#eventosSection .eventos-header-compact p{font-size:14px;margin-top:2px;}
+#eventosSection #novoEventoBtn{margin-left:auto;min-height:40px;padding:9px 18px;}
+#eventosSection .eventos-toolbar{
+  display:grid;
+  grid-template-columns:minmax(280px,1.55fr) minmax(150px,.62fr) minmax(170px,.72fr) minmax(150px,.58fr);
+  gap:10px;
+  align-items:end;
+  margin:8px 0 6px;
+}
+#eventosSection .eventos-toolbar label{
+  font-weight:700;
+  font-size:.86rem;
+  color:#1f2f46;
+}
+#eventosSection .eventos-toolbar input,
+#eventosSection .eventos-toolbar select{
+  width:100%;
+  margin-top:4px;
+  min-height:40px;
+  font-size:14px;
+}
+#eventosSection .eventos-summary-compact{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:4px 0 8px;
+  flex-wrap:wrap;
+}
+#eventosSection .eventos-summary-compact small{font-size:11px;color:#d00;margin-left:8px;}
+@media (max-width: 760px){
+  #eventosSection .eventos-toolbar{grid-template-columns:1fr 1fr;}
+  #eventosSection .eventos-busca-geral{grid-column:1/-1;}
+  #eventosSection .eventos-header-compact{align-items:center;}
+  #eventosSection #novoEventoBtn{padding:8px 12px;min-height:36px;}
+}
+
+/* v19-dev rotas-cabecalho-compacto: compacta cabeçalho/filtros da tela Rotas sem alterar demais telas */
+#rotasSection .section-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:8px;
+}
+#rotasSection .section-header h2{
+  margin:0;
+  line-height:1.05;
+}
+#rotasSection .section-header p{
+  margin:2px 0 0;
+  font-size:12px;
+  line-height:1.2;
+}
+#rotasSection .rotas-header-acoes{
+  margin-top:0;
+  align-self:flex-start;
+  flex-wrap:nowrap;
+}
+#rotasSection #atualizarRotasBtn{
+  padding:8px 12px;
+  border-radius:9px;
+  white-space:nowrap;
+}
+#rotasSection > .filters-grid{
+  margin:6px 0 10px;
+  gap:8px;
+  grid-template-columns: minmax(130px,.95fr) minmax(130px,.9fr) minmax(130px,.9fr) minmax(150px,1.1fr) minmax(130px,.9fr);
+  align-items:end;
+}
+#rotasSection > .filters-grid label{
+  font-size:11px;
+  gap:3px;
+}
+#rotasSection > .filters-grid input,
+#rotasSection > .filters-grid select{
+  margin-top:2px;
+  padding:8px 9px;
+  min-height:34px;
+  border-radius:9px;
+  font-size:13px;
+}
+@media (max-width: 900px){
+  #rotasSection .section-header{
+    align-items:center;
+  }
+  #rotasSection > .filters-grid{
+    grid-template-columns: repeat(2, minmax(130px,1fr));
+  }
+}
+@media (max-width: 560px){
+  #rotasSection .section-header{
+    flex-direction:row;
+    align-items:flex-start;
+  }
+  #rotasSection .section-header p{
+    display:none;
+  }
+  #rotasSection #atualizarRotasBtn{
+    padding:7px 9px;
+    font-size:12px;
+  }
+  #rotasSection > .filters-grid{
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* =====================================================
+   Ajuste REAL - Rotas mais compactas + dia da semana curto
+   Reduz apenas alturas/espaçamentos internos sem mudar estrutura.
+===================================================== */
+#rotasSection .rota-dia-header {
+  margin-bottom: 4px !important;
+  padding-bottom: 2px !important;
+  gap: 8px !important;
+}
+
+#rotasSection .rota-dia-header h3,
+#rotasSection .rota-dia-header h3 span {
+  font-size: 0.98rem !important;
+  line-height: 1.05 !important;
+  font-weight: 800 !important;
+}
+
+#rotasSection .rota-dia-header h3 span {
+  margin-left: 4px !important;
+  color: inherit !important;
+  text-transform: uppercase !important;
+}
+
+#rotasSection .rota-print-btn {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 3px 10px !important;
+  font-size: 0.78rem !important;
+  line-height: 1 !important;
+  border-radius: 10px !important;
+}
+
+#rotasSection .rota-card {
+  margin-top: 5px !important;
+  margin-bottom: 6px !important;
+}
+
+#rotasSection .rota-card-conteudo {
+  padding: 5px 7px !important;
+}
+
+#rotasSection .rota-card-top-refinado {
+  min-height: 0 !important;
+  margin: 0 0 2px 0 !important;
+  padding: 0 !important;
+}
+
+#rotasSection .rota-identificacao,
+#rotasSection .rota-operacao-badge {
+  margin-top: 0 !important;
+  margin-bottom: 2px !important;
+  line-height: 1.05 !important;
+}
+
+#rotasSection .rota-grid-info {
+  margin-top: 2px !important;
+  margin-bottom: 2px !important;
+  gap: 5px !important;
+}
+
+#rotasSection .rota-col {
+  padding: 5px 7px !important;
+  min-height: 42px !important;
+}
+
+#rotasSection .rota-col span {
+  margin-bottom: 1px !important;
+  line-height: 1 !important;
+}
+
+#rotasSection .rota-col strong {
+  line-height: 1.05 !important;
+}
+
+#rotasSection .rota-materiais-com-controles {
+  margin-top: 3px !important;
+  padding-top: 1px !important;
+  gap: 5px !important;
+  align-items: center !important;
+}
+
+#rotasSection .rota-materiais-lista,
+#rotasSection .rota-materiais-lista > div {
+  gap: 4px !important;
+  line-height: 1.05 !important;
+}
+
+#rotasSection .rota-materiais-lista strong {
+  margin-right: 2px !important;
+}
+
+#rotasSection .rota-materiais-lista span,
+#rotasSection .rota-materiais span,
+#rotasSection .produto-pill,
+#rotasSection .material-pill {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  line-height: 1.05 !important;
+}
+
+#rotasSection .rota-controles-baixo {
+  margin-top: 0 !important;
+}
+
+#rotasSection .rota-controles-linha-baixo {
+  gap: 4px !important;
+  margin-top: 0 !important;
+}
+
+#rotasSection .rota-controles-linha-baixo .rota-carro-inline select,
+#rotasSection .rota-controles-linha-baixo .rota-edit-event-btn,
+#rotasSection .rota-controles-linha-baixo .rota-operacao-btn,
+#rotasSection .rota-controles-linha-baixo .rota-reverter-btn {
+  height: 24px !important;
+  min-height: 24px !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  font-size: 0.66rem !important;
+}
+
+#rotasSection .rota-controles-linha-baixo .rota-order-btn {
+  width: 23px !important;
+  height: 23px !important;
+  min-width: 23px !important;
+}
+
+/* =====================================================
+   v19-dev rotas-ultra-compacta: reduz espaço ENTRE cards
+   Mantém layout/campos/botões; compactação visual da tela Rotas.
+===================================================== */
+#rotasSection .rota-carro-grupo,
+#rotasSection .rota-dia-grupo,
+#rotasSection .rotas-lista,
+#rotasSection .rotas-por-carro,
+#rotasSection .rota-carro-body {
+  gap: 3px !important;
+  row-gap: 3px !important;
+}
+
+#rotasSection .rota-carro-grupo {
+  margin-top: 4px !important;
+  margin-bottom: 5px !important;
+  padding-bottom: 3px !important;
+}
+
+#rotasSection .rota-carro-header,
+#rotasSection .rota-carro-titulo,
+#rotasSection .rota-carro-resumo {
+  margin-top: 2px !important;
+  margin-bottom: 3px !important;
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+}
+
+#rotasSection .rota-card {
+  margin-top: 2px !important;
+  margin-bottom: 3px !important;
+}
+
+#rotasSection .rota-card + .rota-card {
+  margin-top: 2px !important;
+}
+
+#rotasSection .rota-card-conteudo {
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+}
+
+#rotasSection .rota-status-badge,
+#rotasSection .rota-status-pill,
+#rotasSection .rota-operacao-badge,
+#rotasSection .rota-entrega-status,
+#rotasSection .rota-identificacao {
+  margin-top: 0 !important;
+  margin-bottom: 1px !important;
+}
+
+#rotasSection .rota-card-top-refinado {
+  margin-bottom: 1px !important;
+  padding-bottom: 1px !important;
+  min-height: 18px !important;
+}
+
+#rotasSection .rota-grid-info {
+  margin-top: 1px !important;
+  margin-bottom: 1px !important;
+}
+
+#rotasSection .rota-materiais-com-controles {
+  margin-top: 1px !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+#rotasSection .rota-top-actions,
+#rotasSection .rota-controles-linha {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+#rotasSection .rota-print-btn,
+#rotasSection .btn-gerar-pdf,
+#rotasSection button[data-print-rota],
+#rotasSection button[title*="PDF"] {
+  min-height: 25px !important;
+  height: 25px !important;
+  padding: 2px 8px !important;
+  font-size: 0.74rem !important;
+  border-radius: 9px !important;
+}
+
+
+/* v19-dev-rotas-drag-drop-ordem: alça lateral para arrastar a ordem dos cards */
+#rotasSection .rota-tipo-vertical {
+  cursor: grab !important;
+  user-select: none !important;
+  touch-action: none !important;
+}
+#rotasSection .rota-tipo-vertical:active {
+  cursor: grabbing !important;
+}
+#rotasSection .rota-card-arrastando {
+  opacity: .72 !important;
+  outline: 2px dashed rgba(15, 90, 160, .45) !important;
+  transform: scale(.995) !important;
+}
+#rotasSection .rota-drop-before {
+  box-shadow: 0 -3px 0 #0f5aa0 !important;
+}
+#rotasSection .rota-drop-after {
+  box-shadow: 0 3px 0 #0f5aa0 !important;
+}

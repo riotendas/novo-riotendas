@@ -975,7 +975,8 @@ function formatarDataRota(dataISO) {
 function diaSemanaRota(dataISO) {
   if (!dataISO) return "";
   const d = new Date(dataISO + "T12:00:00");
-  return d.toLocaleDateString("pt-BR", { weekday: "long" });
+  const dias = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
+  return dias[d.getDay()] || "";
 }
 
 
@@ -2039,6 +2040,8 @@ function renderizarRotas() {
     });
   });
 
+  configurarArrastarOrdemRotas(container);
+
 
   container.querySelectorAll("button[data-rota-operacao]").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -2409,8 +2412,8 @@ function renderizarCardRota(rota, index = 0, total = 0) {
   const evento = rota.evento || {};
 
   return `
-    <div class="rota-card tipo-${rota.tipo.toLowerCase()} ${conflito ? "rota-conflito" : ""}">
-      <div class="rota-tipo-vertical tipo-${rota.tipo.toLowerCase()}">
+    <div class="rota-card tipo-${rota.tipo.toLowerCase()} ${conflito ? "rota-conflito" : ""}" data-rota-card="${rota.id}" data-rota-data="${rota.data}" data-rota-carro-grupo="${carroAtual}">
+      <div class="rota-tipo-vertical tipo-${rota.tipo.toLowerCase()}" draggable="true" title="Arrastar para ordenar">
         <span>${rota.tipo}</span>
       </div>
 
@@ -3234,3 +3237,120 @@ function aplicarScrollListaCombinadaCalendario() {
 }
 
 document.addEventListener('DOMContentLoaded', aplicarScrollListaCombinadaCalendario);
+
+
+// v19-dev-rotas-drag-drop-ordem: permite ordenar segurando a faixa vertical do card.
+function moverRotaParaIndice(rotaId, alvoId, listaRotas, inserirDepois = false) {
+  const ordenada = ordenarRotasPorOrdemManual(listaRotas);
+  const origemIndex = ordenada.findIndex(r => String(r.id) === String(rotaId));
+  const alvoIndexOriginal = ordenada.findIndex(r => String(r.id) === String(alvoId));
+  if (origemIndex === -1 || alvoIndexOriginal === -1 || String(rotaId) === String(alvoId)) return Promise.resolve();
+
+  const [movida] = ordenada.splice(origemIndex, 1);
+  let alvoIndex = ordenada.findIndex(r => String(r.id) === String(alvoId));
+  if (alvoIndex === -1) alvoIndex = ordenada.length;
+  const destino = inserirDepois ? alvoIndex + 1 : alvoIndex;
+  ordenada.splice(Math.max(0, Math.min(destino, ordenada.length)), 0, movida);
+
+  ordenada.forEach((rota, index) => {
+    rotasOrdemManual[String(rota.id)] = index + 1;
+  });
+
+  return salvarRotasOrdemManual();
+}
+
+function configurarArrastarOrdemRotas(container) {
+  if (!container) return;
+  let dragInfo = null;
+
+  container.querySelectorAll('.rota-card[data-rota-card]').forEach(card => {
+    const handle = card.querySelector('.rota-tipo-vertical');
+    if (!handle) return;
+
+    handle.addEventListener('dragstart', ev => {
+      dragInfo = {
+        id: card.dataset.rotaCard,
+        data: card.dataset.rotaData,
+        carro: card.dataset.rotaCarroGrupo
+      };
+      card.classList.add('rota-card-arrastando');
+      if (ev.dataTransfer) {
+        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer.setData('text/plain', dragInfo.id || '');
+      }
+    });
+
+    handle.addEventListener('dragend', () => {
+      card.classList.remove('rota-card-arrastando');
+      container.querySelectorAll('.rota-drop-before, .rota-drop-after').forEach(el => el.classList.remove('rota-drop-before', 'rota-drop-after'));
+      dragInfo = null;
+    });
+
+    card.addEventListener('dragover', ev => {
+      if (!dragInfo || String(card.dataset.rotaCard) === String(dragInfo.id)) return;
+      if (card.dataset.rotaData !== dragInfo.data || card.dataset.rotaCarroGrupo !== dragInfo.carro) return;
+      ev.preventDefault();
+      const rect = card.getBoundingClientRect();
+      const depois = ev.clientY > rect.top + rect.height / 2;
+      card.classList.toggle('rota-drop-before', !depois);
+      card.classList.toggle('rota-drop-after', depois);
+      if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+    });
+
+    card.addEventListener('dragleave', () => {
+      card.classList.remove('rota-drop-before', 'rota-drop-after');
+    });
+
+    card.addEventListener('drop', ev => {
+      if (!dragInfo || String(card.dataset.rotaCard) === String(dragInfo.id)) return;
+      if (card.dataset.rotaData !== dragInfo.data || card.dataset.rotaCarroGrupo !== dragInfo.carro) return;
+      ev.preventDefault();
+      const rect = card.getBoundingClientRect();
+      const inserirDepois = ev.clientY > rect.top + rect.height / 2;
+      const todas = criarRotasDosEventos();
+      const grupos = agruparPorDataECarro(todas);
+      const lista = (grupos[dragInfo.data] && grupos[dragInfo.data][dragInfo.carro])
+        ? ordenarRotasPorOrdemManual(grupos[dragInfo.data][dragInfo.carro])
+        : [];
+      moverRotaParaIndice(dragInfo.id, card.dataset.rotaCard, lista, inserirDepois).then(() => {
+        renderizarRotas();
+        if (typeof renderizarRuaMobile === 'function') renderizarRuaMobile();
+        if (typeof renderizarCalendario === 'function') renderizarCalendario();
+      });
+    });
+  });
+
+  // Suporte básico a toque: usa a faixa lateral como alça e move para o card onde soltar.
+  container.querySelectorAll('.rota-tipo-vertical').forEach(handle => {
+    handle.addEventListener('touchstart', ev => {
+      const card = handle.closest('.rota-card[data-rota-card]');
+      if (!card) return;
+      dragInfo = { id: card.dataset.rotaCard, data: card.dataset.rotaData, carro: card.dataset.rotaCarroGrupo };
+      card.classList.add('rota-card-arrastando');
+    }, { passive: true });
+  });
+
+  container.addEventListener('touchend', ev => {
+    if (!dragInfo) return;
+    const touch = ev.changedTouches && ev.changedTouches[0];
+    const alvo = touch ? document.elementFromPoint(touch.clientX, touch.clientY)?.closest?.('.rota-card[data-rota-card]') : null;
+    container.querySelectorAll('.rota-card-arrastando').forEach(el => el.classList.remove('rota-card-arrastando'));
+    if (!alvo || String(alvo.dataset.rotaCard) === String(dragInfo.id) || alvo.dataset.rotaData !== dragInfo.data || alvo.dataset.rotaCarroGrupo !== dragInfo.carro) {
+      dragInfo = null;
+      return;
+    }
+    const rect = alvo.getBoundingClientRect();
+    const inserirDepois = touch.clientY > rect.top + rect.height / 2;
+    const todas = criarRotasDosEventos();
+    const grupos = agruparPorDataECarro(todas);
+    const lista = (grupos[dragInfo.data] && grupos[dragInfo.data][dragInfo.carro])
+      ? ordenarRotasPorOrdemManual(grupos[dragInfo.data][dragInfo.carro])
+      : [];
+    moverRotaParaIndice(dragInfo.id, alvo.dataset.rotaCard, lista, inserirDepois).then(() => {
+      renderizarRotas();
+      if (typeof renderizarRuaMobile === 'function') renderizarRuaMobile();
+      if (typeof renderizarCalendario === 'function') renderizarCalendario();
+    });
+    dragInfo = null;
+  }, { passive: true });
+}

@@ -332,14 +332,17 @@ function eventosMobileDetectarProdutosTexto(texto) {
   const bruto = String(texto || "");
   const itens = [];
   const numeroPalavra = { uma:1, um:1, duas:2, dois:2, tres:3, três:3, quatro:4, cinco:5, seis:6, sete:7, oito:8, nove:9, dez:10 };
-  const regex = /(?:(\d+|um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove|dez)\s+)?(tenda(?:\s+sanfonada)?|tendas|ombrelone|ombrelones)\s*(?:de|da|do)?\s*([0-9]+(?:[,.][0-9]+)?\s*x\s*[0-9]+(?:[,.][0-9]+)?|[0-9]+(?:[,.][0-9]+)?m?)?\s*([a-zçãáéíóúâêô ]{0,25})/gi;
+  const regex = /(?:(\d+|um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove|dez)\s+)?\b(tendas|tenda(?:\s+sanfonada)?|ombrelones|ombrelone)\b\s*(?:de|da|do)?\s*([0-9]+(?:[,.][0-9]+)?\s*x\s*[0-9]+(?:[,.][0-9]+)?|[0-9]+(?:[,.][0-9]+)?m?)?\s*([a-zçãáéíóúâêô ]{0,18})/gi;
   let m;
   while ((m = regex.exec(bruto))) {
     const qtdRaw = String(m[1] || '1').toLowerCase();
     const quantidade = Number(qtdRaw) || numeroPalavra[qtdRaw] || 1;
     const tipo = /ombrelone/i.test(m[2]) ? 'ombrelone' : 'tenda';
     const tamanho = String(m[3] || '').replace(/\s+/g, '').replace(',', '.');
-    const cor = String(m[4] || '').trim();
+    let cor = String(m[4] || '')
+      .split(/[,.;\n]|\b(?:total|sinal|restante|valor|endereco|endereço|montagem|desmontagem)\b/i)[0]
+      .trim();
+    cor = cor.replace(/\b(de|da|do|com|e)\b/gi, ' ').replace(/\s+/g, ' ').trim();
     itens.push({ quantidade: Math.max(1, quantidade), tipo, tamanho, cor, texto: m[0].trim() });
   }
   return itens;
@@ -353,8 +356,10 @@ function eventosMobileProdutoBate(info, produto) {
   if (info.tamanho) {
     const tam = eventosMobileNormalizar(info.tamanho).replace(/\s+/g, '');
     const txt = texto.replace(/\s+/g, '');
-    const alt = tam.replace('.', '');
-    if (!txt.includes(tam) && !txt.includes(alt)) return false;
+    const tamSemPonto = tam.replace('.', ',');
+    const tamanhosPossiveis = [tam, tamSemPonto].filter(Boolean);
+    const tamanhoProduto = eventosMobileNormalizar(produto.tamanho || "").replace(/\s+/g, '');
+    if (!tamanhosPossiveis.some(t => tamanhoProduto === t || txt.includes(t))) return false;
   }
   const cor = eventosMobileNormalizar(info.cor || '');
   if (cor.includes('branc') && !texto.includes('branc')) return false;
@@ -374,7 +379,7 @@ function eventosMobileAplicarProdutosInterpretados(dados) {
       .filter(p => eventosMobileProdutoBate(info, p))
       .map(p => ({ p, disp: typeof disponibilidadeProdutoParaEvento === 'function' ? disponibilidadeProdutoParaEvento(p.id) : { livre:true } }))
       .filter(x => x.disp && x.disp.livre)
-      .sort(() => Math.random() - 0.5);
+      .sort((a, b) => String(a.p.codigo || "").localeCompare(String(b.p.codigo || ""), "pt-BR", { numeric: true }));
     candidatos.slice(0, info.quantidade).forEach(x => {
       if (typeof rtAdicionarProdutoObjetoEvento === 'function') rtAdicionarProdutoObjetoEvento(x.p);
       ja.add(String(x.p.id));
@@ -427,15 +432,21 @@ function eventosMobileInterpretarTexto(texto) {
 }
 
 function eventosMobileDadosManual() {
+  const data = document.getElementById("eventosMobileData")?.value || "";
+  const produtosTexto = document.getElementById("eventosMobileProdutos")?.value || "";
+  const produtosDetectados = eventosMobileDetectarProdutosTexto(produtosTexto);
   return {
     modo: "novo",
     nome: document.getElementById("eventosMobileNome")?.value || "",
     telefone: document.getElementById("eventosMobileTelefone")?.value || "",
-    data: document.getElementById("eventosMobileData")?.value || "",
-    montagemHora: document.getElementById("eventosMobileMontagem")?.value || "",
-    desmontagemHora: document.getElementById("eventosMobileDesmontagem")?.value || "",
+    data,
+    montagemData: document.getElementById("eventosMobileMontagemData")?.value || (data ? eventosMobileAddDiasISO(data, -1) : ""),
+    desmontagemData: document.getElementById("eventosMobileDesmontagemData")?.value || (data ? eventosMobileAddDiasISO(data, 1) : ""),
+    montagemHora: "",
+    desmontagemHora: "",
     endereco: document.getElementById("eventosMobileEndereco")?.value || "",
-    produtosTexto: document.getElementById("eventosMobileProdutos")?.value || "",
+    produtosTexto,
+    produtosDetectados,
     textoOriginal: ""
   };
 }
@@ -445,8 +456,8 @@ function eventosMobilePreencherManual(dados = {}) {
   set("eventosMobileNome", dados.nome);
   set("eventosMobileTelefone", dados.telefone);
   set("eventosMobileData", dados.data);
-  set("eventosMobileMontagem", dados.montagemHora);
-  set("eventosMobileDesmontagem", dados.desmontagemHora);
+  set("eventosMobileMontagemData", dados.montagemData || (dados.data ? eventosMobileAddDiasISO(dados.data, -1) : ""));
+  set("eventosMobileDesmontagemData", dados.desmontagemData || (dados.data ? eventosMobileAddDiasISO(dados.data, 1) : ""));
   set("eventosMobileEndereco", dados.endereco);
   set("eventosMobileProdutos", dados.produtosTexto);
 }

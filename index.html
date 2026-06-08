@@ -140,6 +140,9 @@
         <label>Status
           <select id="filtroStatus"><option value="">Todos</option></select>
         </label>
+        <label>Usabilidade
+          <select id="filtroUsabilidade"><option value="">Todas</option></select>
+        </label>
         <label>Busca
           <input id="buscaProduto" type="search" placeholder="Código, cor, obs..." />
         </label>
@@ -151,9 +154,9 @@
         </label>
         <label class="checkbox-line produtos-disponiveis-compacto">
           <input id="mostrarSomenteDisponiveis" type="checkbox">
-          Disponíveis
+          Disp.
         </label>
-        <button type="button" id="limparDisponibilidadeProdutos" class="btn-outline">Limpar</button>
+        <button type="button" id="limparDisponibilidadeProdutos" class="btn-outline" title="Limpar filtros de disponibilidade" aria-label="Limpar filtros">🧹</button>
       </div>
       <p class="hint produtos-disp-hint">Disponibilidade considera montagem/entrega até desmontagem/retirada.</p>
 
@@ -236,8 +239,8 @@
       </div>
     </section>
 
-    <section id="eventosSection" class="section">
-      <div class="section-header">
+    <section id="eventosSection" class="section eventos-compact-section">
+      <div class="section-header split eventos-header-compact">
         <div>
           <h2>Eventos</h2>
           <p>Cadastro de eventos, financeiro e produtos alugados.</p>
@@ -245,35 +248,21 @@
         <button id="novoEventoBtn">Novo evento</button>
       </div>
 
-      <div class="filters-grid">
-        <label>Busca geral
+      <div class="eventos-toolbar">
+        <label class="eventos-busca-geral">Busca geral
           <input id="buscaEvento" type="search" placeholder="Cliente, telefone, endereço, produto...">
         </label>
-        <label>Data
+        <label class="eventos-data-filtro">Data
           <input id="filtroEventoData" type="date">
         </label>
-        <label>Cliente
-          <input id="filtroEventoCliente" type="search">
-        </label>
-        <label>Telefone
-          <input id="filtroEventoTelefone" type="search">
-        </label>
-        <label>Pagamento
+        <label class="eventos-pagamento-filtro">Pagamento
           <select id="filtroEventoPagamento">
             <option value="">Todos</option>
             <option value="aberto">Em aberto</option>
             <option value="quitado">Quitado</option>
           </select>
         </label>
-      </div>
-
-      <div class="summary-line">
-        <span>Total de eventos: <strong id="eventosTotal">0</strong></span>
-        <span>Em aberto: <strong id="eventosEmAberto">0</strong></span>
-      </div>
-
-      <div class="eventos-list-controls">
-        <label>Mostrar
+        <label class="eventos-mostrar-filtro">Mostrar
           <select id="eventosItensPorPagina">
             <option value="10">10 eventos</option>
             <option value="15">15 eventos</option>
@@ -283,6 +272,13 @@
             <option value="todos">Todos</option>
           </select>
         </label>
+        <input id="filtroEventoCliente" type="hidden" value="">
+        <input id="filtroEventoTelefone" type="hidden" value="">
+      </div>
+
+      <div class="summary-line eventos-summary-compact">
+        <span>Total de eventos: <strong id="eventosTotal">0</strong></span>
+        <span>Em aberto: <strong id="eventosEmAberto">0</strong></span>
         <small>O sistema lembra a última quantidade escolhida.</small>
       </div>
 
@@ -804,22 +800,24 @@
           <small id="eventosMobileVozStatus">Modo IA local: confira a prévia antes de abrir o cadastro preenchido.</small>
         </div>
 
-        <div class="eventos-mobile-card">
-          <div class="eventos-mobile-card-title">
+        <details class="eventos-mobile-card eventos-mobile-manual-card">
+          <summary class="eventos-mobile-card-title eventos-mobile-summary-title">
             <strong>➕ Novo evento manual rápido</strong>
             <span>Preenchimento enxuto para abrir o cadastro oficial já com dados.</span>
-          </div>
-          <div class="eventos-mobile-form">
+          </summary>
+          <div class="eventos-mobile-form eventos-mobile-manual-form">
+            <div class="eventos-mobile-datas-row">
+              <label class="eventos-mobile-date-field"><span>Data do evento</span><input id="eventosMobileData" type="date" title="Data do evento"></label>
+              <label class="eventos-mobile-date-field"><span>Montagem</span><input id="eventosMobileMontagemData" type="date" title="Dia de montagem"></label>
+              <label class="eventos-mobile-date-field"><span>Desmontagem</span><input id="eventosMobileDesmontagemData" type="date" title="Dia de desmontagem"></label>
+            </div>
             <input id="eventosMobileNome" type="text" placeholder="Cliente">
             <input id="eventosMobileTelefone" type="tel" placeholder="Telefone">
-            <input id="eventosMobileData" type="date">
-            <input id="eventosMobileMontagem" type="time" placeholder="Montagem">
-            <input id="eventosMobileDesmontagem" type="time" placeholder="Desmontagem">
             <input id="eventosMobileEndereco" type="text" placeholder="Endereço">
             <textarea id="eventosMobileProdutos" rows="2" placeholder="Produtos/materiais. Ex.: 3 tendas 6x3, 2 ombrelones, 1 conjunto plástico"></textarea>
           </div>
-          <button id="eventosMobilePrepararManualBtn" class="btn-primary" type="button">Pré-visualizar</button>
-        </div>
+          <button id="eventosMobilePrepararManualBtn" class="btn-primary eventos-mobile-preview-btn" type="button">Pré-visualizar</button>
+        </details>
       </div>
 
       <div id="eventosMobilePreview" class="eventos-mobile-preview hidden">

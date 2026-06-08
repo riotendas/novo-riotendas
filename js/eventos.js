@@ -2473,7 +2473,7 @@ function filtrarEventos() {
   const telefone = document.getElementById("filtroEventoTelefone").value.trim().toLowerCase();
   const pagamento = document.getElementById("filtroEventoPagamento").value;
 
-  return eventos.filter(e => {
+  const filtrados = eventos.filter(e => {
     if (isEventoRecorrente(e)) return false;
 
     const produtosTxt = [...(e.tendas || []).map(p => `${p.codigo} ${p.categoria} ${p.tamanho}`), ...(e.itens_apoio || []).map(i => `${i.nome} ${i.quantidade}`)].join(" ");
@@ -2485,6 +2485,8 @@ function filtrarEventos() {
       && (!telefone || String(e.telefone || "").toLowerCase().includes(telefone))
       && (!pagamento || (pagamento === "quitado" ? e.pagamento_quitado : !e.pagamento_quitado));
   });
+
+  return ordenarEventosPorData(filtrados);
 }
 
 

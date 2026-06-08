@@ -535,14 +535,14 @@ function renderizarRuaMobile() {
         <div class="rua-mobile-materiais rua-mobile-materiais-click" title="Clique em um produto para trocar"><strong>Materiais:</strong> ${typeof renderizarMateriaisRotaClicaveis === "function" ? renderizarMateriaisRotaClicaveis(rota) : ruaMobileResumoMateriais(rota)}</div>
         ${ruaMobileHtmlPagamento(rota.evento || {})}
 
-        <div class="rua-mobile-acoes rua-mobile-acoes-compactas">
+        ${concluida && !expandido ? "" : `<div class="rua-mobile-acoes rua-mobile-acoes-compactas">
           ${ruaMobilePixValorDevido(rota.evento || {}) > 0 ? `<button type="button" class="btn-outline rua-mobile-acao-btn rua-mobile-pix-btn" data-rua-pix-rota-id="${ruaMobileEscAttr(rota.id)}" title="Gerar Pix" aria-label="Gerar Pix"><span>🔳</span><small>Pix</small></button>` : ""}
           ${tel ? `<a class="btn-outline rua-mobile-acao-btn" href="tel:${tel}" title="Ligar" aria-label="Ligar"><span>☎️</span><small>Ligar</small></a>` : ""}
           ${whats ? `<a class="btn-outline rua-mobile-acao-btn" href="${whats}" target="_blank" rel="noopener" title="WhatsApp" aria-label="WhatsApp"><span>💬</span><small>Zap</small></a>` : ""}
           ${rota.tipo === "Montagem" ? `<button type="button" class="btn-outline rua-mobile-acao-btn rua-mobile-operacao-btn" data-rua-operacao="entregue" data-rota-id="${rota.id}" title="Marcar entregue" aria-label="Marcar entregue"><span>✅</span><small>Entregue</small></button>` : ""}
           ${rota.tipo === "Desmontagem" ? `<button type="button" class="btn-outline rua-mobile-acao-btn rua-mobile-operacao-btn" data-rua-operacao="recolhido" data-rota-id="${rota.id}" title="Marcar recolhido" aria-label="Marcar recolhido"><span>↩️</span><small>Recolhido</small></button>` : ""}
           ${rota.tipo !== "Montagem" && rota.tipo !== "Desmontagem" ? `<button type="button" class="btn-outline rua-mobile-acao-btn rua-mobile-operacao-btn" data-rua-operacao="efetuado" data-rota-id="${rota.id}" title="Marcar atendimento efetuado" aria-label="Marcar atendimento efetuado"><span>✓</span><small>Efetuado</small></button>` : ""}
-        </div>
+        </div>`}
       </article>
     `;
   }).join("");

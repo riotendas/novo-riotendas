@@ -385,6 +385,7 @@ function iniciarProdutos() {
   const filtroCategoria = document.getElementById("filtroCategoria");
   const filtroTamanho = document.getElementById("filtroTamanho");
   const filtroStatus = document.getElementById("filtroStatus");
+  const filtroUsabilidade = document.getElementById("filtroUsabilidade");
 
   popularSelect(categoriaSelect, Object.keys(categorias));
   popularSelect(corSelect, cores);
@@ -392,6 +393,7 @@ function iniciarProdutos() {
   popularSelect(usabilidadeSelect, grausUsabilidade);
   popularSelect(filtroCategoria, Object.keys(categorias), "Todas");
   popularSelect(filtroStatus, [...statusProdutos, "Em manutenção"], "Todos");
+  if (filtroUsabilidade) popularSelect(filtroUsabilidade, grausUsabilidade, "Todos");
   atualizarTamanhos();
   atualizarFiltroTamanhos();
 
@@ -399,6 +401,7 @@ function iniciarProdutos() {
   filtroCategoria.addEventListener("change", () => { atualizarFiltroTamanhos(); renderizarProdutos(); });
   filtroTamanho.addEventListener("change", renderizarProdutos);
   filtroStatus.addEventListener("change", renderizarProdutos);
+  if (filtroUsabilidade) filtroUsabilidade.addEventListener("change", renderizarProdutos);
   document.getElementById("buscaProduto").addEventListener("input", renderizarProdutos);
 
   if (typeof sincronizarRotasOperacaoNuvem === "function") {
@@ -1032,6 +1035,7 @@ function filtrarProdutos() {
   const categoria = document.getElementById("filtroCategoria").value;
   const tamanho = document.getElementById("filtroTamanho").value;
   const status = document.getElementById("filtroStatus").value;
+  const usabilidade = document.getElementById("filtroUsabilidade")?.value || "";
   const busca = document.getElementById("buscaProduto").value.trim().toLowerCase();
   const somenteDisponiveis = document.getElementById("mostrarSomenteDisponiveis")?.checked || false;
 
@@ -1042,6 +1046,7 @@ function filtrarProdutos() {
     return (!categoria || (p.categoria || p.tipo) === categoria)
       && (!tamanho || p.tamanho === tamanho)
       && (!status || (status === "Em manutenção" ? ["Bloqueada", "Revisar", "Limpar", "Consertar"].includes(p.status) : p.status === status))
+      && (!usabilidade || String(p.grau_usabilidade || p.usabilidade || "") === usabilidade)
       && (!busca || texto.includes(busca))
       && (!somenteDisponiveis || disp.classe === "livre");
   });
@@ -1377,16 +1382,20 @@ function renderizarProdutos() {
     return String(a.codigo || "").localeCompare(String(b.codigo || ""), "pt-BR", { numeric: true });
   });
 
-  tbody.innerHTML = ordenados.map(p => `
-    <tr class="status-${normalizarStatus(p.status)}">
+  tbody.innerHTML = ordenados.map(p => {
+    const statusOriginal = p.status || "";
+    const statusNormalizado = normalizarStatus(statusOriginal);
+    const statusParaSelect = (statusNormalizado === "bloqueado" || statusNormalizado === "bloqueada") ? "Bloqueada" : (statusOriginal || "Livre");
+    return `
+    <tr class="status-${normalizarStatus(statusParaSelect)}">
       <td>${obterFotoProduto(p) ? `<img class="product-img" src="${obterFotoProduto(p)}" alt="">` : `<span class="product-img-placeholder">Sem foto</span>`}</td>
       <td><button class="code-link" data-action="detalhe" data-id="${p.id}">${p.codigo || "Sem código"}</button></td>
       <td>${p.categoria || p.tipo || "-"}</td>
       <td>${p.tamanho || "-"}</td>
       <td>${p.cor || "-"}</td><td>${p.grau_usabilidade || p.usabilidade || "-"}</td>
       <td>
-        <select class="status-select status-${normalizarStatus(p.status)}" data-action="status" data-id="${p.id}">
-          ${statusProdutos.map(s => `<option value="${s}" ${p.status === s ? "selected" : ""}>${s}</option>`).join("")}
+        <select class="status-select status-${normalizarStatus(statusParaSelect)}" data-action="status" data-id="${p.id}">
+          ${statusProdutos.map(s => `<option value="${s}" ${statusParaSelect === s ? "selected" : ""}>${s}</option>`).join("")}
         </select>
       </td>
       <td><input data-action="obs" data-id="${p.id}" value="${(p.observacao || "").replaceAll('"', '&quot;')}" /></td>
@@ -1397,7 +1406,8 @@ function renderizarProdutos() {
         <button class="btn-outline" data-action="excluir" data-id="${p.id}">Excluir</button>
       </td>
     </tr>
-  `).join("") + renderizarLinhasApoio();
+  `;
+  }).join("") + renderizarLinhasApoio();
 
   // Eventos separados para não atrapalhar select/input.
   // Antes todos os elementos data-action recebiam click + change,
