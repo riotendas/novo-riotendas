@@ -4,6 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Novo RioTendas | Controle de Locação</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+  <link rel="shortcut icon" href="favicon.ico" />
+  <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#f5d21e" />
   <link rel="stylesheet" href="css/style.css" />
 
 <style id="force-recurring-actions">
@@ -11,6 +16,24 @@
 .eventos-tabela-recorrentes th:last-child, .eventos-tabela-recorrentes td:last-child{width:80px;min-width:80px;}
 .eventos-tabela-recorrentes .clientes-actions-row{display:flex !important;flex-direction:row !important;gap:6px;flex-wrap:nowrap !important;}
 .eventos-tabela-recorrentes .clientes-actions-row button{display:inline-flex;}
+</style>
+
+<style id="fix-eventos-editar-sem-fundo-real">
+#eventosSection table td.actions button[data-action="editar"],
+#eventosSection table td.actions .clientes-actions-row button[data-action="editar"],
+#eventosTbody td.actions button[data-action="editar"],
+#eventosSection table.eventos-tabela-principal td.actions .evento-editar-lista-btn{
+  background:#fff!important;
+  background-color:#fff!important;
+  color:#0d4e87!important;
+  border:1px solid #0d4e87!important;
+  box-shadow:none!important;
+}
+#eventosSection table td.actions button[data-action="editar"]:hover,
+#eventosTbody td.actions button[data-action="editar"]:hover{
+  background:#eef6ff!important;
+  background-color:#eef6ff!important;
+}
 </style>
 </head>
 <body>
@@ -356,15 +379,16 @@
         <table>
           <thead>
             <tr>
-              <th>Nº</th>
-              <th>Data</th>
-              <th>Cliente</th>
-              <th>Telefone</th>
-              <th>Evento</th>
-              <th>Materiais</th>
-              <th>Total</th>
-              <th>Status</th>
-              <th>Ações</th>
+              <th class="orc-col-check"></th>
+              <th class="orc-col-numero">Nº</th>
+              <th class="orc-col-data">Data</th>
+              <th class="orc-col-cliente">Cliente</th>
+              <th class="orc-col-telefone">Telefone</th>
+              <th class="orc-col-evento">Evento</th>
+              <th class="orc-col-materiais">Materiais</th>
+              <th class="orc-col-total">Total</th>
+              <th class="orc-col-status">Status</th>
+              <th class="orc-col-acoes">Ações</th>
             </tr>
           </thead>
           <tbody id="orcamentosTbody"></tbody>
@@ -612,7 +636,7 @@
           <h2>Rotas</h2>
           <p>Montagens e desmontagens organizadas por data e carro.</p>
         </div>
-        <div class="rotas-header-acoes"><button id="atualizarRotasBtn" class="btn-outline">Atualizar rotas</button><button id="zerarOperacoesRotasBtn" class="btn-danger btn-outline" type="button" title="Limpa todos os marcadores Entregue/Recolhido das rotas para recomeçar os testes">Zerar entregue/recolhido</button></div>
+        <div class="rotas-header-acoes"><button id="atualizarRotasBtn" class="btn-outline">Atualizar rotas</button></div>
       </div>
 
       <div class="filters-grid">
@@ -695,8 +719,8 @@
       </div>
 
       <div class="rua-mobile-filtros">
-        <label>Data
-          <input id="ruaMobileData" type="date" />
+        <label class="rua-mobile-data-label">Data
+          <span class="rua-mobile-data-field"><input id="ruaMobileData" type="date" /><strong id="ruaMobileDiaSemana" class="rua-mobile-dia-semana">--/--/-- DIA</strong></span>
         </label>
         <label>Tipo
           <select id="ruaMobileTipo">
@@ -1322,7 +1346,7 @@
             </div>
           </label>
           <label class="evento-observacao-wide">Observação do cliente
-            <input id="eventoClienteObservacao" type="text" placeholder="Indicação, referência ou preferência">
+            <textarea id="eventoClienteObservacao" rows="3" placeholder="Indicação, referência ou preferência"></textarea>
           </label>
           <label class="evento-colaborador-admin-field">Colaborador do evento
             <select id="eventoColaboradorSelect"></select>

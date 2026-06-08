@@ -393,7 +393,9 @@ async function salvarEventoBanco(evento) {
     nome: evento.nome || "",
     documento: evento.documento || null,
     telefone: evento.telefone || null,
+    cliente_email: evento.cliente_email || evento.email || null,
     endereco: evento.endereco || null,
+    cliente_observacao: evento.cliente_observacao || null,
     data_evento: evento.data_evento || null,
     hora_evento: evento.hora_inicio || evento.hora_evento || null,
     hora_inicio: evento.hora_inicio || evento.hora_evento || null,
@@ -555,33 +557,73 @@ async function atualizarPeriodoRecorrenciaAposExclusao(eventoExcluido) {
 }
 
 async function garantirClienteDoEvento(evento) {
-  if (!evento.nome) return;
+  if (!evento.nome) return null;
 
-  const documento = evento.documento || "";
-  const telefone = evento.telefone || "";
+  const documento = String(evento.documento || "").trim();
+  const telefone = String(evento.telefone || "").trim();
+  const emailEvento = String(evento.cliente_email || evento.email || "").trim();
+  const observacaoEvento = String(evento.cliente_observacao || "").trim();
 
   let existente = null;
 
   if (Array.isArray(clientes)) {
     existente = clientes.find(c =>
-      (documento && c.documento === documento) ||
-      (telefone && c.telefone === telefone) ||
+      (documento && String(c.documento || "").trim() === documento) ||
+      (telefone && String(c.telefone || "").trim() === telefone) ||
       (String(c.nome || "").toLowerCase() === String(evento.nome || "").toLowerCase())
     );
   }
 
-  if (existente) return existente;
+  if (typeof salvarClienteBanco !== "function") return existente || null;
 
-  if (typeof salvarClienteBanco !== "function") return null;
+  if (existente) {
+    const atualizado = {
+      ...existente,
+      nome: evento.nome || existente.nome || "",
+      documento: documento || existente.documento || "",
+      telefone: telefone || existente.telefone || "",
+      email: emailEvento || existente.email || "",
+      endereco: evento.endereco || existente.endereco || "",
+      observacao_cliente: observacaoEvento || existente.observacao_cliente || "",
+      colaborador: existente.colaborador || getColaboradorLogado()
+    };
+
+    const mudou = JSON.stringify({
+      nome: existente.nome || "",
+      documento: existente.documento || "",
+      telefone: existente.telefone || "",
+      email: existente.email || "",
+      endereco: existente.endereco || "",
+      observacao_cliente: existente.observacao_cliente || ""
+    }) !== JSON.stringify({
+      nome: atualizado.nome || "",
+      documento: atualizado.documento || "",
+      telefone: atualizado.telefone || "",
+      email: atualizado.email || "",
+      endereco: atualizado.endereco || "",
+      observacao_cliente: atualizado.observacao_cliente || ""
+    });
+
+    if (!mudou) return existente;
+
+    const salvo = await salvarClienteBanco(atualizado);
+    if (salvo && Array.isArray(clientes)) {
+      const idx = clientes.findIndex(c => String(c.id) === String(salvo.id));
+      if (idx >= 0) clientes[idx] = salvo;
+      else clientes.push(salvo);
+      if (typeof renderizarClientes === "function") renderizarClientes();
+    }
+    return salvo || atualizado;
+  }
 
   const cliente = {
     id: gerarId(),
     nome: evento.nome,
-    documento: evento.documento || "",
-    telefone: evento.telefone || "",
-    email: evento.cliente_email || evento.email || "",
+    documento: documento,
+    telefone: telefone,
+    email: emailEvento,
     endereco: evento.endereco || "",
-    observacao_cliente: evento.cliente_observacao || "",
+    observacao_cliente: observacaoEvento,
     colaborador: getColaboradorLogado(),
     criado_em: new Date().toISOString()
   };
@@ -1119,7 +1161,7 @@ function montarEventoRecorrenteBase(id, existente) {
     desmontagem: valorOperacaoParaSalvar("eventoDesmontagem", "eventoDesmontagemTipo"),
     tendas: obterProdutosSelecionadosEvento(),
     itens_apoio: obterApoioSelecionadoEvento(),
-    produtos_extras: produtosExtrasEventoAtual,
+    produtos_extras: typeof rtMesclarProdutosExtrasComAtendimentos === "function" ? rtMesclarProdutosExtrasComAtendimentos(produtosExtrasEventoAtual, existente) : produtosExtrasEventoAtual,
     valor_total: moedaParaNumero(document.getElementById("eventoValorTotal").value),
     valor_sinal: moedaParaNumero(document.getElementById("eventoValorSinal").value),
     valor_restante: moedaParaNumero(document.getElementById("eventoValorRestante").value),
@@ -1299,7 +1341,7 @@ function abrirEditarEvento(id) {
   configurarCampoColaboradorEvento(e.colaborador || getColaboradorLogado());
 
   produtosSelecionadosEventoAtual = Array.isArray(e.tendas) ? [...e.tendas] : [];
-  produtosExtrasEventoAtual = Array.isArray(e.produtos_extras) ? [...e.produtos_extras] : [];
+  produtosExtrasEventoAtual = typeof rtProdutosExtrasOperacionais === "function" ? [...rtProdutosExtrasOperacionais(e)] : (Array.isArray(e.produtos_extras) ? [...e.produtos_extras] : []);
   atualizarDatalistClientes();
   popularSelectProdutosEvento();
   renderizarProdutosSelecionadosEvento();
@@ -1997,6 +2039,71 @@ function rtEventoSomarApoio(lista){
   return [...mapa.values()];
 }
 
+
+function rtEventoMateriaisSelecionadosDaArea(areaId){
+  const area = document.getElementById(areaId);
+  if (!area) return [];
+  const itens = [];
+  area.querySelectorAll("input[type='number']").forEach(input => {
+    const quantidade = Number(input.value || 0);
+    if (quantidade <= 0) return;
+    const chaveConjunto = input.dataset.conjunto || input.dataset.conjuntoRapido;
+    if (chaveConjunto) {
+      const conjunto = RT_EVENTO_CONJUNTOS_APOIO[chaveConjunto];
+      itens.push({ nome: conjunto?.descricao || chaveConjunto, quantidade });
+      return;
+    }
+    itens.push({
+      id: input.dataset.id || input.dataset.apoioRapidoId,
+      nome: input.dataset.nome || input.dataset.apoioRapidoNome,
+      quantidade
+    });
+  });
+  return rtEventoSomarApoio(itens).filter(item => Number(item.quantidade || 0) > 0);
+}
+
+
+function rtEventoAbreviarNomeApoio(nome){
+  const original = String(nome || 'Material').trim();
+  const mapa = [
+    [/Cadeira\s+Pl[aá]stica\s+Branca/gi, 'Cad. Branca'],
+    [/Cadeira\s+de\s+Madeira/gi, 'Cad. Madeira'],
+    [/Cadeira\s+Bistr[oô]/gi, 'Cad. Bistrô'],
+    [/Mesa\s+Pl[aá]stica\s+Branca/gi, 'Mesa Branca'],
+    [/Mesa\s+de\s+Madeira/gi, 'Mesa Madeira'],
+    [/Mesa\s+Bistr[oô]/gi, 'Mesa Bistrô'],
+    [/Caixa\s+T[eé]rmica\s*/gi, 'Caixa '],
+    [/Toalha\s+/gi, 'Toalha '],
+    [/Conjunto\s+Pl[aá]stico.*/gi, 'Conj. Plástico'],
+    [/Conjunto\s+Madeira.*/gi, 'Conj. Madeira'],
+    [/Conjunto\s+Bistr[oô].*/gi, 'Conj. Bistrô'],
+    [/Lateral\s+Tenda\s*/gi, 'Lateral '],
+    [/Lateral\s+de\s+Tenda\s*/gi, 'Lateral ']
+  ];
+  let nomeCurto = original;
+  mapa.forEach(([rx, rep]) => { nomeCurto = nomeCurto.replace(rx, rep); });
+  nomeCurto = nomeCurto.replace(/\s+/g, ' ').trim();
+  return nomeCurto.length > 24 ? nomeCurto.slice(0, 23).trim() + '…' : nomeCurto;
+}
+
+function rtEventoAtualizarResumoApoio(areaId){
+  const area = document.getElementById(areaId);
+  if (!area) return;
+  const resumo = area.querySelector('[data-apoio-resumo-total]');
+  if (!resumo) return;
+  const selecionados = rtEventoMateriaisSelecionadosDaArea(areaId);
+  if (!selecionados.length) {
+    resumo.textContent = 'Nenhum material selecionado';
+    return;
+  }
+  const total = selecionados.length;
+  const lista = selecionados.map(item => {
+    const nome = String(rtEventoAbreviarNomeApoio(item.nome || 'Material')).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `${nome} ${Number(item.quantidade || 0)}`;
+  }).join(' • ');
+  resumo.innerHTML = `<span class="apoio-resumo-contagem">${total} material${total === 1 ? '' : 'is'} selecionado${total === 1 ? '' : 's'}</span><span class="apoio-resumo-lista">${lista}</span>`;
+}
+
 function renderizarApoioEvento(selecionados = []) {
   const area = document.getElementById("eventoApoioLista");
   if (!area) return;
@@ -2019,9 +2126,18 @@ function renderizarApoioEvento(selecionados = []) {
     ...Object.keys(grupos).filter(grupo => !ordemGrupos.includes(grupo))
   ];
 
+  const htmlResumoApoio = `
+    <div class="apoio-evento-resumo apoio-evento-resumo-minimo">
+      <div data-apoio-resumo-total>Nenhum material selecionado</div>
+    </div>
+  `;
+
   const htmlConjuntos = `
-    <div class="apoio-evento-grupo apoio-evento-conjuntos">
-      <div class="apoio-evento-grupo-titulo">Conjuntos</div>
+    <details class="apoio-evento-grupo apoio-evento-conjuntos apoio-evento-collapsible">
+      <summary class="apoio-evento-grupo-titulo">
+        <span>Conjuntos</span>
+        <small>${Object.keys(RT_EVENTO_CONJUNTOS_APOIO).length} opções</small>
+      </summary>
       <div class="apoio-evento-grupo-lista">
         ${Object.entries(RT_EVENTO_CONJUNTOS_APOIO).map(([chave, conjunto]) => {
           const disponibilidade = rtEventoDisponibilidadeConjunto(chave);
@@ -2036,14 +2152,20 @@ function renderizarApoioEvento(selecionados = []) {
           `;
         }).join('')}
       </div>
-    </div>
+    </details>
   `;
 
-  area.innerHTML = htmlConjuntos + gruposOrdenados.map(grupo => `
-    <div class="apoio-evento-grupo">
-      <div class="apoio-evento-grupo-titulo">${grupo}</div>
+  area.innerHTML = htmlResumoApoio + htmlConjuntos + gruposOrdenados.map(grupo => {
+    const itensGrupo = grupos[grupo] || [];
+    const grupoTemSelecionado = itensGrupo.some(item => selecionados.some(s => (String(s.id) === String(item.id) || s.nome === item.nome) && Number(s.quantidade || 0) > 0));
+    return `
+    <details class="apoio-evento-grupo apoio-evento-collapsible" ${grupoTemSelecionado ? 'open' : ''}>
+      <summary class="apoio-evento-grupo-titulo">
+        <span>${grupo}</span>
+        <small>${itensGrupo.length} itens${grupoTemSelecionado ? ' • selecionado' : ''}</small>
+      </summary>
       <div class="apoio-evento-grupo-lista">
-        ${grupos[grupo].map(item => {
+        ${itensGrupo.map(item => {
           const selecionado = selecionados.find(s => String(s.id) === String(item.id) || s.nome === item.nome);
           const total = Number(item.quantidade_total || 0);
           const disponibilidade = disponibilidadeApoioParaEvento(item, selecionado ? Number(selecionado.quantidade || 0) : 0);
@@ -2060,8 +2182,9 @@ function renderizarApoioEvento(selecionados = []) {
           `;
         }).join("")}
       </div>
-    </div>
-  `).join("");
+    </details>
+  `;
+  }).join("");
 
   area.querySelectorAll("input[type='number']").forEach(input => {
     input.addEventListener("input", () => {
@@ -2072,8 +2195,11 @@ function renderizarApoioEvento(selecionados = []) {
         alert(`Quantidade máxima disponível para esta data: ${max}`);
       }
       if (valor < 0) input.value = 0;
+      rtEventoAtualizarResumoApoio("eventoApoioLista");
     });
   });
+
+  rtEventoAtualizarResumoApoio("eventoApoioLista");
 }
 
 function obterProdutosSelecionadosEvento() {
@@ -2450,7 +2576,7 @@ function resumoProdutosEvento(e) {
   }).filter(Boolean);
 
   const apoio = (e.itens_apoio || []).map(i => `${i.nome} (${i.quantidade})`);
-  const extras = (e.produtos_extras || []).map(i => `${i.descricao} (${i.quantidade})`);
+  const extras = (typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(e) : (e.produtos_extras || [])).map(i => `${i.descricao} (${i.quantidade})`);
 
   const todos = [...tendas, ...apoio, ...extras];
 
@@ -2691,7 +2817,7 @@ function renderizarEventos() {
           <small class="event-hour-under">${horarioEventoAbaixoData(e) || "-"}</small>
         </td>
         <td class="mont-desm-cell">${montagemDesmontagemCompacta(e)}</td>
-        <td><button class="code-link" data-action="editar" data-id="${e.id}">${e.nome || "-"}</button></td>
+        <td><button class="code-link" data-action="editar" data-id="${e.id}">${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
         <td>${e.telefone || "-"}</td>
         <td><div class="cell-scroll cell-endereco">${e.endereco || "-"}</div></td>
         <td>
@@ -2706,7 +2832,7 @@ function renderizarEventos() {
         <td>${dinheiro(e.valor_restante)}</td>
         <td class="pagamento-status-cell">${rtPagamentoEventoBadge(e)}</td>
         <td>${e.colaborador || "-"}</td>
-        <td class="actions clientes-actions"><div class="clientes-actions-row"><button data-action="editar" data-id="${e.id}">Editar</button>
+        <td class="actions clientes-actions"><div class="clientes-actions-row"><button class="btn-outline evento-editar-lista-btn" data-action="editar" data-id="${e.id}" title="Editar">Editar</button>
           <button class="btn-outline" data-action="excluir" data-id="${e.id}">Excluir</button></div></td>
       </tr>
     `).join("");
@@ -2726,7 +2852,7 @@ function renderizarEventos() {
       <td class="clientes-actions"><div class="clientes-actions-row">${dataCompactaComDiaRecorrente(e.data_evento)}</td>
       <td>${periodoRecorrenciaTexto(e)}</td>
       <td>${recorrenciaLabel(e.recorrencia_tipo, e.recorrencia_dias)}</td>
-      <td><button class="code-link" data-action="editar" data-id="${e.id}">${e.nome || "-"}</button></td>
+      <td><button class="code-link" data-action="editar" data-id="${e.id}">${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
       <td>${e.telefone || "-"}</td>
       <td><div class="cell-scroll cell-endereco">${e.endereco || "-"}</div></td>
       <td>
@@ -2739,11 +2865,238 @@ function renderizarEventos() {
       <td>${dinheiro(e.valor_total)}</td>
       <td class="pagamento-status-cell">${rtPagamentoEventoBadge(e)}</td>
       <td>${e.colaborador || "-"}</td>
-      <td class="actions clientes-actions"><div class="clientes-actions-row"><button data-action="editar" data-id="${e.id}">✏️</button><button class="btn-outline" data-action="excluir" data-id="${e.id}">🗑️</button></div></td>
+      <td class="actions clientes-actions"><div class="clientes-actions-row"><button class="btn-mini" data-action="editar" data-id="${e.id}" title="Editar">✎</button><button class="btn-outline btn-atendimento-extra btn-mini" data-action="atendimento-extra" data-id="${e.id}" title="Gerenciar atendimentos extras">+ Extra</button><button class="btn-outline btn-mini" data-action="excluir" data-id="${e.id}" title="Excluir">🗑</button></div></td>
     </tr>
   `).join("");
 
   tbodyRec.querySelectorAll("button[data-action]").forEach(btn => btn.addEventListener("click", lidarAcaoEvento));
+}
+
+
+async function criarAtendimentoExtraRecorrente(id) {
+  return abrirPaginaAtendimentosExtrasRecorrente(id);
+}
+
+function rtGarantirModalAtendimentosExtras() {
+  let modal = document.getElementById("rtAtendimentosExtrasModal");
+  if (modal) return modal;
+  modal = document.createElement("dialog");
+  modal.id = "rtAtendimentosExtrasModal";
+  modal.className = "modal rt-atendimentos-extras-modal";
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function rtAtendimentoExtraTemplate(item = {}) {
+  const id = item.id || (typeof gerarId === "function" ? gerarId() : String(Date.now()));
+  return {
+    id,
+    rt_tipo: "atendimento_extra_recorrente",
+    atendimento_extra_recorrente: true,
+    data: item.data || (typeof rtHojeISO === "function" ? rtHojeISO() : ""),
+    hora: item.hora || "",
+    tipo: item.tipo || "Check-up",
+    observacao: item.observacao || "",
+    colaborador: item.colaborador || "",
+    carro: item.carro || "",
+    tenda_sair: item.tenda_sair || "",
+    tenda_entrar: item.tenda_entrar || ""
+  };
+}
+
+
+function rtOpcoesTendasAtendimentoExtra(evento, tipo, selecionado = "") {
+  let itens = [];
+  const add = (arr) => { if (Array.isArray(arr)) arr.forEach(x => itens.push(x)); };
+  if (tipo === "sair") {
+    add(evento?.tendas);
+    add(evento?.produtos);
+    add(evento?.produtosSelecionados);
+  } else {
+    try { add(Array.isArray(produtos) ? produtos.filter(p => String([p.categoria,p.tipo,p.nome,p.descricao].join(' ')).toLowerCase().includes("tenda")) : []); } catch {}
+    add(evento?.tendas);
+  }
+  const vistos = new Set();
+  const opts = ['<option value="">Selecionar</option>'];
+  itens.forEach(p => {
+    if (!p) return;
+    const codigo = p.codigo || p.id || p.numero || "";
+    const nomeBase = p.categoria || p.tipo || p.nome || p.descricao || "Tenda";
+    const nome = [codigo, nomeBase, p.tamanho, p.cor].filter(Boolean).join(" - ").replace(/\s+-\s+-\s+/g, " - ").trim();
+    const val = String(nome || codigo).trim();
+    if (!val || vistos.has(val)) return;
+    vistos.add(val);
+    opts.push(`<option value="${escaparHTML(val)}" ${String(selecionado) === val ? "selected" : ""}>${escaparHTML(nome || val)}</option>`);
+  });
+  return opts.join("");
+}
+
+function rtAtualizarCamposTrocaTenda(modal, evento) {
+  const tipo = modal?.querySelector("#rtAtendimentoExtraTipo")?.value || "";
+  const bloco = modal?.querySelector("#rtAtendimentoTrocaTenda");
+  if (!bloco) return;
+  const mostrar = String(tipo).toLowerCase().includes("troca");
+  bloco.hidden = !mostrar;
+  if (!mostrar) return;
+  const sair = bloco.querySelector("#rtAtendimentoTendaSair");
+  const entrar = bloco.querySelector("#rtAtendimentoTendaEntrar");
+  if (sair) sair.innerHTML = rtOpcoesTendasAtendimentoExtra(evento, "sair", sair.value);
+  if (entrar) entrar.innerHTML = rtOpcoesTendasAtendimentoExtra(evento, "entrar", entrar.value);
+}
+
+function abrirPaginaAtendimentosExtrasRecorrente(id) {
+  const evento = eventos.find(e => String(e.id) === String(id));
+  if (!evento) {
+    alert("Evento recorrente não encontrado.");
+    return;
+  }
+  const modal = rtGarantirModalAtendimentosExtras();
+  const lista = typeof rtAtendimentosExtrasRecorrente === "function" ? rtAtendimentosExtrasRecorrente(evento) : [];
+  modal.dataset.eventoId = id;
+  modal.innerHTML = `
+    <div class="modal-header">
+      <div>
+        <h2>Atendimentos Extras</h2>
+        <p>${escaparHTML(evento.nome || "Evento recorrente")}</p>
+      </div>
+      <button type="button" class="modal-close" data-rt-atend-fechar>×</button>
+    </div>
+    <div class="rt-atendimentos-extras-body">
+      <div class="rt-atendimentos-extra-form card">
+        <h3>Novo atendimento</h3>
+        <div class="rt-atendimento-grid">
+          <label>Data<input id="rtAtendimentoExtraData" type="date"></label>
+          <label>Hora<input id="rtAtendimentoExtraHora" type="time"></label>
+          <label>Tipo
+            <select id="rtAtendimentoExtraTipo">
+              <option>Check-up</option>
+              <option>Troca de tenda</option>
+              <option>Reforço</option>
+              <option>Manutenção</option>
+              <option>Retirada parcial</option>
+              <option>Outro</option>
+            </select>
+          </label>
+          <label>Colaborador<input id="rtAtendimentoExtraColaborador" type="text" value="${escaparHTML(evento.colaborador || "")}"></label>
+          <label>Carro<input id="rtAtendimentoExtraCarro" type="text" placeholder="Opcional"></label>
+          <div id="rtAtendimentoTrocaTenda" class="rt-atendimento-troca-tenda" hidden>
+            <label>Tenda atual (sair)<select id="rtAtendimentoTendaSair"></select></label>
+            <label>Nova tenda (entrar)<select id="rtAtendimentoTendaEntrar"></select></label>
+          </div>
+          <label class="rt-atendimento-obs">Observação<textarea id="rtAtendimentoExtraObs" rows="3" placeholder="Digite as informações do atendimento..."></textarea></label>
+        </div>
+        <button type="button" class="btn-primary" data-rt-atend-adicionar>Adicionar atendimento</button>
+      </div>
+      <div class="rt-atendimentos-extra-lista">
+        <h3>Atendimentos salvos neste recorrente</h3>
+        <div id="rtAtendimentosExtrasLista"></div>
+      </div>
+      <p class="hint">Os atendimentos ficam vinculados a este evento recorrente. Eles aparecem na agenda e na rota da data escolhida, mas não entram na lista de eventos pontuais.</p>
+    </div>
+  `;
+  const dataEl = modal.querySelector("#rtAtendimentoExtraData");
+  if (dataEl) dataEl.value = typeof rtHojeISO === "function" ? rtHojeISO() : "";
+  modal.querySelector("[data-rt-atend-fechar]")?.addEventListener("click", () => modal.close());
+  modal.querySelector("[data-rt-atend-adicionar]")?.addEventListener("click", () => rtAdicionarAtendimentoExtraRecorrente(id));
+  modal.querySelector("#rtAtendimentoExtraTipo")?.addEventListener("change", () => rtAtualizarCamposTrocaTenda(modal, evento));
+  rtAtualizarCamposTrocaTenda(modal, evento);
+  rtRenderizarListaAtendimentosExtras(id);
+  if (typeof modal.showModal === "function") modal.showModal();
+  else modal.classList.add("open");
+}
+
+function rtRenderizarListaAtendimentosExtras(id) {
+  const modal = document.getElementById("rtAtendimentosExtrasModal");
+  const alvo = modal?.querySelector("#rtAtendimentosExtrasLista");
+  if (!alvo) return;
+  const evento = eventos.find(e => String(e.id) === String(id));
+  const lista = typeof rtAtendimentosExtrasRecorrente === "function" ? rtAtendimentosExtrasRecorrente(evento) : [];
+  if (!lista.length) {
+    alvo.innerHTML = `<p class="empty">Nenhum atendimento extra cadastrado.</p>`;
+    return;
+  }
+  alvo.innerHTML = lista
+    .sort((a,b) => String(a.data||"").localeCompare(String(b.data||"")) || String(a.hora||"").localeCompare(String(b.hora||"")))
+    .map(item => `
+      <div class="rt-atendimento-extra-item">
+        <div>
+          <strong>${escaparHTML(item.data || "-")} ${item.hora ? "• " + escaparHTML(item.hora) : ""}</strong>
+          <span>${escaparHTML(item.tipo || "Atendimento")}</span>
+          ${item.tenda_sair || item.tenda_entrar ? `<small>Troca: ${escaparHTML(item.tenda_sair || "-")} → ${escaparHTML(item.tenda_entrar || "-")}</small>` : ""}
+          ${item.observacao ? `<small>${escaparHTML(item.observacao)}</small>` : ""}
+        </div>
+        <button type="button" class="btn-outline" data-rt-atend-remover="${escaparHTML(item.id)}">Excluir</button>
+      </div>
+    `).join("");
+  alvo.querySelectorAll("[data-rt-atend-remover]").forEach(btn => {
+    btn.addEventListener("click", () => rtRemoverAtendimentoExtraRecorrente(id, btn.dataset.rtAtendRemover));
+  });
+}
+
+
+function rtValorSelectAtendimentoTenda(select) {
+  if (!select) return "";
+  const valor = String(select.value || "").trim();
+  if (valor) return valor;
+  const opt = select.selectedOptions && select.selectedOptions[0];
+  const texto = String(opt?.textContent || "").trim();
+  if (select.selectedIndex > 0 && texto && !/^selecionar$/i.test(texto)) return texto;
+  return "";
+}
+
+async function rtAdicionarAtendimentoExtraRecorrente(id) {
+  const evento = eventos.find(e => String(e.id) === String(id));
+  if (!evento) return;
+  const modal = document.getElementById("rtAtendimentosExtrasModal");
+  const item = rtAtendimentoExtraTemplate({
+    data: modal.querySelector("#rtAtendimentoExtraData")?.value || "",
+    hora: modal.querySelector("#rtAtendimentoExtraHora")?.value || "",
+    tipo: modal.querySelector("#rtAtendimentoExtraTipo")?.value || "Check-up",
+    colaborador: modal.querySelector("#rtAtendimentoExtraColaborador")?.value || "",
+    carro: modal.querySelector("#rtAtendimentoExtraCarro")?.value || "",
+    tenda_sair: rtValorSelectAtendimentoTenda(modal.querySelector("#rtAtendimentoTendaSair")),
+    tenda_entrar: rtValorSelectAtendimentoTenda(modal.querySelector("#rtAtendimentoTendaEntrar")),
+    observacao: modal.querySelector("#rtAtendimentoExtraObs")?.value || ""
+  });
+  if (!item.data) {
+    alert("Informe a data do atendimento extra.");
+    return;
+  }
+  if (String(item.tipo || "").toLowerCase().includes("troca")) {
+    const sairSel = modal.querySelector("#rtAtendimentoTendaSair");
+    const entrarSel = modal.querySelector("#rtAtendimentoTendaEntrar");
+    const temOpcoesSair = sairSel && sairSel.options && sairSel.options.length > 1;
+    const temOpcoesEntrar = entrarSel && entrarSel.options && entrarSel.options.length > 1;
+    if ((temOpcoesSair && !item.tenda_sair) || (temOpcoesEntrar && !item.tenda_entrar)) {
+      alert("Para troca de tenda, selecione a tenda atual e a nova tenda.");
+      (temOpcoesSair && !item.tenda_sair ? sairSel : entrarSel)?.focus?.();
+      return;
+    }
+  }
+  evento.produtos_extras = [...(Array.isArray(evento.produtos_extras) ? evento.produtos_extras : []), item];
+  const salvo = await salvarEventoBanco(evento);
+  if (!salvo) return;
+  const idx = eventos.findIndex(e => String(e.id) === String(id));
+  if (idx >= 0) eventos[idx] = salvo;
+  rtRenderizarListaAtendimentosExtras(id);
+  renderizarEventos();
+  if (typeof renderizarCalendario === "function") renderizarCalendario();
+  if (typeof renderizarRotas === "function") renderizarRotas();
+}
+
+async function rtRemoverAtendimentoExtraRecorrente(id, atendimentoId) {
+  const evento = eventos.find(e => String(e.id) === String(id));
+  if (!evento) return;
+  if (!confirm("Excluir este atendimento extra?")) return;
+  evento.produtos_extras = (Array.isArray(evento.produtos_extras) ? evento.produtos_extras : []).filter(item => String(item.id) !== String(atendimentoId));
+  const salvo = await salvarEventoBanco(evento);
+  if (!salvo) return;
+  const idx = eventos.findIndex(e => String(e.id) === String(id));
+  if (idx >= 0) eventos[idx] = salvo;
+  rtRenderizarListaAtendimentosExtras(id);
+  renderizarEventos();
+  if (typeof renderizarCalendario === "function") renderizarCalendario();
+  if (typeof renderizarRotas === "function") renderizarRotas();
 }
 
 async function lidarAcaoEvento(event) {
@@ -2752,6 +3105,7 @@ async function lidarAcaoEvento(event) {
 
   if (action === "editar") return abrirEditarEvento(id);
   if (action === "editar-produtos") return abrirProdutosRapido(id);
+  if (action === "atendimento-extra") return criarAtendimentoExtraRecorrente(id);
   if (action === "detalhe") return abrirDetalheEvento(id);
 
   if (action === "excluir") {
@@ -3158,9 +3512,18 @@ function renderizarApoioRapido() {
     return;
   }
 
+  const htmlResumoApoioRapido = `
+    <div class="apoio-evento-resumo apoio-evento-resumo-minimo">
+      <div data-apoio-resumo-total>Nenhum material selecionado</div>
+    </div>
+  `;
+
   const htmlConjuntosRapido = `
-    <div class="apoio-evento-grupo apoio-evento-conjuntos">
-      <div class="apoio-evento-grupo-titulo">Conjuntos</div>
+    <details class="apoio-evento-grupo apoio-evento-conjuntos apoio-evento-collapsible">
+      <summary class="apoio-evento-grupo-titulo">
+        <span>Conjuntos</span>
+        <small>${Object.keys(RT_EVENTO_CONJUNTOS_APOIO).length} opções</small>
+      </summary>
       <div class="apoio-evento-grupo-lista">
         ${Object.entries(RT_EVENTO_CONJUNTOS_APOIO).map(([chave, conjunto]) => {
           const disponibilidade = rtEventoDisponibilidadeConjunto(chave);
@@ -3175,26 +3538,52 @@ function renderizarApoioRapido() {
           `;
         }).join('')}
       </div>
-    </div>
+    </details>
   `;
 
-  area.innerHTML = htmlConjuntosRapido + estoqueApoio.map(item => {
-    const selecionado = apoioRapidoAtual.find(s => String(s.id) === String(item.id) || s.nome === item.nome);
-    const total = Number(item.quantidade_total || 0);
-    const reservadoNoPeriodo = evento ? quantidadeApoioReservadaNoPeriodoDoEvento(item.id, evento) : 0;
-    const disponivelNaData = Math.max(total - reservadoNoPeriodo, 0);
-    const valorOriginal = selecionado ? Number(selecionado.quantidade || 0) : 0;
-    const maxPermitido = disponivelNaData;
-    const valor = Math.min(valorOriginal, maxPermitido);
+  const gruposRapidos = estoqueApoio.reduce((acc, item) => {
+    const grupo = (typeof grupoMaterialApoio === "function") ? grupoMaterialApoio(item.nome) : "Materiais Gerais";
+    if (!acc[grupo]) acc[grupo] = [];
+    acc[grupo].push(item);
+    return acc;
+  }, {});
+  const ordemGruposRapidos = ["Materiais Gerais", "Caixas Térmicas", "Toalhas", "Acessórios de Tendas"];
+  const gruposRapidosOrdenados = [
+    ...ordemGruposRapidos.filter(grupo => gruposRapidos[grupo]?.length),
+    ...Object.keys(gruposRapidos).filter(grupo => !ordemGruposRapidos.includes(grupo))
+  ];
 
+  area.innerHTML = htmlResumoApoioRapido + htmlConjuntosRapido + gruposRapidosOrdenados.map(grupo => {
+    const itensGrupo = gruposRapidos[grupo] || [];
+    const grupoTemSelecionado = itensGrupo.some(item => apoioRapidoAtual.some(s => (String(s.id) === String(item.id) || s.nome === item.nome) && Number(s.quantidade || 0) > 0));
     return `
-      <label class="apoio-evento-item apoio-rapido-item">
-        <span>
-          <strong>${item.nome}</strong>
-          <small>Total: ${total} | Já reservado na data: ${reservadoNoPeriodo} | Máximo para este evento: ${maxPermitido}</small>
-        </span>
-        <input type="number" min="0" max="${maxPermitido}" step="1" data-apoio-rapido-id="${item.id}" data-apoio-rapido-nome="${item.nome}" value="${valor}">
-      </label>
+      <details class="apoio-evento-grupo apoio-evento-collapsible" ${grupoTemSelecionado ? 'open' : ''}>
+        <summary class="apoio-evento-grupo-titulo">
+          <span>${grupo}</span>
+          <small>${itensGrupo.length} itens${grupoTemSelecionado ? ' • selecionado' : ''}</small>
+        </summary>
+        <div class="apoio-evento-grupo-lista">
+          ${itensGrupo.map(item => {
+            const selecionado = apoioRapidoAtual.find(s => String(s.id) === String(item.id) || s.nome === item.nome);
+            const total = Number(item.quantidade_total || 0);
+            const reservadoNoPeriodo = evento ? quantidadeApoioReservadaNoPeriodoDoEvento(item.id, evento) : 0;
+            const disponivelNaData = Math.max(total - reservadoNoPeriodo, 0);
+            const valorOriginal = selecionado ? Number(selecionado.quantidade || 0) : 0;
+            const maxPermitido = disponivelNaData;
+            const valor = Math.min(valorOriginal, maxPermitido);
+
+            return `
+              <label class="apoio-evento-item apoio-rapido-item">
+                <span>
+                  <strong>${item.nome}</strong>
+                  <small>Total: ${total} | Já reservado na data: ${reservadoNoPeriodo} | Máximo para este evento: ${maxPermitido}</small>
+                </span>
+                <input type="number" min="0" max="${maxPermitido}" step="1" data-apoio-rapido-id="${item.id}" data-apoio-rapido-nome="${item.nome}" value="${valor}">
+              </label>
+            `;
+          }).join("")}
+        </div>
+      </details>
     `;
   }).join("");
 
@@ -3209,8 +3598,11 @@ function renderizarApoioRapido() {
       }
 
       if (valor < 0) input.value = 0;
+      rtEventoAtualizarResumoApoio("eventoApoioRapidoLista");
     });
   });
+
+  rtEventoAtualizarResumoApoio("eventoApoioRapidoLista");
 }
 
 function obterApoioRapidoSelecionado() {
@@ -3938,8 +4330,102 @@ function rtDocEventoAbrir(tipo) {
     return;
   }
   janela.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${titulo}</title><style>
-    *{box-sizing:border-box} body{font-family:Arial, Helvetica, sans-serif;background:#eef1f6;margin:0;color:#111}.toolbar{position:sticky;top:0;z-index:2;display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px 14px;background:#172033;color:#fff}.toolbar button{border:0;border-radius:8px;padding:8px 12px;cursor:pointer;font-weight:700}.toolbar .secondary{background:#fff;color:#172033}.page{width:210mm;min-height:297mm;margin:16px auto;background:#fff;padding:16mm;box-shadow:0 8px 28px rgba(0,0,0,.18)}.doc-header{text-align:center;border-bottom:1px solid #333;margin-bottom:14px;padding-bottom:10px}.doc-logo{max-height:70px;max-width:220px;margin:0 auto 10px;display:block}.doc-header h1{font-size:18px;margin:0 0 6px}.doc-header h2{font-size:18px;text-transform:uppercase;margin:12px 0 0}.doc-header p{margin:0;line-height:1.35}h3{margin:16px 0 8px;text-transform:uppercase;font-size:15px}h4{margin:12px 0 6px;font-size:13px;text-transform:uppercase}p{font-size:12px;line-height:1.45;margin:7px 0}.doc-table{width:100%;border-collapse:collapse;margin:10px 0}.doc-table th,.doc-table td{border:1px solid #333;padding:7px;vertical-align:top;font-size:12px}.doc-table th{width:18%;background:#f2f2f2;text-align:left;text-transform:uppercase;font-size:11px}.doc-table.compact th,.doc-table.compact td{padding:6px}.small-text{font-size:11px}.assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:30px;text-align:center;margin-top:26px;font-size:12px;align-items:end}.doc-assinatura-img{display:block;max-width:190px;max-height:58px;margin:0 auto -5px;object-fit:contain}.linha-assinatura{line-height:1;margin-top:2px}.linha-assinatura.cliente{margin-top:58px}.doc-editavel{outline:0}.doc-editavel:focus{box-shadow:0 0 0 2px #7aa7ff inset}@media print{body{background:#fff}.toolbar{display:none}.page{margin:0!important;box-shadow:none;width:auto;min-height:auto;padding:0!important}@page{size:A4;margin:0} .doc-header{margin-top:0!important;padding-top:0!important}.doc-header h1,.doc-header h2,.doc-header p{margin-top:0!important}.assinaturas{margin-top:10px!important}}
-  </style></head><body><div class="toolbar"><strong>${titulo} editável</strong><div><button class="secondary" onclick="window.print()">Imprimir / salvar PDF</button><button onclick="window.close()">Fechar</button></div></div><main class="page doc-editavel" contenteditable="true">${conteudo}</main></body></html>`);
+    *{box-sizing:border-box} body{font-family:Arial, Helvetica, sans-serif;background:#eef1f6;margin:0;color:#111;font-size:calc(12px * var(--rt-doc-font-scale,1))}.toolbar{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:9px 12px;background:#172033;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.18)}.toolbar strong{font-size:13px}.toolbar .editor-controls{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.toolbar button{border:0;border-radius:7px;padding:7px 9px;cursor:pointer;font-weight:700;background:#f3b33e;color:#172033;min-height:30px}.toolbar .secondary{background:#fff;color:#172033}.toolbar input[type=color]{width:34px;height:30px;border:0;border-radius:7px;background:#fff;padding:2px;cursor:pointer}.page{width:210mm;min-height:297mm;margin:16px auto;background:#fff;padding:16mm;box-shadow:0 8px 28px rgba(0,0,0,.18);font-size:calc(12px * var(--rt-doc-font-scale,1))}.doc-header{text-align:center;border-bottom:1px solid #333;margin-bottom:14px;padding-bottom:10px}.doc-logo{max-height:70px;max-width:220px;margin:0 auto 10px;display:block}.doc-header h1{font-size:calc(18px * var(--rt-doc-font-scale,1));margin:0 0 6px}.doc-header h2{font-size:calc(18px * var(--rt-doc-font-scale,1));text-transform:uppercase;margin:12px 0 0}.doc-header p{margin:0;line-height:1.35}h3{margin:16px 0 8px;text-transform:uppercase;font-size:calc(15px * var(--rt-doc-font-scale,1))}h4{margin:12px 0 6px;font-size:calc(13px * var(--rt-doc-font-scale,1));text-transform:uppercase}p{font-size:calc(12px * var(--rt-doc-font-scale,1));line-height:1.45;margin:7px 0}.doc-table{width:100%;border-collapse:collapse;margin:10px 0}.doc-table th,.doc-table td{border:1px solid #333;padding:7px;vertical-align:top;font-size:calc(12px * var(--rt-doc-font-scale,1))}.doc-table th{width:18%;background:#f2f2f2;text-align:left;text-transform:uppercase;font-size:calc(11px * var(--rt-doc-font-scale,1))}.doc-table.compact th,.doc-table.compact td{padding:6px}.small-text{font-size:calc(11px * var(--rt-doc-font-scale,1))}.assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:30px;text-align:center;margin-top:26px;font-size:calc(12px * var(--rt-doc-font-scale,1));align-items:end}.doc-assinatura-img{display:block;max-width:190px;max-height:58px;margin:0 auto -5px;object-fit:contain}.linha-assinatura{line-height:1;margin-top:2px}.linha-assinatura.cliente{margin-top:58px}.doc-editavel{outline:0}.doc-editavel:focus{box-shadow:0 0 0 2px #7aa7ff inset}.doc-editavel table{position:relative;table-layout:auto}.doc-editavel td,.doc-editavel th,.doc-editavel p,.doc-editavel h1,.doc-editavel h2,.doc-editavel h3,.doc-editavel h4{min-height:1em}.doc-editavel.layout-mode table{position:relative;table-layout:fixed}.doc-editavel.layout-mode td,.doc-editavel.layout-mode th{position:relative;min-width:34px;min-height:18px}.doc-editavel.layout-mode .assinaturas,.doc-editavel.layout-mode .doc-header,.doc-editavel.layout-mode p,.doc-editavel.layout-mode h3,.doc-editavel.layout-mode h4{position:relative;outline:1px dashed #8aa1c1}.rt-layout-hint{font-size:11px;background:#fff3cd;color:#172033;border-radius:7px;padding:7px 9px;display:none}.layout-on .rt-layout-hint{display:inline-block}.rt-resizer{display:none;position:absolute;z-index:20;background:#f3b33e;opacity:.85}.layout-on .rt-resizer{display:block}.rt-col-resizer{top:0;right:-3px;width:6px;height:100%;cursor:col-resize}.rt-row-resizer{left:0;right:0;bottom:-3px;height:6px;cursor:row-resize}.rt-block-resizer{right:-6px;bottom:-6px;width:12px;height:12px;border-radius:50%;cursor:nwse-resize;box-shadow:0 0 0 2px #fff}.rt-layout-selected{outline:2px solid #f3b33e!important}@media(max-width:900px){.page{width:calc(100% - 20px);padding:18px}.toolbar{align-items:flex-start}.toolbar .editor-controls{justify-content:flex-start}}@media print{body{background:#fff}.toolbar{display:none}.page{margin:0!important;box-shadow:none;width:auto;min-height:auto;padding:0!important}@page{size:A4;margin:0} .doc-header{margin-top:0!important;padding-top:0!important}.doc-header h1,.doc-header h2,.doc-header p{margin-top:0!important}.assinaturas{margin-top:10px!important}}
+  </style></head><body><div class="toolbar" contenteditable="false"><strong>${titulo} editável — ajuste antes de imprimir/PDF</strong><div class="editor-controls" contenteditable="false"><button class="secondary" type="button" data-doc-font="down" title="Diminuir fonte">A−</button><button class="secondary" type="button" data-doc-font="up" title="Aumentar fonte">A+</button><button class="secondary" type="button" data-doc-cmd="bold" title="Negrito"><b>N</b></button><button class="secondary" type="button" data-doc-cmd="italic" title="Itálico"><i>I</i></button><button class="secondary" type="button" data-doc-cmd="underline" title="Sublinhado"><u>S</u></button><button class="secondary" type="button" data-doc-cmd="justifyLeft" title="Alinhar à esquerda">☰</button><button class="secondary" type="button" data-doc-cmd="justifyCenter" title="Centralizar">≡</button><button class="secondary" type="button" data-doc-cmd="justifyRight" title="Alinhar à direita">☷</button><input type="color" id="rtDocTextColor" value="#111111" title="Cor do texto"><button class="secondary" type="button" data-doc-cmd="undo" title="Desfazer">↶</button><button class="secondary" type="button" data-doc-cmd="redo" title="Refazer">↷</button><button class="secondary" type="button" id="rtDocLayoutBtn" title="Ativar ajuste direto de linhas, colunas e blocos na folha">Editar layout</button><button class="secondary" type="button" id="rtDocResetBtn">Restaurar padrão</button><button class="secondary" type="button" id="rtDocSaveModelBtn">Salvar modelo</button><span class="rt-layout-hint">Layout ativo: arraste as divisórias das colunas, as bordas das linhas e os pontos dos blocos diretamente na folha.</span><button class="secondary" type="button" onclick="window.print()">Imprimir/PDF</button><button type="button" onclick="window.close()">Fechar</button></div></div><main class="page doc-editavel" id="rtDocPage" contenteditable="true">${conteudo}</main><script>
+    (function(){
+      const tipo = ${JSON.stringify(tipo)};
+      const storageKey = 'rt_doc_editor_estilo_' + tipo;
+      let fontScale = 1;
+      function normalizarFontScale(valor){ const n=Number(valor); return Number.isFinite(n) ? Math.min(1.6, Math.max(0.75,n)) : 1; }
+      function aplicarFonte(valor){ fontScale = normalizarFontScale(valor); document.documentElement.style.setProperty('--rt-doc-font-scale', String(fontScale)); salvarEstilo(); }
+      function salvarEstilo(){ try{ localStorage.setItem(storageKey, JSON.stringify({fontScale})); }catch(e){} }
+      function carregarEstilo(){ try{ const v=JSON.parse(localStorage.getItem(storageKey)||'null'); if(v && v.fontScale) aplicarFonte(v.fontScale); }catch(e){} }
+      function executarComando(cmd, valor){ const page=document.getElementById('rtDocPage'); if(page) page.focus(); try{ document.execCommand(cmd,false,valor||null); }catch(e){ console.warn('Comando não aplicado',cmd,e); } }
+      let ultimoAlvoLayout=null;
+      function rtDocSelecionar(el){
+        document.querySelectorAll('.rt-layout-selected').forEach(x=>x.classList.remove('rt-layout-selected'));
+        if(el && document.body.classList.contains('layout-on')) el.classList.add('rt-layout-selected');
+      }
+      function rtDocLimparHandles(root){
+        (root || document).querySelectorAll('.rt-resizer').forEach(el=>el.remove());
+        (root || document).querySelectorAll('.rt-layout-selected').forEach(el=>el.classList.remove('rt-layout-selected'));
+      }
+      function rtDocHtmlLimpo(){
+        const page=document.getElementById('rtDocPage');
+        if(!page) return '';
+        const clone=page.cloneNode(true);
+        rtDocLimparHandles(clone);
+        clone.classList.remove('layout-mode');
+        return clone.innerHTML;
+      }
+      function rtDocPrepararResizeDireto(){
+        const page=document.getElementById('rtDocPage');
+        if(!page) return;
+        rtDocLimparHandles(page);
+        page.querySelectorAll('td,th').forEach(cell=>{
+          if(getComputedStyle(cell).position === 'static') cell.style.position='relative';
+          const col=document.createElement('span'); col.className='rt-resizer rt-col-resizer'; col.contentEditable='false'; col.title='Arraste para ajustar a largura da coluna';
+          const row=document.createElement('span'); row.className='rt-resizer rt-row-resizer'; row.contentEditable='false'; row.title='Arraste para ajustar a altura da linha';
+          cell.appendChild(col); cell.appendChild(row);
+          col.addEventListener('mousedown', ev=>{
+            ev.preventDefault(); ev.stopPropagation(); rtDocSelecionar(cell);
+            const startX=ev.clientX; const startW=cell.getBoundingClientRect().width;
+            function move(e){ cell.style.width=Math.max(34, startW + e.clientX - startX)+'px'; }
+            function up(){ document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up); }
+            document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+          });
+          row.addEventListener('mousedown', ev=>{
+            ev.preventDefault(); ev.stopPropagation(); const tr=cell.closest('tr') || cell; rtDocSelecionar(tr);
+            const startY=ev.clientY; const startH=tr.getBoundingClientRect().height;
+            function move(e){ tr.style.height=Math.max(18, startH + e.clientY - startY)+'px'; }
+            function up(){ document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up); }
+            document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+          });
+        });
+        page.querySelectorAll('.assinaturas,.doc-header,p,h1,h2,h3,h4').forEach(bloco=>{
+          if(bloco.querySelector(':scope > .rt-block-resizer')) return;
+          if(getComputedStyle(bloco).position === 'static') bloco.style.position='relative';
+          const h=document.createElement('span'); h.className='rt-resizer rt-block-resizer'; h.contentEditable='false'; h.title='Arraste para ajustar o tamanho/espacamento do bloco';
+          bloco.appendChild(h);
+          h.addEventListener('mousedown', ev=>{
+            ev.preventDefault(); ev.stopPropagation(); rtDocSelecionar(bloco);
+            const startX=ev.clientX, startY=ev.clientY, r=bloco.getBoundingClientRect();
+            const startW=r.width, startH=r.height;
+            function move(e){ bloco.style.width=Math.max(80, startW + e.clientX - startX)+'px'; bloco.style.minHeight=Math.max(18, startH + e.clientY - startY)+'px'; }
+            function up(){ document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up); }
+            document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+          });
+        });
+      }
+      function bindEditor(){
+        const page=document.getElementById('rtDocPage');
+        if(page){ page.addEventListener('click',ev=>{ ultimoAlvoLayout=ev.target; }); page.addEventListener('keyup',ev=>{ ultimoAlvoLayout=ev.target; }); }
+        document.querySelectorAll('[data-doc-cmd]').forEach(btn=>{ btn.addEventListener('mousedown',ev=>ev.preventDefault()); btn.addEventListener('click',()=>executarComando(btn.dataset.docCmd)); });
+        document.querySelectorAll('[data-doc-font]').forEach(btn=>{ btn.addEventListener('mousedown',ev=>ev.preventDefault()); btn.addEventListener('click',()=>aplicarFonte(fontScale + (btn.dataset.docFont==='up'?0.05:-0.05))); });
+        const layoutBtn=document.getElementById('rtDocLayoutBtn'); if(layoutBtn){ layoutBtn.addEventListener('click',()=>{ const ativo=!document.body.classList.contains('layout-on'); document.body.classList.toggle('layout-on',ativo); if(page) page.classList.toggle('layout-mode',ativo); layoutBtn.textContent=ativo?'Layout ativo':'Editar layout'; if(ativo){ rtDocPrepararResizeDireto(); } else { rtDocLimparHandles(page); } }); }
+        const color=document.getElementById('rtDocTextColor'); if(color){ color.addEventListener('mousedown',ev=>ev.stopPropagation()); color.addEventListener('input',()=>executarComando('foreColor',color.value)); }
+        const reset=document.getElementById('rtDocResetBtn'); if(reset){ reset.addEventListener('click',()=>{ if(!confirm('Restaurar o tamanho de fonte padrão deste documento?')) return; aplicarFonte(1); }); }
+        const salvar=document.getElementById('rtDocSaveModelBtn'); if(salvar){ salvar.addEventListener('click',()=>{
+          const page=document.getElementById('rtDocPage');
+          if(!page) return;
+          try{
+            const opener=window.opener;
+            if(opener && typeof opener.carregarConfiguracoes === 'function' && typeof opener.salvarConfiguracoes === 'function'){
+              const config=opener.carregarConfiguracoes() || {};
+              config.modelosDocumentos = config.modelosDocumentos || {};
+              config.modelosDocumentos[tipo] = rtDocHtmlLimpo();
+              opener.salvarConfiguracoes(config);
+              alert('Modelo salvo nas configurações deste documento.');
+            } else {
+              localStorage.setItem('rt_doc_modelo_html_' + tipo, rtDocHtmlLimpo());
+              alert('Modelo salvo localmente neste navegador.');
+            }
+          } catch(e){ console.warn(e); alert('Não foi possível salvar o modelo automaticamente.'); }
+        }); }
+      }
+      document.addEventListener('DOMContentLoaded',()=>{ carregarEstilo(); bindEditor(); });
+    })();
+  <\/script></body></html>`);
   janela.document.close();
 }
 

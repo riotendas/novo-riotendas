@@ -7,6 +7,24 @@ function ruaMobileHojeISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+
+function ruaMobileDataLabel(dataISO) {
+  if (!dataISO) return "--/--/-- DIA";
+  const d = new Date(`${dataISO}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "--/--/-- DIA";
+  const dias = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const aa = String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${aa} ${dias[d.getDay()]}`;
+}
+
+function ruaMobileAtualizarDiaSemana() {
+  const input = document.getElementById("ruaMobileData");
+  const label = document.getElementById("ruaMobileDiaSemana");
+  if (label) label.textContent = ruaMobileDataLabel(input?.value || ruaMobileHojeISO());
+}
+
 function ruaMobilePrimeiroNome(nome) {
   return String(nome || "-").trim().split(/\s+/)[0] || "-";
 }
@@ -76,6 +94,7 @@ function ruaMobileAlterarData(dias) {
   const base = input.value ? new Date(`${input.value}T12:00:00`) : new Date();
   base.setDate(base.getDate() + Number(dias || 0));
   input.value = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
+  ruaMobileAtualizarDiaSemana();
   renderizarRuaMobile();
 }
 
@@ -210,17 +229,50 @@ function ruaMobileOptionsCarro(carroAtual) {
   return ruaMobileCarrosParaEdicao().map(carro => `<option value="${ruaMobileEscAttr(carro)}" ${carro === atual ? "selected" : ""}>${carro}</option>`).join("");
 }
 
+function ruaMobileHtmlClienteEvento(rota) {
+  const nomeCurto = ruaMobilePrimeiroNome(rota?.cliente);
+  const nomeCompleto = rota?.cliente || "";
+  const eventoId = rota?.evento?.id || rota?.evento_id || "";
+  const eventoAlerta = { ...(rota?.evento || {}), ...rota, data_evento: rota?.data || rota?.evento?.data_evento || rota?.data_evento };
+  const alerta = typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(eventoAlerta) : "";
+
+  if (ruaMobileUsuarioAdmin() && eventoId) {
+    return `
+      ${alerta}<button type="button" class="rua-mobile-cliente-link" data-rua-editar-evento="${ruaMobileEscAttr(eventoId)}" title="Editar dados do evento">
+        <span>${nomeCurto}</span> <small>${nomeCompleto}</small>
+      </button>
+    `;
+  }
+
+  return `${alerta}${nomeCurto} <small>${nomeCompleto}</small>`;
+}
+
+function ruaMobileAbrirEdicaoEvento(eventoId) {
+  if (!ruaMobileUsuarioAdmin()) {
+    alert("Apenas administrador pode editar o evento pela Rota Mobile.");
+    return;
+  }
+
+  const id = String(eventoId || "");
+  if (!id) return;
+
+  if (typeof abrirEditarEvento === "function") {
+    abrirEditarEvento(id);
+  } else {
+    alert("Abra o setor de Eventos para editar este evento.");
+  }
+}
+
 async function ruaMobileTrocarCarroRota(rotaId, novoCarro) {
   const id = String(rotaId || "");
   if (!id) return;
   rotasCarros[id] = String(novoCarro || "Sem carro").trim() || "Sem carro";
-  if (typeof salvarRotasCarrosLocal === "function") salvarRotasCarrosLocal();
+  if (typeof salvarRotasCarrosLocal === "function") await salvarRotasCarrosLocal();
   else localStorage.setItem("novoRioTendasRotasCarrosV1", JSON.stringify(rotasCarros || {}));
-  if (typeof sincronizarRotasCarrosNuvem === "function") sincronizarRotasCarrosNuvem();
   renderizarRuaMobile();
 }
 
-function ruaMobileMoverRotaNoGrupo(rotaId, direcao) {
+async function ruaMobileMoverRotaNoGrupo(rotaId, direcao) {
   const id = String(rotaId || "");
   if (!id || typeof moverOrdemRota !== "function") return;
   const todas = obterRotasRuaMobile();
@@ -228,8 +280,8 @@ function ruaMobileMoverRotaNoGrupo(rotaId, direcao) {
   if (!rotaAtual) return;
   const carroAtual = String(ruaMobileCarroDaRota(rotaAtual) || "Sem carro");
   const grupo = todas.filter(r => String(ruaMobileCarroDaRota(r) || "Sem carro") === carroAtual);
-  if (typeof inicializarOrdemManualRotas === "function") inicializarOrdemManualRotas(grupo);
-  moverOrdemRota(id, direcao, grupo);
+  if (typeof inicializarOrdemManualRotas === "function") await inicializarOrdemManualRotas(grupo);
+  await moverOrdemRota(id, direcao, grupo);
   renderizarRuaMobile();
 }
 
@@ -284,6 +336,7 @@ function renderizarRuaMobile() {
 
   const dataInput = document.getElementById("ruaMobileData");
   if (dataInput && !dataInput.value) dataInput.value = ruaMobileHojeISO();
+  ruaMobileAtualizarDiaSemana();
 
   const rotas = obterRotasRuaMobile();
   const montagens = rotas.filter(r => r.tipo === "Montagem").length;
@@ -333,7 +386,7 @@ function renderizarRuaMobile() {
     const horarioEspecialClasse = typeof classeHorarioEspecialRota === "function" ? classeHorarioEspecialRota(rota.tipoHorario, rota.horario) : "";
     const badge = typeof badgeOperacaoRota === "function" ? badgeOperacaoRota(rota) : "";
     const operacao = typeof obterOperacaoRota === "function" ? obterOperacaoRota(rota.id) : null;
-    const concluida = operacao && (operacao.status === "entregue" || operacao.status === "recolhido");
+    const concluida = operacao && (operacao.status === "entregue" || operacao.status === "recolhido" || operacao.status === "efetuado");
     const expandido = concluida && ruaMobileCardExpandido(rota);
     const classeConclusao = concluida ? (expandido ? "rua-mobile-card-concluido rua-mobile-card-expandido" : "rua-mobile-card-concluido") : "";
     const ruaMobileGrupoCarro = ruaMobileAgruparPorCarro && inicioGrupo
@@ -356,7 +409,7 @@ function renderizarRuaMobile() {
           </div>
           <div class="rua-mobile-badge-wrap">${badge}</div>
         </div>
-        <div class="rua-mobile-cliente">${ruaMobilePrimeiroNome(rota.cliente)} <small>${rota.cliente || ""}</small></div>
+        <div class="rua-mobile-cliente">${ruaMobileHtmlClienteEvento(rota)}</div>
         ${concluida && !expandido ? `<div class="rua-mobile-endereco-resumo">📍 ${(endereco || "Endereço não informado").slice(0, 72)}${String(endereco || "").length > 72 ? "..." : ""}</div>` : ""}
         <div class="rua-mobile-endereco">📍 ${endereco || "Endereço não informado"}</div>
         <div class="rua-mobile-materiais rua-mobile-materiais-click" title="Clique em um produto para trocar"><strong>Materiais:</strong> ${typeof renderizarMateriaisRotaClicaveis === "function" ? renderizarMateriaisRotaClicaveis(rota) : ruaMobileResumoMateriais(rota)}</div>
@@ -368,6 +421,7 @@ function renderizarRuaMobile() {
           ${whats ? `<a class="btn-outline rua-mobile-acao-btn" href="${whats}" target="_blank" rel="noopener" title="WhatsApp" aria-label="WhatsApp"><span>💬</span><small>Zap</small></a>` : ""}
           ${rota.tipo === "Montagem" ? `<button type="button" class="btn-outline rua-mobile-acao-btn rua-mobile-operacao-btn" data-rua-operacao="entregue" data-rota-id="${rota.id}" title="Marcar entregue" aria-label="Marcar entregue"><span>✅</span><small>Entregue</small></button>` : ""}
           ${rota.tipo === "Desmontagem" ? `<button type="button" class="btn-outline rua-mobile-acao-btn rua-mobile-operacao-btn" data-rua-operacao="recolhido" data-rota-id="${rota.id}" title="Marcar recolhido" aria-label="Marcar recolhido"><span>↩️</span><small>Recolhido</small></button>` : ""}
+          ${rota.tipo !== "Montagem" && rota.tipo !== "Desmontagem" ? `<button type="button" class="btn-outline rua-mobile-acao-btn rua-mobile-operacao-btn" data-rua-operacao="efetuado" data-rota-id="${rota.id}" title="Marcar atendimento efetuado" aria-label="Marcar atendimento efetuado"><span>✓</span><small>Efetuado</small></button>` : ""}
         </div>
       </article>
     `;
@@ -383,10 +437,15 @@ function renderizarRuaMobile() {
   });
 
   listaEl.querySelectorAll("[data-rua-ordem-rota-id]").forEach(btn => {
-    btn.addEventListener("click", (ev) => {
+    btn.addEventListener("click", async (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
-      ruaMobileMoverRotaNoGrupo(btn.dataset.ruaOrdemRotaId, btn.dataset.ruaOrdemDir);
+      btn.disabled = true;
+      try {
+        await ruaMobileMoverRotaNoGrupo(btn.dataset.ruaOrdemRotaId, btn.dataset.ruaOrdemDir);
+      } finally {
+        btn.disabled = false;
+      }
     });
   });
 
@@ -395,6 +454,14 @@ function renderizarRuaMobile() {
       ev.preventDefault();
       ev.stopPropagation();
       await abrirGoogleMapsPendenciasCarro(btn.dataset.ruaMapsCarro || "");
+    });
+  });
+
+  listaEl.querySelectorAll("[data-rua-editar-evento]").forEach(btn => {
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      ruaMobileAbrirEdicaoEvento(btn.dataset.ruaEditarEvento || "");
     });
   });
 
@@ -432,6 +499,8 @@ function renderizarRuaMobile() {
         return;
       }
       await abrirTrocaProdutoRota(btn.dataset.eventoId, btn.dataset.produtoIndex);
+      if (typeof atualizarCarrosRotasDaNuvemSeNecessario === "function") await atualizarCarrosRotasDaNuvemSeNecessario();
+      if (typeof atualizarOrdemRotasDaNuvemSeNecessario === "function") await atualizarOrdemRotasDaNuvemSeNecessario();
       if (typeof sincronizarRotasOperacaoNuvem === "function") await sincronizarRotasOperacaoNuvem(false);
       renderizarRuaMobile();
     });
@@ -444,12 +513,13 @@ function iniciarRuaMobile() {
 
   const dataInput = document.getElementById("ruaMobileData");
   if (dataInput && !dataInput.value) dataInput.value = ruaMobileHojeISO();
+  ruaMobileAtualizarDiaSemana();
 
   ["ruaMobileData", "ruaMobileTipo", "ruaMobileCarro"].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
-      el.addEventListener("input", renderizarRuaMobile);
-      el.addEventListener("change", renderizarRuaMobile);
+      el.addEventListener("input", () => { ruaMobileAtualizarDiaSemana(); renderizarRuaMobile(); });
+      el.addEventListener("change", () => { ruaMobileAtualizarDiaSemana(); renderizarRuaMobile(); });
     }
   });
 
@@ -457,7 +527,7 @@ function iniciarRuaMobile() {
   const hojeBtn = document.getElementById("ruaMobileHojeBtn");
   const proximoBtn = document.getElementById("ruaMobileDiaProximoBtn");
   if (anteriorBtn) anteriorBtn.addEventListener("click", () => ruaMobileAlterarData(-1));
-  if (hojeBtn) hojeBtn.addEventListener("click", () => { if (dataInput) dataInput.value = ruaMobileHojeISO(); renderizarRuaMobile(); });
+  if (hojeBtn) hojeBtn.addEventListener("click", () => { if (dataInput) dataInput.value = ruaMobileHojeISO(); ruaMobileAtualizarDiaSemana(); renderizarRuaMobile(); });
   if (proximoBtn) proximoBtn.addEventListener("click", () => ruaMobileAlterarData(1));
 
   const atualizarBtn = document.getElementById("ruaMobileAtualizarBtn");
@@ -476,6 +546,8 @@ function iniciarRuaMobile() {
   setInterval(async () => {
     const usuario = typeof getUsuarioLogado === "function" ? getUsuarioLogado() : null;
     if (usuario?.perfil === "rua" || document.getElementById("ruaMobileSection")?.classList.contains("active-section")) {
+      if (typeof atualizarCarrosRotasDaNuvemSeNecessario === "function") await atualizarCarrosRotasDaNuvemSeNecessario();
+      if (typeof atualizarOrdemRotasDaNuvemSeNecessario === "function") await atualizarOrdemRotasDaNuvemSeNecessario();
       if (typeof sincronizarRotasOperacaoNuvem === "function") await sincronizarRotasOperacaoNuvem(false);
       renderizarRuaMobile();
     }

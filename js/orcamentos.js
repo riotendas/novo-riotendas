@@ -130,6 +130,12 @@ function iniciarOrcamentos(){
   sinalEl?.addEventListener('input', () => { orcamentoSinalEditadoManual = true; calcularTotaisOrcamento(); });
   sinalEl?.addEventListener('blur', () => { orcamentoSinalEditadoManual = true; sinalEl.value = rtOrcMoeda(rtOrcNumero(sinalEl.value)); calcularTotaisOrcamento(); });
   ['buscaOrcamento','filtroOrcamentoStatus'].forEach(id => document.getElementById(id)?.addEventListener('input', renderizarOrcamentos));
+  document.addEventListener('change', (ev) => { if (ev.target?.id === 'orcSelecionarTodos') rtOrcSelecionarTodos(ev.target.checked); });
+  document.addEventListener('click', (ev) => {
+    const t = ev.target;
+    if (t?.id === 'orcExcluirSelecionados') rtOrcExcluirSelecionados();
+    if (t?.id === 'orcExcluirVencidos') rtOrcExcluirVencidosAguardando();
+  });
   ['orcamentoDataEvento','orcamentoHoraInicio','orcamentoHoraTermino','orcamentoMontagemData','orcamentoMontagemHora','orcamentoMontagemTipo','orcamentoDesmontagemData','orcamentoDesmontagemHora','orcamentoDesmontagemTipo'].forEach(id => {
     const el = document.getElementById(id);
     el?.addEventListener('change', renderizarMateriaisOrcamento);
@@ -681,25 +687,57 @@ async function renderizarOrcamentos(){
   }).sort((a,b)=>String(b.criado_em||'').localeCompare(String(a.criado_em||'')));
   document.getElementById('orcamentosTotal').textContent = lista.length;
   document.getElementById('orcamentosAbertos').textContent = lista.filter(o => ['em_aberto','enviado'].includes(o.status)).length;
-  if (!lista.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">Nenhum orçamento encontrado.</td></tr>'; return; }
+  rtOrcGarantirBarraLimpeza();
+  if (!lista.length) { tbody.innerHTML = '<tr><td colspan="10" class="empty">Nenhum orçamento encontrado.</td></tr>'; return; }
   tbody.innerHTML = lista.map(o => `<tr>
-    <td>${rtOrcEscape(o.numero || '')}</td>
-    <td>${rtOrcDataBR(o.data_evento)}</td>
-    <td>${rtOrcEscape(o.nome || '')}</td>
-    <td>${rtOrcEscape(o.telefone || '')}</td>
-    <td>${rtOrcEscape(o.endereco || '')}</td>
-    <td>${rtOrcEscape((o.materiais||[]).map(i => `${i.quantidade} ${i.descricao}`).join('; '))}</td>
-    <td>${rtOrcMoeda(o.valor_total || 0)}</td>
-    <td><span class="status-pill">${rtOrcStatusLabel(o.status)}</span></td>
-    <td class="actions-cell">
+    <td class="orc-col-check"><input type="checkbox" class="orc-check" value="${rtOrcEscape(o.id)}"></td>
+    <td class="orc-col-numero">${rtOrcEscape(o.numero || '')}</td>
+    <td class="orc-col-data">${rtOrcDataBR(o.data_evento)}</td>
+    <td class="orc-col-cliente">${rtOrcEscape(o.nome || '')}</td>
+    <td class="orc-col-telefone">${rtOrcEscape(o.telefone || '')}</td>
+    <td class="orc-col-evento">${rtOrcEscape(o.endereco || '')}</td>
+    <td class="orc-col-materiais">${rtOrcEscape((o.materiais||[]).map(i => `${i.quantidade} ${i.descricao}`).join('; '))}</td>
+    <td class="orc-col-total">${rtOrcMoeda(o.valor_total || 0)}</td>
+    <td class="orc-col-status"><span class="status-pill">${rtOrcStatusLabel(o.status)}</span></td>
+    <td class="actions-cell orc-col-acoes"><div class="orc-actions-row">
       <button type="button" class="btn-outline btn-mini" data-editar-orc="${o.id}">Editar</button>
       <button type="button" class="btn-outline btn-mini" data-pdf-orc="${o.id}">PDF</button>
       <button type="button" class="btn-outline btn-mini" data-aprovar-orc="${o.id}">Aprovar</button>
-    </td>
+    </div></td>
   </tr>`).join('');
   tbody.querySelectorAll('[data-editar-orc]').forEach(b => b.addEventListener('click', () => abrirEditarOrcamento(b.dataset.editarOrc)));
   tbody.querySelectorAll('[data-pdf-orc]').forEach(b => b.addEventListener('click', () => gerarPdfOrcamento(orcamentos.find(o=>String(o.id)===String(b.dataset.pdfOrc)))));
   tbody.querySelectorAll('[data-aprovar-orc]').forEach(b => b.addEventListener('click', () => aprovarOrcamento(b.dataset.aprovarOrc)));
+}
+
+
+function rtOrcGarantirBarraLimpeza(){
+  const section = document.getElementById('orcamentosSection');
+  const tabela = document.getElementById('orcamentosTbody')?.closest('table');
+  if (!section || !tabela || document.getElementById('orcamentosBulkBar')) return;
+  const bar = document.createElement('div');
+  bar.id = 'orcamentosBulkBar';
+  bar.className = 'orcamentos-bulk-bar';
+  bar.innerHTML = `<label><input type="checkbox" id="orcSelecionarTodos"> Selecionar todos</label><button type="button" id="orcExcluirSelecionados" class="btn-outline">Excluir selecionados</button><button type="button" id="orcExcluirVencidos" class="btn-outline danger">Excluir vencidos/aguardando antigos</button>`;
+  tabela.parentNode.insertBefore(bar, tabela);
+}
+function rtOrcSelecionarTodos(marcado){ document.querySelectorAll('.orc-check').forEach(c => c.checked = !!marcado); }
+async function rtOrcExcluirIds(ids){
+  ids = [...new Set((ids || []).filter(Boolean).map(String))];
+  if (!ids.length) { alert('Nenhum orçamento selecionado.'); return; }
+  if (!confirm(`Excluir ${ids.length} orçamento(s)? Essa ação não poderá ser desfeita.`)) return;
+  if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+    try { const { error } = await supabaseClient.from('orcamentos').delete().in('id', ids); if (error) throw error; } catch(e) { console.warn('Erro ao excluir no Supabase, usando local:', e); }
+  }
+  orcamentos = orcamentos.filter(o => !ids.includes(String(o.id)));
+  salvarOrcamentosLocal();
+  await renderizarOrcamentos();
+}
+function rtOrcExcluirSelecionados(){ rtOrcExcluirIds(Array.from(document.querySelectorAll('.orc-check:checked')).map(c => c.value)); }
+function rtOrcExcluirVencidosAguardando(){
+  const hoje = new Date().toISOString().slice(0,10);
+  const ids = orcamentos.filter(o => ['em_aberto','enviado','vencido'].includes(o.status || 'em_aberto') && String(o.data_evento || '') < hoje).map(o => o.id);
+  rtOrcExcluirIds(ids);
 }
 
 function rtOrcStatusLabel(s){ return ({em_aberto:'Em aberto', enviado:'Enviado', aprovado:'Aprovado', recusado:'Recusado', vencido:'Vencido'}[s] || s || '-'); }
@@ -769,8 +807,22 @@ function gerarPdfOrcamento(o){
   const modelo = rtOrcObterModeloDocumento();
   const corpo = rtOrcAplicarModelo(modelo, dados) || `<section class="doc-header">${logo}<h1>ORÇAMENTO Nº ${dados.numero_orcamento}</h1></section>${itensTabela}`;
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Orçamento RioTendas</title><style>
-    body{font-family:Arial,sans-serif;margin:0;background:#eee;color:#111}.toolbar{position:sticky;top:0;background:#111;color:#fff;padding:10px 18px;display:flex;justify-content:space-between;align-items:center}.toolbar button{padding:8px 12px;border:0;border-radius:8px;cursor:pointer}.page{width:190mm;min-height:277mm;margin:12px auto;background:#fff;padding:14mm;box-shadow:0 0 12px #999;box-sizing:border-box}.doc-header{text-align:left;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:12px}.doc-header img{max-width:122px;height:auto}.doc-header h1{margin:4px 0;font-size:20px}.doc-header h2{margin:8px 0 4px;font-size:18px}.doc-header p,.small{font-size:11px}.doc-table{width:100%;border-collapse:collapse;margin:8px 0 12px}.doc-table th,.doc-table td{border:1px solid #bbb;padding:7px;font-size:12px;text-align:left}.doc-table th{background:#f1f1f1}.compact{max-width:100%}h3{margin:14px 0 6px}p{font-size:12px;line-height:1.45}.orc-assinatura-responsavel{margin:6px 0 10px;text-align:left;font-size:12px}.doc-assinatura-img{display:block;max-width:185px;max-height:55px;object-fit:contain;margin:0 0 -4px}.linha-assinatura{line-height:1;margin-top:0}.footer{margin-top:22px;border-top:1px solid #111;padding-top:8px;display:flex;justify-content:space-between;font-size:11px}@media print{.toolbar{display:none}.page{margin:0;box-shadow:none;width:auto;min-height:auto}}
-  </style></head><body><div class="toolbar"><strong>Orçamento editável</strong><div><button onclick="window.print()">Imprimir / salvar PDF</button> <button onclick="window.close()">Fechar</button></div></div><main class="page" contenteditable="true">${corpo}<div class="footer"><div>RioTendas - Locação de Tendas<br>R. Cons. Lampreia, 245 – Cosme Velho</div><div>Tel.(21) 3490-2333 / 99692-9292<br>www.riotendas.com.br</div></div></main></body></html>`;
+    body{font-family:Arial,sans-serif;margin:0;background:#eee;color:#111}.toolbar{position:sticky;top:0;z-index:50;background:#0d3f73;color:#fff;padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.toolbar button,.toolbar input{padding:6px 8px;border:0;border-radius:7px;cursor:pointer}.page{width:190mm;min-height:277mm;margin:12px auto;background:#fff;padding:14mm;box-shadow:0 0 12px #999;box-sizing:border-box}.doc-header{text-align:left;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:12px}.doc-header img{max-width:122px;height:auto}.doc-header h1{margin:4px 0;font-size:20px}.doc-header h2{margin:8px 0 4px;font-size:18px}.doc-header p,.small{font-size:11px}.doc-table{width:100%;border-collapse:collapse;margin:8px 0 12px}.doc-table th,.doc-table td{border:1px solid #bbb;padding:7px;font-size:12px;text-align:left;resize:both;overflow:auto}.doc-table th{background:#f1f1f1}.compact{max-width:100%}h3{margin:14px 0 6px}p{font-size:12px;line-height:1.45}.orc-assinatura-responsavel{margin:6px 0 10px;text-align:left;font-size:12px}.doc-assinatura-img{display:block;max-width:185px;max-height:55px;object-fit:contain;margin:0 0 -4px}.linha-assinatura{line-height:1;margin-top:0}.footer{margin-top:22px;border-top:1px solid #111;padding-top:8px;display:flex;justify-content:space-between;font-size:11px}.layout-mode *{outline:1px dashed rgba(13,63,115,.25)}@media print{.toolbar{display:none}.page{margin:0;box-shadow:none;width:auto;min-height:auto}.layout-mode *{outline:none}}
+  </style></head><body><div class="toolbar"><strong>Orçamento editável</strong><button onclick="document.execCommand('bold')">B</button><button onclick="document.execCommand('italic')">I</button><button onclick="document.execCommand('underline')">U</button><button onclick="document.execCommand('justifyLeft')">Esq.</button><button onclick="document.execCommand('justifyCenter')">Centro</button><button onclick="document.execCommand('justifyRight')">Dir.</button><button onclick="document.execCommand('fontSize',false,'2')">A-</button><button onclick="document.execCommand('fontSize',false,'4')">A+</button><input type="color" onchange="document.execCommand('foreColor',false,this.value)"><button onclick="document.querySelector('.page').classList.toggle('layout-mode')">Editar layout</button><button onclick="rtSalvarModeloOrcamentoNuvem()">Salvar modelo</button><button onclick="window.print()">Imprimir/PDF</button><button onclick="window.close()">Fechar</button></div><main class="page" contenteditable="true">${corpo}<div class="footer"><div>RioTendas - Locação de Tendas<br>R. Cons. Lampreia, 245 – Cosme Velho</div><div>Tel.(21) 3490-2333 / 99692-9292<br>www.riotendas.com.br</div></div></main><script>
+function rtOrcHtmlLimpo(){var p=document.querySelector('.page'); if(!p) return ''; var c=p.cloneNode(true); return c.innerHTML;}
+async function rtSalvarModeloOrcamentoNuvem(){
+  try{
+    if(!window.opener){ alert('Não foi possível acessar a janela principal para salvar o modelo.'); return; }
+    var html=rtOrcHtmlLimpo();
+    var cfg=(typeof window.opener.carregarConfiguracoes==='function') ? window.opener.carregarConfiguracoes() : (window.opener.configRioTendas || {});
+    cfg=cfg||{}; cfg.modelosDocumentos=cfg.modelosDocumentos||{}; cfg.modelosDocumentos.orcamento=html;
+    if(typeof window.opener.salvarConfiguracoes==='function') await window.opener.salvarConfiguracoes(cfg);
+    else { window.opener.localStorage.setItem('novoRioTendasConfiguracoesV1', JSON.stringify(cfg)); }
+    if(window.opener.configRioTendas) window.opener.configRioTendas = cfg;
+    alert('Modelo do orçamento salvo para todos os usuários.');
+  }catch(e){ console.error(e); alert('Não foi possível salvar o modelo do orçamento.'); }
+}
+</script></body></html>`;
   const w = window.open('', '_blank');
   w.document.write(html); w.document.close();
 }

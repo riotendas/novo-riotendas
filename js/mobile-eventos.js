@@ -65,7 +65,7 @@ function eventosMobileResumoProdutos(evento = {}) {
   const itens = [];
   const tendas = Array.isArray(evento.tendas) ? evento.tendas : [];
   const apoio = Array.isArray(evento.itens_apoio) ? evento.itens_apoio : [];
-  const extras = Array.isArray(evento.produtos_extras) ? evento.produtos_extras : [];
+  const extras = typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (Array.isArray(evento.produtos_extras) ? evento.produtos_extras : []);
 
   tendas.slice(0, 4).forEach(t => {
     if (typeof t === "string") itens.push(t);
@@ -137,6 +137,7 @@ function renderizarEventosMobile() {
   listaEl.innerHTML = lista.map(ev => {
     const hora = String(ev.hora_inicio || ev.hora_evento || "").slice(0,5) || "--:--";
     const nome = eventosMobileEscape(eventosMobilePrimeiroNome(ev.nome || ev.cliente));
+    const alerta = typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(ev) : "";
     const data = eventosMobileFormatarData(ev.data_evento);
     const endereco = eventosMobileEscape(ev.endereco || "");
     const produtos = eventosMobileEscape(eventosMobileResumoProdutos(ev));
@@ -144,7 +145,7 @@ function renderizarEventosMobile() {
     return `
       <article class="eventos-mobile-item">
         <div class="eventos-mobile-item-top">
-          <strong>${hora} · ${nome}</strong>
+          <strong>${hora} · ${alerta}${nome}</strong>
           <span>${data}</span>
         </div>
         <div class="eventos-mobile-item-produtos">${produtos}</div>

@@ -89,7 +89,7 @@ function calendarioIntervaloSemanaTexto(inicio) {
 }
 
 function calendarioResumoItens(itens) {
-  return `${itens.filter(i => i.tipo === "evento").length} eventos • ${itens.filter(i => i.tipo === "montagem").length} montagens • ${itens.filter(i => i.tipo === "desmontagem").length} desmontagens`;
+  return `${itens.filter(i => i.tipo === "evento").length} eventos • ${itens.filter(i => i.tipo === "montagem").length} montagens • ${itens.filter(i => i.tipo === "desmontagem").length} desmontagens • ${itens.filter(i => i.tipo === "atendimento").length} atendimentos`;
 }
 
 function calendarioAtualizarBotoesModo() {
@@ -160,6 +160,22 @@ function calendarioItensEvento(evento) {
     });
   }
 
+  const atendimentos = typeof rtAtendimentosExtrasRecorrente === "function" ? rtAtendimentosExtrasRecorrente(evento) : [];
+  atendimentos.forEach(item => {
+    const dh = typeof rtDataHoraAtendimentoExtra === "function" ? rtDataHoraAtendimentoExtra(item) : { data: item.data, hora: item.hora };
+    if (!dh.data) return;
+    itens.push({
+      id: `${evento.id}-atendimento-${item.id || dh.data}`,
+      eventoId: evento.id,
+      tipo: "atendimento",
+      data: dh.data,
+      hora: dh.hora || "",
+      titulo: `${item.tipo || "Atendimento extra"} — ${evento.nome || "Evento"}`,
+      evento,
+      atendimentoExtra: item
+    });
+  });
+
   return itens;
 }
 
@@ -173,7 +189,7 @@ function calendarioTodosItens() {
     .filter(item => {
       const evento = item.evento;
       const clienteOk = !cliente || String(evento.nome || "").toLowerCase().includes(cliente);
-      const tipoOk = !tipo || item.tipo === tipo || (tipo === "montagem_desmontagem" && (item.tipo === "montagem" || item.tipo === "desmontagem"));
+      const tipoOk = !tipo || item.tipo === tipo || (item.tipo === "atendimento" && (tipo === "montagem" || tipo === "desmontagem" || tipo === "montagem_desmontagem")) || (tipo === "montagem_desmontagem" && (item.tipo === "montagem" || item.tipo === "desmontagem"));
       const pagamentoOk = !pagamento || (pagamento === "quitado" ? evento.pagamento_quitado : !evento.pagamento_quitado);
       return clienteOk && tipoOk && pagamentoOk;
     });
@@ -187,6 +203,7 @@ function calendarioClasseItem(item) {
 function calendarioLabelTipo(tipo) {
   if (tipo === "montagem") return "Mont.";
   if (tipo === "desmontagem") return "Desm.";
+  if (tipo === "atendimento") return "Atend.";
   return "Evento";
 }
 
@@ -351,6 +368,7 @@ function rtCalRotaId(item) {
   if (!item || !item.eventoId) return "";
   if (item.tipo === "montagem") return `${item.eventoId}-montagem`;
   if (item.tipo === "desmontagem") return `${item.eventoId}-desmontagem`;
+  if (item.tipo === "atendimento") return `${item.eventoId}-atendimento-${item.atendimentoExtra?.id || item.data || ""}`;
   return "";
 }
 
@@ -376,8 +394,8 @@ function rtCalOrdemItem(item) {
 }
 
 function rtCalCompararPainelDia(a, b) {
-  const rotaA = a.tipo === "montagem" || a.tipo === "desmontagem";
-  const rotaB = b.tipo === "montagem" || b.tipo === "desmontagem";
+  const rotaA = a.tipo === "montagem" || a.tipo === "desmontagem" || a.tipo === "atendimento";
+  const rotaB = b.tipo === "montagem" || b.tipo === "desmontagem" || b.tipo === "atendimento";
 
   if (rotaA && rotaB) {
     const carroA = rtCalCarroItem(a) || "Sem carro";
@@ -397,7 +415,7 @@ function rtCalCompararPainelDia(a, b) {
 }
 
 function rtCalBadgeCarro(item) {
-  if (!(item.tipo === "montagem" || item.tipo === "desmontagem")) return "";
+  if (!(item.tipo === "montagem" || item.tipo === "desmontagem" || item.tipo === "atendimento")) return "";
 
   const carro = rtCalCarroItem(item);
   const rotaId = rtCalRotaId(item);
@@ -405,6 +423,90 @@ function rtCalBadgeCarro(item) {
   if (!carro) return `<span class="cal-rota-carro cal-rota-sem-carro" title="${rotaId}">Sem carro</span>`;
 
   return `<span class="cal-rota-carro" title="${rotaId}">🚚 ${carro}</span>`;
+}
+
+function rtCalUsuarioAdmin() {
+  try { return typeof usuarioEhAdministrador === "function" && usuarioEhAdministrador(); } catch { return false; }
+}
+
+function rtCalCarrosDisponiveis() {
+  try {
+    const cfg = typeof carregarConfiguracoes === "function" ? carregarConfiguracoes() : null;
+    if (cfg && Array.isArray(cfg.carros) && cfg.carros.length) return cfg.carros;
+  } catch {}
+  try {
+    return Array.from(new Set(Object.values(rtCalCarrosRotas()).filter(Boolean)));
+  } catch {
+    return [];
+  }
+}
+
+function rtCalControlesAdmin(item) {
+  if (!rtCalUsuarioAdmin()) return rtCalBadgeCarro(item);
+  if (!(item.tipo === "montagem" || item.tipo === "desmontagem" || item.tipo === "atendimento")) return "";
+  const rotaId = rtCalRotaId(item);
+  const carroAtual = rtCalCarroItem(item);
+  const carros = rtCalCarrosDisponiveis();
+  const opts = ['<option value="">Sem carro</option>'].concat(carros.map(c => `<option value="${String(c).replace(/"/g,'&quot;')}" ${String(c)===String(carroAtual) ? "selected" : ""}>${c}</option>`)).join("");
+  return `
+    <div class="cal-admin-rota-ctrl" data-cal-rota-ctrl="${rotaId}">
+      <select class="cal-admin-carro-select" data-cal-carro="${rotaId}" title="Alterar carro">${opts}</select>
+      <button type="button" class="cal-admin-ordem-btn" data-cal-mover="${rotaId}" data-dir="up" title="Subir">↑</button>
+      <button type="button" class="cal-admin-ordem-btn" data-cal-mover="${rotaId}" data-dir="down" title="Descer">↓</button>
+    </div>`;
+}
+
+async function rtCalSalvarCarro(rotaId, carro) {
+  if (!rotaId) return;
+  try {
+    if (typeof rotasCarros !== "undefined") {
+      if (carro) rotasCarros[String(rotaId)] = carro;
+      else delete rotasCarros[String(rotaId)];
+      if (typeof salvarRotasCarrosLocal === "function") await salvarRotasCarrosLocal();
+      else localStorage.setItem("novoRioTendasRotasCarrosV1", JSON.stringify(rotasCarros));
+    } else {
+      const carros = rtCalCarrosRotas();
+      if (carro) carros[String(rotaId)] = carro; else delete carros[String(rotaId)];
+      localStorage.setItem("novoRioTendasRotasCarrosV1", JSON.stringify(carros));
+    }
+  } catch (e) { console.warn("Erro ao salvar carro pelo calendário:", e); }
+  renderizarPainelDiaCalendario();
+  try { if (typeof renderizarRotas === "function") renderizarRotas(); } catch {}
+  try { if (typeof renderizarRuaMobile === "function") renderizarRuaMobile(); } catch {}
+}
+
+async function rtCalMoverOrdem(itemId, dir) {
+  const data = calendarioDataSelecionada || calendarioISODate(new Date());
+  const origem = calendarioTodosItens().find(i => rtCalRotaId(i) === itemId);
+  const carroOrigem = origem ? (rtCalCarroItem(origem) || "Sem carro") : "Sem carro";
+  const itens = calendarioTodosItens().filter(i => i.data === data && (i.tipo === "montagem" || i.tipo === "desmontagem" || i.tipo === "atendimento") && (rtCalCarroItem(i) || "Sem carro") === carroOrigem);
+  const rotas = itens.map(i => ({ id: rtCalRotaId(i), horario: i.hora || "", tipo: i.tipo === "montagem" ? "Montagem" : (i.tipo === "desmontagem" ? "Desmontagem" : (i.atendimentoExtra?.tipo || "Atendimento extra")) })).filter(r => r.id);
+  try {
+    if (typeof moverOrdemRota === "function") await moverOrdemRota(itemId, dir, rotas);
+    else {
+      const ordem = rtCalOrdemRotas();
+      rotas.sort((a,b) => (Number(ordem[a.id]) || 999999) - (Number(ordem[b.id]) || 999999));
+      const idx = rotas.findIndex(r => String(r.id) === String(itemId));
+      const n = dir === "up" ? idx - 1 : idx + 1;
+      if (idx >= 0 && n >= 0 && n < rotas.length) {
+        const temp = rotas[idx]; rotas[idx] = rotas[n]; rotas[n] = temp;
+        rotas.forEach((r,i) => ordem[String(r.id)] = i + 1);
+        localStorage.setItem("rotas_ordem_manual", JSON.stringify(ordem));
+      }
+    }
+  } catch (e) { console.warn("Erro ao alterar ordem pelo calendário:", e); }
+  renderizarPainelDiaCalendario();
+  try { if (typeof renderizarRotas === "function") renderizarRotas(); } catch {}
+  try { if (typeof renderizarRuaMobile === "function") renderizarRuaMobile(); } catch {}
+}
+
+function rtCalAtivarControlesAdmin(lista) {
+  lista.querySelectorAll("[data-cal-carro]").forEach(sel => {
+    sel.addEventListener("change", () => rtCalSalvarCarro(sel.dataset.calCarro, sel.value));
+  });
+  lista.querySelectorAll("[data-cal-mover]").forEach(btn => {
+    btn.addEventListener("click", () => rtCalMoverOrdem(btn.dataset.calMover, btn.dataset.dir));
+  });
 }
 
 function renderizarPainelDiaCalendario() {
@@ -429,16 +531,19 @@ function renderizarPainelDiaCalendario() {
 
   lista.innerHTML = itens.map(item => {
     const evento = item.evento || {};
-    const materiais = [
+    let materiais = [
       ...(evento.tendas || []).map(p => [p.codigo, p.categoria, p.tamanho].filter(Boolean).join(" ")),
       ...(evento.itens_apoio || []).map(i => `${i.nome || "Item"} (${i.quantidade || 0})`),
       ...(evento.produtos_extras || []).map(i => `${i.descricao || "Extra"} (${i.quantidade || 0})`)
     ].filter(Boolean);
+    if (item.tipo === 'atendimento' && item.atendimentoExtra && String(item.atendimentoExtra.tipo || '').toLowerCase().includes('troca')) {
+      materiais = item.atendimentoExtra.tenda_entrar ? [item.atendimentoExtra.tenda_entrar] : ['Troca de tenda'];
+    }
 
     return `
       <div class="calendar-panel-card ${calendarioClasseItem(item)}">
         <div class="calendar-panel-top">
-          <strong>${calendarioLabelTipo(item.tipo)} — ${evento.nome || "-"}</strong>
+          <strong>${calendarioLabelTipo(item.tipo)} — ${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml({ ...evento, data_evento: item.data || evento.data_evento }) : ""}${evento.nome || "-"}</strong>
           <span class="calendar-panel-time">${calendarioHoraExibicao(item)}</span>
         </div>
         <div class="calendar-panel-info">
@@ -450,9 +555,9 @@ function renderizarPainelDiaCalendario() {
           ${materiais.length ? materiais.slice(0, 8).map(m => `<span>${m}</span>`).join("") : `<span>Sem materiais</span>`}
         </div>
         <div class="calendar-panel-actions">
-          <button type="button" class="btn-outline" data-cal-abrir-evento="${evento.id}">Abrir evento</button>
-          <button type="button" class="btn-outline" data-cal-editar-evento="${evento.id}">Editar evento</button>
-          ${rtCalBadgeCarro(item)}
+          <button type="button" class="btn-outline cal-action-mini" data-cal-abrir-evento="${evento.id}" title="Abrir">🔎</button>
+          <button type="button" class="btn-outline cal-action-mini" data-cal-editar-evento="${evento.id}" title="Editar">✎</button>
+          ${rtCalControlesAdmin(item)}
         </div>
       </div>
     `;
@@ -471,6 +576,8 @@ function renderizarPainelDiaCalendario() {
       else alert("Abra o setor de Eventos para editar este evento.");
     });
   });
+
+  rtCalAtivarControlesAdmin(lista);
 }
 
 function iniciarCalendarioVisual() {

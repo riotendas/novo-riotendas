@@ -222,9 +222,13 @@ function obterOperacaoRota(rotaId) {
   return (rotasOperacao || {})[rotaId] || null;
 }
 
+function textoPendenteRota(rota) {
+  return rota?.tipo === "Desmontagem" ? "Retirada Pendente" : "Entrega Pendente";
+}
+
 function badgeOperacaoRota(rota) {
   const op = obterOperacaoRota(rota.id);
-  if (!op || !op.status) return `<span class="rota-operacao-badge rota-operacao-pendente">Pendente</span>`;
+  if (!op || !op.status) return `<span class="rota-operacao-badge rota-operacao-pendente">${textoPendenteRota(rota)}</span>`;
 
   const quando = formatarDataHoraOperacaoRota(op.data);
   const por = op.colaborador ? ` · ${op.colaborador}` : "";
@@ -236,8 +240,11 @@ function badgeOperacaoRota(rota) {
   if (op.status === "recolhido") {
     return `<span class="rota-operacao-badge rota-operacao-recolhido">Recolhido · Revisar${quando ? ` ${quando}` : ""}${por}</span>`;
   }
+  if (op.status === "efetuado") {
+    return `<span class="rota-operacao-badge rota-operacao-entregue">Efetuado${quando ? ` ${quando}` : ""}${por}</span>`;
+  }
 
-  return `<span class="rota-operacao-badge rota-operacao-pendente">Pendente</span>`;
+  return `<span class="rota-operacao-badge rota-operacao-pendente">${textoPendenteRota(rota)}</span>`;
 }
 
 function produtoEventoChaveRota(produto) {
@@ -422,7 +429,7 @@ async function reverterOperacaoRota(rotaId) {
     return;
   }
 
-  const confirma = confirm(`Reverter a operação ${opAnterior.status === "recolhido" ? "recolhida" : "entregue"} desta rota?`);
+  const confirma = confirm(`Reverter a operação ${opAnterior.status === "recolhido" ? "recolhida" : (opAnterior.status === "efetuado" ? "efetuada" : "entregue")} desta rota?`);
   if (!confirma) return;
 
   const colaborador = colaboradorRotaAtual();
@@ -434,6 +441,10 @@ async function reverterOperacaoRota(rotaId) {
     delete rotasOperacao[rota.id];
   } else if (opAnterior.status === "entregue") {
     alterados = await alterarStatusProdutosEventoRota(rota, "__RESTORE__", "Reversão administrativa da entrega", opAnterior);
+    delete rotasOperacao[rota.id];
+  } else if (opAnterior.status === "efetuado") {
+    // Atendimentos extras não alteram o status dos produtos; reverter significa
+    // voltar o atendimento para pendente e liberar o botão Efetuado novamente.
     delete rotasOperacao[rota.id];
   }
 
@@ -502,6 +513,65 @@ async function reconciliarStatusProdutosOperacoesRotas() {
   if (mudouOperacao) await salvarRotasOperacaoLocal();
 }
 
+
+function rotaOperacaoConcluida(rota) {
+  const op = obterOperacaoRota(rota.id);
+  if (!op || !op.status) return false;
+  if (rota.tipo === "Montagem") return op.status === "entregue";
+  if (rota.tipo === "Desmontagem") return op.status === "recolhido";
+  if (String(rota.tipo || "").toLowerCase().includes("atendimento") || String(rota.tipoHorario || "").toLowerCase().includes("atendimento") || !["Montagem","Desmontagem"].includes(rota.tipo)) return op.status === "efetuado";
+  return false;
+}
+
+function rotasDoFiltroAtualParaAvanco(data, tipo, carro) {
+  if (typeof criarRotasDosEventos !== "function") return [];
+  return criarRotasDosEventos().filter(rota => {
+    const carroRota = typeof ruaMobileCarroDaRota === "function"
+      ? ruaMobileCarroDaRota(rota)
+      : ((rotasCarros && rotasCarros[rota.id]) || "Sem carro");
+    return rota.data === data
+      && (!tipo || rota.tipo === tipo)
+      && (!carro || String(carroRota || "Sem carro") === String(carro));
+  });
+}
+
+function avancarListagemRotasSeDiaConcluido() {
+  try {
+    const ruaAtiva = document.getElementById("ruaMobileSection")?.classList.contains("active-section");
+    const rotasAtiva = document.getElementById("rotasSection")?.classList.contains("active-section");
+    let input = null;
+    let tipo = "";
+    let carro = "";
+
+    if (ruaAtiva && document.getElementById("ruaMobileData")) {
+      input = document.getElementById("ruaMobileData");
+      tipo = document.getElementById("ruaMobileTipo")?.value || "";
+      carro = document.getElementById("ruaMobileCarro")?.value || "";
+    } else if (rotasAtiva && document.getElementById("rotaPeriodo")?.value === "data") {
+      input = document.getElementById("rotaData");
+      tipo = document.getElementById("rotaTipoFiltro")?.value || "";
+      carro = document.getElementById("rotaCarroFiltro")?.value || "";
+    }
+
+    const data = input?.value || "";
+    if (!data) return false;
+
+    const rotasDia = rotasDoFiltroAtualParaAvanco(data, tipo, carro);
+    if (!rotasDia.length) return false;
+    if (!rotasDia.every(rotaOperacaoConcluida)) return false;
+
+    const proxima = new Date(`${data}T12:00:00`);
+    if (Number.isNaN(proxima.getTime())) return false;
+    proxima.setDate(proxima.getDate() + 1);
+    input.value = `${proxima.getFullYear()}-${String(proxima.getMonth() + 1).padStart(2, "0")}-${String(proxima.getDate()).padStart(2, "0")}`;
+    if (typeof ruaMobileAtualizarDiaSemana === "function") ruaMobileAtualizarDiaSemana();
+    return true;
+  } catch (err) {
+    console.warn("Não foi possível avançar a listagem de rotas:", err);
+    return false;
+  }
+}
+
 async function marcarOperacaoRota(rotaId, acao) {
   const rota = criarRotasDosEventos().find(r => String(r.id) === String(rotaId));
   if (!rota) {
@@ -537,7 +607,21 @@ async function marcarOperacaoRota(rotaId, acao) {
       });
     }
 
+    const avancouDia = avancarListagemRotasSeDiaConcluido();
     renderizarRotas();
+    if (avancouDia && typeof renderizarRuaMobile === "function") renderizarRuaMobile();
+    return;
+  }
+
+  if (acao === "efetuado") {
+    rotasOperacao[rota.id] = { status: "efetuado", data: agora, colaborador, evento_id: rota.evento_id, tipo: rota.tipo };
+    await salvarRotasOperacaoLocal();
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({ modulo: "Rotas", acao: "Atendimento efetuado", registro_id: rota.evento_id, registro_nome: rota.cliente || "Evento", depois: rotasOperacao[rota.id], detalhes: `Atendimento extra efetuado na rota ${rota.id}` });
+    }
+    const avancouDia = avancarListagemRotasSeDiaConcluido();
+    renderizarRotas();
+    if (avancouDia && typeof renderizarRuaMobile === "function") renderizarRuaMobile();
     return;
   }
 
@@ -573,7 +657,9 @@ async function marcarOperacaoRota(rotaId, acao) {
       try { await carregarProdutos(true); } catch {}
     }
 
+    const avancouDia = avancarListagemRotasSeDiaConcluido();
     renderizarRotas();
+    if (avancouDia && typeof renderizarRuaMobile === "function") renderizarRuaMobile();
     alert(`Material recolhido. ${qtdRevisar} produto(s) foram enviados para Revisar.`);
   }
 }
@@ -637,8 +723,9 @@ function carregarRotasCarrosLocal() {
 }
 
 function salvarRotasCarrosLocal() {
+  rtMarcarEdicaoManualCarrosRotas();
   localStorage.setItem(storageRotasCarrosKey, JSON.stringify(rotasCarros));
-  salvarRotasCarrosNuvem();
+  return salvarRotasCarrosNuvem();
 }
 
 async function carregarRotasOrdemNuvem() {
@@ -710,8 +797,45 @@ function atualizarFiltroCarrosRotas() {
 
 
 let ultimaSincronizacaoOrdemRotas = 0;
+let ultimaEdicaoManualOrdemRotas = 0;
+let ultimaEdicaoManualCarrosRotas = 0;
+const janelaProtecaoEdicaoRotasMs = 12000;
+
+function rtMarcarEdicaoManualOrdemRotas() {
+  ultimaEdicaoManualOrdemRotas = Date.now();
+}
+
+function rtMarcarEdicaoManualCarrosRotas() {
+  ultimaEdicaoManualCarrosRotas = Date.now();
+}
+
+function rtEdicaoManualRecenteOrdemRotas() {
+  return Date.now() - ultimaEdicaoManualOrdemRotas < janelaProtecaoEdicaoRotasMs;
+}
+
+function rtEdicaoManualRecenteCarrosRotas() {
+  return Date.now() - ultimaEdicaoManualCarrosRotas < janelaProtecaoEdicaoRotasMs;
+}
+
+async function atualizarCarrosRotasDaNuvemSeNecessario() {
+  if (rtEdicaoManualRecenteCarrosRotas()) return;
+
+  const nuvem = await carregarRotasCarrosNuvem();
+  if (nuvem && typeof nuvem === "object") {
+    const atual = JSON.stringify(rotasCarros || {});
+    const novo = JSON.stringify({ ...rotasCarros, ...nuvem });
+
+    if (atual !== novo) {
+      rotasCarros = { ...rotasCarros, ...nuvem };
+      localStorage.setItem(storageRotasCarrosKey, JSON.stringify(rotasCarros));
+      if (document.getElementById("rotasSection")?.classList.contains("active-section")) renderizarRotas();
+      if (typeof renderizarRuaMobile === "function" && document.getElementById("ruaMobileSection")?.classList.contains("active-section")) renderizarRuaMobile();
+    }
+  }
+}
 
 async function atualizarOrdemRotasDaNuvemSeNecessario() {
+  if (rtEdicaoManualRecenteOrdemRotas()) return;
   const agora = Date.now();
   if (agora - ultimaSincronizacaoOrdemRotas < 15000) return;
 
@@ -725,7 +849,8 @@ async function atualizarOrdemRotasDaNuvemSeNecessario() {
     if (atual !== novo) {
       rotasOrdemManual = { ...rotasOrdemManual, ...nuvem };
       localStorage.setItem("rotas_ordem_manual", JSON.stringify(rotasOrdemManual));
-      renderizarRotas();
+      if (document.getElementById("rotasSection")?.classList.contains("active-section")) renderizarRotas();
+      if (typeof renderizarRuaMobile === "function" && document.getElementById("ruaMobileSection")?.classList.contains("active-section")) renderizarRuaMobile();
     }
   }
 }
@@ -782,24 +907,12 @@ function iniciarRotas() {
     renderizarRotas();
   });
 
-  const zerarBtn = document.getElementById("zerarOperacoesRotasBtn");
-  if (zerarBtn) {
-    zerarBtn.addEventListener("click", async () => {
-      if (!rotaUsuarioEhAdmin()) {
-        alert("Apenas administrador pode zerar Entregue/Recolhido.");
-        return;
-      }
-      const ok = confirm("Zerar todos os marcadores Entregue/Recolhido das rotas? Isso não apaga eventos nem produtos. Serve para recomeçar os testes da logística do zero.");
-      if (!ok) return;
-      await zerarRotasOperacaoTotal(false);
-    });
-  }
-
   setTimeout(renderizarRotas, 400);
   setTimeout(renderizarRotas, 1200);
 
   setInterval(() => {
-    atualizarOrdemRotasDaNuvemSeNecessario();
+    atualizarCarrosRotasDaNuvemSeNecessario().catch(() => {});
+    atualizarOrdemRotasDaNuvemSeNecessario().catch(() => {});
     sincronizarRotasOperacaoNuvem(true).catch(() => {});
     renderizarRotas();
   }, 30000);
@@ -886,7 +999,7 @@ function montarListaMateriais(evento) {
 
   const apoio = (evento.itens_apoio || []).map(i => `${i.nome} (${i.quantidade})`);
 
-  const extras = (evento.produtos_extras || []).map(i => `${i.descricao} (${i.quantidade})`);
+  const extras = (typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento.produtos_extras || [])).map(i => `${i.descricao} (${i.quantidade})`);
 
   return [...tendas, ...apoio, ...extras];
 }
@@ -915,7 +1028,7 @@ function montarMateriaisRotaDetalhados(evento) {
     });
   });
 
-  (evento.produtos_extras || []).forEach((i, index) => {
+  (typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento.produtos_extras || [])).forEach((i, index) => {
     materiais.push({
       tipo: "extra",
       index,
@@ -927,6 +1040,12 @@ function montarMateriaisRotaDetalhados(evento) {
 }
 
 function renderizarMateriaisRotaClicaveis(rota) {
+  if (rota && rota.atendimentoExtra && String(rota.atendimentoExtra.tipo || '').toLowerCase().includes('troca')) {
+    const novas = rtTendasNovasAtendimento(rota);
+    if (novas.length) return novas.map(nova => `<span>${nova}</span>`).join('');
+    if (Array.isArray(rota.materiais) && rota.materiais.length) return rota.materiais.map(m => `<span>${m}</span>`).join('');
+    return `<span>Troca de tenda</span>`;
+  }
   const evento = rota.evento || {};
   const materiais = montarMateriaisRotaDetalhados(evento);
 
@@ -1285,6 +1404,29 @@ function criarRotasDosEventos() {
         evento
       });
     }
+
+
+    const atendimentos = typeof rtAtendimentosExtrasRecorrente === "function" ? rtAtendimentosExtrasRecorrente(evento) : [];
+    atendimentos.forEach(item => {
+      const dh = typeof rtDataHoraAtendimentoExtra === "function" ? rtDataHoraAtendimentoExtra(item) : { data: item.data, hora: item.hora };
+      if (!dh.data) return;
+      rotas.push({
+        id: `${evento.id}-atendimento-${item.id || dh.data}`,
+        evento_id: evento.id,
+        tipo: item.tipo || "Atendimento extra",
+        data: dh.data,
+        horario: dh.hora || "",
+        tipoHorario: "Atendimento extra",
+        cliente: `${(item.tipo || "Atendimento").toUpperCase()} — ${evento.nome || "-"}`,
+        telefone: evento.telefone || "-",
+        endereco: evento.endereco || "-",
+        materiais: (String(item.tipo || "").toLowerCase().includes("troca") && item.tenda_entrar)
+          ? [rtFormatarTendaTroca(item.tenda_entrar)]
+          : (item.observacao ? [item.observacao] : montarListaMateriais(evento)),
+        evento,
+        atendimentoExtra: item
+      });
+    });
   });
 
   return rotas;
@@ -1381,6 +1523,13 @@ function rtResumoCargaCarro(listaRotas = []) {
   (listaRotas || []).forEach(rota => {
     if (rotaEhDesmontagem(rota)) return;
     const evento = rota.evento || {};
+    if (rota.atendimentoExtra && String(rota.atendimentoExtra.tipo || '').toLowerCase().includes('troca')) {
+      rtTendasNovasAtendimento(rota).forEach(txt => {
+        const tamanho = rtTamanhoProduto({ descricao: txt, tamanho: txt });
+        if (tamanho) cont[tamanho] += 1;
+      });
+      return;
+    }
 
     (evento.tendas || []).forEach(item => {
       const tamanho = rtTamanhoProduto(item);
@@ -1389,7 +1538,7 @@ function rtResumoCargaCarro(listaRotas = []) {
       if (tipo && tipo !== "mes" && tipo !== "cad") cont[tipo] += rtQuantidadeItem(item);
     });
 
-    [...(evento.itens_apoio || []), ...(evento.produtos_extras || [])].forEach(item => {
+    [...(evento.itens_apoio || []), ...(typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento.produtos_extras || []))].forEach(item => {
       const tipo = rtTipoApoioResumo(item);
       if (tipo) cont[tipo] += rtQuantidadeItem(item);
     });
@@ -1467,7 +1616,7 @@ function rtPontosTendasEvento(evento) {
 
 function rtMesasCadeirasOmbEvento(evento) {
   const r = { mes: 0, cad: 0, omb: 0 };
-  const todos = [...(evento?.tendas || []), ...(evento?.itens_apoio || []), ...(evento?.produtos_extras || [])];
+  const todos = [...(evento?.tendas || []), ...(evento?.itens_apoio || []), ...(typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento?.produtos_extras || []))];
   todos.forEach(item => {
     const tipo = rtTipoApoioResumo(item);
     if (tipo) r[tipo] += rtQuantidadeItem(item);
@@ -1762,6 +1911,28 @@ function renderizarRotas() {
 
 
 
+
+function rtFormatarTendaTroca(valor) {
+  const raw = String(valor || "").trim();
+  if (!raw) return "";
+  if (raw.includes(" - ")) return raw.replace(/\s+/g, " ").trim();
+  try {
+    const lista = Array.isArray(produtos) ? produtos : [];
+    const achado = lista.find(p => String(p.codigo || p.id || p.numero || "").trim() === raw);
+    if (achado) {
+      return [achado.codigo || achado.id || raw, achado.categoria || achado.tipo || achado.nome || achado.descricao || "Tenda", achado.tamanho, achado.cor]
+        .filter(Boolean).join(" - ").replace(/\s+-\s+-\s+/g, " - ").trim();
+    }
+  } catch {}
+  return raw;
+}
+function rtTendasNovasAtendimento(rota) {
+  const item = rota?.atendimentoExtra || rota;
+  const val = String(item?.tenda_entrar || item?.tendas_entrar || "").trim();
+  if (!val) return [];
+  return val.split(/\s*[,;]\s*/).map(rtFormatarTendaTroca).filter(Boolean);
+}
+
 function rotaEhDesmontagem(rota) {
   const tipo = String(rota?.tipo || "").toLowerCase();
   return tipo.includes("desmont") || tipo.includes("retirada");
@@ -1777,6 +1948,10 @@ function listaMateriaisRotas(listaRotas = []) {
     if (rotaEhDesmontagem(rota)) return;
 
     const evento = rota.evento || {};
+    if (rota.atendimentoExtra && String(rota.atendimentoExtra.tipo || '').toLowerCase().includes('troca')) {
+      rtTendasNovasAtendimento(rota).forEach(nova => materiaisComCodigo.push(nova));
+      return;
+    }
 
     // Produtos com código continuam item a item.
     (evento.tendas || []).forEach(p => {
@@ -1794,7 +1969,7 @@ function listaMateriaisRotas(listaRotas = []) {
     });
 
     // Extras continuam item a item, pois podem ser serviços ou descrições livres.
-    (evento.produtos_extras || []).forEach(item => {
+    (typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento.produtos_extras || [])).forEach(item => {
       const texto = `${item.descricao || "Extra"} (${item.quantidade || 1})`;
       materiaisComCodigo.push(texto);
     });
@@ -2028,6 +2203,11 @@ function linkGoogleMapsEndereco(endereco) {
   return `<a class="rota-endereco-link" href="${url}" target="_blank" rel="noopener" title="Abrir no Google Maps">${texto}</a>`;
 }
 
+function alertaRotaClienteHtml(rota = {}) {
+  const eventoAlerta = { ...(rota.evento || {}), ...rota, data_evento: rota.data || rota.data_evento || rota?.evento?.data_evento };
+  return typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(eventoAlerta) : "";
+}
+
 function renderizarCardRota(rota, index = 0, total = 0) {
   const carroAtual = rotasCarros[rota.id] || "Sem carro";
   const materiais = rota.materiais && rota.materiais.length ? rota.materiais : ["Sem materiais informados"];
@@ -2061,7 +2241,7 @@ function renderizarCardRota(rota, index = 0, total = 0) {
         </div>
         <div class="rota-col">
           <span>Cliente</span>
-          <strong>${rota.cliente}</strong>
+          <strong class="rota-cliente-alerta-nome">${alertaRotaClienteHtml(rota)}${rota.cliente}</strong>
         </div>
         <div class="rota-col">
           <span>Telefone</span>
@@ -2119,6 +2299,7 @@ function renderizarCardRota(rota, index = 0, total = 0) {
               <button type="button" class="rota-order-btn" title="Descer" data-rota-move="${rota.id}" data-direction="down" data-rota-data="${rota.data}" data-rota-carro-grupo="${carroAtual}" ${index >= total - 1 ? "disabled" : ""}>↓</button>
               ${rota.tipo === "Montagem" ? `<button type="button" class="rota-operacao-btn rota-entregue-btn" title="Marcar material entregue na montagem" data-rota-operacao="entregue" data-rota-id="${rota.id}">✓ Entregue</button>` : ""}
               ${rota.tipo === "Desmontagem" ? `<button type="button" class="rota-operacao-btn rota-recolhido-btn" title="Marcar material recolhido e enviar produtos para revisão" data-rota-operacao="recolhido" data-rota-id="${rota.id}">↩ Recolhido</button>` : ""}
+              ${rota.tipo !== "Montagem" && rota.tipo !== "Desmontagem" ? `<button type="button" class="rota-operacao-btn rota-entregue-btn" title="Marcar atendimento efetuado" data-rota-operacao="efetuado" data-rota-id="${rota.id}">✓ Efetuado</button>` : ""}
               ${rotaUsuarioEhAdmin() && obterOperacaoRota(rota.id)?.status ? `<button type="button" class="rota-operacao-btn rota-reverter-btn" title="Reverter operação desta rota" data-rota-reverter="${rota.id}">↺ Reverter</button>` : ""}
             </div>
           </div>
@@ -2347,7 +2528,22 @@ function imprimirRotaData(data) {
           .toolbar-rota-editavel { position: sticky; top:0; z-index:10; display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 10px; margin:-8px -8px 8px; background:#0f3d66; color:#fff; font-size:12px; }
           .toolbar-rota-editavel button { border:0; border-radius:8px; padding:7px 10px; cursor:pointer; font-weight:700; }
           .toolbar-rota-editavel .secondary { background:#e9eef5; color:#123; }
+          .toolbar-rota-editavel .editor-controls { display:flex; align-items:center; flex-wrap:wrap; gap:5px; justify-content:flex-end; }
+          .toolbar-rota-editavel .editor-controls button { padding:6px 8px; min-width:30px; }
+          .toolbar-rota-editavel .editor-controls input[type="color"] { width:32px; height:30px; border:0; border-radius:8px; padding:2px; background:#e9eef5; cursor:pointer; }
           .rota-editavel-page:focus { outline:2px dashed #7aa7d9; outline-offset:4px; }
+          :root { --rota-print-font-scale: 1; }
+          .rota-editavel-page { font-size: calc(9px * var(--rota-print-font-scale)) !important; }
+          .rota-editavel-page h1 { font-size: calc(18px * var(--rota-print-font-scale)) !important; }
+          .rota-editavel-page h2 { font-size: calc(14px * var(--rota-print-font-scale)) !important; }
+          .rota-editavel-page .titulo strong { font-size: calc(12px * var(--rota-print-font-scale)) !important; }
+          .rota-editavel-page .col span { font-size: calc(9px * var(--rota-print-font-scale)) !important; }
+          .rota-editavel-page .col strong { font-size: calc(10px * var(--rota-print-font-scale)) !important; }
+          .rota-editavel-page .materiais-tags span, .rota-editavel-page .carro-materiais span { font-size: calc(7px * var(--rota-print-font-scale)) !important; }
+          .rota-editavel-page .grid .col:nth-child(6) strong,
+          .rota-editavel-page .grid .col:nth-child(7) strong,
+          .rota-editavel-page .grid .col:nth-child(8) strong { font-size: calc(9px * var(--rota-print-font-scale)) !important; }
+          .rota-editavel-page .grid .col:nth-child(5) strong { font-size: calc(10px * var(--rota-print-font-scale)) !important; }
           @media print { .toolbar-rota-editavel { display:none !important; } body { padding:0; } }
           @page {
             size: landscape;
@@ -2419,12 +2615,23 @@ function imprimirRotaData(data) {
 </style>
       </head>
       <body>
-        <div class="toolbar-rota-editavel">
-          <strong>Rota editável — ajuste textos e arraste as colunas antes de imprimir/salvar PDF</strong>
-          <div>
-            <button type="button" class="secondary" onclick="window.print()">Imprimir / salvar PDF</button>
-            <button type="button" class="secondary" id="rotaResetColunasBtn">Restaurar colunas</button>
-            ${rotaLayoutIsAdmin ? '<button type="button" class="secondary" id="rotaSalvarGlobalColunasBtn">Salvar layout para todos</button>' : ''}
+        <div class="toolbar-rota-editavel" contenteditable="false">
+          <strong>Rota editável — ajuste textos, formatação e colunas antes de imprimir/PDF</strong>
+          <div class="editor-controls" contenteditable="false">
+            <button type="button" class="secondary" data-rota-font="down" title="Diminuir fonte">A−</button>
+            <button type="button" class="secondary" data-rota-font="up" title="Aumentar fonte">A+</button>
+            <button type="button" class="secondary" data-rota-cmd="bold" title="Negrito"><b>N</b></button>
+            <button type="button" class="secondary" data-rota-cmd="italic" title="Itálico"><i>I</i></button>
+            <button type="button" class="secondary" data-rota-cmd="underline" title="Sublinhado"><u>S</u></button>
+            <button type="button" class="secondary" data-rota-cmd="justifyLeft" title="Alinhar à esquerda">☰</button>
+            <button type="button" class="secondary" data-rota-cmd="justifyCenter" title="Centralizar">≡</button>
+            <button type="button" class="secondary" data-rota-cmd="justifyRight" title="Alinhar à direita">☷</button>
+            <input type="color" id="rotaTextColor" value="#1d2b3a" title="Cor do texto">
+            <button type="button" class="secondary" data-rota-cmd="undo" title="Desfazer">↶</button>
+            <button type="button" class="secondary" data-rota-cmd="redo" title="Refazer">↷</button>
+            <button type="button" class="secondary" id="rotaResetColunasBtn">Restaurar padrão</button>
+            ${rotaLayoutIsAdmin ? '<button type="button" class="secondary" id="rotaSalvarGlobalColunasBtn">Salvar modelo para todos</button>' : ''}
+            <button type="button" class="secondary" onclick="window.print()">Imprimir/PDF</button>
             <button type="button" onclick="window.close()">Fechar</button>
           </div>
         </div>
@@ -2465,7 +2672,7 @@ function imprimirRotaData(data) {
 
                   <div class="col">
                     <span>Cliente</span>
-                    <strong>${rota.cliente}</strong>
+                    <strong class="rota-cliente-alerta-nome">${alertaRotaClienteHtml(rota)}${rota.cliente}</strong>
                   </div>
 
                   <div class="col">
@@ -2527,6 +2734,7 @@ function imprimirRotaData(data) {
             const cloudUserKey = "rota_colunas_layout_usuario_" + usuarioKey;
             const cloudGlobalKey = "rota_colunas_layout_global";
             let cols = DEFAULT_COLS.slice();
+            let fontScale = 1;
             let saveTimer = null;
 
             function normalizar(lista) {
@@ -2534,6 +2742,11 @@ function imprimirRotaData(data) {
               const nums = lista.map(Number);
               if (nums.some(v => !Number.isFinite(v) || v <= 0)) return null;
               return nums;
+            }
+
+            function normalizarFontScale(valor) {
+              const n = Number(valor);
+              return Number.isFinite(n) ? Math.min(1.6, Math.max(0.75, n)) : null;
             }
 
             function template(lista) {
@@ -2546,8 +2759,18 @@ function imprimirRotaData(data) {
               document.documentElement.style.setProperty("--rota-colunas-editaveis", template(cols));
             }
 
+            function aplicarFontScale(valor) {
+              fontScale = normalizarFontScale(valor) || 1;
+              document.documentElement.style.setProperty("--rota-print-font-scale", String(fontScale));
+            }
+
             function lerLocal(key) {
-              try { return normalizar(JSON.parse(localStorage.getItem(key) || "null")); } catch(e) { return null; }
+              try {
+                const valor = JSON.parse(localStorage.getItem(key) || "null");
+                if (Array.isArray(valor)) return { colunas: normalizar(valor), fontScale: null };
+                if (!valor) return null;
+                return { colunas: normalizar(valor.colunas), fontScale: normalizarFontScale(valor.fontScale) };
+              } catch(e) { return null; }
             }
 
             function salvarLocal(key, value) {
@@ -2560,7 +2783,9 @@ function imprimirRotaData(data) {
                 if (!sb) return null;
                 const resp = await sb.from("configuracoes_sistema").select("valor").eq("chave", key).maybeSingle();
                 if (resp.error) return null;
-                return normalizar(resp.data && resp.data.valor && resp.data.valor.colunas);
+                const valor = resp.data && resp.data.valor;
+                if (!valor) return null;
+                return { colunas: normalizar(valor.colunas), fontScale: normalizarFontScale(valor.fontScale) };
               } catch(e) { return null; }
             }
 
@@ -2570,7 +2795,7 @@ function imprimirRotaData(data) {
                 if (!sb) return false;
                 const resp = await sb.from("configuracoes_sistema").upsert({
                   chave: key,
-                  valor: { colunas: value, atualizado_em: new Date().toISOString() },
+                  valor: { colunas: value.colunas || value, fontScale: normalizarFontScale(value.fontScale) || fontScale, atualizado_em: new Date().toISOString() },
                   atualizado_em: new Date().toISOString()
                 }, { onConflict: "chave" });
                 return !resp.error;
@@ -2582,7 +2807,9 @@ function imprimirRotaData(data) {
               const globalCloud = await lerCloud(cloudGlobalKey);
               const userLocal = lerLocal(localUserKey);
               const globalLocal = lerLocal(localGlobalKey);
-              aplicar(userCloud || userLocal || globalCloud || globalLocal || DEFAULT_COLS);
+              const escolhido = userCloud || userLocal || globalCloud || globalLocal || { colunas: DEFAULT_COLS, fontScale: 1 };
+              aplicar(escolhido.colunas || DEFAULT_COLS);
+              aplicarFontScale(escolhido.fontScale || 1);
               if (globalCloud) salvarLocal(localGlobalKey, globalCloud);
               if (userCloud) salvarLocal(localUserKey, userCloud);
             }
@@ -2590,8 +2817,8 @@ function imprimirRotaData(data) {
             function agendarSalvarUsuario() {
               clearTimeout(saveTimer);
               saveTimer = setTimeout(async () => {
-                salvarLocal(localUserKey, cols);
-                await salvarCloud(cloudUserKey, cols);
+                salvarLocal(localUserKey, { colunas: cols, fontScale });
+                await salvarCloud(cloudUserKey, { colunas: cols, fontScale });
               }, 250);
             }
 
@@ -2652,22 +2879,50 @@ function imprimirRotaData(data) {
               });
             }
 
+            function executarComando(cmd, valor) {
+              const page = document.querySelector(".rota-editavel-page");
+              if (page) page.focus();
+              try { document.execCommand(cmd, false, valor || null); } catch(e) { console.warn("Comando não aplicado", cmd, e); }
+            }
+
+            function ajustarFonte(delta) {
+              aplicarFontScale((fontScale || 1) + delta);
+              agendarSalvarUsuario();
+            }
+
+            function configurarEditorCompacto() {
+              document.querySelectorAll("[data-rota-cmd]").forEach(btn => {
+                btn.addEventListener("mousedown", ev => ev.preventDefault());
+                btn.addEventListener("click", () => executarComando(btn.dataset.rotaCmd));
+              });
+              document.querySelectorAll("[data-rota-font]").forEach(btn => {
+                btn.addEventListener("mousedown", ev => ev.preventDefault());
+                btn.addEventListener("click", () => ajustarFonte(btn.dataset.rotaFont === "up" ? 0.05 : -0.05));
+              });
+              const color = document.getElementById("rotaTextColor");
+              if (color) {
+                color.addEventListener("mousedown", ev => ev.stopPropagation());
+                color.addEventListener("input", () => executarComando("foreColor", color.value));
+              }
+            }
+
             document.addEventListener("DOMContentLoaded", async () => {
               await carregarLayout();
               criarHandles();
+              configurarEditorCompacto();
               const resetBtn = document.getElementById("rotaResetColunasBtn");
               if (resetBtn) resetBtn.addEventListener("click", async () => {
                 aplicar(DEFAULT_COLS);
-                salvarLocal(localUserKey, cols);
-                await salvarCloud(cloudUserKey, cols);
+                salvarLocal(localUserKey, { colunas: cols, fontScale });
+                await salvarCloud(cloudUserKey, { colunas: cols, fontScale });
               });
               const globalBtn = document.getElementById("rotaSalvarGlobalColunasBtn");
               if (globalBtn) globalBtn.addEventListener("click", async () => {
                 if (!isAdmin) return;
-                if (!confirm("Salvar este layout de colunas como padrão para todos os usuários?")) return;
-                salvarLocal(localGlobalKey, cols);
-                const ok = await salvarCloud(cloudGlobalKey, cols);
-                if (ok) { alert("Layout salvo como padrão para todos."); } else { console.warn("Não foi possível salvar o layout na nuvem."); }
+                if (!confirm("Salvar este modelo de rota como padrão para todos os usuários?")) return;
+                salvarLocal(localGlobalKey, { colunas: cols, fontScale });
+                const ok = await salvarCloud(cloudGlobalKey, { colunas: cols, fontScale });
+                if (ok) { alert("Modelo salvo como padrão para todos."); } else { console.warn("Não foi possível salvar o layout na nuvem."); }
               });
             });
           })();
@@ -2686,8 +2941,9 @@ document.addEventListener("DOMContentLoaded", iniciarRotas);
 let rotasOrdemManual = JSON.parse(localStorage.getItem("rotas_ordem_manual") || "{}");
 
 function salvarRotasOrdemManual() {
+  rtMarcarEdicaoManualOrdemRotas();
   localStorage.setItem("rotas_ordem_manual", JSON.stringify(rotasOrdemManual));
-  salvarRotasOrdemNuvem();
+  return salvarRotasOrdemNuvem();
 }
 
 function ordemManualRota(rota) {
@@ -2711,6 +2967,7 @@ function ordenarRotasPorOrdemManual(listaRotas) {
 }
 
 function inicializarOrdemManualRotas(listaRotas) {
+  let alterou = false;
   const ordenada = ordenarRotasPorOrdemManual(listaRotas);
 
   ordenada.forEach((rota, index) => {
@@ -2718,16 +2975,23 @@ function inicializarOrdemManualRotas(listaRotas) {
 
     if (!Number.isFinite(Number(rotasOrdemManual[id]))) {
       rotasOrdemManual[id] = index + 1;
+      alterou = true;
     }
   });
 
   // Normaliza a ordem do grupo atual para evitar empates/ordens duplicadas.
   const normalizada = ordenarRotasPorOrdemManual(listaRotas);
   normalizada.forEach((rota, index) => {
-    rotasOrdemManual[String(rota.id)] = index + 1;
+    const id = String(rota.id);
+    const novaOrdem = index + 1;
+    if (Number(rotasOrdemManual[id]) !== novaOrdem) {
+      rotasOrdemManual[id] = novaOrdem;
+      alterou = true;
+    }
   });
 
-  salvarRotasOrdemManual();
+  if (alterou) return salvarRotasOrdemManual();
+  return Promise.resolve();
 }
 
 function moverOrdemRota(rotaId, direcao, listaRotas) {
@@ -2750,7 +3014,7 @@ function moverOrdemRota(rotaId, direcao, listaRotas) {
     rotasOrdemManual[String(rota.id)] = index + 1;
   });
 
-  salvarRotasOrdemManual();
+  return salvarRotasOrdemManual();
 }
 
 

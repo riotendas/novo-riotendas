@@ -102,3 +102,103 @@ function grupoMaterialApoio(nome) {
   if (texto.includes("lateral")) return "Acessórios de Tendas";
   return "Materiais Gerais";
 }
+
+// v19-dev: alerta operacional por observação entre asteriscos (*texto*)
+function rtHojeISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function rtEventoDataISO(evento = {}) {
+  return String(evento.data_evento || evento.data || evento.data_montagem || evento.montagem_data || "").slice(0, 10);
+}
+
+function rtEventoEhHojeOuFuturo(evento = {}) {
+  const data = rtEventoDataISO(evento);
+  if (!data) return false;
+  return data >= rtHojeISO();
+}
+
+function rtTextoObservacaoEvento(evento = {}) {
+  return String(
+    evento.observacao_evento ||
+    evento.observacao ||
+    evento.observacoes ||
+    evento.obs ||
+    evento.cliente_observacao ||
+    evento.observacao_cliente ||
+    ""
+  );
+}
+
+function rtExtrairAlertasAsterisco(texto = "") {
+  const alertas = [];
+  const re = /\*([^*\n][^*]*?)\*/g;
+  let match;
+  while ((match = re.exec(String(texto || ""))) !== null) {
+    const valor = String(match[1] || "").trim();
+    if (valor) alertas.push(valor);
+  }
+  return alertas;
+}
+
+function rtEventoAlertaTexto(evento = {}) {
+  if (!rtEventoEhHojeOuFuturo(evento)) return "";
+  return rtExtrairAlertasAsterisco(rtTextoObservacaoEvento(evento)).join(" • ");
+}
+
+function rtEventoEscapeHtml(valor) {
+  return String(valor ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function rtEventoAlertaHtml(evento = {}) {
+  const texto = rtEventoAlertaTexto(evento);
+  if (!texto) return "";
+  const safe = rtEventoEscapeHtml(texto);
+  return `<span class="rt-evento-alerta-asterisco" title="${safe}" data-rt-alerta-obs="${safe}" aria-label="Alerta do evento">⚠️</span>`;
+}
+
+if (!window.__rtEventoAlertaAsteriscoClick) {
+  window.__rtEventoAlertaAsteriscoClick = true;
+  document.addEventListener("click", (ev) => {
+    const alvo = ev.target.closest?.("[data-rt-alerta-obs]");
+    if (!alvo) return;
+    ev.stopPropagation();
+    const txt = alvo.getAttribute("data-rt-alerta-obs") || "";
+    const div = document.createElement("div");
+    div.innerHTML = txt;
+    alert(div.textContent || div.innerText || txt);
+  });
+}
+
+
+// v19-dev: atendimentos extras de eventos recorrentes ficam salvos no próprio evento,
+// usando produtos_extras como campo JSON já existente no Supabase.
+function rtEhAtendimentoExtraRecorrente(item) {
+  return Boolean(item && (item.rt_tipo === "atendimento_extra_recorrente" || item.atendimento_extra_recorrente));
+}
+function rtAtendimentosExtrasRecorrente(evento) {
+  return (Array.isArray(evento?.produtos_extras) ? evento.produtos_extras : []).filter(rtEhAtendimentoExtraRecorrente);
+}
+function rtProdutosExtrasOperacionais(evento) {
+  return (Array.isArray(evento?.produtos_extras) ? evento.produtos_extras : []).filter(item => !rtEhAtendimentoExtraRecorrente(item));
+}
+function rtMesclarProdutosExtrasComAtendimentos(produtosExtrasVisiveis, eventoExistente) {
+  return [
+    ...(Array.isArray(produtosExtrasVisiveis) ? produtosExtrasVisiveis.filter(item => !rtEhAtendimentoExtraRecorrente(item)) : []),
+    ...rtAtendimentosExtrasRecorrente(eventoExistente)
+  ];
+}
+function rtLabelAtendimentoExtra(item) {
+  return String(item?.tipo || item?.descricao || "Atendimento extra").trim() || "Atendimento extra";
+}
+function rtDataHoraAtendimentoExtra(item) {
+  const data = String(item?.data || "").slice(0,10);
+  const hora = String(item?.hora || "").slice(0,5);
+  return { data, hora };
+}
