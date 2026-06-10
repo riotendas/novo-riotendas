@@ -983,6 +983,10 @@
           <strong>Carros da Empresa</strong>
           <span>Adição e edição dos carros usados nas rotas.</span>
         </button>
+        <button type="button" class="config-link-item" data-config-modal="carga">
+          <strong>Carga Operacional</strong>
+          <span>Pontos dos materiais e capacidade dos veículos para o contador dos carros.</span>
+        </button>
         <button type="button" class="config-link-item" data-config-modal="documentos">
           <strong>Modelos de Documentos</strong>
           <span>Editar textos, campos, logo e variáveis de Guia, Contrato e Recibo.</span>
@@ -1098,9 +1102,9 @@
       </dialog>
 
       <dialog id="configModalCarros" class="modal large-modal config-popup">
-        <div class="modal-header"><div><h2>Carros da Empresa</h2><p>Editar os veículos disponíveis para uso nas rotas.</p></div><button type="button" class="modal-close" data-close-config="configModalCarros">×</button></div>
+        <div class="modal-header"><div><h2>Carros da Empresa</h2><p>Editar veículos e capacidade operacional em pontos para o alerta de carga.</p></div><button type="button" class="modal-close" data-close-config="configModalCarros">×</button></div>
         <div class="config-popup-body">
-          <div class="config-inline-form"><input id="novoCarroNome" type="text" placeholder="Nome do carro"><button id="adicionarCarroConfig" type="button">Adicionar carro</button></div>
+          <div class="config-inline-form"><input id="novoCarroNome" type="text" placeholder="Nome do carro"><button id="adicionarCarroConfig" type="button">Adicionar carro</button></div><small>Defina a capacidade de cada veículo em pontos. Ex.: Saveiro 12, Dupla 18, Caminhão 40.</small>
           <div id="listaCarrosConfig" class="config-list"></div>
         </div>
       </dialog>
@@ -1202,6 +1206,32 @@
             </div>
           </div>
           <div class="config-actions"><button id="salvarPreferenciasConfig">Salvar preferências</button></div>
+        </div>
+      </dialog>
+
+      <dialog id="configModalCarga" class="modal large-modal config-popup">
+        <div class="modal-header">
+          <div>
+            <h2>Carga Operacional</h2>
+            <p>Defina os pontos de cada material e a capacidade estimada de cada veículo.</p>
+          </div>
+          <button type="button" class="modal-close" data-close-config="configModalCarga">×</button>
+        </div>
+        <div class="config-popup-body">
+          <div class="config-card">
+            <h3>Pontos por material</h3>
+            <p>Use pontos operacionais para representar volume/esforço no carregamento, não peso real.</p>
+            <div id="listaCargaOperacionalPontos" class="carga-operacional-grid"></div>
+          </div>
+          <div class="config-card">
+            <h3>Capacidade dos veículos</h3>
+            <p>A capacidade de cada carro agora fica em <strong>Configurações → Carros da Empresa</strong>.</p>
+            <div id="listaCargaOperacionalVeiculos" class="carga-operacional-grid hidden"></div>
+          </div>
+          <div class="config-actions">
+            <button id="salvarCargaOperacionalConfig" type="button">Salvar carga operacional</button>
+            <button id="restaurarCargaOperacionalConfig" type="button" class="btn-outline">Restaurar padrão</button>
+          </div>
         </div>
       </dialog>
 

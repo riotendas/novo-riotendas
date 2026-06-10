@@ -699,3 +699,35 @@ document.addEventListener('DOMContentLoaded', rtAplicarScrollDetalheDiaCalendari
 document.addEventListener('click', () => setTimeout(rtAplicarScrollDetalheDiaCalendario, 50));
 document.addEventListener('input', () => setTimeout(rtAplicarScrollDetalheDiaCalendario, 50));
 setInterval(rtAplicarScrollDetalheDiaCalendario, 800);
+
+// v19-dev: correção robusta da seleção de dias no calendário.
+// Usa delegação em fase de captura para impedir que elementos internos do dia bloqueiem o clique.
+(function corrigirCliqueDiaCalendario(){
+  if (window.__rtCalendarioCliqueDiaFix) return;
+  window.__rtCalendarioCliqueDiaFix = true;
+
+  function selecionarDiaCalendario(btn){
+    const iso = btn && btn.dataset ? btn.dataset.calDia : '';
+    if (!iso) return;
+    calendarioDataSelecionada = iso;
+    if (calendarioModoVisual === 'semana') {
+      calendarioDataAtual = new Date(`${iso}T12:00:00`);
+    }
+    renderizarCalendario();
+    renderizarPainelDiaCalendario();
+  }
+
+  document.addEventListener('click', function(evento){
+    const btn = evento.target && evento.target.closest ? evento.target.closest('#calendarioGrid .calendar-day[data-cal-dia]') : null;
+    if (!btn) return;
+    evento.preventDefault();
+    evento.stopPropagation();
+    selecionarDiaCalendario(btn);
+  }, true);
+
+  document.addEventListener('touchend', function(evento){
+    const btn = evento.target && evento.target.closest ? evento.target.closest('#calendarioGrid .calendar-day[data-cal-dia]') : null;
+    if (!btn) return;
+    selecionarDiaCalendario(btn);
+  }, { passive: true, capture: true });
+})();

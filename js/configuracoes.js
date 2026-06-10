@@ -150,13 +150,62 @@ function configPadrao() {
       cidade: "RIO DE JANEIRO",
       banco: "Itaú"
     },
+    cargaOperacional: {
+      pontosItens: {
+        tenda_3x3: 0.5,
+        tenda_4_5x3: 1,
+        tenda_4x4: 1,
+        tenda_5x5: 1.5,
+        tenda_6x3: 1,
+        tenda_6x6: 2,
+        tenda_8x8: 2.5,
+        tenda_10x10: 3,
+        ombrelone: 0.5,
+        mesa_plastica: 0.10,
+        mesa_madeira: 0.15,
+        cadeira_plastica: 0.05,
+        cadeira_madeira: 0.08,
+        caixa_190: 0.30,
+        caixa_360: 0.50,
+        lateral: 0.10,
+        outros: 0
+      },
+      capacidadeVeiculos: {
+        Saveiro: 12,
+        Dupla: 18,
+        Caminhão: 40
+      }
+    },
     modelosDocumentos: modelosDocumentosPadrao()
   };
 }
 
+function rtMesclarConfigPadrao(configSalva = null) {
+  const padrao = configPadrao();
+  const salva = configSalva || {};
+  const mesclada = { ...padrao, ...salva };
+
+  mesclada.pix = { ...(padrao.pix || {}), ...(salva.pix || {}) };
+  mesclada.modelosDocumentos = { ...(padrao.modelosDocumentos || {}), ...(salva.modelosDocumentos || {}) };
+  mesclada.cargaOperacional = {
+    ...(padrao.cargaOperacional || {}),
+    ...(salva.cargaOperacional || {}),
+    pontosItens: {
+      ...((padrao.cargaOperacional || {}).pontosItens || {}),
+      ...(((salva.cargaOperacional || {}).pontosItens) || {})
+    },
+    capacidadeVeiculos: {
+      ...((padrao.cargaOperacional || {}).capacidadeVeiculos || {}),
+      ...(((salva.cargaOperacional || {}).capacidadeVeiculos) || {})
+    }
+  };
+
+  return mesclada;
+}
+
 function carregarConfiguracoes() {
   const salvas = JSON.parse(localStorage.getItem(storageConfigKey) || "null");
-  return { ...configPadrao(), ...(salvas || {}) };
+  return rtMesclarConfigPadrao(salvas);
 }
 
 
@@ -205,7 +254,7 @@ async function sincronizarConfiguracoesNuvem() {
 
   if (configNuvem) {
     const configLocal = carregarConfiguracoes();
-    const configFinal = { ...configLocal, ...configNuvem };
+    const configFinal = rtMesclarConfigPadrao({ ...configLocal, ...configNuvem });
     localStorage.setItem(storageConfigKey, JSON.stringify(configFinal));
     aplicarConfiguracoesNoSistema();
 
@@ -326,6 +375,7 @@ function iniciarConfiguracoes() {
     preencherSelectsFotoPadrao();
     renderizarCoresConfig();
     renderizarFotosPadraoConfig();
+    renderizarCargaOperacionalConfig();
   });
   preencherPreferenciasConfig();
   renderizarCarrosConfig();
@@ -334,6 +384,7 @@ function iniciarConfiguracoes() {
   renderizarCoresConfig();
   preencherSelectsFotoPadrao();
   renderizarFotosPadraoConfig();
+  renderizarCargaOperacionalConfig();
   iniciarModelosDocumentosConfig();
 
   iniciarPopupsConfiguracoes();
@@ -353,6 +404,8 @@ function iniciarConfiguracoes() {
   aoMudar("importarProdutosExcel", importarProdutosExcel);
 
   aoClicar("adicionarMaterialApoioConfig", adicionarMaterialApoioConfig);
+  aoClicar("salvarCargaOperacionalConfig", salvarCargaOperacionalConfig);
+  aoClicar("restaurarCargaOperacionalConfig", restaurarCargaOperacionalConfig);
   renderizarMateriaisApoioConfig();
 
   aoClicar("exportarEventosExcel", exportarEventosExcel);
@@ -384,6 +437,7 @@ function iniciarPopupsConfiguracoes() {
     fotos: "configModalFotos",
     documentos: "configModalDocumentos",
     preferencias: "configModalPreferencias",
+    carga: "configModalCarga",
     logs: "configModalLogs",
     manutencao: "configModalManutencao"
   };
@@ -1487,7 +1541,7 @@ function preencherPreferenciasConfig() {
 
 function renderizarCarrosConfig() {
   const config = carregarConfiguracoes();
-  
+
 const materiaisApoioStyle = document.getElementById('materiais-apoio-align-style') || (()=>{const s=document.createElement('style');s.id='materiais-apoio-align-style';s.textContent=`
 #configModalProdutos .materiais-apoio-toolbar{display:flex;justify-content:flex-end;align-items:center;margin:8px 0 12px;gap:8px}
 #configModalProdutos .materiais-apoio-tabela{width:100%;max-width:760px}
@@ -1496,23 +1550,49 @@ const materiaisApoioStyle = document.getElementById('materiais-apoio-align-style
 #configModalProdutos .material-apoio-config-item .config-actions{display:flex;gap:8px;justify-content:center;width:auto}
 #configModalProdutos .material-apoio-config-item input{min-width:0}
 #configModalProdutos .salvar-materiais-apoio-unico{min-width:150px}
+#configModalCarros .config-list-item.carro-capacidade-item{display:grid!important;grid-template-columns:minmax(150px,1fr) 140px 84px!important;gap:10px!important;align-items:center!important}
+#configModalCarros .carro-capacidade-campo{display:flex;align-items:center;gap:6px;justify-content:flex-end;font-size:12px;color:#4b5563}
+#configModalCarros .carro-capacidade-campo input{width:70px;min-width:0;text-align:right;padding:6px 8px}
 `;document.head.appendChild(s);return s;})();
 
-const lista = document.getElementById("listaCarrosConfig");
+  const lista = document.getElementById("listaCarrosConfig");
+  if (!lista) return;
 
-  lista.innerHTML = config.carros.map(carro => `
-    <div class="config-list-item">
+  const capacidades = ((config.cargaOperacional || {}).capacidadeVeiculos) || {};
+
+  lista.innerHTML = (config.carros || []).map(carro => `
+    <div class="config-list-item carro-capacidade-item">
       <span>${carro}</span>
+      <label class="carro-capacidade-campo">Capacidade
+        <input type="number" step="0.1" min="0" data-carro-capacidade="${carro}" value="${capacidades[carro] ?? ""}" placeholder="pts">
+      </label>
       <button type="button" class="btn-outline" data-remover-carro="${carro}">Excluir</button>
     </div>
   `).join("");
+
+  lista.querySelectorAll("[data-carro-capacidade]").forEach(input => {
+    input.addEventListener("change", () => {
+      const cfg = carregarConfiguracoes();
+      cfg.cargaOperacional = cfg.cargaOperacional || {};
+      cfg.cargaOperacional.capacidadeVeiculos = cfg.cargaOperacional.capacidadeVeiculos || {};
+      cfg.cargaOperacional.capacidadeVeiculos[input.dataset.carroCapacidade] = rtValorNumeroCarga(input.value, 0);
+      salvarConfiguracoes(cfg);
+      if (typeof renderizarCargaOperacionalConfig === "function") renderizarCargaOperacionalConfig();
+      if (typeof renderizarRotas === "function") renderizarRotas();
+      if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
+    });
+  });
 
   lista.querySelectorAll("[data-remover-carro]").forEach(btn => {
     btn.addEventListener("click", () => {
       const config = carregarConfiguracoes();
       config.carros = config.carros.filter(c => c !== btn.dataset.removerCarro);
+      if (config.cargaOperacional && config.cargaOperacional.capacidadeVeiculos) {
+        delete config.cargaOperacional.capacidadeVeiculos[btn.dataset.removerCarro];
+      }
       salvarConfiguracoes(config);
       renderizarCarrosConfig();
+      if (typeof renderizarCargaOperacionalConfig === "function") renderizarCargaOperacionalConfig();
     });
   });
 }
@@ -2041,6 +2121,121 @@ async function adicionarFotoPadraoConfig() {
 
   if (typeof renderizarProdutos === "function") renderizarProdutos();
 }
+
+
+const rtCargaOperacionalItensConfig = [
+  ["tenda_3x3", "Tenda 3x3"],
+  ["tenda_4_5x3", "Tenda 4.5x3"],
+  ["tenda_4x4", "Tenda 4x4"],
+  ["tenda_5x5", "Tenda 5x5"],
+  ["tenda_6x3", "Tenda 6x3"],
+  ["tenda_6x6", "Tenda 6x6"],
+  ["tenda_8x8", "Tenda 8x8"],
+  ["tenda_10x10", "Tenda 10x10"],
+  ["ombrelone", "Ombrelone"],
+  ["mesa_plastica", "Mesa Plástica"],
+  ["mesa_madeira", "Mesa Madeira"],
+  ["cadeira_plastica", "Cadeira Plástica"],
+  ["cadeira_madeira", "Cadeira Madeira"],
+  ["caixa_190", "Caixa térmica 190L"],
+  ["caixa_360", "Caixa térmica 360L"],
+  ["lateral", "Lateral"],
+  ["outros", "Outros"]
+];
+
+function rtValorNumeroCarga(valor, fallback = 0) {
+  const n = Number(String(valor ?? "").replace(",", "."));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function renderizarCargaOperacionalConfig() {
+  const pontosBox = document.getElementById("listaCargaOperacionalPontos");
+  const veiculosBox = document.getElementById("listaCargaOperacionalVeiculos");
+  if (!pontosBox && !veiculosBox) return;
+
+  const config = carregarConfiguracoes();
+  const carga = config.cargaOperacional || {};
+  const pontos = carga.pontosItens || {};
+  const capacidades = carga.capacidadeVeiculos || {};
+  const carros = Array.isArray(config.carros) ? config.carros : [];
+
+  if (pontosBox) {
+    pontosBox.innerHTML = rtCargaOperacionalItensConfig.map(([chave, label]) => `
+      <label class="carga-operacional-linha">
+        <span>${label}</span>
+        <input type="number" step="0.01" min="0" data-carga-ponto="${chave}" value="${pontos[chave] ?? 0}">
+      </label>
+    `).join("");
+  }
+
+  if (veiculosBox) {
+    veiculosBox.innerHTML = carros.map(carro => `
+      <label class="carga-operacional-linha">
+        <span>${carro}</span>
+        <input type="number" step="0.1" min="0" data-carga-veiculo="${carro}" value="${capacidades[carro] ?? ""}">
+      </label>
+    `).join("") || `<p class="empty">Cadastre carros para configurar capacidade.</p>`;
+  }
+}
+
+function salvarCargaOperacionalConfig() {
+  const config = carregarConfiguracoes();
+  const antesLogConfig = JSON.parse(JSON.stringify(config));
+  const padrao = configPadrao().cargaOperacional || {};
+
+  config.cargaOperacional = config.cargaOperacional || {};
+  config.cargaOperacional.pontosItens = {
+    ...((padrao.pontosItens) || {}),
+    ...((config.cargaOperacional || {}).pontosItens || {})
+  };
+  config.cargaOperacional.capacidadeVeiculos = {
+    ...((padrao.capacidadeVeiculos) || {}),
+    ...((config.cargaOperacional || {}).capacidadeVeiculos || {})
+  };
+
+  document.querySelectorAll("[data-carga-ponto]").forEach(input => {
+    config.cargaOperacional.pontosItens[input.dataset.cargaPonto] = rtValorNumeroCarga(input.value, 0);
+  });
+
+  document.querySelectorAll("[data-carga-veiculo]").forEach(input => {
+    config.cargaOperacional.capacidadeVeiculos[input.dataset.cargaVeiculo] = rtValorNumeroCarga(input.value, 0);
+  });
+
+  salvarConfiguracoes(config);
+  renderizarCargaOperacionalConfig();
+
+  if (typeof renderizarRotas === "function") renderizarRotas();
+  if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
+
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Configurações",
+      acao: "Carga operacional salva",
+      registro_id: "carga-operacional",
+      registro_nome: "Carga operacional",
+      antes: antesLogConfig,
+      depois: config
+    });
+  }
+
+  alert("Carga operacional salva.");
+}
+
+function restaurarCargaOperacionalConfig() {
+  if (!confirm("Restaurar os pontos e capacidades padrão da carga operacional?")) return;
+
+  const config = carregarConfiguracoes();
+  config.cargaOperacional = JSON.parse(JSON.stringify(configPadrao().cargaOperacional || {}));
+
+  salvarConfiguracoes(config);
+  renderizarCargaOperacionalConfig();
+
+  if (typeof renderizarRotas === "function") renderizarRotas();
+  if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
+
+  alert("Carga operacional restaurada.");
+}
+
 
 function salvarPreferenciasConfig() {
   const config = carregarConfiguracoes();

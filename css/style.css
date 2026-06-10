@@ -15781,3 +15781,154 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
 #rotasSection .rota-drop-after {
   box-shadow: 0 3px 0 #0f5aa0 !important;
 }
+
+
+/* v19-dev: financeiro mobile corrigido - Quitado e Pagar in loco lado a lado */
+@media (max-width: 700px) {
+  #eventoDialog .finance-row-inline,
+  #eventoModal .finance-row-inline,
+  .finance-row-inline {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    align-items: stretch !important;
+  }
+
+  #eventoDialog .finance-check-stack,
+  #eventoModal .finance-check-stack,
+  .finance-row-inline .finance-check-stack {
+    grid-column: 1 / -1 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 8px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    align-self: stretch !important;
+    margin: 0 !important;
+  }
+
+  #eventoDialog .finance-check-stack .finance-paid-compact,
+  #eventoDialog .finance-check-stack .finance-inloco-compact,
+  #eventoModal .finance-check-stack .finance-paid-compact,
+  #eventoModal .finance-check-stack .finance-inloco-compact,
+  .finance-row-inline .finance-check-stack .finance-paid-compact,
+  .finance-row-inline .finance-check-stack .finance-inloco-compact {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 38px !important;
+    padding: 7px 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    box-sizing: border-box !important;
+    line-height: 1 !important;
+  }
+
+  #eventoDialog .finance-check-stack .finance-paid-compact input,
+  #eventoModal .finance-check-stack .finance-paid-compact input,
+  .finance-row-inline .finance-check-stack .finance-paid-compact input {
+    width: 15px !important;
+    height: 15px !important;
+    margin: 0 !important;
+    flex: 0 0 auto !important;
+    position: static !important;
+    transform: none !important;
+  }
+
+  #eventoDialog .finance-check-stack .finance-paid-compact span,
+  #eventoModal .finance-check-stack .finance-paid-compact span,
+  .finance-row-inline .finance-check-stack .finance-paid-compact span {
+    display: inline !important;
+    font-size: 12px !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+  }
+}
+
+/* v19-dev: contador de materiais no Rota Mobile ao lado do botão de rota */
+.rua-mobile-carro-selecionado,
+.rua-mobile-carro-grupo {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+}
+
+.rua-mobile-carro-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex: 0 0 auto !important;
+}
+
+.rua-mobile-carro-contador-btn,
+.rua-mobile-carro-maps-btn {
+  min-width: 36px !important;
+  height: 32px !important;
+  padding: 4px 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid var(--primary, #0d4f8b) !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  color: var(--primary, #0d4f8b) !important;
+  font-weight: 800 !important;
+}
+
+
+/* v19-dev: Carga operacional configurável */
+.carga-operacional-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.carga-operacional-linha {
+  display: grid !important;
+  grid-template-columns: 1fr 82px;
+  align-items: center;
+  gap: 8px;
+  margin: 0 !important;
+  font-size: 0.88rem;
+}
+
+.carga-operacional-linha input {
+  width: 100%;
+  text-align: right;
+  padding: 6px 8px;
+}
+
+.rota-contador-resumo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 4px 0 8px;
+}
+
+.rota-contador-linha-principal {
+  font-weight: 700;
+  color: #16324f;
+  line-height: 1.25;
+}
+
+.rota-contador-linha-secundaria {
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: #64788c;
+  line-height: 1.2;
+}
+
+/* v19-dev: garantir que o clique sempre selecione o dia do calendário, mesmo tocando em itens internos */
+#calendarioGrid .calendar-day .cal-item,
+#calendarioGrid .calendar-day .cal-more,
+#calendarioGrid .calendar-day .calendar-day-items span {
+  pointer-events: none !important;
+}

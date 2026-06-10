@@ -728,13 +728,26 @@ function salvarRotasCarrosLocal() {
   return salvarRotasCarrosNuvem();
 }
 
+const storageRotasOrdemKey = "rotas_ordem_manual";
+const storageRotasOrdemAtualizadaKey = "rotas_ordem_manual_atualizada_em";
+const storageRotasOrdemPendenteKey = "rotas_ordem_manual_pendente";
+
+function rtTimestampOrdemLocal() {
+  return Number(localStorage.getItem(storageRotasOrdemAtualizadaKey) || "0") || 0;
+}
+
+function rtSetTimestampOrdemLocal(timestamp = Date.now()) {
+  localStorage.setItem(storageRotasOrdemAtualizadaKey, String(timestamp));
+  return timestamp;
+}
+
 async function carregarRotasOrdemNuvem() {
   if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
 
   try {
     const { data, error } = await supabaseClient
       .from("app_config")
-      .select("valor")
+      .select("valor, atualizado_em")
       .eq("chave", "rotas_ordem_manual")
       .maybeSingle();
 
@@ -743,42 +756,54 @@ async function carregarRotasOrdemNuvem() {
       return null;
     }
 
-    return data?.valor || null;
+    if (!data?.valor || typeof data.valor !== "object") return null;
+    return {
+      valor: data.valor,
+      atualizadoEm: data.atualizado_em ? new Date(data.atualizado_em).getTime() : 0
+    };
   } catch (erro) {
     console.warn("Erro ao carregar ordem das rotas na nuvem:", erro);
     return null;
   }
 }
 
-async function salvarRotasOrdemNuvem() {
-  if (typeof supabaseClient === "undefined" || !supabaseClient) return;
+async function salvarRotasOrdemNuvem(timestamp = rtTimestampOrdemLocal() || Date.now()) {
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return false;
 
   try {
+    const dataIso = new Date(timestamp).toISOString();
     const { error } = await supabaseClient
       .from("app_config")
       .upsert({
         chave: "rotas_ordem_manual",
         valor: rotasOrdemManual || {},
-        atualizado_em: new Date().toISOString()
+        atualizado_em: dataIso
       }, { onConflict: "chave" });
 
-    if (error) console.warn("Não foi possível salvar ordem das rotas na nuvem:", error);
+    if (error) {
+      console.warn("Não foi possível salvar ordem das rotas na nuvem:", error);
+      return false;
+    }
+    return true;
   } catch (erro) {
     console.warn("Erro ao salvar ordem das rotas na nuvem:", erro);
+    return false;
   }
 }
 
 async function sincronizarRotasOrdemNuvem() {
   const nuvem = await carregarRotasOrdemNuvem();
+  const localTs = rtTimestampOrdemLocal();
 
-  if (nuvem && typeof nuvem === "object") {
-    rotasOrdemManual = { ...rotasOrdemManual, ...nuvem };
-    localStorage.setItem("rotas_ordem_manual", JSON.stringify(rotasOrdemManual));
+  if (nuvem?.valor && nuvem.atualizadoEm > localTs) {
+    rotasOrdemManual = { ...rotasOrdemManual, ...nuvem.valor };
+    localStorage.setItem(storageRotasOrdemKey, JSON.stringify(rotasOrdemManual));
+    rtSetTimestampOrdemLocal(nuvem.atualizadoEm);
     renderizarRotas();
     return;
   }
 
-  await salvarRotasOrdemNuvem();
+  // Não salvar ordem automaticamente na inicialização. Somente ações manuais salvam na nuvem.
 }
 
 
@@ -835,20 +860,42 @@ async function atualizarCarrosRotasDaNuvemSeNecessario() {
 }
 
 async function atualizarOrdemRotasDaNuvemSeNecessario() {
+  const pendenteRaw = localStorage.getItem(storageRotasOrdemPendenteKey);
+  if (pendenteRaw) {
+    try {
+      const pendente = JSON.parse(pendenteRaw);
+      if (pendente?.valor && typeof pendente.valor === "object") {
+        rotasOrdemManual = pendente.valor;
+        localStorage.setItem(storageRotasOrdemKey, JSON.stringify(rotasOrdemManual));
+        rtSetTimestampOrdemLocal(pendente.atualizadoEm || Date.now());
+        const salvou = await salvarRotasOrdemNuvem(pendente.atualizadoEm || rtTimestampOrdemLocal());
+        if (salvou) localStorage.removeItem(storageRotasOrdemPendenteKey);
+      }
+    } catch (erro) {
+      console.warn("Não foi possível reenviar ordem pendente:", erro);
+    }
+    return;
+  }
+
   if (rtEdicaoManualRecenteOrdemRotas()) return;
   const agora = Date.now();
   if (agora - ultimaSincronizacaoOrdemRotas < 15000) return;
 
   ultimaSincronizacaoOrdemRotas = agora;
   const nuvem = await carregarRotasOrdemNuvem();
+  const localTs = rtTimestampOrdemLocal();
 
-  if (nuvem && typeof nuvem === "object") {
+  // A nuvem só pode vencer se for comprovadamente mais recente que esta aba.
+  // Isso evita que outra tela/aba com ordem antiga faça a lista voltar sozinha.
+  if (nuvem?.valor && nuvem.atualizadoEm > localTs) {
     const atual = JSON.stringify(rotasOrdemManual || {});
-    const novo = JSON.stringify({ ...rotasOrdemManual, ...nuvem });
+    const novoMapa = { ...rotasOrdemManual, ...nuvem.valor };
+    const novo = JSON.stringify(novoMapa);
 
     if (atual !== novo) {
-      rotasOrdemManual = { ...rotasOrdemManual, ...nuvem };
-      localStorage.setItem("rotas_ordem_manual", JSON.stringify(rotasOrdemManual));
+      rotasOrdemManual = novoMapa;
+      localStorage.setItem(storageRotasOrdemKey, JSON.stringify(rotasOrdemManual));
+      rtSetTimestampOrdemLocal(nuvem.atualizadoEm);
       if (document.getElementById("rotasSection")?.classList.contains("active-section")) renderizarRotas();
       if (typeof renderizarRuaMobile === "function" && document.getElementById("ruaMobileSection")?.classList.contains("active-section")) renderizarRuaMobile();
     }
@@ -1702,43 +1749,229 @@ function rtTipoApoioResumo(item) {
   return "";
 }
 
-function rtResumoCargaCarro(listaRotas = []) {
-  const cont = { "6x3": 0, "4.5x3": 0, "4x4": 0, "3x3": 0, omb: 0, mes: 0, cad: 0 };
+function rtCorMaterialResumo(item, textoExtra = "") {
+  const texto = rtNormalizarTexto([
+    item?.cor,
+    item?.nome,
+    item?.descricao,
+    item?.categoria,
+    item?.tipo,
+    textoExtra
+  ].filter(Boolean).join(" "));
+
+  if (texto.includes("crist")) return "Crist";
+  if (texto.includes("branca") || texto.includes("branco")) return "Br";
+  if (texto.includes("preta") || texto.includes("preto")) return "Preta";
+  if (texto.includes("azul")) return "Azul";
+  if (texto.includes("verde")) return "Verde";
+  if (texto.includes("vermel")) return "Verm";
+  if (texto.includes("amarel")) return "Amar";
+  return "";
+}
+
+function rtTipoMaterialResumo(item, textoExtra = "") {
+  const texto = rtNormalizarTexto([
+    item?.nome,
+    item?.descricao,
+    item?.categoria,
+    item?.tipo,
+    item?.material,
+    textoExtra
+  ].filter(Boolean).join(" "));
+
+  if (texto.includes("plast")) return "Plast";
+  if (texto.includes("madeira") || texto.includes("mad")) return "Mad";
+  if (texto.includes("crist")) return "Crist";
+  if (texto.includes("branca") || texto.includes("branco")) return "Br";
+  return "";
+}
+
+function rtAdicionarContagemMapa(mapa, chave, qtd) {
+  if (!chave) return;
+  mapa[chave] = (mapa[chave] || 0) + (Number(qtd) || 0);
+}
+
+function rtCargaOperacionalConfigAtual() {
+  const padrao = {
+    pontosItens: {
+      tenda_3x3: 0.5,
+      tenda_4_5x3: 1,
+      tenda_4x4: 1,
+      tenda_5x5: 1.5,
+      tenda_6x3: 1,
+      tenda_6x6: 2,
+      tenda_8x8: 2.5,
+      tenda_10x10: 3,
+      ombrelone: 0.5,
+      mesa_plastica: 0.10,
+      mesa_madeira: 0.15,
+      cadeira_plastica: 0.05,
+      cadeira_madeira: 0.08,
+      caixa_190: 0.30,
+      caixa_360: 0.50,
+      lateral: 0.10,
+      outros: 0
+    },
+    capacidadeVeiculos: {}
+  };
+
+  try {
+    const config = (typeof carregarConfiguracoes === "function") ? carregarConfiguracoes() : (window.configRioTendas || {});
+    const carga = config?.cargaOperacional || {};
+    return {
+      ...padrao,
+      ...carga,
+      pontosItens: { ...(padrao.pontosItens || {}), ...((carga.pontosItens) || {}) },
+      capacidadeVeiculos: { ...(padrao.capacidadeVeiculos || {}), ...((carga.capacidadeVeiculos) || {}) }
+    };
+  } catch (erro) {
+    return padrao;
+  }
+}
+
+function rtChaveTendaCarga(tamanho) {
+  return `tenda_${String(tamanho || "").replace(",", ".").replace(".", "_").replace("x", "x")}`;
+}
+
+function rtChaveApoioCarga(tipoApoio, subtipo = "", texto = "") {
+  const n = rtNormalizarTexto([subtipo, texto].filter(Boolean).join(" "));
+
+  if (tipoApoio === "mes") {
+    if (n.includes("mad")) return "mesa_madeira";
+    return "mesa_plastica";
+  }
+
+  if (tipoApoio === "cad") {
+    if (n.includes("mad")) return "cadeira_madeira";
+    return "cadeira_plastica";
+  }
+
+  if (tipoApoio === "omb") return "ombrelone";
+  if (n.includes("190")) return "caixa_190";
+  if (n.includes("360")) return "caixa_360";
+  if (n.includes("lateral")) return "lateral";
+
+  return "outros";
+}
+
+function rtPontosOperacionaisPorChave(chave, qtd) {
+  const config = rtCargaOperacionalConfigAtual();
+  const valor = Number((config.pontosItens || {})[chave]);
+  return (Number.isFinite(valor) ? valor : 0) * (Number(qtd) || 0);
+}
+
+function rtPesoOperacionalTenda(tamanho, qtd) {
+  return rtPontosOperacionaisPorChave(rtChaveTendaCarga(tamanho), qtd);
+}
+
+function rtFormatoContagemMapa(mapa) {
+  return Object.entries(mapa)
+    .filter(([, qtd]) => qtd)
+    .map(([chave, qtd]) => `${rtNumeroCurto(qtd)} ${chave}`);
+}
+
+function rtResumoCargaCarro(listaRotas = [], carro = "") {
+  const tendas = {};
+  const mesas = {};
+  const cadeiras = {};
+  const outros = {};
+
+  let pontosTendas = 0;
+  let totalMesas = 0;
+  let totalCadeiras = 0;
+  let totalOmbrelones = 0;
+  let cargaPts = 0;
+
+  function processarItem(item, textoExtra = "") {
+    const qtd = rtQuantidadeItem(item);
+    const tamanho = rtTamanhoProduto({ ...item, descricao: [item?.descricao, textoExtra].filter(Boolean).join(" ") });
+    const tipoApoio = rtTipoApoioResumo({ ...item, descricao: [item?.descricao, textoExtra].filter(Boolean).join(" ") });
+
+    if (tamanho) {
+      const cor = rtCorMaterialResumo(item, textoExtra);
+      rtAdicionarContagemMapa(tendas, `${tamanho}${cor ? " " + cor : ""}`, qtd);
+      const pontosItemTenda = rtPesoOperacionalTenda(tamanho, qtd);
+      pontosTendas += pontosItemTenda;
+      cargaPts += pontosItemTenda;
+      return;
+    }
+
+    if (tipoApoio === "mes") {
+      const subtipo = rtTipoMaterialResumo(item, textoExtra);
+      rtAdicionarContagemMapa(mesas, `Mes${subtipo ? " " + subtipo : ""}`, qtd);
+      totalMesas += qtd;
+      cargaPts += rtPontosOperacionaisPorChave(rtChaveApoioCarga("mes", subtipo, [item?.nome, item?.descricao, textoExtra].filter(Boolean).join(" ")), qtd);
+      return;
+    }
+
+    if (tipoApoio === "cad") {
+      const subtipo = rtTipoMaterialResumo(item, textoExtra);
+      rtAdicionarContagemMapa(cadeiras, `Cad${subtipo ? " " + subtipo : ""}`, qtd);
+      totalCadeiras += qtd;
+      cargaPts += rtPontosOperacionaisPorChave(rtChaveApoioCarga("cad", subtipo, [item?.nome, item?.descricao, textoExtra].filter(Boolean).join(" ")), qtd);
+      return;
+    }
+
+    if (tipoApoio === "omb") {
+      rtAdicionarContagemMapa(outros, "Omb", qtd);
+      totalOmbrelones += qtd;
+      cargaPts += rtPontosOperacionaisPorChave("ombrelone", qtd);
+    }
+  }
 
   (listaRotas || []).forEach(rota => {
     if (rotaEhDesmontagem(rota)) return;
     const evento = rota.evento || {};
-    if (rota.atendimentoExtra && String(rota.atendimentoExtra.tipo || '').toLowerCase().includes('troca')) {
-      rtTendasNovasAtendimento(rota).forEach(txt => {
-        const tamanho = rtTamanhoProduto({ descricao: txt, tamanho: txt });
-        if (tamanho) cont[tamanho] += 1;
-      });
+
+    if (rota.atendimentoExtra && String(rota.atendimentoExtra.tipo || "").toLowerCase().includes("troca")) {
+      rtTendasNovasAtendimento(rota).forEach(txt => processarItem({ descricao: txt, tamanho: txt }, txt));
       return;
     }
 
-    (evento.tendas || []).forEach(item => {
-      const tamanho = rtTamanhoProduto(item);
-      if (tamanho) cont[tamanho] += rtQuantidadeItem(item);
-      const tipo = rtTipoApoioResumo(item);
-      if (tipo && tipo !== "mes" && tipo !== "cad") cont[tipo] += rtQuantidadeItem(item);
-    });
-
-    [...(evento.itens_apoio || []), ...(typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento.produtos_extras || []))].forEach(item => {
-      const tipo = rtTipoApoioResumo(item);
-      if (tipo) cont[tipo] += rtQuantidadeItem(item);
-    });
+    (evento.tendas || []).forEach(item => processarItem(item));
+    [
+      ...(evento.itens_apoio || []),
+      ...(typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento.produtos_extras || []))
+    ].forEach(item => processarItem(item));
   });
 
-  const partes = [];
-  if (cont["6x3"]) partes.push(`${cont["6x3"]} 6x3`);
-  if (cont["4.5x3"]) partes.push(`${cont["4.5x3"]} 4.5x3`);
-  if (cont["4x4"]) partes.push(`${cont["4x4"]} 4x4`);
-  if (cont["3x3"]) partes.push(`${cont["3x3"]} 3x3`);
-  if (cont.omb) partes.push(`${cont.omb} omb`);
-  if (cont.mes) partes.push(`${cont.mes} mes`);
-  if (cont.cad) partes.push(`${cont.cad} cad`);
+  const linhaDetalhada = [
+    ...rtFormatoContagemMapa(tendas),
+    ...rtFormatoContagemMapa(mesas),
+    ...rtFormatoContagemMapa(cadeiras),
+    ...rtFormatoContagemMapa(outros)
+  ].join(" • ");
 
-  return partes.length ? partes : ["Sem material de montagem neste carro"];
+  const resumoOperacional = [];
+  if (pontosTendas) resumoOperacional.push(`T${rtNumeroCurto(pontosTendas)}`);
+  if (totalMesas) resumoOperacional.push(`M${rtNumeroCurto(totalMesas)}`);
+  if (totalCadeiras) resumoOperacional.push(`C${rtNumeroCurto(totalCadeiras)}`);
+  if (totalOmbrelones) resumoOperacional.push(`O${rtNumeroCurto(totalOmbrelones)}`);
+
+  const linhas = [];
+
+  if (linhaDetalhada) linhas.push(linhaDetalhada);
+
+  const configCargaFinal = rtCargaOperacionalConfigAtual();
+  const capacidades = configCargaFinal.capacidadeVeiculos || {};
+  const capacidade = Number(capacidades[carro] ?? capacidades[String(carro || "").trim()] ?? 0);
+  const cargaArredondada = Math.round(cargaPts * 10) / 10;
+  let textoCarga = cargaPts ? `Carga ${rtNumeroCurto(cargaArredondada)} pts` : "";
+
+  if (cargaPts && capacidade > 0) {
+    const percentual = cargaArredondada / capacidade;
+    const statusCarga = percentual > 1 ? "🔴 Excesso" : (percentual >= 0.85 ? "🟡 Cheio" : "🟢 OK");
+    textoCarga = `Carga ${rtNumeroCurto(cargaArredondada)} / ${rtNumeroCurto(capacidade)} pts ${statusCarga}`;
+  }
+
+  const linhaOperacional = [
+    resumoOperacional.join(" • "),
+    textoCarga
+  ].filter(Boolean).join(" • ");
+
+  if (linhaOperacional) linhas.push(linhaOperacional);
+
+  return linhas.length ? linhas : ["Sem material de montagem neste carro"];
 }
 
 function rtPrimeiroNomeCliente(nome) {
@@ -1852,7 +2085,7 @@ function rtAbrirContadorCarro(listaRotas = [], carro = "Carro") {
     document.body.appendChild(dialog);
   }
 
-  const contagem = rtResumoCargaCarro(listaRotas);
+  const contagem = rtResumoCargaCarro(listaRotas, carro);
   const miniRotas = rtMiniResumoRotasCarro(listaRotas);
 
   dialog.innerHTML = `
@@ -1865,12 +2098,15 @@ function rtAbrirContadorCarro(listaRotas = [], carro = "Carro") {
     </div>
     <div class="rota-contador-body">
       <h3>Material de montagem</h3>
-      <div class="rota-contador-chips">${contagem.map(item => `<span>${item}</span>`).join("")}</div>
+      <div class="rota-contador-resumo">
+        ${contagem.length ? `<div class="rota-contador-linha-principal">${contagem[0]}</div>` : ""}
+        ${contagem.slice(1).map(item => `<div class="rota-contador-linha-secundaria">${item}</div>`).join("")}
+      </div>
       <h3>Mini resumo da rota</h3>
       <div class="rota-contador-lista">
         ${miniRotas.length ? miniRotas.map(item => `<div>${item}</div>`).join("") : `<p class="empty">Sem paradas neste carro.</p>`}
       </div>
-      <p class="rota-contador-legenda">Tendas: 6x3, 4.5x3 e 4x4 valem 1 ponto; 3x3 vale 0,5 ponto.</p>
+      <p class="rota-contador-legenda">Pontos em Configurações → Carga Operacional. Limite do carro em Configurações → Carros da Empresa.</p>
     </div>
   `;
 
@@ -3135,12 +3371,28 @@ function imprimirRotaData(data) {
 }
 
 document.addEventListener("DOMContentLoaded", iniciarRotas);
-let rotasOrdemManual = JSON.parse(localStorage.getItem("rotas_ordem_manual") || "{}");
+let rotasOrdemManual = JSON.parse(localStorage.getItem(storageRotasOrdemKey) || "{}");
 
 function salvarRotasOrdemManual() {
   rtMarcarEdicaoManualOrdemRotas();
-  localStorage.setItem("rotas_ordem_manual", JSON.stringify(rotasOrdemManual));
-  return salvarRotasOrdemNuvem();
+  const atualizadoEm = rtSetTimestampOrdemLocal(Date.now());
+  localStorage.setItem(storageRotasOrdemKey, JSON.stringify(rotasOrdemManual));
+  localStorage.setItem(storageRotasOrdemPendenteKey, JSON.stringify({
+    atualizadoEm,
+    valor: rotasOrdemManual || {}
+  }));
+
+  return salvarRotasOrdemNuvem(atualizadoEm).then(salvou => {
+    if (salvou) localStorage.removeItem(storageRotasOrdemPendenteKey);
+    return salvou;
+  }).catch(erro => {
+    console.warn("Ordem das rotas ficará pendente para reenviar:", erro);
+    return false;
+  });
+}
+
+function salvarRotasOrdemLocalSemNuvem() {
+  localStorage.setItem(storageRotasOrdemKey, JSON.stringify(rotasOrdemManual));
 }
 
 function ordemManualRota(rota) {
@@ -3187,7 +3439,7 @@ function inicializarOrdemManualRotas(listaRotas) {
     }
   });
 
-  if (alterou) return salvarRotasOrdemManual();
+  if (alterou) salvarRotasOrdemLocalSemNuvem();
   return Promise.resolve();
 }
 

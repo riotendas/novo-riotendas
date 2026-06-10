@@ -447,6 +447,18 @@ function obterRotasRuaMobile() {
   });
 }
 
+
+function ruaMobileAbrirContadorCarro(carroAlvo) {
+  const carro = String(carroAlvo || "Sem carro").trim() || "Sem carro";
+  const lista = obterRotasRuaMobile().filter(rota => String(ruaMobileCarroDaRota(rota) || "Sem carro").trim() === carro);
+  if (typeof rtAbrirContadorCarro === "function") {
+    rtAbrirContadorCarro(lista, carro);
+    return;
+  }
+  const contagem = typeof rtResumoCargaCarro === "function" ? rtResumoCargaCarro(lista) : [];
+  alert(`${carro}\n\n${contagem.length ? contagem.join("; ") : "Sem material de montagem neste carro."}`);
+}
+
 function renderizarRuaMobile() {
   const listaEl = document.getElementById("ruaMobileLista");
   const resumoEl = document.getElementById("ruaMobileResumo");
@@ -492,7 +504,7 @@ function renderizarRuaMobile() {
 
   const ruaMobileCarroSelecionado = document.getElementById("ruaMobileCarro")?.value || "";
   const ruaMobileHeaderCarroSelecionado = ruaMobileCarroSelecionado
-    ? `<div class="rua-mobile-carro-selecionado"><span>🚚 ${ruaMobileCarroSelecionado}</span><button type="button" class="rua-mobile-carro-maps-btn" data-rua-maps-carro="${String(ruaMobileCarroSelecionado).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Abrir rota pendente do carro no Google Maps">🗺️</button></div>`
+    ? `<div class="rua-mobile-carro-selecionado"><span>🚚 ${ruaMobileCarroSelecionado}</span><div class="rua-mobile-carro-actions"><button type="button" class="rua-mobile-carro-contador-btn" data-rua-contador-carro="${String(ruaMobileCarroSelecionado).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Ver materiais do carro">📦</button><button type="button" class="rua-mobile-carro-maps-btn" data-rua-maps-carro="${String(ruaMobileCarroSelecionado).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Abrir rota pendente do carro no Google Maps">🗺️</button></div></div>`
     : "";
 
   listaEl.innerHTML = ruaMobileHeaderCarroSelecionado + rotasRender.map(({ rota, idx, carroGrupo, inicioGrupo }) => {
@@ -510,7 +522,7 @@ function renderizarRuaMobile() {
     const expandido = concluida && ruaMobileCardExpandido(rota);
     const classeConclusao = concluida ? (expandido ? "rua-mobile-card-concluido rua-mobile-card-expandido" : "rua-mobile-card-concluido") : "";
     const ruaMobileGrupoCarro = ruaMobileAgruparPorCarro && inicioGrupo
-      ? `<div class="rua-mobile-carro-grupo"><span>🚚 ${carroGrupo}</span><button type="button" class="rua-mobile-carro-maps-btn" data-rua-maps-carro="${String(carroGrupo).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Abrir rota pendente do carro no Google Maps">🗺️</button></div>`
+      ? `<div class="rua-mobile-carro-grupo"><span>🚚 ${carroGrupo}</span><div class="rua-mobile-carro-actions"><button type="button" class="rua-mobile-carro-contador-btn" data-rua-contador-carro="${String(carroGrupo).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Ver materiais do carro">📦</button><button type="button" class="rua-mobile-carro-maps-btn" data-rua-maps-carro="${String(carroGrupo).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Abrir rota pendente do carro no Google Maps">🗺️</button></div></div>`
       : "";
 
     return `
@@ -566,6 +578,14 @@ function renderizarRuaMobile() {
       } finally {
         btn.disabled = false;
       }
+    });
+  });
+
+  listaEl.querySelectorAll("[data-rua-contador-carro]").forEach(btn => {
+    btn.addEventListener("click", ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      ruaMobileAbrirContadorCarro(btn.dataset.ruaContadorCarro || "");
     });
   });
 
