@@ -15932,3 +15932,327 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
 #calendarioGrid .calendar-day .calendar-day-items span {
   pointer-events: none !important;
 }
+
+/* v19-dev: modo Resumo compacto no calendário */
+.calendar-filters {
+  grid-template-columns: 130px 140px 190px auto;
+}
+
+.calendario-resumo-toggle {
+  align-self: end;
+  height: 37px;
+  padding: 7px 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.calendario-resumo-toggle.active {
+  background: #2b7ed0;
+  border-color: #2b7ed0;
+  color: #fff;
+}
+
+.rt-cal-resumo-carro {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 4px;
+  min-width: 0;
+}
+
+.rt-cal-resumo-carro-titulo {
+  font-size: 0.58rem;
+  line-height: 1;
+  font-weight: 900;
+  color: #34495e;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rt-cal-resumo-linha {
+  font-size: 0.58rem !important;
+  line-height: 1.1 !important;
+  padding: 2px 3px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.rt-cal-mb {
+  font-weight: 900;
+  display: inline;
+}
+
+.rt-cal-m {
+  color: #15803d;
+}
+
+.rt-cal-b {
+  color: #8b5a2b;
+}
+
+.rt-cal-resumo-painel {
+  display: grid;
+  gap: 8px;
+}
+
+.rt-cal-resumo-painel .rt-cal-resumo-carro {
+  border: 1px solid #dce6f0;
+  border-radius: 10px;
+  padding: 7px;
+  background: #fbfdff;
+}
+
+.rt-cal-resumo-painel .rt-cal-resumo-carro-titulo {
+  font-size: 0.72rem;
+  margin-bottom: 3px;
+}
+
+.rt-cal-resumo-painel .rt-cal-resumo-linha {
+  font-size: 0.72rem !important;
+  padding: 5px 6px !important;
+}
+
+@media (max-width: 900px) {
+  .calendar-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .calendario-resumo-toggle {
+    width: 100%;
+  }
+}
+
+.carga-operacional-linha-resumo {
+  grid-template-columns: minmax(130px, 1fr) 74px 82px 70px;
+  gap: 6px;
+  align-items: center;
+}
+.carga-operacional-linha-resumo select,
+.carga-operacional-linha-resumo input[type="text"] {
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid #d5deea;
+  border-radius: 8px;
+  padding: 5px 7px;
+  font: inherit;
+}
+
+/* v19-dev fix: organiza Pontos por material em cards alinhados */
+#listaCargaOperacionalPontos.carga-operacional-grid {
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)) !important;
+  gap: 10px 12px !important;
+  align-items: stretch !important;
+}
+
+#listaCargaOperacionalPontos .carga-operacional-linha-resumo {
+  display: grid !important;
+  grid-template-columns: minmax(120px, 1.3fr) 82px 104px 86px !important;
+  gap: 8px !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 8px 10px !important;
+  border: 1px solid #dbe4f0 !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+  box-sizing: border-box !important;
+}
+
+#listaCargaOperacionalPontos .carga-operacional-linha-resumo span {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-weight: 800 !important;
+}
+
+#listaCargaOperacionalPontos .carga-operacional-linha-resumo input,
+#listaCargaOperacionalPontos .carga-operacional-linha-resumo select {
+  min-width: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 700px) {
+  #listaCargaOperacionalPontos.carga-operacional-grid {
+    grid-template-columns: 1fr !important;
+  }
+  #listaCargaOperacionalPontos .carga-operacional-linha-resumo {
+    grid-template-columns: 1fr 72px !important;
+  }
+  #listaCargaOperacionalPontos .carga-operacional-linha-resumo select,
+  #listaCargaOperacionalPontos .carga-operacional-linha-resumo input[type="text"] {
+    grid-column: span 1 !important;
+  }
+}
+
+/* v19-dev: Calendário Resumo - edição rápida e destaque fora do horário comercial */
+.rt-cal-resumo-linha.rt-cal-fora-comercial {
+  background: #fff2b8 !important;
+  border: 1px solid #f0cf5a !important;
+  color: #1f2937 !important;
+}
+
+.rt-cal-resumo-linha.rt-cal-resumo-editavel {
+  cursor: pointer;
+}
+
+.rt-cal-resumo-linha.rt-cal-resumo-editavel:hover {
+  filter: brightness(0.98);
+  box-shadow: inset 0 0 0 1px rgba(43, 126, 208, 0.25);
+}
+
+.rt-cal-resumo-linha.rt-cal-resumo-editavel:hover::before {
+  content: "✎ ";
+  font-weight: 900;
+}
+
+
+/* v19-dev: endereço/bairro/complemento/referência em linha e colaborador inferior direito */
+#eventoDialog .compact-client-grid{
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  column-gap: 8px !important;
+  row-gap: 7px !important;
+  align-items: start !important;
+}
+#eventoDialog .compact-client-grid > label:nth-child(1){ grid-column: 1 / span 3 !important; }
+#eventoDialog .compact-client-grid > label:nth-child(2){ grid-column: 4 / span 3 !important; }
+#eventoDialog .compact-client-grid > label:nth-child(3){ grid-column: 7 / span 1 !important; }
+#eventoDialog .compact-client-grid > label:nth-child(4){ grid-column: 8 / span 2 !important; }
+#eventoDialog .compact-client-grid > label:nth-child(5){ grid-column: 10 / span 3 !important; }
+#eventoDialog .compact-client-grid .evento-endereco-wide{ grid-column: 1 / span 4 !important; }
+#eventoDialog .compact-client-grid > label:has(#eventoBairro){ grid-column: 5 / span 2 !important; }
+#eventoDialog .compact-client-grid > label:has(#eventoComplemento){ grid-column: 7 / span 2 !important; }
+#eventoDialog .compact-client-grid .evento-observacao-wide{ grid-column: 9 / span 4 !important; }
+#eventoDialog .compact-client-grid .evento-colaborador-admin-field{
+  grid-column: 10 / span 3 !important;
+  justify-self: stretch !important;
+  margin-top: 0 !important;
+}
+#eventoDialog #eventoEndereco,
+#eventoDialog #eventoClienteObservacao{
+  min-height: 46px !important;
+  height: 46px !important;
+}
+.cal-day-panel-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:8px;
+}
+.cal-day-panel-header h3{
+  margin:0 !important;
+}
+#eventoDialog .cal-ver-rota-dia,
+.cal-ver-rota-dia{
+  width:auto !important;
+  margin:0 !important;
+  min-height:28px !important;
+  padding:5px 10px !important;
+  font-size:12px !important;
+  font-weight:800 !important;
+  border-radius:10px !important;
+  white-space:nowrap !important;
+}
+.disp-detail-compact{
+  display:block;
+  line-height:1.15;
+  white-space:nowrap;
+}
+.rt-cal-fora-comercial{
+  background: #fff3b0 !important;
+  border-color: #f4c430 !important;
+}
+@media (max-width: 900px){
+  #eventoDialog .compact-client-grid{ grid-template-columns: 1fr !important; }
+  #eventoDialog .compact-client-grid > label,
+  #eventoDialog .compact-client-grid .evento-endereco-wide,
+  #eventoDialog .compact-client-grid .evento-observacao-wide,
+  #eventoDialog .compact-client-grid .evento-colaborador-admin-field{
+    grid-column: 1 / -1 !important;
+    margin-top: 0 !important;
+  }
+  #eventoDialog #eventoEndereco,
+  #eventoDialog #eventoClienteObservacao{
+    min-height: 54px !important;
+    height: 54px !important;
+  }
+}
+
+/* v19-dev hotfix: alinhar endereço, bairro, cidade, complemento e referência na mesma faixa */
+#eventoDialog .compact-client-grid{
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  align-items: start !important;
+}
+#eventoDialog .compact-client-grid .evento-endereco-wide{
+  grid-column: 1 / span 4 !important;
+  grid-row: 2 !important;
+}
+#eventoDialog .compact-client-grid > label:has(#eventoBairro){
+  grid-column: 5 / span 2 !important;
+  grid-row: 2 !important;
+}
+#eventoDialog .compact-client-grid > label:has(#eventoCidade){
+  grid-column: 7 / span 2 !important;
+  grid-row: 2 !important;
+}
+#eventoDialog .compact-client-grid > label:has(#eventoComplemento){
+  grid-column: 9 / span 2 !important;
+  grid-row: 2 !important;
+}
+#eventoDialog .compact-client-grid .evento-observacao-wide{
+  grid-column: 11 / span 2 !important;
+  grid-row: 2 !important;
+}
+#eventoDialog .compact-client-grid .evento-colaborador-admin-field{
+  grid-column: 10 / span 3 !important;
+  grid-row: 3 !important;
+  justify-self: stretch !important;
+  align-self: start !important;
+  margin-top: 2px !important;
+}
+#eventoDialog .compact-client-grid input,
+#eventoDialog .compact-client-grid select,
+#eventoDialog .compact-client-grid textarea{
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+#eventoDialog #eventoEndereco,
+#eventoDialog #eventoClienteObservacao{
+  min-height: 56px !important;
+  height: 56px !important;
+}
+#eventoDialog .endereco-validacao-row{
+  margin-top: 4px !important;
+  justify-content: flex-start !important;
+}
+#eventoDialog .endereco-validacao-status{
+  display: none !important;
+}
+@media (max-width: 900px){
+  #eventoDialog .compact-client-grid .evento-endereco-wide,
+  #eventoDialog .compact-client-grid > label:has(#eventoBairro),
+  #eventoDialog .compact-client-grid > label:has(#eventoCidade),
+  #eventoDialog .compact-client-grid > label:has(#eventoComplemento),
+  #eventoDialog .compact-client-grid .evento-observacao-wide,
+  #eventoDialog .compact-client-grid .evento-colaborador-admin-field{
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+  }
+}
+
+
+/* v19-dev: mobile manutenção - mostrar próximo uso e última limpeza no card */
+.manut-mobile-card .manut-mobile-card-disp{
+  display:block !important;
+  margin-top:2px !important;
+  color:#475569 !important;
+  font-size:11px !important;
+  line-height:1.2 !important;
+}
+.manut-mobile-disponibilidade-box small{
+  white-space:normal !important;
+}

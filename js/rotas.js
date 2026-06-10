@@ -1615,7 +1615,7 @@ function criarRotasDosEventos() {
         tipoHorario: evento.montagem_tipo || "A partir de",
         cliente: evento.nome || "-",
         telefone: evento.telefone || "-",
-        endereco: evento.endereco || "-",
+        endereco: (typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(evento) : evento.endereco) || "-",
         materiais: montarListaMateriais(evento),
         evento
       });
@@ -1631,7 +1631,7 @@ function criarRotasDosEventos() {
         tipoHorario: evento.desmontagem_tipo || "A partir de",
         cliente: evento.nome || "-",
         telefone: evento.telefone || "-",
-        endereco: evento.endereco || "-",
+        endereco: (typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(evento) : evento.endereco) || "-",
         materiais: montarListaMateriais(evento),
         evento
       });
@@ -1651,7 +1651,7 @@ function criarRotasDosEventos() {
         tipoHorario: "Atendimento extra",
         cliente: `${(item.tipo || "Atendimento").toUpperCase()} — ${evento.nome || "-"}`,
         telefone: evento.telefone || "-",
-        endereco: evento.endereco || "-",
+        endereco: (typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(evento) : evento.endereco) || "-",
         materiais: (String(item.tipo || "").toLowerCase().includes("troca") && item.tenda_entrar)
           ? [rtFormatarTendaTroca(item.tenda_entrar)]
           : (item.observacao ? [item.observacao] : montarListaMateriais(evento)),
@@ -2063,7 +2063,7 @@ function rtResumoCurtoRota(rota) {
 function rtMiniResumoRotasCarro(listaRotas = []) {
   return (listaRotas || []).map(rota => {
     const carga = rtResumoCurtoRota(rota);
-    const bairro = rtBairroEndereco(rota.endereco);
+    const bairro = rota.bairro || rtBairroEndereco(rota.endereco);
     const cliente = rtPrimeiroNomeCliente(rota.cliente);
     const horario = textoHorarioRota(rota.tipoHorario, rota.horario, rota.data);
     return `${carga} - ${bairro} - ${cliente} - ${horario}`;

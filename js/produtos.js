@@ -62,22 +62,28 @@ async function buscarProdutosBanco() {
     return JSON.parse(localStorage.getItem(storageProdutosKey) || "[]");
   }
 
-  const { data, error } = await supabaseClient
-    .from("produtos")
-    .select("id,codigo,tipo,categoria,tamanho,status,cor,observacao,foto,grau_usabilidade,colaborador,historico,locacoes,atualizado_em,criado_em")
-    .order("codigo", { ascending: true });
+  try {
+    const { data, error } = await supabaseClient
+      .from("produtos")
+      .select("id,codigo,tipo,categoria,tamanho,status,cor,observacao,foto,grau_usabilidade,colaborador,historico,locacoes,atualizado_em,criado_em")
+      .order("codigo", { ascending: true });
 
-  if (error) {
-    console.error("Erro Supabase ao buscar produtos:", error);
-    alert(
-      "Erro ao buscar produtos no Supabase.\n\n" +
-      "Mensagem: " + (error.message || "sem mensagem") + "\n" +
-      "Código: " + (error.code || "-") + "\n\n" +
-      "Verifique se a tabela produtos existe e se as políticas de acesso foram liberadas."
-    );
-    return [];
+    if (error) {
+      console.error("Erro Supabase ao buscar produtos:", error);
+      alert(
+        "Erro ao buscar produtos no Supabase.\n\n" +
+        "Mensagem: " + (error.message || "sem mensagem") + "\n" +
+        "Código: " + (error.code || "-") + "\n\n" +
+        "Verifique se a tabela produtos existe e se as políticas de acesso foram liberadas."
+      );
+      return JSON.parse(localStorage.getItem(storageProdutosKey) || "[]");
+    }
+    localStorage.setItem(storageProdutosKey, JSON.stringify(data || []));
+    return data || [];
+  } catch (erro) {
+    console.warn("Falha temporária ao buscar produtos. Mantendo dados locais e tentando novamente depois.", erro);
+    return JSON.parse(localStorage.getItem(storageProdutosKey) || "[]");
   }
-  return data || [];
 }
 
 async function buscarProdutoDetalheBanco(id, usarCache = true) {
@@ -1022,12 +1028,42 @@ function disponibilidadePeriodoProduto(produto) {
   };
 }
 
+function primeiroNomeProdutoDisp(nome) {
+  return String(nome || "Cliente").trim().split(/\s+/)[0] || "Cliente";
+}
+
+function formatarDataCurtaProdutoDisp(dataValor) {
+  if (!dataValor) return "--/--";
+  const d = new Date(String(dataValor).includes("T") ? dataValor : `${dataValor}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "--/--";
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function ultimaLimpezaProduto(produto) {
+  const historico = Array.isArray(produto?.historico) ? produto.historico : [];
+  return historico
+    .map(item => ({ ...item, dataObj: new Date(item.data || item.criado_em || item.atualizado_em || 0) }))
+    .filter(item => !Number.isNaN(item.dataObj.getTime()))
+    .filter(item => {
+      const txt = String(`${item.alteracao || ""} ${item.observacao || ""}`).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return txt.includes("limpeza confirmada") || txt.includes("marcado como limpa") || txt.includes("marcado como limpo") || (txt.includes("limp") && txt.includes("livre"));
+    })
+    .sort((a, b) => b.dataObj - a.dataObj)[0] || null;
+}
+
 function htmlDisponibilidadePeriodoProduto(produto) {
   const d = disponibilidadePeriodoProduto(produto);
+  const proximo = proximoUsoProduto(produto);
+  const limpeza = ultimaLimpezaProduto(produto);
+  const proxLinha = proximo
+    ? `Próx: ${primeiroNomeProdutoDisp(proximo.evento?.nome)} ${formatarDataCurtaProdutoDisp(proximo.inicioComparacao || proximo.intervalo?.inicio)}`
+    : (d.texto === "Sem locação" ? "Próx: —" : `${d.texto}`);
+  const limpezaLinha = `Limp: ${limpeza ? formatarDataCurtaProdutoDisp(limpeza.dataObj) : "—"}`;
 
   return `
     <span class="disp-badge disp-${d.classe}" title="${d.detalhe}">${d.texto}</span>
-    <small class="disp-detail">${d.detalhe}</small>
+    <small class="disp-detail disp-detail-compact">${proxLinha}</small>
+    <small class="disp-detail disp-detail-compact">${limpezaLinha}</small>
   `;
 }
 
@@ -1444,6 +1480,50 @@ function renderizarProdutos() {
   rtAtualizarDashboardProdutosLeve();
 }
 
+function statusExigeAlertaReservaFutura(status) {
+  const s = String(status || "").trim().toLowerCase();
+  return s === "bloqueada" || s === "bloqueado" || s === "consertar";
+}
+
+function eventosFuturosDoProduto(produto) {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  return getEventosDisponibilidadeProduto()
+    .filter(evento => eventoUsaProdutoParaDisponibilidade(evento, produto))
+    .map(evento => ({ evento, intervalo: intervaloEventoDisponibilidade(evento) }))
+    .filter(item => {
+      const inicio = dataInicioDiaProdutoDisponibilidade(item.intervalo?.inicio || item.evento?.montagem || item.evento?.data_evento);
+      return inicio && inicio.getTime() >= hoje.getTime();
+    })
+    .sort((a, b) => String(a.intervalo?.inicio || a.evento?.data_evento || "").localeCompare(String(b.intervalo?.inicio || b.evento?.data_evento || "")));
+}
+
+function alertarReservasFuturasProduto(produto, novoStatus) {
+  if (!statusExigeAlertaReservaFutura(novoStatus)) return;
+  const afetados = eventosFuturosDoProduto(produto);
+  if (!afetados.length) return;
+  const linhas = afetados.slice(0, 10).map(item => {
+    const data = formatarDataCurtaProdutoDisp(item.intervalo?.inicio || item.evento?.montagem || item.evento?.data_evento);
+    return `• ${data} - ${item.evento?.nome || "Cliente"}`;
+  }).join("\n");
+  const extra = afetados.length > 10 ? `\n... e mais ${afetados.length - 10} evento(s).` : "";
+  const msg = `⚠️ Atenção\n\nO produto ${produto.codigo || ""} foi alterado para ${novoStatus} e está reservado em ${afetados.length} evento(s) futuro(s).\n\n${linhas}${extra}\n\nÉ recomendado trocar esse produto nesses eventos.`;
+  const ver = confirm(msg + "\n\nDeseja abrir a lista de eventos filtrada por este código?");
+  if (ver) {
+    try {
+      if (typeof mostrarSecao === "function") mostrarSecao("eventosSection");
+      const busca = document.getElementById("buscaEvento");
+      if (busca) {
+        busca.value = String(produto.codigo || "");
+        if (typeof renderizarEventos === "function") renderizarEventos();
+        busca.focus();
+      }
+    } catch (erro) {
+      console.warn("Não foi possível abrir eventos afetados", erro);
+    }
+  }
+}
+
 async function lidarAcaoProduto(event) {
   const action = event.currentTarget.dataset.action;
   const id = event.currentTarget.dataset.id;
@@ -1494,7 +1574,10 @@ async function lidarAcaoProduto(event) {
 
     produto.status = novoStatus;
 
-    if (String(novoStatus || "").trim().toLowerCase() === "livre") {
+    const statusAnteriorNormalizado = String(statusAnterior || "").trim().toLowerCase();
+    const novoStatusNormalizado = String(novoStatus || "").trim().toLowerCase();
+
+    if (novoStatusNormalizado === "livre") {
       produto.observacao = "";
     }
 
@@ -1508,10 +1591,20 @@ async function lidarAcaoProduto(event) {
       observacao: observacaoAnterior
     });
 
+    if (statusAnteriorNormalizado === "limpar" && novoStatusNormalizado === "livre") {
+      produto.historico.push({
+        data: new Date().toISOString(),
+        colaborador: produto.colaborador,
+        alteracao: "Limpeza confirmada",
+        observacao: "Produto liberado após limpeza"
+      });
+    }
+
     const salvo = await salvarProdutoBanco(produto);
     if (salvo) {
       const index = produtos.findIndex(p => p.id === id);
       if (index >= 0) produtos[index] = salvo;
+      alertarReservasFuturasProduto(salvo, novoStatus);
 
       if (typeof registrarLogSistema === "function") {
         registrarLogSistema({
@@ -1578,6 +1671,7 @@ async function lidarAcaoProduto(event) {
     if (salvo) {
       const index = produtos.findIndex(p => p.id === id);
       if (index >= 0) produtos[index] = salvo;
+      alertarReservasFuturasProduto(salvo, novoStatus);
 
       if (typeof registrarLogSistema === "function") {
         registrarLogSistema({

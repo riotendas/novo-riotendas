@@ -584,6 +584,8 @@
             </select>
           </label>
 
+          <button type="button" id="calendarioResumoBtn" class="btn-outline calendario-resumo-toggle" title="Mostrar resumo compacto por carro">Resumo</button>
+
           <label>Pagamento
             <select id="calendarioFiltroPagamento">
               <option value="">Todos</option>
@@ -613,7 +615,10 @@
         </div>
 
         <aside class="calendar-day-panel">
-          <h3 id="calendarioDiaTitulo">Selecione um dia</h3>
+          <div class="cal-day-panel-header">
+            <h3 id="calendarioDiaTitulo">Selecione um dia</h3>
+            <button type="button" id="calVerRotaDia" class="btn-outline cal-ver-rota-dia">🚚 Rota</button>
+          </div>
           <div class="calendar-day-summary">
             <span>Eventos: <strong id="calDiaEventos">0</strong></span>
             <span>Montagens: <strong id="calDiaMontagens">0</strong></span>
@@ -1192,6 +1197,9 @@
               <input id="configAssinaturaResponsavel" type="hidden">
             </label>
             <label>Período padrão das rotas<select id="configPeriodoRotas"><option value="7">Próximos 7 dias</option><option value="15">Próximos 15 dias</option><option value="30">Próximos 30 dias</option></select></label>
+            <label>Horário comercial inicial<input id="configHorarioComercialInicio" type="time" value="08:00"></label>
+            <label>Horário comercial final<input id="configHorarioComercialFim" type="time" value="20:00"></label>
+            <label>Cidade padrão do sistema<input id="configCidadePadrao" type="text" value="Rio de Janeiro" placeholder="Rio de Janeiro"></label>
             <label>Chave Pix<input id="configPixChave" type="text" placeholder="E-mail, CPF/CNPJ, telefone ou chave aleatória"></label>
             <label>Nome recebedor Pix<input id="configPixNome" type="text" placeholder="RIOTENDAS"></label>
             <label>Cidade Pix<input id="configPixCidade" type="text" placeholder="RIO DE JANEIRO"></label>
@@ -1321,8 +1329,11 @@
             <option value="Restrição">Restrição</option>
           </select>
         </label>
-        <label>Endereço <input id="clienteEndereco" type="text"></label>
-        <label class="span-2">Observação do cliente <textarea id="clienteObservacao" rows="2" placeholder="Indicação, referência, preferência de contato..."></textarea></label>
+        <label>Endereço <input id="clienteEndereco" type="text" tabindex="160"></label>
+        <label>Bairro <input id="clienteBairro" type="text" tabindex="161" placeholder="Ex: Copacabana"></label>
+        <label>Cidade <input id="clienteCidade" type="text" tabindex="162" value="Rio de Janeiro" placeholder="Ex: Rio de Janeiro"></label>
+        <label>Complemento <input id="clienteComplemento" type="text" tabindex="163" placeholder="Ex: Quiosque 15, apto, salão..."></label>
+        <label class="span-2">Observação do cliente <textarea id="clienteObservacao" rows="2" tabindex="164" placeholder="Indicação, referência, preferência de contato..."></textarea></label>
         <label class="span-2">Observação interna <textarea id="clienteObservacaoInterna" rows="2" placeholder="Visível apenas no sistema. Não aparece em rota."></textarea></label>
       </div>
       <div class="modal-actions">
@@ -1370,14 +1381,23 @@
             <input id="eventoEmail" type="email">
           </label>
           <label class="evento-endereco-wide">Endereço
-            <textarea id="eventoEndereco" rows="2" placeholder="Digite endereço e complemento no mesmo campo"></textarea>
+            <textarea id="eventoEndereco" rows="2" tabindex="60" placeholder="Rua, avenida, número ou referência principal"></textarea>
             <div class="endereco-validacao-row">
               <span id="eventoEnderecoStatus" class="endereco-validacao-status neutro">Endereço ainda não validado</span>
-              <button type="button" id="validarEventoEndereco" class="btn-outline btn-mini endereco-validacao-btn">📍 Verificar no Maps</button>
+              <button type="button" id="validarEventoEndereco" tabindex="65" class="btn-outline btn-mini endereco-validacao-btn">📍 Verificar no Maps</button>
             </div>
           </label>
-          <label class="evento-observacao-wide">Observação do cliente
-            <textarea id="eventoClienteObservacao" rows="3" placeholder="Indicação, referência ou preferência"></textarea>
+          <label>Bairro
+            <input id="eventoBairro" type="text" tabindex="61" placeholder="Ex: Copacabana">
+          </label>
+          <label>Cidade
+            <input id="eventoCidade" type="text" tabindex="62" value="Rio de Janeiro" placeholder="Ex: Rio de Janeiro">
+          </label>
+          <label>Complemento
+            <input id="eventoComplemento" type="text" tabindex="63" placeholder="Ex: Quiosque 15, apto, salão...">
+          </label>
+          <label class="evento-observacao-wide">Referência do local
+            <textarea id="eventoClienteObservacao" rows="3" tabindex="64" placeholder="Ex: portão lateral, quiosque, salão, referência de acesso..."></textarea>
           </label>
           <label class="evento-colaborador-admin-field">Colaborador do evento
             <select id="eventoColaboradorSelect"></select>
@@ -1700,6 +1720,15 @@
           </label>
           <label class="evento-endereco-wide">Endereço
             <input id="orcamentoEndereco" type="text">
+          </label>
+          <label>Bairro
+            <input id="orcamentoBairro" type="text">
+          </label>
+          <label>Cidade
+            <input id="orcamentoCidade" type="text" value="Rio de Janeiro">
+          </label>
+          <label>Complemento
+            <input id="orcamentoComplemento" type="text">
           </label>
           <label class="evento-observacao-wide">Observação
             <input id="orcamentoObservacaoCliente" type="text" placeholder="Referência, indicação, observação comercial...">

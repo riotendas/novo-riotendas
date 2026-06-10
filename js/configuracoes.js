@@ -144,6 +144,11 @@ function configPadrao() {
     logoEmpresa: "https://riotendas.smartwebinfo.com.br/webapp/public/img/logo.png",
     assinaturaResponsavel: window.RT_ASSINATURA_RODRIGO_PADRAO || "",
     periodoRotas: "30",
+    cidadePadrao: "Rio de Janeiro",
+    horarioComercial: {
+      inicio: "08:00",
+      fim: "20:00"
+    },
     pix: {
       chave: "",
       nome: "RIOTENDAS",
@@ -170,6 +175,25 @@ function configPadrao() {
         lateral: 0.10,
         outros: 0
       },
+      resumoItens: {
+        tenda_3x3: { modo: "carga", sigla: "" },
+        tenda_4_5x3: { modo: "carga", sigla: "" },
+        tenda_4x4: { modo: "carga", sigla: "" },
+        tenda_5x5: { modo: "carga", sigla: "" },
+        tenda_6x3: { modo: "carga", sigla: "" },
+        tenda_6x6: { modo: "carga", sigla: "" },
+        tenda_8x8: { modo: "carga", sigla: "" },
+        tenda_10x10: { modo: "carga", sigla: "" },
+        ombrelone: { modo: "sigla", sigla: "OMB" },
+        mesa_plastica: { modo: "letra", sigla: "M" },
+        mesa_madeira: { modo: "letra", sigla: "M" },
+        cadeira_plastica: { modo: "letra", sigla: "C" },
+        cadeira_madeira: { modo: "letra", sigla: "C" },
+        caixa_190: { modo: "letra", sigla: "X" },
+        caixa_360: { modo: "letra", sigla: "X" },
+        lateral: { modo: "letra", sigla: "L" },
+        outros: { modo: "letra", sigla: "O" }
+      },
       capacidadeVeiculos: {
         Saveiro: 12,
         Dupla: 18,
@@ -186,6 +210,7 @@ function rtMesclarConfigPadrao(configSalva = null) {
   const mesclada = { ...padrao, ...salva };
 
   mesclada.pix = { ...(padrao.pix || {}), ...(salva.pix || {}) };
+  mesclada.horarioComercial = { ...(padrao.horarioComercial || {}), ...(salva.horarioComercial || {}) };
   mesclada.modelosDocumentos = { ...(padrao.modelosDocumentos || {}), ...(salva.modelosDocumentos || {}) };
   mesclada.cargaOperacional = {
     ...(padrao.cargaOperacional || {}),
@@ -197,6 +222,10 @@ function rtMesclarConfigPadrao(configSalva = null) {
     capacidadeVeiculos: {
       ...((padrao.cargaOperacional || {}).capacidadeVeiculos || {}),
       ...(((salva.cargaOperacional || {}).capacidadeVeiculos) || {})
+    },
+    resumoItens: {
+      ...((padrao.cargaOperacional || {}).resumoItens || {}),
+      ...(((salva.cargaOperacional || {}).resumoItens) || {})
     }
   };
 
@@ -1527,6 +1556,13 @@ function preencherPreferenciasConfig() {
   document.getElementById("configLogoEmpresa").value = config.logoEmpresa || "";
   atualizarPreviewAssinaturaResponsavelConfig(config.assinaturaResponsavel || window.RT_ASSINATURA_RODRIGO_PADRAO || "");
   document.getElementById("configPeriodoRotas").value = config.periodoRotas || "30";
+  const horarioComercial = config.horarioComercial || {};
+  const horarioInicio = document.getElementById("configHorarioComercialInicio");
+  const horarioFim = document.getElementById("configHorarioComercialFim");
+  if (horarioInicio) horarioInicio.value = horarioComercial.inicio || "08:00";
+  if (horarioFim) horarioFim.value = horarioComercial.fim || "20:00";
+  const cidadePadrao = document.getElementById("configCidadePadrao");
+  if (cidadePadrao) cidadePadrao.value = config.cidadePadrao || "Rio de Janeiro";
 
   const pix = config.pix || {};
   const pixChave = document.getElementById("configPixChave");
@@ -2160,12 +2196,25 @@ function renderizarCargaOperacionalConfig() {
   const carros = Array.isArray(config.carros) ? config.carros : [];
 
   if (pontosBox) {
-    pontosBox.innerHTML = rtCargaOperacionalItensConfig.map(([chave, label]) => `
-      <label class="carga-operacional-linha">
-        <span>${label}</span>
-        <input type="number" step="0.01" min="0" data-carga-ponto="${chave}" value="${pontos[chave] ?? 0}">
-      </label>
-    `).join("");
+    const resumoItens = carga.resumoItens || {};
+    pontosBox.innerHTML = rtCargaOperacionalItensConfig.map(([chave, label]) => {
+      const regraResumo = resumoItens[chave] || {};
+      const modo = regraResumo.modo || (chave.startsWith("tenda_") ? "carga" : (chave === "ombrelone" ? "sigla" : "letra"));
+      const sigla = regraResumo.sigla || (chave === "ombrelone" ? "OMB" : label.slice(0, 1).toUpperCase());
+      return `
+        <label class="carga-operacional-linha carga-operacional-linha-resumo">
+          <span>${label}</span>
+          <input type="number" step="0.01" min="0" data-carga-ponto="${chave}" value="${pontos[chave] ?? 0}" title="Carga operacional">
+          <select data-carga-resumo-modo="${chave}" title="Como aparece no resumo do calendário">
+            <option value="carga" ${modo === "carga" ? "selected" : ""}>Carga</option>
+            <option value="letra" ${modo === "letra" ? "selected" : ""}>Letra</option>
+            <option value="sigla" ${modo === "sigla" ? "selected" : ""}>Sigla</option>
+            <option value="ocultar" ${modo === "ocultar" ? "selected" : ""}>Ocultar</option>
+          </select>
+          <input type="text" maxlength="6" data-carga-resumo-sigla="${chave}" value="${sigla}" placeholder="Sigla">
+        </label>
+      `;
+    }).join("");
   }
 
   if (veiculosBox) {
@@ -2192,6 +2241,10 @@ function salvarCargaOperacionalConfig() {
     ...((padrao.capacidadeVeiculos) || {}),
     ...((config.cargaOperacional || {}).capacidadeVeiculos || {})
   };
+  config.cargaOperacional.resumoItens = {
+    ...((padrao.resumoItens) || {}),
+    ...((config.cargaOperacional || {}).resumoItens || {})
+  };
 
   document.querySelectorAll("[data-carga-ponto]").forEach(input => {
     config.cargaOperacional.pontosItens[input.dataset.cargaPonto] = rtValorNumeroCarga(input.value, 0);
@@ -2201,11 +2254,21 @@ function salvarCargaOperacionalConfig() {
     config.cargaOperacional.capacidadeVeiculos[input.dataset.cargaVeiculo] = rtValorNumeroCarga(input.value, 0);
   });
 
+  document.querySelectorAll("[data-carga-resumo-modo]").forEach(select => {
+    const chave = select.dataset.cargaResumoModo;
+    const siglaInput = document.querySelector(`[data-carga-resumo-sigla="${chave}"]`);
+    config.cargaOperacional.resumoItens[chave] = {
+      modo: select.value || "carga",
+      sigla: String(siglaInput?.value || "").trim().toUpperCase()
+    };
+  });
+
   salvarConfiguracoes(config);
   renderizarCargaOperacionalConfig();
 
   if (typeof renderizarRotas === "function") renderizarRotas();
   if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
+  if (typeof renderizarCalendario === "function") renderizarCalendario();
 
   if (typeof registrarLogSistema === "function") {
     registrarLogSistema({
@@ -2245,6 +2308,11 @@ function salvarPreferenciasConfig() {
   config.logoEmpresa = document.getElementById("configLogoEmpresa").value.trim() || configPadrao().logoEmpresa;
   config.assinaturaResponsavel = document.getElementById("configAssinaturaResponsavel")?.value || "";
   config.periodoRotas = document.getElementById("configPeriodoRotas").value || "30";
+  config.horarioComercial = {
+    inicio: document.getElementById("configHorarioComercialInicio")?.value || "08:00",
+    fim: document.getElementById("configHorarioComercialFim")?.value || "20:00"
+  };
+  config.cidadePadrao = document.getElementById("configCidadePadrao")?.value.trim() || "Rio de Janeiro";
   config.pix = {
     chave: document.getElementById("configPixChave")?.value.trim() || "",
     nome: document.getElementById("configPixNome")?.value.trim() || "RIOTENDAS",

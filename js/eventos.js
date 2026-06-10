@@ -395,6 +395,9 @@ async function salvarEventoBanco(evento) {
     telefone: evento.telefone || null,
     cliente_email: evento.cliente_email || evento.email || null,
     endereco: evento.endereco || null,
+    bairro: evento.bairro || null,
+    cidade: evento.cidade || (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro"),
+    complemento: evento.complemento || null,
     cliente_observacao: evento.cliente_observacao || null,
     data_evento: evento.data_evento || null,
     hora_evento: evento.hora_inicio || evento.hora_evento || null,
@@ -584,6 +587,9 @@ async function garantirClienteDoEvento(evento) {
       telefone: telefone || existente.telefone || "",
       email: emailEvento || existente.email || "",
       endereco: evento.endereco || existente.endereco || "",
+      bairro: evento.bairro || existente.bairro || "",
+      cidade: evento.cidade || existente.cidade || (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro"),
+      complemento: evento.complemento || existente.complemento || "",
       observacao_cliente: observacaoEvento || existente.observacao_cliente || "",
       colaborador: existente.colaborador || getColaboradorLogado()
     };
@@ -594,6 +600,9 @@ async function garantirClienteDoEvento(evento) {
       telefone: existente.telefone || "",
       email: existente.email || "",
       endereco: existente.endereco || "",
+      bairro: existente.bairro || "",
+      cidade: existente.cidade || "",
+      complemento: existente.complemento || "",
       observacao_cliente: existente.observacao_cliente || ""
     }) !== JSON.stringify({
       nome: atualizado.nome || "",
@@ -601,6 +610,9 @@ async function garantirClienteDoEvento(evento) {
       telefone: atualizado.telefone || "",
       email: atualizado.email || "",
       endereco: atualizado.endereco || "",
+      bairro: atualizado.bairro || "",
+      cidade: atualizado.cidade || "",
+      complemento: atualizado.complemento || "",
       observacao_cliente: atualizado.observacao_cliente || ""
     });
 
@@ -623,6 +635,9 @@ async function garantirClienteDoEvento(evento) {
     telefone: telefone,
     email: emailEvento,
     endereco: evento.endereco || "",
+    bairro: evento.bairro || "",
+    cidade: evento.cidade || (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro"),
+    complemento: evento.complemento || "",
     observacao_cliente: observacaoEvento,
     colaborador: getColaboradorLogado(),
     criado_em: new Date().toISOString()
@@ -659,6 +674,15 @@ function iniciarEventos() {
   onEventoSeguro("duplicarEventoBtn", "click", duplicarEventoAtual);
   onEventoSeguro("fecharEventoDetalheModal", "click", () => document.getElementById("eventoDetalheDialog").close());
   onEventoSeguro("eventoForm", "submit", salvarEventoForm);
+  const eventoFormAtalho = document.getElementById("eventoForm");
+  if (eventoFormAtalho) {
+    eventoFormAtalho.addEventListener("keydown", ev => {
+      if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
+        ev.preventDefault();
+        eventoFormAtalho.requestSubmit();
+      }
+    });
+  }
 
   ["eventoValorTotal", "eventoValorSinal", "eventoValorSinal2"].forEach(id => {
     const campo = document.getElementById(id);
@@ -806,6 +830,9 @@ function preencherClienteSelecionado() {
   document.getElementById("eventoTelefone").value = cliente.telefone || "";
   document.getElementById("eventoEmail").value = cliente.email || "";
   document.getElementById("eventoEndereco").value = cliente.endereco || "";
+  document.getElementById("eventoBairro").value = cliente.bairro || "";
+  document.getElementById("eventoCidade").value = cliente.cidade || (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro");
+  document.getElementById("eventoComplemento").value = cliente.complemento || "";
   rtEventoSetEnderecoStatus("", "neutro");
   document.getElementById("eventoClienteObservacao").value = cliente.observacao_cliente || "";
 }
@@ -1159,6 +1186,9 @@ function montarEventoRecorrenteBase(id, existente) {
     telefone: document.getElementById("eventoTelefone").value.trim(),
     cliente_email: document.getElementById("eventoEmail")?.value.trim() || "",
     endereco: document.getElementById("eventoEndereco").value.trim(),
+    bairro: document.getElementById("eventoBairro")?.value.trim() || "",
+    cidade: document.getElementById("eventoCidade")?.value.trim() || (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro"),
+    complemento: document.getElementById("eventoComplemento")?.value.trim() || "",
     cliente_observacao: document.getElementById("eventoClienteObservacao")?.value.trim() || "",
     data_evento: document.getElementById("eventoData").value || null,
     hora_inicio: document.getElementById("eventoHoraInicio").value || null,
@@ -1249,6 +1279,8 @@ function abrirNovoEvento() {
   prepararHorarioPadraoNovoEvento();
   document.getElementById("eventoId").value = "";
   document.getElementById("eventoModalTitulo").textContent = "Novo evento";
+  const campoCidadeEvento = document.getElementById("eventoCidade");
+  if (campoCidadeEvento) campoCidadeEvento.value = (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro");
   atualizarVisibilidadeDuplicarEvento(false);
 
   // Padrão para novo evento: horário comercial, sem exigir hora
@@ -1300,6 +1332,9 @@ function abrirEditarEvento(id) {
   document.getElementById("eventoTelefone").value = e.telefone || "";
   document.getElementById("eventoEmail").value = e.cliente_email || e.email || "";
   document.getElementById("eventoEndereco").value = e.endereco || "";
+  document.getElementById("eventoBairro").value = e.bairro || "";
+  document.getElementById("eventoCidade").value = e.cidade || (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro");
+  document.getElementById("eventoComplemento").value = e.complemento || "";
   rtEventoSetEnderecoStatus("", "neutro");
   document.getElementById("eventoClienteObservacao").value = e.cliente_observacao || "";
   document.getElementById("eventoData").value = e.data_evento || "";
@@ -2438,7 +2473,7 @@ async function salvarEventoForm(event) {
           nome: evento.nome,
           documento: evento.documento,
           telefone: evento.telefone,
-          endereco: evento.endereco,
+          endereco: (typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(evento) : evento.endereco),
           montagem_tipo: evento.montagem_tipo,
           desmontagem_tipo: evento.desmontagem_tipo,
           tendas: rtClonarListaSimples(evento.tendas),
@@ -2477,7 +2512,7 @@ function filtrarEventos() {
     if (isEventoRecorrente(e)) return false;
 
     const produtosTxt = [...(e.tendas || []).map(p => `${p.codigo} ${p.categoria} ${p.tamanho}`), ...(e.itens_apoio || []).map(i => `${i.nome} ${i.quantidade}`)].join(" ");
-    const texto = `${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${produtosTxt}`.toLowerCase();
+    const texto = `${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${e.bairro || ""} ${e.cidade || ""} ${e.complemento || ""} ${e.referencia_local || e.observacao_cliente || e.observacao || ""} ${e.colaborador || ""} ${produtosTxt}`.toLowerCase();
 
     return (!busca || texto.includes(busca))
       && (!data || e.data_evento === data)
@@ -2501,7 +2536,7 @@ function filtrarEventosRecorrentes() {
     if (!isEventoRecorrente(e)) return false;
 
     const produtosTxt = [...(e.tendas || []).map(p => `${p.codigo} ${p.categoria} ${p.tamanho}`), ...(e.itens_apoio || []).map(i => `${i.nome} ${i.quantidade}`)].join(" ");
-    const texto = `${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${produtosTxt}`.toLowerCase();
+    const texto = `${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${e.bairro || ""} ${e.cidade || ""} ${e.complemento || ""} ${e.referencia_local || e.observacao_cliente || e.observacao || ""} ${e.colaborador || ""} ${produtosTxt}`.toLowerCase();
 
     return (!busca || texto.includes(busca))
       && (!data || e.data_evento === data)
@@ -2830,7 +2865,7 @@ function renderizarEventos() {
         <td class="mont-desm-cell">${montagemDesmontagemCompacta(e)}</td>
         <td><button class="code-link" data-action="editar" data-id="${e.id}">${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
         <td>${e.telefone || "-"}</td>
-        <td><div class="cell-scroll cell-endereco">${e.endereco || "-"}</div></td>
+        <td><div class="cell-scroll cell-endereco">${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(e) : e.endereco) || "-"}</div></td>
         <td>
           <div class="cell-scroll cell-produtos">
             <button class="product-list-button" data-action="editar-produtos" data-id="${e.id}">
@@ -2865,7 +2900,7 @@ function renderizarEventos() {
       <td>${recorrenciaLabel(e.recorrencia_tipo, e.recorrencia_dias)}</td>
       <td><button class="code-link" data-action="editar" data-id="${e.id}">${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
       <td>${e.telefone || "-"}</td>
-      <td><div class="cell-scroll cell-endereco">${e.endereco || "-"}</div></td>
+      <td><div class="cell-scroll cell-endereco">${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(e) : e.endereco) || "-"}</div></td>
       <td>
         <div class="cell-scroll cell-produtos">
           <button class="product-list-button" data-action="editar-produtos" data-id="${e.id}">
@@ -3727,7 +3762,7 @@ function abrirDetalheEvento(id) {
 
       <div class="info-box linha-endereco">
         <span>Endereço</span>
-        <strong>${e.endereco || "-"}</strong>
+        <strong>${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(e) : e.endereco) || "-"}</strong>
       </div>
 
       <div class="info-box linha-pagamento">
@@ -4134,6 +4169,9 @@ function rtDocEventoColetarDados() {
     email: document.getElementById('eventoEmail')?.value || '',
     endereco: document.getElementById('eventoEndereco')?.value || '',
     observacaoCliente: document.getElementById('eventoClienteObservacao')?.value || '',
+    bairro: document.getElementById('eventoBairro')?.value || '',
+    cidade: document.getElementById('eventoCidade')?.value || (typeof carregarConfiguracoes === 'function' ? (carregarConfiguracoes().cidadePadrao || 'Rio de Janeiro') : 'Rio de Janeiro'),
+    complemento: document.getElementById('eventoComplemento')?.value || '',
     dataEvento: document.getElementById('eventoData')?.value || '',
     horaInicio: document.getElementById('eventoHoraInicio')?.value || '',
     horaTermino: document.getElementById('eventoHoraTermino')?.value || '',
@@ -4178,13 +4216,14 @@ function rtDocEventoAplicarModelo(template, d) {
     cpf_cnpj: rtDocEventoValorHtml(d.documento),
     telefone: rtDocEventoValorHtml(d.telefone),
     email: rtDocEventoValorHtml(d.email),
-    endereco: rtDocEventoValorHtml(d.endereco),
+    endereco: rtDocEventoValorHtml((typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(d) : d.endereco)),
     data_evento: rtDocEventoValorHtml(rtDocEventoDataBR(d.dataEvento)),
     horario_evento: rtDocEventoValorHtml(horarioEvento),
     montagem: rtDocEventoValorHtml(d.montagem),
     desmontagem: rtDocEventoValorHtml(d.desmontagem),
     descricao_servico: rtDocEventoValorHtml(d.descricaoServico, true),
     observacao_cliente: rtDocEventoValorHtml(d.observacaoCliente, true),
+    referencia_local: rtDocEventoValorHtml(d.observacaoCliente, true),
     valor_total: rtDocEventoValorHtml(dinheiro(d.valorTotal)),
     sinal: rtDocEventoValorHtml(dinheiro(d.valorSinal)),
     restante: rtDocEventoValorHtml(dinheiro(d.valorRestante)),
@@ -4219,9 +4258,9 @@ function rtDocEventoModeloGuia(d) {
       <tr><th>Montagem</th><td>${rtDocEventoEscape(d.montagem)}</td><th>Desmontagem</th><td>${rtDocEventoEscape(d.desmontagem)}</td></tr>
       <tr><th>Cliente</th><td>${rtDocEventoEscape(d.nome)}</td><th>CPF/CNPJ</th><td>${rtDocEventoEscape(d.documento)}</td></tr>
       <tr><th>Contatos</th><td>${rtDocEventoEscape(d.telefone)}</td><th>E-mail</th><td>${rtDocEventoEscape(d.email)}</td></tr>
-      <tr><th>Endereço</th><td colspan="3">${rtDocEventoEscape(d.endereco)}</td></tr>
+      <tr><th>Endereço</th><td colspan="3">${rtDocEventoEscape((typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(d) : d.endereco))}</td></tr>
       <tr><th>Descrição do serviço</th><td colspan="3">${rtDocEventoLinhasTexto(d.descricaoServico)}</td></tr>
-      <tr><th>Observação</th><td colspan="3">${rtDocEventoEscape(d.observacaoCliente)}</td></tr>
+      <tr><th>Referência do local</th><td colspan="3">${rtDocEventoEscape(d.observacaoCliente)}</td></tr>
     </table>
     <h3>Pagamento</h3>
     <table class="doc-table compact">
@@ -4255,7 +4294,7 @@ function rtDocEventoModeloContrato(d) {
     <p><strong>Contratante:</strong> ${rtDocEventoEscape(d.nome)} — CPF/CNPJ: ${rtDocEventoEscape(d.documento)} — Telefone: ${rtDocEventoEscape(d.telefone)} — E-mail: ${rtDocEventoEscape(d.email)}</p>
     <p><strong>Descrição do serviço:</strong><br>${rtDocEventoLinhasTexto(d.descricaoServico)}</p>
     <p><strong>Data do evento:</strong> ${rtDocEventoDataBR(d.dataEvento)} &nbsp; <strong>Horário:</strong> ${rtDocEventoHora(d.horaInicio)}${d.horaTermino ? ' às ' + rtDocEventoHora(d.horaTermino) : ''}</p>
-    <p><strong>Local:</strong> ${rtDocEventoEscape(d.endereco)}</p>
+    <p><strong>Local:</strong> ${rtDocEventoEscape((typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(d) : d.endereco))}</p>
     <h3>Procedimentos de montagem e desmontagem</h3>
     <p><strong>Montagem:</strong> ${rtDocEventoEscape(d.montagem)}</p>
     <p><strong>Desmontagem:</strong> ${rtDocEventoEscape(d.desmontagem)}</p>
@@ -4265,7 +4304,7 @@ function rtDocEventoModeloContrato(d) {
     <p>Restante: <strong>${dinheiro(d.valorRestante)}</strong></p>
     <p>Forma de pagamento:<br>${rtDocEventoLinhasTexto(d.formaPagamento)}</p>
     <h3>Contrato de prestação de serviços — Adicional</h3>
-    <p>De um lado, ora definida como CONTRATANTE, ${rtDocEventoEscape(d.nome)}, no endereço ${rtDocEventoEscape(d.endereco)}, telefone ${rtDocEventoEscape(d.telefone)}.</p>
+    <p>De um lado, ora definida como CONTRATANTE, ${rtDocEventoEscape(d.nome)}, no endereço ${rtDocEventoEscape((typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(d) : d.endereco))}, telefone ${rtDocEventoEscape(d.telefone)}.</p>
     <p>De outro lado, ora definido como CONTRATADO, Rio Tendas (Condolink Eventos, Locação e Multimídia Ltda ME), empresa registrada sob o CNPJ 05.831.617/0001-72, com sede à Rua Conselheiro Lampreia, 245 – Cosme Velho - Rio de Janeiro/RJ.</p>
     <h4>Cláusula 01 – Das responsabilidades</h4>
     <p>A CONTRATADA deverá utilizar produtos de procedência segura, realizar a entrega dos materiais limpos e sem aparência danificada, comparecer ao local com antecedência suficiente e levar as ferramentas necessárias para execução do serviço.</p>
@@ -4298,7 +4337,7 @@ function rtDocEventoModeloRecibo(d) {
     <p><strong>Documento emitido conforme Lei 8.846/1994</strong></p>
     <table class="doc-table">
       <tr><th>Recebemos de</th><td>${rtDocEventoEscape(d.nome)}</td></tr>
-      <tr><th>Endereço</th><td>${rtDocEventoEscape(d.endereco)}</td></tr>
+      <tr><th>Endereço</th><td>${rtDocEventoEscape((typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(d) : d.endereco))}</td></tr>
       <tr><th>A importância de (R$)</th><td>${dinheiro(d.valorTotal)}</td></tr>
       <tr><th>Referente a</th><td>Locação de materiais para evento em ${rtDocEventoDataBR(d.dataEvento)}<br>${rtDocEventoLinhasTexto(d.descricaoServico)}</td></tr>
       <tr><th>Recebimento</th><td>${rtDocEventoLinhasTexto(d.formaPagamento || 'Pix / transferência / espécie')}</td></tr>

@@ -26,6 +26,43 @@ function manutMobileEscape(txt) {
 }
 
 
+function manutMobileAvisoConexao(texto, mostrarBotao = false) {
+  let aviso = document.getElementById("manutMobileConexaoAviso");
+  const section = document.getElementById("manutencaoMobileSection");
+  if (!section) return;
+  if (!aviso) {
+    aviso = document.createElement("div");
+    aviso.id = "manutMobileConexaoAviso";
+    aviso.className = "manut-mobile-sync-aviso";
+    const titulo = section.querySelector("h2") || section.firstElementChild;
+    (titulo?.parentNode || section).insertBefore(aviso, titulo?.nextSibling || section.firstChild);
+  }
+  aviso.hidden = !texto;
+  aviso.innerHTML = texto ? `${manutMobileEscape(texto)}${mostrarBotao ? ' <button type="button" class="btn-outline btn-mini" id="manutMobileConexaoRetry">Tentar novamente</button>' : ''}` : "";
+  document.getElementById("manutMobileConexaoRetry")?.addEventListener("click", async () => {
+    manutMobileAvisoConexao("Reconectando...");
+    try {
+      if (typeof carregarProdutos === "function") await carregarProdutos(true);
+      renderizarManutencaoMobile();
+      manutMobileAvisoConexao("");
+    } catch (erro) {
+      manutMobileAvisoConexao("Sem conexão. Tente novamente em instantes.", true);
+    }
+  });
+}
+
+async function manutMobileRecarregarComAviso() {
+  try {
+    manutMobileAvisoConexao("Atualizando dados...");
+    if (typeof carregarProdutos === "function") await carregarProdutos(true);
+    renderizarManutencaoMobile();
+    manutMobileAvisoConexao("");
+  } catch (erro) {
+    console.warn("Falha ao atualizar manutenção mobile", erro);
+    manutMobileAvisoConexao("Sem conexão. Mantendo dados carregados. Tente novamente.", true);
+  }
+}
+
 function manutMobileLimparPrefixoHistorico(texto = "") {
   return String(texto || "")
     .replace(/^\s*manuten[cç][aã]o\s+mobile\s*:?\s*/i, "")
@@ -275,27 +312,75 @@ function manutMobileUsabilidadeOpcoes() {
 }
 
 function manutMobileDisponibilidadeResumo(produto = {}) {
+  const linhasCompactas = [manutMobileProximoUsoLinha(produto), manutMobileLimpezaResumo(produto)];
   try {
     if (typeof disponibilidadePeriodoProduto === "function") {
       const disp = disponibilidadePeriodoProduto(produto) || {};
       return {
         titulo: disp.texto || "Disponibilidade",
-        detalhe: disp.detalhe || "Sem detalhe de disponibilidade"
+        detalhe: linhasCompactas.join(" · "),
+        detalheLongo: disp.detalhe || "Sem detalhe de disponibilidade"
       };
     }
     if (typeof proximoUsoProduto === "function") {
       const proximo = proximoUsoProduto(produto);
       if (proximo) {
-        const dataTxt = typeof formatarDataHoraProdutoDisp === "function"
-          ? `${formatarDataHoraProdutoDisp(proximo.intervalo?.inicio)} até ${formatarDataHoraProdutoDisp(proximo.intervalo?.fim)}`
-          : "Próximo evento encontrado";
-        return { titulo: "Próximo uso", detalhe: `${proximo.evento?.nome || "Cliente"} — ${dataTxt}` };
+        return { titulo: "Próximo uso", detalhe: linhasCompactas.join(" · "), detalheLongo: "Próximo evento encontrado" };
       }
     }
   } catch (erro) {
     console.warn("Não foi possível calcular disponibilidade mobile:", erro);
   }
-  return { titulo: produto.status || "Livre", detalhe: "Nenhum uso futuro encontrado" };
+  return { titulo: produto.status || "Livre", detalhe: linhasCompactas.join(" · "), detalheLongo: "Nenhum uso futuro encontrado" };
+}
+
+
+function manutMobileFormatarDataCurta(dataValor) {
+  if (!dataValor) return "--/--";
+  try {
+    if (typeof formatarDataCurtaProdutoDisp === "function") return formatarDataCurtaProdutoDisp(dataValor);
+    const d = dataValor instanceof Date ? dataValor : new Date(String(dataValor).includes("T") ? dataValor : `${dataValor}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return "--/--";
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+  } catch {
+    return "--/--";
+  }
+}
+
+function manutMobilePrimeiroNome(nome) {
+  return String(nome || "Cliente").trim().split(/\s+/)[0] || "Cliente";
+}
+
+function manutMobileUltimaLimpezaProduto(produto = {}) {
+  try {
+    if (typeof ultimaLimpezaProduto === "function") return ultimaLimpezaProduto(produto);
+  } catch {}
+  const historico = Array.isArray(produto?.historico) ? produto.historico : [];
+  return historico
+    .map(item => ({ ...item, dataObj: new Date(item.data || item.criado_em || item.atualizado_em || 0) }))
+    .filter(item => !Number.isNaN(item.dataObj.getTime()))
+    .filter(item => {
+      const txt = String(`${item.alteracao || ""} ${item.observacao || ""}`).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return txt.includes("limpeza confirmada") || txt.includes("marcado como limpa") || txt.includes("marcado como limpo") || (txt.includes("limp") && txt.includes("livre"));
+    })
+    .sort((a, b) => b.dataObj - a.dataObj)[0] || null;
+}
+
+function manutMobileLimpezaResumo(produto = {}) {
+  const limpeza = manutMobileUltimaLimpezaProduto(produto);
+  return `Limp: ${limpeza ? manutMobileFormatarDataCurta(limpeza.dataObj || limpeza.data || limpeza.criado_em || limpeza.atualizado_em) : "—"}`;
+}
+
+function manutMobileProximoUsoLinha(produto = {}) {
+  try {
+    if (typeof proximoUsoProduto === "function") {
+      const proximo = proximoUsoProduto(produto);
+      if (proximo) {
+        return `Próx: ${manutMobilePrimeiroNome(proximo.evento?.nome)} ${manutMobileFormatarDataCurta(proximo.inicioComparacao || proximo.intervalo?.inicio)}`;
+      }
+    }
+  } catch {}
+  return "Próx: —";
 }
 
 function manutMobileUsabilidadeClasse(valor) {
@@ -385,6 +470,8 @@ function renderizarManutencaoMobile() {
       <div>
         <h3 class="manut-mobile-produto-titulo-inline">${manutMobileTituloInline(produto)}</h3>
         <small>Status: ${manutMobileStatusBadge(produto.status)}</small>
+        <small class="manut-mobile-card-disp">${manutMobileEscape(manutMobileProximoUsoLinha(produto))}</small>
+        <small class="manut-mobile-card-disp">${manutMobileEscape(manutMobileLimpezaResumo(produto))}</small>
       </div>
       <button type="button" class="btn-outline" data-manut-abrir="${manutMobileEscape(produto.id)}">Abrir</button>
     </article>
@@ -552,6 +639,7 @@ async function manutMobileSincronizarProdutosAutomatico() {
     }
   } catch (err) {
     console.warn("Falha ao sincronizar manutenção mobile", err);
+    manutMobileAvisoConexao("Sem conexão. Mantendo dados carregados.", true);
   } finally {
     manutMobileSyncExecutando = false;
   }
@@ -957,9 +1045,15 @@ function iniciarManutencaoMobile() {
     }
   });
 
-  document.getElementById("manutencaoMobileAtualizarBtn")?.addEventListener("click", async () => {
-    if (typeof carregarProdutos === "function") await carregarProdutos(true);
-    renderizarManutencaoMobile();
+  document.getElementById("manutencaoMobileAtualizarBtn")?.addEventListener("click", manutMobileRecarregarComAviso);
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      setTimeout(() => {
+        const section = document.getElementById("manutencaoMobileSection");
+        if (section?.classList.contains("active-section")) manutMobileRecarregarComAviso();
+      }, 1200);
+    }
   });
 
   document.querySelectorAll("[data-manut-filtro]").forEach(btn => {

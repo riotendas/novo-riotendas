@@ -152,6 +152,8 @@ function abrirNovoOrcamento(){
   form?.reset();
   document.getElementById('orcamentoId').value = '';
   document.getElementById('orcamentoModalTitulo').textContent = 'Novo orçamento';
+  const campoCidadeOrcamento = document.getElementById('orcamentoCidade');
+  if (campoCidadeOrcamento) campoCidadeOrcamento.value = (typeof carregarConfiguracoes === 'function' ? (carregarConfiguracoes().cidadePadrao || 'Rio de Janeiro') : 'Rio de Janeiro');
   materiaisOrcamentoAtual = [];
   const hoje = new Date().toISOString().slice(0,10);
   document.getElementById('orcamentoDataEvento').value = hoje;
@@ -184,6 +186,9 @@ function abrirEditarOrcamento(id){
   document.getElementById('orcamentoTelefone').value = o.telefone || '';
   document.getElementById('orcamentoEmail').value = o.email || '';
   document.getElementById('orcamentoEndereco').value = o.endereco || '';
+  document.getElementById('orcamentoBairro').value = o.bairro || '';
+  document.getElementById('orcamentoCidade').value = o.cidade || (typeof carregarConfiguracoes === 'function' ? (carregarConfiguracoes().cidadePadrao || 'Rio de Janeiro') : 'Rio de Janeiro');
+  document.getElementById('orcamentoComplemento').value = o.complemento || '';
   document.getElementById('orcamentoObservacaoCliente').value = o.observacao_cliente || '';
   document.getElementById('orcamentoDataEvento').value = o.data_evento || '';
   document.getElementById('orcamentoHoraInicio').value = o.hora_inicio || '';
@@ -636,6 +641,9 @@ function obterOrcamentoDoForm(temporario=false){
     telefone: document.getElementById('orcamentoTelefone').value.trim(),
     email: document.getElementById('orcamentoEmail').value.trim(),
     endereco: document.getElementById('orcamentoEndereco').value.trim(),
+    bairro: document.getElementById('orcamentoBairro')?.value.trim() || '',
+    cidade: document.getElementById('orcamentoCidade')?.value.trim() || (typeof carregarConfiguracoes === 'function' ? (carregarConfiguracoes().cidadePadrao || 'Rio de Janeiro') : 'Rio de Janeiro'),
+    complemento: document.getElementById('orcamentoComplemento')?.value.trim() || '',
     observacao_cliente: document.getElementById('orcamentoObservacaoCliente').value.trim(),
     data_evento: document.getElementById('orcamentoDataEvento').value || null,
     hora_inicio: document.getElementById('orcamentoHoraInicio').value || '',
@@ -785,8 +793,9 @@ function gerarPdfOrcamento(o){
     cpf_cnpj: rtOrcEscape(o.documento || '-'),
     telefone: rtOrcEscape(o.telefone || '-'),
     email: rtOrcEscape(o.email || '-'),
-    endereco: rtOrcEscape(o.endereco || ''),
+    endereco: rtOrcEscape((typeof rtEnderecoCompleto === 'function' ? rtEnderecoCompleto(o) : o.endereco) || ''),
     bairro: rtOrcEscape(o.bairro || ''),
+    cidade: rtOrcEscape(o.cidade || 'Rio de Janeiro'),
     data_evento: rtOrcDataBR(o.data_evento),
     horario_evento: `${rtOrcEscape(o.hora_inicio || 'Livre')} às ${rtOrcEscape(o.hora_termino || 'Livre')}`,
     montagem: `${rtOrcDataBR(o.montagem_data)} ${rtOrcEscape(o.montagem_tipo||'')} ${rtOrcEscape(o.montagem_hora||'')}`.trim(),

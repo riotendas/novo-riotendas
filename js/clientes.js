@@ -81,6 +81,9 @@ function abrirNovoCliente() {
   document.getElementById("clienteForm").reset();
   document.getElementById("clienteId").value = "";
   document.getElementById("clienteModalTitulo").textContent = "Novo cliente";
+  const cidadePadrao = (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro");
+  const campoCidade = document.getElementById("clienteCidade");
+  if (campoCidade) campoCidade.value = cidadePadrao;
   document.getElementById("clienteDialog").showModal();
 }
 
@@ -95,6 +98,9 @@ function abrirEditarCliente(id) {
   document.getElementById("clienteEmail").value = c.email || "";
   document.getElementById("clientePerfil").value = c.perfil_cliente || "Normal";
   document.getElementById("clienteEndereco").value = c.endereco || "";
+  document.getElementById("clienteBairro").value = c.bairro || "";
+  document.getElementById("clienteCidade").value = c.cidade || (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro");
+  document.getElementById("clienteComplemento").value = c.complemento || "";
   document.getElementById("clienteObservacao").value = c.observacao_cliente || "";
   document.getElementById("clienteObservacaoInterna").value = c.observacao_interna || "";
   document.getElementById("clienteModalTitulo").textContent = "Editar cliente";
@@ -118,6 +124,9 @@ async function salvarClienteForm(event) {
     telefone: document.getElementById("clienteTelefone").value.trim(),
     email: document.getElementById("clienteEmail").value.trim(),
     endereco: document.getElementById("clienteEndereco").value.trim(),
+    bairro: document.getElementById("clienteBairro").value.trim(),
+    cidade: document.getElementById("clienteCidade")?.value.trim() || (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro"),
+    complemento: document.getElementById("clienteComplemento").value.trim(),
     observacao_cliente: document.getElementById("clienteObservacao").value.trim(),
     observacao_interna: document.getElementById("clienteObservacaoInterna").value.trim(),
     perfil_cliente: document.getElementById("clientePerfil").value || "Normal",
@@ -158,12 +167,12 @@ function filtrarClientes() {
   const endereco = document.getElementById("filtroClienteEndereco").value.trim().toLowerCase();
 
   return clientes.filter(c => {
-    const texto = `${c.nome || ""} ${c.documento || ""} ${c.telefone || ""} ${c.email || ""} ${c.endereco || ""} ${c.observacao_cliente || ""} ${c.observacao_interna || ""} ${c.perfil_cliente || ""}`.toLowerCase();
+    const texto = `${c.nome || ""} ${c.documento || ""} ${c.telefone || ""} ${c.email || ""} ${c.endereco || ""} ${c.bairro || ""} ${c.cidade || ""} ${c.complemento || ""} ${c.observacao_cliente || ""} ${c.observacao_interna || ""} ${c.perfil_cliente || ""}`.toLowerCase();
     return (!busca || texto.includes(busca))
       && (!nome || String(c.nome || "").toLowerCase().includes(nome))
       && (!documento || String(c.documento || "").toLowerCase().includes(documento))
       && (!telefone || String(c.telefone || "").toLowerCase().includes(telefone))
-      && (!endereco || String(c.endereco || "").toLowerCase().includes(endereco));
+      && (!endereco || `${c.endereco || ""} ${c.bairro || ""} ${c.cidade || ""} ${c.complemento || ""}`.toLowerCase().includes(endereco));
   });
 }
 
@@ -194,7 +203,7 @@ function renderizarClientes() {
       <td>${c.telefone || "-"}</td>
       <td>${c.email || "-"}</td>
       <td><span class="cliente-perfil-badge perfil-${normalizarPerfilCliente(c.perfil_cliente)}">${c.perfil_cliente || "Normal"}</span></td>
-      <td>${c.endereco || "-"}</td>
+      <td>${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(c) : c.endereco) || "-"}</td>
       <td>${c.colaborador || "-"}</td>
       <td class="actions clientes-actions"><div class="clientes-actions-row"><button data-action="editar" data-id="${c.id}">✏️</button>
         <button class="btn-outline" title="Excluir" data-action="excluir" data-id="${c.id}">🗑️</button></div></td>
@@ -347,7 +356,7 @@ function renderizarEventosCliente(cliente) {
 
           <div class="cliente-evento-info">
             <span>Endereço</span>
-            <strong>${evento.endereco || "-"}</strong>
+            <strong>${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(evento) : evento.endereco) || "-"}</strong>
           </div>
 
           <div class="cliente-evento-info">
@@ -376,7 +385,7 @@ async function abrirDetalheCliente(id) {
       <div class="info-box"><span>Telefone</span><strong>${c.telefone || "-"}</strong></div>
       <div class="info-box"><span>E-mail</span><strong>${c.email || "-"}</strong></div>
       <div class="info-box"><span>Perfil</span><strong><span class="cliente-perfil-badge perfil-${normalizarPerfilCliente(c.perfil_cliente)}">${c.perfil_cliente || "Normal"}</span></strong></div>
-      <div class="info-box"><span>Endereço</span><strong>${c.endereco || "-"}</strong></div>
+      <div class="info-box"><span>Endereço</span><strong>${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(c) : c.endereco) || "-"}</strong></div>
       <div class="info-box"><span>Colaborador</span><strong>${c.colaborador || "-"}</strong></div>
       <div class="info-box"><span>Cadastro</span><strong>${formatarData(c.criado_em)}</strong></div>
     </div>
