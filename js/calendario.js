@@ -67,6 +67,12 @@ function calendarioHoraExibicao(item) {
   return "Sem horário";
 }
 
+function calendarioHoraLinha(item) {
+  const especial = typeof rtCalHorarioEspecialTexto === "function" ? rtCalHorarioEspecialTexto(item) : "";
+  if (especial) return especial;
+  return item?.hora || "";
+}
+
 function calendarioMesAnoTexto(data) {
   return data.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 }
@@ -124,6 +130,7 @@ async function garantirEventosCalendario() {
 }
 
 function calendarioItensEvento(evento) {
+  if (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)) return [];
   const itens = [];
 
   if (evento.data_evento) {
@@ -220,15 +227,16 @@ function rtCalEscape(texto) {
 }
 
 function rtCalPrimeiroNome(nome) {
-  return String(nome || "-").trim().split(/\s+/)[0] || "-";
+  const visual = typeof rtTextoVisual === "function" ? rtTextoVisual(nome) : String(nome || "-");
+  return String(visual || "-").trim().split(/\s+/)[0] || "-";
 }
 
 function rtCalBairro(endereco) {
   const partes = String(endereco || "").split(",").map(p => p.trim()).filter(Boolean);
-  const candidatos = partes.filter(p => !/^\d/.test(p) && !/^(rua|r\.|av\.?|avenida|estrada|travessa|praça|praca|rodovia|alameda)\b/i.test(p));
+  const candidatos = partes.filter(p => !/^\d/.test(p) && !/^(rua|r\.|av\.?|avenida|estrada|travessa|praça|praca|rodovia|alameda)/i.test(p));
   let bairro = candidatos.length ? candidatos[candidatos.length - 1] : (partes.length ? partes[partes.length - 1] : "-");
-  bairro = bairro.replace(/\b(rio de janeiro|rj|brasil|cep\s*\d+).*$/i, "").trim();
-  return bairro || "-";
+  bairro = bairro.replace(/(rio de janeiro|rj|brasil|cep\s*\d+).*$/i, "").trim();
+  return (typeof rtTextoVisual === "function" ? rtTextoVisual(bairro) : bairro) || "-";
 }
 
 function rtCalNumeroCurto(valor) {
@@ -366,14 +374,46 @@ function rtCalSiglasApoio(evento) {
   return String(resumo).replace(/^([0-9]+(?:,[0-9]+)?)/, "").replace("-", "");
 }
 
+function rtCalTipoHorarioBaseLocal(valor) {
+  if (typeof tipoHorarioBase === "function") return tipoHorarioBase(valor);
+  return String(valor || "").split("|")[0] || "";
+}
+
+function rtCalTipoHorarioFimLocal(valor) {
+  if (typeof tipoHorarioFim === "function") return tipoHorarioFim(valor);
+  const partes = String(valor || "").split("|");
+  return partes.length > 1 ? partes[1] : "";
+}
+
+function rtCalHoraCurtaCalendario(hora) {
+  const limpo = calendarioHoraLimpa(hora);
+  if (!limpo) return "";
+  return limpo.replace(":00", "h").replace(":", "h");
+}
+
+function rtCalHorarioEspecialTexto(item) {
+  const tipoHorario = rtCalTipoHorarioOperacao(item);
+  const tipo = rtCalTipoHorarioBaseLocal(tipoHorario);
+  const tipoNorm = rtCalNormalizar(tipo);
+  const hora = rtCalHoraCurtaCalendario(rtCalHoraOperacao(item));
+  const fim = rtCalHoraCurtaCalendario(rtCalTipoHorarioFimLocal(tipoHorario));
+
+  if (tipoNorm.includes("livre") || tipoNorm.includes("comercial")) return "";
+  if (tipoNorm.includes("ate")) return hora ? `Até ${hora}` : "Até";
+  if (tipoNorm.includes("partir")) return hora ? `A partir ${hora}` : "A partir";
+  if (tipoNorm.includes("intervalo")) {
+    if (hora && fim) return `${hora}-${fim}`;
+    if (hora) return `A partir ${hora}`;
+    if (fim) return `Até ${fim}`;
+    return "Intervalo";
+  }
+  return "";
+}
+
 function rtCalHoraResumo(item) {
-  const evento = item?.evento || {};
-  const tipoHorario = item.tipo === "montagem" ? (evento.montagem_tipo || evento.tipo_montagem) : (evento.desmontagem_tipo || evento.tipo_desmontagem);
-  const tipoTxt = String(tipoHorario || "").toLowerCase();
-  if (tipoTxt.includes("livre") || tipoTxt.includes("comercial")) return "";
-  if ((tipoTxt.includes("até") || tipoTxt.includes("ate") || tipoTxt.includes("partir")) && !rtCalForaHorarioComercial(item)) return "";
-  if (tipoTxt.includes("até") || tipoTxt.includes("ate")) return `Até ${calendarioHoraLimpa(item.hora || evento.hora_montagem || evento.hora_desmontagem).replace(":00", "h")}`.trim();
-  if (tipoTxt.includes("partir")) return `A partir ${calendarioHoraLimpa(item.hora || evento.hora_montagem || evento.hora_desmontagem).replace(":00", "h")}`.trim();
+  const especial = rtCalHorarioEspecialTexto(item);
+  if (especial) return especial;
+
   const hora = calendarioHoraExibicao(item);
   if (!hora || hora === "Sem horário") return "";
   return rtCalForaHorarioComercial(item) ? hora.replace(":00", "h") : "";
@@ -432,15 +472,31 @@ function rtCalMB(item) {
   return '<b class="rt-cal-mb">A</b>';
 }
 
+function rtCalResumoPartesItem(item) {
+  const evento = item?.evento || {};
+  const carga = rtCalResumoMateriaisEvento(evento) || "-";
+  const local = (typeof rtBairroResumo === "function" ? rtBairroResumo(evento) : "") || rtCalBairro(evento.endereco || evento.local || evento.endereco_entrega || "") || "-";
+  const cliente = rtCalPrimeiroNome(evento.nome || evento.cliente || "") || "-";
+  const horario = rtCalHoraResumo(item) || "";
+  const tipoLetra = item?.tipo === "desmontagem" ? "B" : (item?.tipo === "montagem" ? "M" : "A");
+  return { carga, local, cliente, horario, tipoLetra };
+}
+
+function rtCalResumoLinhaColunasHtml(item) {
+  const p = rtCalResumoPartesItem(item);
+  const tipoClasse = p.tipoLetra === "B" ? "b" : (p.tipoLetra === "M" ? "m" : "a");
+  return `
+    <span class="rt-cal-col rt-cal-col-qtd">${rtCalEscape(p.carga)}</span>
+    <span class="rt-cal-col rt-cal-col-local">${rtCalEscape(p.local)}</span>
+    <span class="rt-cal-col rt-cal-col-cliente">${rtCalEscape(p.cliente)}</span>
+    <span class="rt-cal-col rt-cal-col-horario">${rtCalEscape(p.horario)}</span>
+    <span class="rt-cal-tipo-badge ${tipoClasse}">${rtCalEscape(p.tipoLetra)}</span>
+  `;
+}
+
 function rtCalTextoResumoItem(item) {
-  const evento = item.evento || {};
-  const pontos = rtCalResumoMateriaisEvento(evento);
-  const bairro = (typeof rtBairroResumo === "function" ? rtBairroResumo(evento) : "") || rtCalBairro(evento.endereco || evento.local || evento.endereco_entrega || "");
-  const cliente = rtCalPrimeiroNome(evento.nome || evento.cliente || "");
-  const hora = rtCalHoraResumo(item);
-  const partes = [rtCalMB(item), rtCalEscape(pontos), rtCalEscape(bairro), rtCalEscape(cliente)];
-  if (hora) partes.push(rtCalEscape(hora));
-  return partes.join("-");
+  const p = rtCalResumoPartesItem(item);
+  return [p.carga, p.local, p.cliente, p.horario].filter(Boolean).join("-");
 }
 
 function rtCalResumoPorCarroHtml(itensDia, limiteItens = 99) {
@@ -466,7 +522,7 @@ function rtCalResumoPorCarroHtml(itensDia, limiteItens = 99) {
       const adminEdita = rtCalUsuarioAdmin() && item.evento?.id;
       const extraClasses = [rtCalForaHorarioComercial(item) ? "rt-cal-fora-comercial" : "", adminEdita ? "rt-cal-resumo-editavel" : ""].filter(Boolean).join(" ");
       const dataEditar = adminEdita ? ` data-cal-resumo-editar="${rtCalEscape(item.evento.id)}"` : "";
-      linhas.push(`<span class="${calendarioClasseItem(item)} rt-cal-resumo-linha ${extraClasses}"${dataEditar} title="${rtCalEscape(calendarioLabelTipo(item.tipo) + ' — ' + (item.evento?.nome || ''))}">${rtCalTextoResumoItem(item)}</span>`);
+      linhas.push(`<span class="${calendarioClasseItem(item)} rt-cal-resumo-linha rt-cal-linha-colunas ${extraClasses}"${dataEditar} title="${rtCalEscape(calendarioLabelTipo(item.tipo) + ' — ' + rtCalTextoResumoItem(item))}">${rtCalResumoLinhaColunasHtml(item)}</span>`);
       cont += 1;
     }
     if (linhas.length) {
@@ -521,8 +577,8 @@ function renderizarCalendario() {
         <div class="calendar-day-number">${data.getDate()}</div>
         <div class="calendar-day-items">
           ${rtCalResumoAtivo() ? rtCalResumoPorCarroHtml(itensDia, 6) : itensDia.slice(0, 4).map(item => `
-            <span class="${calendarioClasseItem(item)}" title="${calendarioLabelTipo(item.tipo)} — ${item.titulo}">
-              ${item.hora ? item.hora + " • " : ""}${calendarioLabelTipo(item.tipo)} ${item.titulo}
+            <span class="${calendarioClasseItem(item)} rt-cal-linha-colunas ${rtCalForaHorarioComercial(item) ? "rt-cal-fora-comercial" : ""}" title="${rtCalEscape(calendarioLabelTipo(item.tipo) + ' — ' + rtCalTextoResumoItem(item))}">
+              ${rtCalResumoLinhaColunasHtml(item)}
             </span>
           `).join("")}
           ${!rtCalResumoAtivo() && itensDia.length > 4 ? `<span class="cal-more">+${itensDia.length - 4}</span>` : ""}
@@ -577,8 +633,8 @@ function renderizarCalendarioSemana() {
         <div class="calendar-day-number">${data.getDate()} <small>${data.toLocaleDateString("pt-BR", { weekday: "short" })}</small></div>
         <div class="calendar-day-items">
           ${rtCalResumoAtivo() ? rtCalResumoPorCarroHtml(itensDia, 14) : itensDia.slice(0, 8).map(item => `
-            <span class="${calendarioClasseItem(item)}" title="${calendarioLabelTipo(item.tipo)} — ${item.titulo}">
-              ${item.hora ? item.hora + " • " : ""}${calendarioLabelTipo(item.tipo)} ${item.titulo}
+            <span class="${calendarioClasseItem(item)} rt-cal-linha-colunas ${rtCalForaHorarioComercial(item) ? "rt-cal-fora-comercial" : ""}" title="${rtCalEscape(calendarioLabelTipo(item.tipo) + ' — ' + rtCalTextoResumoItem(item))}">
+              ${rtCalResumoLinhaColunasHtml(item)}
             </span>
           `).join("")}
           ${!rtCalResumoAtivo() && itensDia.length > 8 ? `<span class="cal-more">+${itensDia.length - 8}</span>` : ""}
@@ -872,8 +928,8 @@ function renderizarPainelDiaCalendario() {
     return `
       <div class="calendar-panel-card ${calendarioClasseItem(item)}">
         <div class="calendar-panel-top">
-          <strong>${calendarioLabelTipo(item.tipo)} — ${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml({ ...evento, data_evento: item.data || evento.data_evento }) : ""}${evento.nome || "-"}</strong>
-          <span class="calendar-panel-time">${calendarioHoraExibicao(item)}</span>
+          <strong>${calendarioLabelTipo(item.tipo)} — ${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml({ ...evento, data_evento: item.data || evento.data_evento }) : ""}${typeof rtTextoVisual === "function" ? rtTextoVisual(evento.nome || "-") : (evento.nome || "-")}</strong>
+          <span class="calendar-panel-time">${calendarioHoraLinha(item) || calendarioHoraExibicao(item)}</span>
         </div>
         <div class="calendar-panel-info">
           <span>${evento.telefone || "-"}</span>

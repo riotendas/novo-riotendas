@@ -5,6 +5,7 @@
 let manutencaoMobileFiltroAtual = "pendentes";
 let manutencaoMobileProdutoAtualId = null;
 let manutencaoMobileStatusSelecionado = "";
+let manutencaoMobileUsabilidadeFiltroAtual = "Todos";
 let manutMobileSyncTimer = null;
 let manutMobileSyncExecutando = false;
 
@@ -311,6 +312,42 @@ function manutMobileUsabilidadeOpcoes() {
     : ["Excelente", "Bom", "Regular", "Ruim", "Venda / Baixa"];
 }
 
+function manutMobileUsabilidadeFiltros() {
+  return ["Todos", "Excelente", "Bom", "Regular", "Ruim", "Venda"];
+}
+
+function manutMobileUsabilidadeProduto(produto = {}) {
+  return String(produto.grau_usabilidade || produto.usabilidade || "Bom").trim() || "Bom";
+}
+
+function manutMobileUsabilidadeCombina(produto = {}) {
+  const filtro = manutMobileNormalizar(manutencaoMobileUsabilidadeFiltroAtual || "Todos");
+  if (!filtro || filtro === "todos") return true;
+  const atual = manutMobileNormalizar(manutMobileUsabilidadeProduto(produto));
+  if (filtro === "venda") return atual.includes("venda") || atual.includes("baixa");
+  return atual === filtro;
+}
+
+function manutMobileAtualizarBotaoUsabilidadeFiltro() {
+  const btn = document.getElementById("manutMobileUsabilidadeFiltroBtn");
+  if (!btn) return;
+  const valor = manutencaoMobileUsabilidadeFiltroAtual || "Todos";
+  const strong = btn.querySelector("strong");
+  if (strong) strong.textContent = valor;
+  btn.dataset.manutUsabFiltro = valor;
+  btn.className = `manut-usab-filtro usab-${manutMobileUsabilidadeClasse(valor)}`;
+  btn.classList.toggle("active", manutMobileNormalizar(valor) !== "todos");
+}
+
+function manutMobileAlternarUsabilidadeFiltro() {
+  const opcoes = manutMobileUsabilidadeFiltros();
+  const atual = manutencaoMobileUsabilidadeFiltroAtual || "Todos";
+  const idx = opcoes.findIndex(op => manutMobileNormalizar(op) === manutMobileNormalizar(atual));
+  manutencaoMobileUsabilidadeFiltroAtual = opcoes[(idx + 1 + opcoes.length) % opcoes.length];
+  manutMobileAtualizarBotaoUsabilidadeFiltro();
+  renderizarManutencaoMobile();
+}
+
 function manutMobileDisponibilidadeResumo(produto = {}) {
   const linhasCompactas = [manutMobileProximoUsoLinha(produto), manutMobileLimpezaResumo(produto)];
   try {
@@ -422,6 +459,7 @@ function manutMobileProdutosFiltrados() {
   const filtro = manutMobileNormalizar(manutencaoMobileFiltroAtual || "pendentes");
   return lista
     .filter(produto => {
+      if (!manutMobileUsabilidadeCombina(produto)) return false;
       if (filtro === "todos") return true;
       if (!filtro || filtro === "pendentes") return manutMobileProdutoPendente(produto);
       const status = manutMobileNormalizar(produto.status);
@@ -450,6 +488,7 @@ function renderizarManutencaoMobileResumo() {
     const strong = btn.querySelector("strong");
     if (strong) strong.textContent = manutMobileContar(filtro);
   });
+  manutMobileAtualizarBotaoUsabilidadeFiltro();
 }
 
 function renderizarManutencaoMobile() {
@@ -1068,6 +1107,9 @@ function iniciarManutencaoMobile() {
       renderizarManutencaoMobile();
     });
   });
+
+  document.getElementById("manutMobileUsabilidadeFiltroBtn")?.addEventListener("click", manutMobileAlternarUsabilidadeFiltro);
+  manutMobileAtualizarBotaoUsabilidadeFiltro();
 
   setTimeout(renderizarManutencaoMobile, 900);
   manutMobileIniciarSincronizacaoAutomatica();

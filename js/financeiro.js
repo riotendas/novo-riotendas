@@ -10,9 +10,10 @@ let rtFinanceiroEventosCache = [];
 let rtFinanceiroCarregandoEventos = null;
 
 function rtFinEventosLista() {
-  try { if (Array.isArray(eventos) && eventos.length) return eventos; } catch (e) {}
-  try { if (Array.isArray(window.eventos) && window.eventos.length) return window.eventos; } catch (e) {}
-  try { if (Array.isArray(rtFinanceiroEventosCache) && rtFinanceiroEventosCache.length) return rtFinanceiroEventosCache; } catch (e) {}
+  const somenteAtivos = (lista) => (Array.isArray(lista) ? lista.filter(e => !(typeof rtEventoCancelado === "function" && rtEventoCancelado(e))) : lista);
+  try { if (Array.isArray(eventos) && eventos.length) return somenteAtivos(eventos); } catch (e) {}
+  try { if (Array.isArray(window.eventos) && window.eventos.length) return somenteAtivos(window.eventos); } catch (e) {}
+  try { if (Array.isArray(rtFinanceiroEventosCache) && rtFinanceiroEventosCache.length) return somenteAtivos(rtFinanceiroEventosCache); } catch (e) {}
 
   const chavesLocais = [
     "novoRioTendasEventosV2",
@@ -23,11 +24,11 @@ function rtFinEventosLista() {
   for (const chave of chavesLocais) {
     try {
       const local = JSON.parse(localStorage.getItem(chave) || "[]");
-      if (Array.isArray(local) && local.length) return local;
+      if (Array.isArray(local) && local.length) return somenteAtivos(local);
     } catch (e) {}
   }
 
-  try { if (Array.isArray(eventos)) return eventos; } catch (e) {}
+  try { if (Array.isArray(eventos)) return somenteAtivos(eventos); } catch (e) {}
   try { if (Array.isArray(window.eventos)) return window.eventos; } catch (e) {}
   return [];
 }

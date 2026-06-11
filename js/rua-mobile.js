@@ -427,6 +427,7 @@ function obterRotasRuaMobile() {
   const carro = document.getElementById("ruaMobileCarro")?.value || "";
 
   const lista = criarRotasDosEventos().filter(rota => {
+    if (typeof rtEventoCancelado === "function" && rtEventoCancelado(rota.evento)) return false;
     const carroRota = ruaMobileCarroDaRota(rota);
     return rota.data === data
       && (!tipo || rota.tipo === tipo)

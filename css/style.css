@@ -15445,7 +15445,7 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
 #eventosSection #novoEventoBtn{margin-left:auto;min-height:40px;padding:9px 18px;}
 #eventosSection .eventos-toolbar{
   display:grid;
-  grid-template-columns:minmax(280px,1.55fr) minmax(150px,.62fr) minmax(170px,.72fr) minmax(150px,.58fr);
+  grid-template-columns:minmax(280px,1.55fr) minmax(150px,.62fr) minmax(170px,.72fr) 34px minmax(150px,.58fr);
   gap:10px;
   align-items:end;
   margin:8px 0 6px;
@@ -16255,4 +16255,1619 @@ body.modo-mobile-operacional #mobileTopBtn{margin-left:auto !important;}
 }
 .manut-mobile-disponibilidade-box small{
   white-space:normal !important;
+}
+
+/* v19-dev: evento cancelado preservado no histórico */
+tr.evento-cancelado,
+tr.evento-cancelado td {
+  opacity: .72;
+  background: #f3f4f6 !important;
+  color: #6b7280;
+}
+tr.evento-cancelado td:not(.actions),
+tr.evento-cancelado .code-link,
+tr.evento-cancelado .product-list-button {
+  text-decoration: line-through;
+}
+.evento-cancelado-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none !important;
+  margin-right: 4px;
+}
+
+
+/* v19-dev rotas painel organizar desktop */
+.rotas-layout{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:14px;
+  align-items:start;
+}
+.rotas-layout.organizador-ativo{
+  grid-template-columns:minmax(0, 3fr) minmax(260px, 1fr);
+}
+.rotas-organizador-painel{
+  display:none;
+  position:sticky;
+  top:92px;
+  max-height:calc(100vh - 110px);
+  overflow:auto;
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  box-shadow:0 10px 25px rgba(15,23,42,.08);
+  padding:12px;
+}
+.rotas-layout.organizador-ativo .rotas-organizador-painel{display:block;}
+.rotas-organizador-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:8px;
+  border-bottom:1px solid #eef2f7;
+  padding-bottom:10px;
+  margin-bottom:10px;
+}
+.rotas-organizador-header strong{display:block;font-size:14px;color:#111827;}
+.rotas-organizador-header span{display:block;font-size:12px;color:#64748b;margin-top:2px;}
+.rotas-organizador-grupo{margin-bottom:14px;}
+.rotas-organizador-grupo h4{
+  margin:0 0 8px;
+  font-size:13px;
+  color:#334155;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.rotas-organizador-item{
+  border:1px solid #e5e7eb;
+  border-radius:10px;
+  background:#f8fafc;
+  padding:8px;
+  margin-bottom:7px;
+  cursor:grab;
+}
+.rotas-organizador-item:active{cursor:grabbing;}
+.rotas-organizador-item.arrastando{opacity:.55;}
+.rotas-organizador-item.tipo-montagem{border-left:4px solid #16a34a;}
+.rotas-organizador-item.tipo-desmontagem{border-left:4px solid #92400e;}
+.rotas-organizador-linha{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  font-size:12px;
+  line-height:1.25;
+}
+.rotas-organizador-resumo{font-weight:700;color:#111827;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rotas-organizador-tipo{font-size:11px;font-weight:800;text-transform:uppercase;white-space:nowrap;}
+.rotas-organizador-tipo.m{color:#16a34a;}
+.rotas-organizador-tipo.b{color:#92400e;}
+.rotas-organizador-carro{
+  margin-top:7px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:11px;
+  color:#475569;
+}
+.rotas-organizador-carro select{
+  width:100%;
+  min-width:0;
+  padding:5px 7px;
+  border:1px solid #d1d5db;
+  border-radius:8px;
+  background:#fff;
+  font-size:12px;
+}
+#organizarRotasBtn.ativo{background:#0f172a;color:#fff;border-color:#0f172a;}
+@media (max-width: 980px){
+  .rotas-layout.organizador-ativo{grid-template-columns:1fr;}
+  .rotas-organizador-painel{position:relative;top:auto;max-height:none;}
+}
+
+/* v19-dev: organizador de rotas em blocos fixos por carro */
+.rotas-organizador-dropzone{
+  min-height:42px;
+  border:1px dashed transparent;
+  border-radius:12px;
+  padding:4px;
+  transition:background .15s ease,border-color .15s ease;
+}
+.rotas-organizador-dropzone.vazio{
+  min-height:58px;
+  border-color:#dbe3ee;
+  background:#f8fafc;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.rotas-organizador-dropzone.sobre{
+  border-color:#2563eb;
+  background:#eff6ff;
+}
+.rotas-organizador-vazio{
+  font-size:12px;
+  color:#94a3b8;
+  font-weight:600;
+  text-align:center;
+  pointer-events:none;
+}
+.rotas-organizador-grupo{
+  border:1px solid #eef2f7;
+  border-radius:14px;
+  padding:8px;
+  background:#fff;
+}
+.rotas-organizador-grupo h4{
+  padding:2px 2px 6px;
+  border-bottom:1px solid #f1f5f9;
+}
+.rotas-organizador-carro{display:none!important;}
+
+
+/* v19-dev rotas kanban compacto */
+.rotas-organizador-painel{
+  padding:8px;
+}
+.rotas-organizador-header{
+  padding-bottom:7px;
+  margin-bottom:7px;
+}
+.rotas-organizador-header strong{font-size:13px;}
+.rotas-organizador-header span{font-size:11px;margin-top:0;}
+.rotas-organizador-data-titulo{
+  font-size:12px;
+  margin:4px 0 6px;
+}
+.rotas-organizador-grupo{
+  margin-bottom:7px !important;
+  padding:5px !important;
+  border-radius:10px !important;
+}
+.rotas-organizador-grupo h4{
+  margin:0 0 4px !important;
+  padding:0 1px 4px !important;
+  font-size:12px !important;
+  line-height:1.15 !important;
+}
+.rotas-organizador-grupo h4 small{
+  font-size:10px;
+}
+.rotas-organizador-dropzone{
+  min-height:26px !important;
+  padding:2px !important;
+  border-radius:8px !important;
+}
+.rotas-organizador-dropzone.vazio{
+  min-height:30px !important;
+}
+.rotas-organizador-vazio{
+  font-size:11px !important;
+  line-height:1.1 !important;
+}
+.rotas-organizador-item{
+  padding:5px 6px !important;
+  margin-bottom:4px !important;
+  border-radius:8px !important;
+}
+.rotas-organizador-item.tipo-montagem,
+.rotas-organizador-item.tipo-desmontagem{
+  border-left-width:3px !important;
+}
+.rotas-organizador-linha{
+  gap:5px !important;
+  font-size:11px !important;
+  line-height:1.15 !important;
+}
+.rotas-organizador-resumo{
+  font-size:11px !important;
+}
+.rotas-organizador-tipo{
+  font-size:10px !important;
+}
+
+/* v19-dev rotas kanban ultra compacto: reduz espaços entre carro/eventos e entre blocos */
+.rotas-organizador-grupo{
+  margin-bottom:3px !important;
+  padding:3px 4px !important;
+  border-radius:8px !important;
+}
+.rotas-organizador-grupo h4{
+  margin:0 !important;
+  padding:0 1px 2px !important;
+  border-bottom:0 !important;
+  font-size:11.5px !important;
+  line-height:1.05 !important;
+}
+.rotas-organizador-dropzone{
+  min-height:18px !important;
+  padding:0 1px !important;
+  border-radius:7px !important;
+}
+.rotas-organizador-dropzone.vazio{
+  min-height:22px !important;
+  padding:1px !important;
+}
+.rotas-organizador-vazio{
+  font-size:10px !important;
+  line-height:1 !important;
+}
+.rotas-organizador-item{
+  padding:4px 5px !important;
+  margin-bottom:2px !important;
+  border-radius:7px !important;
+}
+.rotas-organizador-item:last-child{
+  margin-bottom:0 !important;
+}
+.rotas-organizador-linha{
+  gap:4px !important;
+  font-size:10.5px !important;
+  line-height:1.08 !important;
+}
+.rotas-organizador-resumo{
+  font-size:10.5px !important;
+}
+.rotas-organizador-tipo{
+  font-size:9.5px !important;
+}
+
+/* v19-dev rotas kanban: data destacada, fora de horário, scroll e inserção precisa */
+.rotas-organizador-header span,
+.rotas-organizador-data-titulo{
+  font-weight:800 !important;
+  color:#0f172a !important;
+  letter-spacing:.02em;
+}
+.rotas-organizador-item.fora-horario{
+  background:#fff7cc !important;
+  border-color:#facc15 !important;
+}
+.rotas-organizador-item.inserir-antes{
+  box-shadow:0 -3px 0 #2563eb inset, 0 -1px 0 #2563eb !important;
+}
+.rotas-organizador-item.inserir-depois{
+  box-shadow:0 3px 0 #2563eb inset, 0 1px 0 #2563eb !important;
+}
+.rota-card-localizado{
+  outline:3px solid #2563eb !important;
+  box-shadow:0 0 0 6px rgba(37,99,235,.14), 0 8px 22px rgba(15,23,42,.12) !important;
+  transition:outline .2s ease, box-shadow .2s ease;
+}
+
+
+/* v19-dev: faixa azul da data do Kanban de rotas e filtro de cancelados */
+.rotas-organizador-header span,
+.rotas-organizador-data-titulo{
+  display:block !important;
+  background:#2563eb !important;
+  color:#fff !important;
+  border-radius:7px !important;
+  padding:4px 8px !important;
+  margin-top:4px !important;
+  font-weight:900 !important;
+  text-align:center !important;
+  letter-spacing:.03em !important;
+}
+.rotas-organizador-data-titulo{
+  margin:3px 0 5px !important;
+}
+.eventos-ocultar-cancelados-filtro{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:12px;
+  font-weight:700;
+  color:#334155;
+  white-space:nowrap;
+  align-self:end;
+  padding:8px 10px;
+  border:1px solid #e5e7eb;
+  border-radius:10px;
+  background:#fff;
+}
+.eventos-ocultar-cancelados-filtro input{
+  width:14px;
+  height:14px;
+  margin:0;
+}
+
+
+/* v19-dev: ajustes kanban/toolbar/financeiro após base kanban-mobile-sync-cancelados */
+.rotas-organizador-header span,
+.rotas-organizador-data-titulo{
+  background:#0f4f86 !important;
+  color:#fff !important;
+}
+.rotas-organizador-item.tipo-montagem:not(.fora-horario){
+  background:#e8f7e8 !important;
+  border-color:#cceccb !important;
+  border-left-color:#16a34a !important;
+}
+.rotas-organizador-item.tipo-desmontagem:not(.fora-horario){
+  background:#fff1df !important;
+  border-color:#f1d6b8 !important;
+  border-left-color:#c46a16 !important;
+}
+.rotas-organizador-item.tipo-montagem:not(.fora-horario) .rotas-organizador-resumo,
+.rotas-organizador-item.tipo-desmontagem:not(.fora-horario) .rotas-organizador-resumo{
+  color:#111827 !important;
+  font-weight:700 !important;
+}
+.eventos-ocultar-cancelados-filtro{
+  width:34px !important;
+  min-width:34px !important;
+  height:40px !important;
+  padding:0 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  align-self:end !important;
+  border:1px solid #d7e0ec !important;
+  border-radius:10px !important;
+  background:#fff !important;
+  box-sizing:border-box !important;
+}
+.eventos-ocultar-cancelados-filtro span{
+  display:none !important;
+}
+.eventos-ocultar-cancelados-filtro input{
+  width:16px !important;
+  height:16px !important;
+  margin:0 !important;
+  cursor:pointer;
+}
+@media (max-width: 760px){
+  #eventosSection .eventos-toolbar{grid-template-columns:1fr 1fr !important;}
+  .eventos-ocultar-cancelados-filtro{width:40px !important; min-width:40px !important;}
+}
+
+/* v19-dev: Kanban rotas em colunas Quantidade | Local | Cliente | Horário */
+.rotas-organizador-linha-colunas{
+  display:grid !important;
+  grid-template-columns:minmax(34px,.7fr) minmax(72px,1.35fr) minmax(64px,1.05fr) minmax(42px,.8fr) auto !important;
+  align-items:center !important;
+  gap:5px !important;
+  width:100% !important;
+}
+.rotas-organizador-col{
+  min-width:0 !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+  color:#111827 !important;
+  font-weight:700 !important;
+}
+.rotas-organizador-col-qtd{
+  text-align:left !important;
+}
+.rotas-organizador-col-local,
+.rotas-organizador-col-cliente,
+.rotas-organizador-col-horario{
+  text-align:left !important;
+}
+.rotas-organizador-col-horario{
+  font-weight:600 !important;
+  font-size:10px !important;
+}
+.rotas-organizador-linha-colunas .rotas-organizador-tipo{
+  justify-self:end !important;
+}
+
+/* Assinatura do contrato - indicador compacto */
+.assinatura-status-cell{
+  text-align:center !important;
+  vertical-align:middle !important;
+  white-space:nowrap !important;
+}
+.assinatura-status-badge{
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  width:18px !important;
+  height:18px !important;
+  line-height:1 !important;
+}
+.assinatura-bolinha{
+  display:inline-block !important;
+  width:10px !important;
+  height:10px !important;
+  border-radius:999px !important;
+  border:1px solid rgba(17,24,39,.25) !important;
+  box-sizing:border-box !important;
+  vertical-align:middle !important;
+}
+.assinatura-nao_enviado{ background:#f9fafb !important; }
+.assinatura-enviado{ background:#facc15 !important; }
+.assinatura-assinado{ background:#86efac !important; }
+.assinatura-recusado{ background:#fca5a5 !important; }
+.assinatura-legenda-eventos{
+  display:flex !important;
+  align-items:center !important;
+  gap:10px !important;
+  flex-wrap:wrap !important;
+  font-size:11px !important;
+  color:#374151 !important;
+  margin:6px 0 10px !important;
+  padding:6px 8px !important;
+  background:#f9fafb !important;
+  border:1px solid #e5e7eb !important;
+  border-radius:8px !important;
+}
+.assinatura-legenda-eventos span{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:4px !important;
+}
+.evento-assinatura-compacta{
+  display:flex !important;
+  align-items:end !important;
+  gap:6px !important;
+  flex-wrap:wrap !important;
+  max-width:360px !important;
+}
+.evento-assinatura-compacta label{
+  display:flex !important;
+  flex-direction:column !important;
+  gap:2px !important;
+  font-size:11px !important;
+  margin:0 !important;
+}
+.evento-assinatura-compacta select{
+  height:32px !important;
+  min-width:130px !important;
+  padding:4px 8px !important;
+}
+.evento-assinatura-compacta input{
+  height:32px !important;
+  width:180px !important;
+  padding:4px 8px !important;
+}
+@media (max-width: 720px){
+  .evento-assinatura-compacta{
+    width:100% !important;
+    max-width:none !important;
+  }
+  .evento-assinatura-compacta input{ width:100% !important; }
+}
+
+
+/* v19-dev: assinatura layout compacto - coluna estreita e rodapé em uma linha */
+#eventosTable th:nth-child(11),
+#eventosTable td:nth-child(11),
+.eventos-table th:nth-child(11),
+.eventos-table td:nth-child(11) {
+  width: 24px !important;
+  min-width: 24px !important;
+  max-width: 28px !important;
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+#eventosTable th:nth-child(11),
+.eventos-table th:nth-child(11) {
+  font-size: 11px !important;
+}
+
+.assinatura-status-badge {
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px !important;
+}
+
+.assinatura-bolinha {
+  width: 9px !important;
+  height: 9px !important;
+}
+
+#eventoModal .evento-rodape-documentos-final,
+#eventoModal form .modal-actions.evento-rodape-documentos-final {
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: flex-start !important;
+  flex-wrap: nowrap !important;
+  gap: 6px !important;
+  width: 100% !important;
+}
+
+#eventoModal .evento-assinatura-compacta {
+  display: inline-flex !important;
+  align-items: flex-end !important;
+  gap: 5px !important;
+  flex-wrap: nowrap !important;
+  max-width: none !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+}
+
+#eventoModal .evento-assinatura-compacta label {
+  font-size: 11px !important;
+  line-height: 1.05 !important;
+  margin: 0 !important;
+}
+
+#eventoModal .evento-assinatura-compacta select {
+  height: 32px !important;
+  min-width: 126px !important;
+  max-width: 136px !important;
+  padding: 4px 6px !important;
+}
+
+#eventoModal .evento-assinatura-compacta input {
+  height: 32px !important;
+  width: 150px !important;
+  max-width: 150px !important;
+  padding: 4px 8px !important;
+}
+
+#eventoModal .evento-doc-actions,
+#eventoModal .evento-save-actions {
+  display: inline-flex !important;
+  align-items: flex-end !important;
+  gap: 5px !important;
+  flex-wrap: nowrap !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+}
+
+#eventoModal .evento-rodape-spacer {
+  flex: 1 1 auto !important;
+  min-width: 6px !important;
+}
+
+#eventoModal .btn-doc-evento {
+  min-width: 70px !important;
+  max-width: 86px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  white-space: nowrap !important;
+}
+
+#eventoModal .evento-save-actions button {
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 4px 12px !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 980px) {
+  #eventoModal .evento-rodape-documentos-final,
+  #eventoModal form .modal-actions.evento-rodape-documentos-final {
+    flex-wrap: wrap !important;
+    align-items: center !important;
+  }
+  #eventoModal .evento-assinatura-compacta input {
+    width: 170px !important;
+    max-width: 170px !important;
+  }
+  #eventoModal .evento-rodape-spacer {
+    display: none !important;
+  }
+}
+
+
+/* v19-dev: assinatura coluna estreita na tabela de eventos */
+.eventos-table-scroll table th:nth-child(11),
+.eventos-table-scroll table td:nth-child(11){
+  width:24px !important;
+  min-width:24px !important;
+  max-width:28px !important;
+  padding-left:2px !important;
+  padding-right:2px !important;
+  text-align:center !important;
+}
+.eventos-table-scroll table th:nth-child(11){font-size:11px !important;}
+
+
+/* v19-dev: assinatura ultra compacta - somente bolinha na lista e no rodapé */
+#eventosSection .eventos-table-scroll table{
+  table-layout: fixed !important;
+}
+#eventosSection .eventos-table-scroll table col.col-assinatura{
+  width: 18px !important;
+}
+#eventosSection .eventos-table-scroll table th.col-assinatura,
+#eventosSection .eventos-table-scroll table th:nth-child(11),
+#eventosSection .eventos-table-scroll table td:nth-child(11){
+  width: 18px !important;
+  min-width: 18px !important;
+  max-width: 20px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  text-align: center !important;
+  overflow: hidden !important;
+}
+#eventosSection .eventos-table-scroll table th.col-assinatura,
+#eventosSection .eventos-table-scroll table th:nth-child(11){
+  font-size: 10px !important;
+  line-height: 1 !important;
+}
+#eventosSection .recurring-table-wrapper table th:nth-child(10),
+#eventosSection .recurring-table-wrapper table td:nth-child(10){
+  width: 18px !important;
+  min-width: 18px !important;
+  max-width: 20px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  text-align: center !important;
+}
+#eventosSection .assinatura-status-cell{
+  width: 18px !important;
+  min-width: 18px !important;
+  max-width: 20px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+#eventosSection .assinatura-status-badge{
+  width: 12px !important;
+  min-width: 12px !important;
+  height: 12px !important;
+}
+#eventosSection .assinatura-bolinha{
+  width: 8px !important;
+  height: 8px !important;
+}
+#eventoModal .evento-rodape-documentos-final,
+#eventoModal form .modal-actions.evento-rodape-documentos-final{
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  flex-wrap: nowrap !important;
+  gap: 5px !important;
+  width: 100% !important;
+}
+#eventoModal .evento-assinatura-compacta{
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex-wrap: nowrap !important;
+  width: auto !important;
+  max-width: none !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+}
+#eventoModal .evento-assinatura-compacta .assinatura-label-oculta{
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0 !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+}
+#eventoModal .evento-assinatura-compacta select#eventoAssinaturaStatus{
+  width: 38px !important;
+  min-width: 38px !important;
+  max-width: 38px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 2px 3px !important;
+  border-radius: 10px !important;
+  text-align: center !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+}
+#eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink{
+  width: 118px !important;
+  max-width: 118px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 4px 7px !important;
+  margin: 0 !important;
+}
+#eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink:not(.assinatura-link-visivel){
+  display: none !important;
+}
+#eventoModal .evento-doc-actions,
+#eventoModal .evento-save-actions{
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  flex-wrap: nowrap !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+}
+#eventoModal .evento-rodape-spacer{
+  flex: 1 1 auto !important;
+  min-width: 4px !important;
+}
+#eventoModal .btn-doc-evento{
+  min-width: 66px !important;
+  max-width: 84px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 4px 7px !important;
+  font-size: 12px !important;
+}
+#eventoModal .evento-save-actions button{
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 4px 10px !important;
+}
+@media (max-width: 980px){
+  #eventoModal .evento-rodape-documentos-final,
+  #eventoModal form .modal-actions.evento-rodape-documentos-final{
+    flex-wrap: wrap !important;
+  }
+}
+
+/* v19-dev: ajuste fino assinatura ultra compacta */
+#eventosSection .eventos-table-scroll table col:nth-child(10){
+  width: 5.2% !important;
+}
+#eventosSection .eventos-table-scroll table col.col-assinatura,
+#eventosSection .eventos-table-scroll table col:nth-child(11){
+  width: 12px !important;
+}
+#eventosSection .eventos-table-scroll table th:nth-child(10),
+#eventosSection .eventos-table-scroll table td:nth-child(10){
+  width: 5.2% !important;
+  max-width: 64px !important;
+  padding-right: 2px !important;
+}
+#eventosSection .eventos-table-scroll table th.col-assinatura,
+#eventosSection .eventos-table-scroll table th:nth-child(11),
+#eventosSection .eventos-table-scroll table td:nth-child(11){
+  width: 12px !important;
+  min-width: 12px !important;
+  max-width: 12px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+#eventosSection .assinatura-status-cell,
+#eventosSection .assinatura-status-badge{
+  width: 10px !important;
+  min-width: 10px !important;
+  max-width: 10px !important;
+}
+#eventosSection .assinatura-bolinha{
+  width: 7px !important;
+  height: 7px !important;
+}
+#eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink,
+#eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink:not(.assinatura-link-visivel){
+  display: inline-block !important;
+  width: 116px !important;
+  max-width: 116px !important;
+  min-width: 92px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 3px 7px !important;
+}
+#eventoModal .evento-assinatura-compacta select#eventoAssinaturaStatus{
+  width: 36px !important;
+  min-width: 36px !important;
+  max-width: 36px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+}
+#eventoModal .btn-doc-evento{
+  min-width: 54px !important;
+  max-width: 76px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 3px 6px !important;
+  font-size: 12px !important;
+}
+#eventoModal #gerarContratoEvento.btn-doc-evento{ min-width: 70px !important; }
+#eventoModal .evento-save-actions button{
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 3px 9px !important;
+}
+#eventoModal .evento-rodape-documentos-final,
+#eventoModal form .modal-actions.evento-rodape-documentos-final{
+  gap: 4px !important;
+}
+
+/* v19-dev: assinatura layout equilibrado final - 30px na tabela, link visível e documentos menores */
+#eventosSection .eventos-table-scroll table{
+  table-layout: fixed !important;
+}
+#eventosSection .eventos-table-scroll table col:nth-child(10){
+  width: 6.2% !important;
+}
+#eventosSection .eventos-table-scroll table col.col-assinatura,
+#eventosSection .eventos-table-scroll table col:nth-child(11){
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+}
+#eventosSection .eventos-table-scroll table col:nth-child(12){
+  width: 6.2% !important;
+}
+#eventosSection .eventos-table-scroll table th:nth-child(10),
+#eventosSection .eventos-table-scroll table td:nth-child(10){
+  width: 6.2% !important;
+  max-width: none !important;
+  padding-right: 4px !important;
+}
+#eventosSection .eventos-table-scroll table th.col-assinatura,
+#eventosSection .eventos-table-scroll table th:nth-child(11),
+#eventosSection .eventos-table-scroll table td:nth-child(11){
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+  text-align: center !important;
+  overflow: visible !important;
+}
+#eventosSection .assinatura-status-cell{
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+  text-align:center !important;
+}
+#eventosSection .assinatura-status-badge{
+  width: 18px !important;
+  min-width: 18px !important;
+  max-width: 18px !important;
+  height: 18px !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+}
+#eventosSection .assinatura-bolinha{
+  width: 9px !important;
+  height: 9px !important;
+}
+#eventosSection .recurring-table-wrapper table th:nth-child(10),
+#eventosSection .recurring-table-wrapper table td:nth-child(10){
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  padding-left:2px !important;
+  padding-right:2px !important;
+  text-align:center !important;
+}
+
+#eventoModal .evento-rodape-documentos-final,
+#eventoModal form .modal-actions.evento-rodape-documentos-final{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  flex-wrap:nowrap !important;
+  gap:6px !important;
+  width:100% !important;
+}
+#eventoModal .evento-assinatura-compacta{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:5px !important;
+  flex-wrap:nowrap !important;
+  flex:0 0 auto !important;
+  width:auto !important;
+  max-width:none !important;
+  margin:0 !important;
+}
+#eventoModal .evento-assinatura-compacta .assinatura-label-oculta{
+  display:inline-flex !important;
+  flex-direction:row !important;
+  align-items:center !important;
+  gap:0 !important;
+  font-size:0 !important;
+  line-height:1 !important;
+  margin:0 !important;
+}
+#eventoModal .evento-assinatura-compacta select#eventoAssinaturaStatus{
+  width:42px !important;
+  min-width:42px !important;
+  max-width:42px !important;
+  height:32px !important;
+  min-height:32px !important;
+  padding:2px 4px !important;
+  border-radius:10px !important;
+  text-align:center !important;
+  font-size:14px !important;
+  line-height:1 !important;
+}
+#eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink,
+#eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink:not(.assinatura-link-visivel){
+  display:inline-block !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  width:170px !important;
+  min-width:135px !important;
+  max-width:170px !important;
+  height:32px !important;
+  min-height:32px !important;
+  padding:3px 8px !important;
+  margin:0 !important;
+}
+#eventoModal .evento-doc-actions,
+#eventoModal .evento-save-actions{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:5px !important;
+  flex-wrap:nowrap !important;
+  width:auto !important;
+  flex:0 0 auto !important;
+  margin:0 !important;
+}
+#eventoModal .evento-rodape-spacer{
+  flex:1 1 auto !important;
+  min-width:6px !important;
+}
+#eventoModal .btn-doc-evento{
+  min-width:58px !important;
+  max-width:82px !important;
+  height:32px !important;
+  min-height:32px !important;
+  padding:3px 7px !important;
+  font-size:12px !important;
+  white-space:nowrap !important;
+}
+#eventoModal #gerarContratoEvento.btn-doc-evento{
+  min-width:74px !important;
+  max-width:92px !important;
+}
+#eventoModal .evento-save-actions button{
+  height:32px !important;
+  min-height:32px !important;
+  padding:3px 10px !important;
+  white-space:nowrap !important;
+}
+@media (max-width: 980px){
+  #eventoModal .evento-rodape-documentos-final,
+  #eventoModal form .modal-actions.evento-rodape-documentos-final{
+    flex-wrap:wrap !important;
+  }
+  #eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink,
+  #eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink:not(.assinatura-link-visivel){
+    width:160px !important;
+    max-width:160px !important;
+  }
+}
+
+/* v19-dev: assinatura equilibrada + documentos compactos */
+#eventoModal .evento-assinatura-compacta select#eventoAssinaturaStatus{
+  width: 148px !important;
+  min-width: 148px !important;
+  max-width: 148px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 3px 8px !important;
+  font-size: 12px !important;
+  line-height: 1.1 !important;
+  text-align: left !important;
+}
+#eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink,
+#eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink:not(.assinatura-link-visivel){
+  display:inline-block !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  width: 150px !important;
+  min-width: 120px !important;
+  max-width: 150px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+}
+#eventoModal .btn-doc-evento{
+  min-width: 50px !important;
+  max-width: 64px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 2px 6px !important;
+  font-size: 11px !important;
+  line-height: 1.1 !important;
+}
+#eventoModal #gerarContratoEvento.btn-doc-evento{
+  min-width: 64px !important;
+  max-width: 74px !important;
+}
+#eventoModal .evento-rodape-documentos-final,
+#eventoModal form .modal-actions.evento-rodape-documentos-final{
+  gap: 5px !important;
+}
+#eventosSection .eventos-table-scroll table col.col-assinatura,
+#eventosSection .eventos-table-scroll table col:nth-child(11){
+  width: 30px !important;
+  min-width: 30px !important;
+  max-width: 30px !important;
+}
+#eventosSection .eventos-table-scroll table th.col-assinatura,
+#eventosSection .eventos-table-scroll table th:nth-child(11),
+#eventosSection .eventos-table-scroll table td:nth-child(11),
+#eventosSection .assinatura-status-cell{
+  width: 30px !important;
+  min-width: 30px !important;
+  max-width: 30px !important;
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+}
+
+/* v19-dev: faixa azul escura na data da rota principal */
+.rota-dia-header{
+  background:#0f5186 !important;
+  color:#fff !important;
+  border-radius:10px !important;
+  padding:7px 10px !important;
+  margin-bottom:8px !important;
+}
+.rota-dia-header h3,
+.rota-dia-header h3 span{
+  color:#fff !important;
+}
+.rota-dia-header .btn-outline,
+.rota-dia-header button{
+  background:#fff !important;
+  color:#0f5186 !important;
+  border-color:#fff !important;
+}
+
+/* v19-dev: calendário em colunas no padrão do Kanban */
+.rt-cal-linha-colunas{
+  display:grid !important;
+  grid-template-columns:minmax(28px,.55fr) minmax(54px,1.25fr) minmax(46px,.82fr) minmax(34px,.72fr) 14px !important;
+  align-items:center !important;
+  gap:3px !important;
+  width:100% !important;
+  box-sizing:border-box !important;
+  color:#111827 !important;
+}
+.rt-cal-col{
+  min-width:0 !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+  color:#111827 !important;
+  font-weight:700 !important;
+}
+.rt-cal-col-horario{
+  font-size:.58rem !important;
+  font-weight:700 !important;
+}
+.rt-cal-tipo-badge{
+  justify-self:end !important;
+  font-size:.58rem !important;
+  font-weight:900 !important;
+  line-height:1 !important;
+  color:#111827 !important;
+}
+.cal-montagem,
+.rt-cal-resumo-linha.cal-montagem,
+.calendar-panel-card.cal-montagem{
+  background:#e8f7e8 !important;
+  color:#111827 !important;
+  border-left-color:#22a047 !important;
+}
+.cal-desmontagem,
+.rt-cal-resumo-linha.cal-desmontagem,
+.calendar-panel-card.cal-desmontagem{
+  background:#fff3e4 !important;
+  color:#111827 !important;
+  border-left-color:#d97706 !important;
+}
+.cal-evento,
+.rt-cal-resumo-linha.cal-evento,
+.calendar-panel-card.cal-evento{
+  color:#111827 !important;
+}
+.rt-cal-linha-colunas.rt-cal-fora-comercial,
+.rt-cal-resumo-linha.rt-cal-fora-comercial,
+.calendar-panel-card .rt-cal-panel-linha.rt-cal-fora-comercial{
+  background:#fff2b8 !important;
+  border:1px solid #f0cf5a !important;
+}
+#calendarioGrid .calendar-day .calendar-day-items span.rt-cal-linha-colunas{
+  padding:2px 3px !important;
+  border-radius:6px !important;
+  min-width:0 !important;
+}
+.rt-cal-resumo-linha.rt-cal-linha-colunas{
+  border-radius:6px !important;
+}
+.calendar-panel-top-colunas{
+  display:block !important;
+}
+.calendar-panel-top-colunas .rt-cal-panel-linha{
+  padding:5px 6px !important;
+  border-radius:8px !important;
+}
+
+/* v19-dev: ajustes finais assinatura + calendário compacto */
+#eventoModal .evento-rodape-documentos-final,
+#eventoModal form .modal-actions.evento-rodape-documentos-final{
+  display:flex !important;
+  align-items:center !important;
+  flex-wrap:nowrap !important;
+  gap:6px !important;
+  overflow:hidden !important;
+}
+#eventoModal .evento-assinatura-compacta{
+  flex:0 0 auto !important;
+  gap:5px !important;
+  max-width:360px !important;
+}
+#eventoModal .evento-assinatura-compacta select#eventoAssinaturaStatus{
+  width:162px !important;
+  min-width:162px !important;
+  max-width:162px !important;
+  height:32px !important;
+  padding:3px 7px !important;
+  font-size:12px !important;
+  font-weight:600 !important;
+  box-sizing:border-box !important;
+}
+#eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink,
+#eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink.assinatura-link-visivel{
+  width:165px !important;
+  min-width:145px !important;
+  max-width:165px !important;
+  height:32px !important;
+  padding:3px 8px !important;
+  font-size:13px !important;
+  box-sizing:border-box !important;
+}
+#eventoModal .evento-doc-actions{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:4px !important;
+  flex:0 0 auto !important;
+  flex-wrap:nowrap !important;
+}
+#eventoModal .btn-doc-evento{
+  height:30px !important;
+  min-height:30px !important;
+  padding:2px 7px !important;
+  font-size:12px !important;
+  line-height:1 !important;
+  min-width:68px !important;
+  max-width:76px !important;
+  border-radius:10px !important;
+}
+#eventoModal #gerarContratoEvento.btn-doc-evento{
+  min-width:88px !important;
+  max-width:96px !important;
+}
+#eventoModal .evento-save-actions{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:5px !important;
+  flex:0 0 auto !important;
+  flex-wrap:nowrap !important;
+}
+#eventoModal .evento-save-actions button{
+  height:32px !important;
+  min-height:32px !important;
+  padding:3px 10px !important;
+  font-size:14px !important;
+  white-space:nowrap !important;
+}
+#eventoModal .evento-rodape-spacer{
+  flex:1 1 10px !important;
+  min-width:4px !important;
+}
+
+/* Coluna Ass. equilibrada: estreita, mas sem grudar no pagamento */
+#eventosSection .eventos-table-scroll table col.col-assinatura,
+#eventosSection .eventos-table-scroll table col:nth-child(11){
+  width:34px !important;
+  min-width:34px !important;
+  max-width:34px !important;
+}
+#eventosSection .eventos-table-scroll table th.col-assinatura,
+#eventosSection .eventos-table-scroll table th:nth-child(11),
+#eventosSection .eventos-table-scroll table td:nth-child(11),
+#eventosSection .assinatura-status-cell{
+  width:34px !important;
+  min-width:34px !important;
+  max-width:34px !important;
+  padding-left:4px !important;
+  padding-right:4px !important;
+  text-align:center !important;
+  box-sizing:border-box !important;
+}
+
+/* Calendário/lateral: manter uma linha no hover, igual ao Kanban */
+.rt-cal-linha-colunas,
+.rt-cal-linha-colunas:hover,
+.calendar-panel-card .rt-cal-panel-linha,
+.calendar-panel-card .rt-cal-panel-linha:hover,
+.rt-cal-resumo-linha,
+.rt-cal-resumo-linha:hover{
+  font-size:11px !important;
+  line-height:1.12 !important;
+  min-height:0 !important;
+  transform:none !important;
+}
+.rt-cal-linha-colunas{
+  grid-template-columns:34px minmax(58px,1.25fr) minmax(48px,.78fr) minmax(42px,.72fr) 12px !important;
+  gap:2px !important;
+  padding:2px 4px !important;
+}
+.rt-cal-col,
+.rt-cal-linha-colunas:hover .rt-cal-col,
+.calendar-panel-card:hover .rt-cal-col{
+  font-size:11px !important;
+  font-weight:600 !important;
+  line-height:1.12 !important;
+  white-space:nowrap !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+}
+.rt-cal-col-horario,
+.rt-cal-linha-colunas:hover .rt-cal-col-horario{
+  font-size:10px !important;
+  font-weight:600 !important;
+}
+.rt-cal-tipo-badge,
+.rt-cal-linha-colunas:hover .rt-cal-tipo-badge{
+  font-size:9px !important;
+  font-weight:800 !important;
+}
+.calendar-panel-top-colunas .rt-cal-panel-linha,
+.calendar-panel-top-colunas .rt-cal-panel-linha:hover{
+  padding:3px 5px !important;
+  border-radius:7px !important;
+}
+.calendar-panel-card:hover,
+.rt-cal-resumo-linha:hover{
+  font-weight:inherit !important;
+}
+
+@media (max-width: 1100px){
+  #eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink,
+  #eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink.assinatura-link-visivel{
+    width:145px !important;
+    max-width:145px !important;
+  }
+  #eventoModal .btn-doc-evento{
+    min-width:62px !important;
+    max-width:70px !important;
+    padding-left:5px !important;
+    padding-right:5px !important;
+  }
+  #eventoModal #gerarContratoEvento.btn-doc-evento{
+    min-width:78px !important;
+    max-width:86px !important;
+  }
+}
+
+
+/* v19-dev: ajuste final solicitado - assinatura sem quebra, calendário compacto e rota azul */
+#eventoModal .evento-rodape-documentos-final,
+#eventoModal form .modal-actions.evento-rodape-documentos-final{
+  display:flex !important;
+  align-items:center !important;
+  flex-wrap:nowrap !important;
+  gap:4px !important;
+  overflow:hidden !important;
+}
+#eventoModal .evento-assinatura-compacta{
+  display:inline-flex !important;
+  align-items:center !important;
+  flex-wrap:nowrap !important;
+  gap:4px !important;
+  flex:0 0 auto !important;
+  max-width:none !important;
+}
+#eventoModal .evento-assinatura-compacta select#eventoAssinaturaStatus{
+  width:158px !important;
+  min-width:158px !important;
+  max-width:158px !important;
+  height:31px !important;
+  min-height:31px !important;
+  padding:2px 6px !important;
+  font-size:12px !important;
+  font-weight:600 !important;
+  line-height:1 !important;
+  box-sizing:border-box !important;
+}
+#eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink,
+#eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink:not(.assinatura-link-visivel),
+#eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink.assinatura-link-visivel{
+  display:inline-block !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  width:150px !important;
+  min-width:120px !important;
+  max-width:150px !important;
+  height:31px !important;
+  min-height:31px !important;
+  padding:2px 7px !important;
+  font-size:12px !important;
+  box-sizing:border-box !important;
+}
+#eventoModal .evento-doc-actions,
+#eventoModal .evento-save-actions{
+  display:inline-flex !important;
+  align-items:center !important;
+  flex-wrap:nowrap !important;
+  gap:4px !important;
+  flex:0 0 auto !important;
+  width:auto !important;
+  margin:0 !important;
+}
+#eventoModal .btn-doc-evento{
+  height:29px !important;
+  min-height:29px !important;
+  min-width:48px !important;
+  max-width:62px !important;
+  padding:2px 5px !important;
+  font-size:11px !important;
+  line-height:1 !important;
+  border-radius:9px !important;
+  white-space:nowrap !important;
+}
+#eventoModal #gerarContratoEvento.btn-doc-evento{
+  min-width:54px !important;
+  max-width:66px !important;
+}
+#eventoModal #gerarReciboEvento.btn-doc-evento{
+  min-width:50px !important;
+  max-width:62px !important;
+}
+#eventoModal .evento-save-actions button{
+  height:31px !important;
+  min-height:31px !important;
+  padding:2px 9px !important;
+  font-size:13px !important;
+  white-space:nowrap !important;
+}
+#eventoModal .evento-rodape-spacer{ flex:1 1 auto !important; min-width:2px !important; }
+
+/* Rota principal: faixa da data azul escuro e texto branco */
+#rotasSection .rota-dia-header{
+  background:#0f5186 !important;
+  color:#fff !important;
+  border-bottom:0 !important;
+}
+#rotasSection .rota-dia-header h3,
+#rotasSection .rota-dia-header h3 span{ color:#fff !important; }
+#rotasSection .rota-dia-header .btn-outline,
+#rotasSection .rota-dia-header button{
+  background:#fff !important;
+  color:#0f5186 !important;
+  border-color:#fff !important;
+}
+
+/* Calendário principal: manter linha compacta sem grade/colunas visuais */
+#calendarioGrid .calendar-day-items .rt-cal-linha-colunas{
+  display:block !important;
+  font-size:0.60rem !important;
+  line-height:1.08 !important;
+  padding:2px 4px !important;
+  white-space:nowrap !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  font-weight:600 !important;
+}
+#calendarioGrid .calendar-day-items .rt-cal-linha-colunas .rt-cal-col{
+  display:inline !important;
+  font-size:inherit !important;
+  line-height:inherit !important;
+  font-weight:600 !important;
+}
+#calendarioGrid .calendar-day-items .rt-cal-linha-colunas .rt-cal-col:not(.rt-cal-col-horario)::after{
+  content:"-";
+}
+#calendarioGrid .calendar-day-items .rt-cal-linha-colunas .rt-cal-col-horario:not(:empty)::before{
+  content:"-";
+}
+#calendarioGrid .calendar-day-items .rt-cal-linha-colunas .rt-cal-tipo-badge{
+  display:none !important;
+}
+
+/* Lateral/resumo do calendário: manter colunas, mas mais compacto e sem mudar no hover */
+.rt-cal-resumo-painel .rt-cal-resumo-linha,
+.calendar-panel-top-colunas .rt-cal-panel-linha,
+.calendar-day-panel .rt-cal-linha-colunas{
+  font-size:10px !important;
+  line-height:1.08 !important;
+  font-weight:600 !important;
+  padding:3px 5px !important;
+  min-height:0 !important;
+  white-space:nowrap !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  box-sizing:border-box !important;
+}
+.rt-cal-resumo-painel .rt-cal-resumo-linha .rt-cal-col,
+.calendar-panel-top-colunas .rt-cal-panel-linha .rt-cal-col,
+.calendar-day-panel .rt-cal-linha-colunas .rt-cal-col{
+  font-size:10px !important;
+  line-height:1.08 !important;
+  font-weight:600 !important;
+}
+.rt-cal-resumo-painel .rt-cal-col-horario,
+.calendar-panel-top-colunas .rt-cal-col-horario,
+.calendar-day-panel .rt-cal-col-horario{
+  font-size:9px !important;
+  font-weight:600 !important;
+}
+.rt-cal-resumo-linha.rt-cal-resumo-editavel:hover::before{
+  content:"" !important;
+  display:none !important;
+}
+.rt-cal-resumo-linha.rt-cal-resumo-editavel:hover,
+.calendar-panel-card:hover,
+.calendar-panel-top-colunas .rt-cal-panel-linha:hover{
+  font-size:10px !important;
+  font-weight:600 !important;
+  line-height:1.08 !important;
+  transform:none !important;
+}
+.rt-cal-resumo-painel .rt-cal-linha-colunas,
+.calendar-panel-top-colunas .rt-cal-linha-colunas,
+.calendar-day-panel .rt-cal-linha-colunas{
+  grid-template-columns:32px minmax(58px,1.25fr) minmax(48px,.75fr) minmax(44px,.75fr) 12px !important;
+  gap:2px !important;
+}
+
+@media (max-width:1100px){
+  #eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink,
+  #eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink:not(.assinatura-link-visivel),
+  #eventoModal .evento-assinatura-compacta input#eventoAssinaturaLink.assinatura-link-visivel{
+    width:125px !important;
+    max-width:125px !important;
+  }
+  #eventoModal .evento-assinatura-compacta select#eventoAssinaturaStatus{
+    width:145px !important;
+    max-width:145px !important;
+  }
+}
+
+/* v19-dev: FORÇAR compactação dos carros vazios do Kanban e liberar espaço para horário */
+#rotasOrganizadorPainel .rotas-organizador-grupo:has(.rotas-organizador-dropzone.vazio){
+  padding:2px 4px !important;
+  margin-bottom:2px !important;
+  border-radius:7px !important;
+}
+#rotasOrganizadorPainel .rotas-organizador-grupo:has(.rotas-organizador-dropzone.vazio) h4{
+  margin:0 !important;
+  padding:0 !important;
+  line-height:1 !important;
+  min-height:13px !important;
+  border-bottom:0 !important;
+}
+#rotasOrganizadorPainel .rotas-organizador-grupo:has(.rotas-organizador-dropzone.vazio) .rotas-organizador-dropzone.vazio{
+  min-height:8px !important;
+  height:8px !important;
+  max-height:8px !important;
+  padding:0 !important;
+  margin-top:1px !important;
+  border-radius:5px !important;
+  display:block !important;
+  overflow:hidden !important;
+  background:#f8fafc !important;
+  border:1px dashed #dbe3ee !important;
+}
+#rotasOrganizadorPainel .rotas-organizador-grupo:has(.rotas-organizador-dropzone.vazio) .rotas-organizador-vazio{
+  display:block !important;
+  height:8px !important;
+  line-height:8px !important;
+  font-size:0 !important;
+  color:transparent !important;
+  overflow:hidden !important;
+}
+#rotasOrganizadorPainel .rotas-organizador-grupo:has(.rotas-organizador-dropzone.vazio):hover .rotas-organizador-dropzone.vazio,
+#rotasOrganizadorPainel .rotas-organizador-grupo:has(.rotas-organizador-dropzone.vazio) .rotas-organizador-dropzone.vazio.sobre{
+  min-height:18px !important;
+  height:18px !important;
+  max-height:18px !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+}
+#rotasOrganizadorPainel .rotas-organizador-grupo:has(.rotas-organizador-dropzone.vazio):hover .rotas-organizador-vazio,
+#rotasOrganizadorPainel .rotas-organizador-grupo:has(.rotas-organizador-dropzone.vazio) .rotas-organizador-dropzone.vazio.sobre .rotas-organizador-vazio{
+  font-size:9px !important;
+  color:#94a3b8 !important;
+}
+#rotasOrganizadorPainel .rotas-organizador-linha-colunas{
+  grid-template-columns:34px minmax(46px,1.05fr) minmax(54px,.88fr) minmax(62px,.95fr) 12px !important;
+  gap:4px !important;
+}
+#rotasOrganizadorPainel .rotas-organizador-col-local{
+  max-width:none !important;
+}
+#rotasOrganizadorPainel .rotas-organizador-col-horario{
+  min-width:58px !important;
+  font-size:10px !important;
+}
+
+
+/* v19-dev: Kanban Rotas - carros vazios agrupados/compactos e local menor */
+.rotas-organizador-grupo.grupo-vazio{
+  margin-top:2px !important;
+  margin-bottom:2px !important;
+  padding:2px 4px !important;
+  border-color:#edf2f7 !important;
+  background:#fff !important;
+}
+.rotas-organizador-grupo.grupo-vazio h4{
+  padding:0 !important;
+  margin:0 !important;
+  min-height:16px !important;
+  line-height:16px !important;
+  font-size:11px !important;
+  color:#334155 !important;
+}
+.rotas-organizador-grupo.grupo-vazio .rotas-organizador-dropzone.vazio{
+  min-height:10px !important;
+  height:10px !important;
+  padding:0 !important;
+  margin-top:1px !important;
+  border-color:transparent !important;
+  background:transparent !important;
+  display:flex !important;
+}
+.rotas-organizador-grupo.grupo-vazio .rotas-organizador-vazio{
+  display:none !important;
+}
+.rotas-organizador-grupo.grupo-vazio .rotas-organizador-dropzone.vazio.sobre,
+.rotas-organizador-grupo.grupo-vazio .rotas-organizador-dropzone.vazio:hover{
+  min-height:24px !important;
+  height:24px !important;
+  border-color:#93c5fd !important;
+  background:#eff6ff !important;
+}
+.rotas-organizador-grupo.grupo-vazio .rotas-organizador-dropzone.vazio.sobre .rotas-organizador-vazio,
+.rotas-organizador-grupo.grupo-vazio .rotas-organizador-dropzone.vazio:hover .rotas-organizador-vazio{
+  display:block !important;
+  font-size:10px !important;
+}
+.rotas-organizador-linha-colunas{
+  grid-template-columns:minmax(30px,.6fr) minmax(58px,1.05fr) minmax(60px,1fr) minmax(58px,1.05fr) auto !important;
+}
+.rotas-organizador-col-horario{
+  min-width:52px !important;
+}
+
+/* v19-dev: Manutenção Mobile - sem descrição e filtro cíclico de usabilidade */
+#manutencaoMobileSection .section-header p{
+  display:none !important;
+}
+#manutencaoMobileResumo.manutencao-mobile-dashboard{
+  grid-template-columns:repeat(6,minmax(0,1fr)) !important;
+  gap:4px !important;
+}
+#manutencaoMobileResumo .manut-usab-filtro strong{
+  font-size:12px !important;
+  line-height:1.05 !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+}
+#manutencaoMobileResumo .manut-usab-filtro span{
+  font-size:8.5px !important;
+}
+#manutencaoMobileResumo .manut-usab-filtro.active{
+  outline:2px solid #0f766e !important;
+  outline-offset:1px !important;
+}
+@media (max-width:720px){
+  #manutencaoMobileResumo.manutencao-mobile-dashboard{
+    grid-template-columns:repeat(6,minmax(0,1fr)) !important;
+    gap:3px !important;
+  }
+  #manutencaoMobileResumo.manutencao-mobile-dashboard button{
+    padding:5px 1px !important;
+    min-height:44px !important;
+  }
+  #manutencaoMobileResumo .manut-usab-filtro strong{font-size:10.5px !important;}
+  #manutencaoMobileResumo .manut-usab-filtro span{font-size:7.8px !important;}
+}
+@media (max-width:380px){
+  #manutencaoMobileResumo .manut-usab-filtro strong{font-size:9.5px !important;}
+  #manutencaoMobileResumo.manutencao-mobile-dashboard span{font-size:7.2px !important;}
 }

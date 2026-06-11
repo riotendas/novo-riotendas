@@ -632,8 +632,9 @@ async function salvarProdutoForm(event) {
 
 
 function getEventosDisponibilidadeProduto() {
-  if (typeof eventos !== "undefined" && Array.isArray(eventos)) return eventos;
-  if (Array.isArray(window.eventos)) return window.eventos;
+  const ativos = (lista) => (Array.isArray(lista) ? lista.filter(e => !(typeof rtEventoCancelado === "function" && rtEventoCancelado(e))) : []);
+  if (typeof eventos !== "undefined" && Array.isArray(eventos)) return ativos(eventos);
+  if (Array.isArray(window.eventos)) return ativos(window.eventos);
   return [];
 }
 
@@ -1736,6 +1737,7 @@ function eventosProdutoAgenda(produtoId) {
   if (!Array.isArray(eventos)) return [];
 
   return eventos.filter(evento => {
+    if (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)) return false;
     return Array.isArray(evento.tendas) &&
       evento.tendas.some(p => String(p.id) === String(produtoId));
   }).sort((a, b) => String(a.data_evento || "").localeCompare(String(b.data_evento || "")));
@@ -1755,6 +1757,7 @@ function eventosProdutoAgenda(produtoId) {
     if (typeof eventos === "undefined" || !Array.isArray(eventos)) return [];
 
     return eventos.filter(evento => {
+      if (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)) return false;
       return Array.isArray(evento.tendas) &&
         evento.tendas.some(p => String(p.id) === String(produtoId));
     }).sort((a, b) => String(a.data_evento || "").localeCompare(String(b.data_evento || "")));

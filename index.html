@@ -262,6 +262,10 @@
             <option value="quitado">Quitado</option>
           </select>
         </label>
+        <label class="eventos-ocultar-cancelados-filtro" title="Ocultar eventos cancelados da listagem" aria-label="Ocultar cancelados">
+          <input id="ocultarEventosCancelados" type="checkbox" checked>
+          <span>Ocultar cancelados</span>
+        </label>
         <label class="eventos-mostrar-filtro">Mostrar
           <select id="eventosItensPorPagina">
             <option value="10">10 eventos</option>
@@ -285,7 +289,7 @@
       <div class="eventos-table-scroll table-wrapper">
         <table>
           <colgroup>
-            <col style="width:7%"><col style="width:9%"><col style="width:15%"><col style="width:8%"><col style="width:16%"><col style="width:17%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:7%"><col style="width:6%"><col style="width:7%">
+            <col style="width:7%"><col style="width:9%"><col style="width:14%"><col style="width:8%"><col style="width:16%"><col style="width:16%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:6.2%"><col class="col-assinatura" style="width:32px"><col style="width:6.2%"><col style="width:7%">
           </colgroup>
           <thead>
             <tr>
@@ -300,12 +304,21 @@
               <th>Sinal</th>
               <th>Restante</th>
               <th>Pagamento</th>
+              <th class="col-assinatura" title="Assinatura do contrato">●</th>
               <th>Colaborador</th>
               <th>Ações</th>
             </tr>
           </thead>
           <tbody id="eventosTbody"></tbody>
         </table>
+      </div>
+
+      <div class="assinatura-legenda-eventos" title="Legenda do status de assinatura do contrato">
+        <span>Assinatura:</span>
+        <span><i class="assinatura-bolinha assinatura-nao_enviado"></i> Não enviado</span>
+        <span><i class="assinatura-bolinha assinatura-enviado"></i> Enviado</span>
+        <span><i class="assinatura-bolinha assinatura-assinado"></i> Assinado</span>
+        <span><i class="assinatura-bolinha assinatura-recusado"></i> Recusado</span>
       </div>
 
       <div class="recurring-events-panel">
@@ -329,6 +342,7 @@
                 <th>Produtos</th>
                 <th>Total</th>
                 <th>Pagamento</th>
+                <th class="col-assinatura" title="Assinatura do contrato">●</th>
                 <th>Colaborador</th>
                 <th>Ações</th>
               </tr>
@@ -637,7 +651,7 @@
           <h2>Rotas</h2>
           <p>Montagens e desmontagens organizadas por data e carro.</p>
         </div>
-        <div class="rotas-header-acoes"><button id="atualizarRotasBtn" class="btn-outline">Atualizar rotas</button></div>
+        <div class="rotas-header-acoes"><button id="atualizarRotasBtn" class="btn-outline">Atualizar rotas</button><button id="organizarRotasBtn" class="btn-outline" type="button">Organizar rotas</button></div>
       </div>
 
       <div class="filters-grid">
@@ -680,8 +694,22 @@
         <span>Desmontagens: <strong id="rotasDesmontagens">0</strong></span>
       </div>
 
-      <div id="rotasConteudo" class="rotas-container">
-        <p class="empty">Nenhuma rota encontrada.</p>
+      <div id="rotasLayout" class="rotas-layout">
+        <div id="rotasConteudo" class="rotas-container">
+          <p class="empty">Nenhuma rota encontrada.</p>
+        </div>
+        <aside id="rotasOrganizadorPainel" class="rotas-organizador-painel" aria-label="Organizar rotas do dia">
+          <div class="rotas-organizador-header">
+            <div>
+              <strong>Organizar rotas</strong>
+              <span id="rotasOrganizadorData">Selecione uma data</span>
+            </div>
+            <button type="button" class="btn-outline btn-mini" id="rotasOrganizadorFechar">Fechar</button>
+          </div>
+          <div id="rotasOrganizadorLista" class="rotas-organizador-lista">
+            <p class="empty">Use Data específica para organizar um dia.</p>
+          </div>
+        </aside>
       </div>
     </section>
   
@@ -752,7 +780,6 @@
       <div class="section-header split">
         <div>
           <h2>Manutenção Mobile</h2>
-          <p>Busca rápida por código, observação, checklist e alteração de status dos produtos pelo celular.</p>
         </div>
         <button id="manutencaoMobileAtualizarBtn" class="btn-outline mobile-refresh-btn" type="button" title="Atualizar manutenção">↻</button>
       </div>
@@ -763,6 +790,7 @@
         <button type="button" data-manut-filtro="Limpar"><strong>0</strong><span>Limpar</span></button>
         <button type="button" data-manut-filtro="Consertar"><strong>0</strong><span>Consertar</span></button>
         <button type="button" data-manut-filtro="Bloqueada"><strong>0</strong><span>Bloqueados</span></button>
+        <button type="button" id="manutMobileUsabilidadeFiltroBtn" class="manut-usab-filtro" data-manut-usab-filtro="Todos"><strong>Todos</strong><span>Usab.</span></button>
       </div>
       <button type="button" class="manut-mobile-exibir-todos" data-manut-filtro="todos">Exibir todos</button>
 
@@ -1581,10 +1609,21 @@
       </div>
 
       <div class="modal-actions evento-modal-actions evento-rodape-documentos-final">
+        <div class="evento-assinatura-compacta" title="Controle inicial do status da assinatura do contrato">
+          <label class="assinatura-label-oculta">Assinatura
+            <select id="eventoAssinaturaStatus" title="Status da assinatura do contrato">
+              <option value="nao_enviado" title="Não enviado">⚪ Não enviado</option>
+              <option value="enviado" title="Enviado">🟡 Enviado</option>
+              <option value="assinado" title="Assinado">🟢 Assinado</option>
+              <option value="recusado" title="Recusado">🔴 Recusado</option>
+            </select>
+          </label>
+          <input id="eventoAssinaturaLink" type="url" placeholder="Link da assinatura" title="Link da assinatura digital, quando houver">
+        </div>
         <div class="evento-doc-actions">
           <button type="button" class="btn-outline btn-doc-evento" id="gerarGuiaServicoEvento" title="Gerar guia de serviço">📄 Guia</button>
-          <button type="button" class="btn-outline btn-doc-evento" id="gerarContratoEvento" title="Gerar contrato">📑 Contrato</button>
-          <button type="button" class="btn-outline btn-doc-evento" id="gerarReciboEvento" title="Gerar recibo">🧾 Recibo</button>
+          <button type="button" class="btn-outline btn-doc-evento" id="gerarContratoEvento" title="Gerar contrato">📑 Cont.</button>
+          <button type="button" class="btn-outline btn-doc-evento" id="gerarReciboEvento" title="Gerar recibo">🧾 Rec.</button>
         </div>
         <div class="evento-rodape-spacer"></div>
         <div class="evento-save-actions">

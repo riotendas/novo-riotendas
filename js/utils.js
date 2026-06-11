@@ -204,6 +204,62 @@ function rtDataHoraAtendimentoExtra(item) {
 }
 
 
+
+// v19-dev: formatação visual sem alterar dados salvos.
+// Converte textos digitados totalmente em caixa alta para iniciais maiúsculas,
+// preservando exatamente o que estiver entre parênteses.
+function rtTextoVisual(valor) {
+  const original = String(valor ?? "");
+  if (!original.trim()) return original;
+
+  const minusculas = new Set(["de", "da", "do", "das", "dos", "e"]);
+
+  function deveFormatar(trecho) {
+    const letras = trecho.match(/[A-Za-zÀ-ÖØ-öø-ÿ]/g) || [];
+    if (!letras.length) return false;
+    const minus = trecho.match(/[a-zà-öø-ÿ]/g) || [];
+    const maius = trecho.match(/[A-ZÀ-ÖØ-Þ]/g) || [];
+    return maius.length > 0 && minus.length === 0;
+  }
+
+  function formatarTrecho(trecho) {
+    if (!deveFormatar(trecho)) return trecho;
+    return trecho.replace(/[A-Za-zÀ-ÖØ-öø-ÿ]+(?:['’][A-Za-zÀ-ÖØ-öø-ÿ]+)?/g, (palavra, offset) => {
+      const lower = palavra.toLocaleLowerCase("pt-BR");
+      const antes = trecho.slice(0, offset);
+      const ehPrimeiraPalavra = !/[A-Za-zÀ-ÖØ-öø-ÿ]/.test(antes);
+      if (!ehPrimeiraPalavra && minusculas.has(lower)) return lower;
+      return lower.charAt(0).toLocaleUpperCase("pt-BR") + lower.slice(1);
+    });
+  }
+
+  return original.split(/(\([^)]*\))/g).map(parte => {
+    if (/^\([^)]*\)$/.test(parte)) return parte;
+    return formatarTrecho(parte);
+  }).join("");
+}
+
+function rtNormalizarTextoVisual(valor) {
+  return String(valor || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+function rtCidadeEhRioDeJaneiro(cidade) {
+  const n = rtNormalizarTextoVisual(cidade);
+  return !n || n === "rio de janeiro" || n === "rio de janeiro rj" || n === "rj";
+}
+
+function rtLocalResumoEvento(dados = {}) {
+  const cidade = String(dados.cidade || "").trim();
+  if (cidade && !rtCidadeEhRioDeJaneiro(cidade)) return rtTextoVisual(cidade);
+  const bairro = String(dados.bairro || "").trim();
+  if (bairro) return rtTextoVisual(bairro);
+  const endereco = String(dados.endereco || dados.local || "").trim();
+  if (!endereco) return "";
+  const partes = endereco.split(/[,\-–]+/).map(p => p.trim()).filter(Boolean);
+  const candidato = partes.length ? partes[partes.length - 1] : "";
+  return rtTextoVisual(candidato.replace(/\b(rio de janeiro|rj|brasil|brazil|cep\s*\d+).*$/i, "").trim());
+}
+
 // v19-dev: composição centralizada de endereço separado.
 function rtReferenciaLocal(dados = {}) {
   return String(
@@ -216,10 +272,10 @@ function rtReferenciaLocal(dados = {}) {
 }
 
 function rtEnderecoCompleto(dados = {}) {
-  const endereco = String(dados.endereco || dados.local || "").trim();
-  const bairro = String(dados.bairro || "").trim();
-  const cidade = String(dados.cidade || "").trim();
-  const complemento = String(dados.complemento || "").trim();
+  const endereco = rtTextoVisual(String(dados.endereco || dados.local || "").trim());
+  const bairro = rtTextoVisual(String(dados.bairro || "").trim());
+  const cidade = rtTextoVisual(String(dados.cidade || "").trim());
+  const complemento = rtTextoVisual(String(dados.complemento || "").trim());
   const referencia = typeof rtReferenciaLocal === "function" ? rtReferenciaLocal(dados) : "";
   let texto = endereco;
   if (bairro) texto = texto ? `${texto} - ${bairro}` : bairro;
@@ -230,12 +286,7 @@ function rtEnderecoCompleto(dados = {}) {
 }
 
 function rtBairroResumo(dados = {}) {
-  const bairro = String(dados.bairro || "").trim();
-  if (bairro) return bairro;
-  const endereco = String(dados.endereco || "").trim();
-  if (!endereco) return "";
-  const partes = endereco.split(/[,\-–]+/).map(p => p.trim()).filter(Boolean);
-  return partes.length ? partes[partes.length - 1] : "";
+  return rtLocalResumoEvento(dados);
 }
 
 // v19-dev: parser local conservador para sugerir Bairro/Cidade/Complemento sem alterar o Endereço colado.
@@ -332,4 +383,17 @@ function rtBairroResumo(dados = {}) {
     aplicarParser("evento");
     aplicarParser("cliente");
   });
+})();
+
+// v19-dev: status de evento cancelado (não exclui o pedido)
+(function(){
+  function normalizarStatusEvento(valor){
+    return String(valor || "ativo").trim().toLowerCase();
+  }
+  function eventoCancelado(evento){
+    const status = normalizarStatusEvento(evento && (evento.status_evento || evento.status || evento.situacao_evento));
+    return status === "cancelado" || status === "cancelada" || status === "cancelled";
+  }
+  window.rtNormalizarStatusEvento = normalizarStatusEvento;
+  window.rtEventoCancelado = eventoCancelado;
 })();

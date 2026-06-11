@@ -415,6 +415,11 @@ async function salvarEventoBanco(evento) {
     valor_restante: Number(evento.valor_restante || 0),
     forma_pagamento: evento.forma_pagamento || null,
     pagamento_quitado: Boolean(evento.pagamento_quitado),
+    assinatura_status: rtAssinaturaStatusEvento(evento),
+    assinatura_link: evento.assinatura_link || null,
+    assinatura_enviada_em: evento.assinatura_enviada_em || null,
+    assinatura_realizada_em: evento.assinatura_realizada_em || null,
+    status_evento: evento.status_evento || "ativo",
     colaborador: evento.colaborador || getColaboradorLogado(),
     criado_em: evento.criado_em || new Date().toISOString(),
     atualizado_em: new Date().toISOString(),
@@ -455,6 +460,7 @@ async function salvarEventoBanco(evento) {
 }
 
 async function excluirEventoBanco(id) {
+  // Mantido apenas para compatibilidade. A ação padrão agora é cancelar, não excluir.
   const eventoAntesLog = Array.isArray(eventos)
     ? eventos.find(e => String(e.id) === String(id))
     : null;
@@ -462,18 +468,6 @@ async function excluirEventoBanco(id) {
   if (!supabaseClient) {
     eventos = eventos.filter(e => e.id !== id);
     localStorage.setItem(storageEventosKey, JSON.stringify(eventos));
-
-    if (typeof registrarLogSistema === "function") {
-      registrarLogSistema({
-        modulo: (eventoAntesLog?.recorrente || eventoAntesLog?.recorrencia_grupo_id) ? "Eventos Recorrentes" : "Eventos",
-        acao: (eventoAntesLog?.recorrente || eventoAntesLog?.recorrencia_grupo_id) ? "Evento recorrente excluído" : "Evento excluído",
-        registro_id: id,
-        registro_nome: eventoAntesLog?.nome || "Evento",
-        antes: eventoAntesLog || null,
-        depois: null
-      });
-    }
-
     return true;
   }
 
@@ -492,6 +486,39 @@ async function excluirEventoBanco(id) {
       registro_nome: eventoAntesLog?.nome || "Evento",
       antes: eventoAntesLog || null,
       depois: null
+    });
+  }
+
+  return true;
+}
+
+async function atualizarStatusEventoBanco(id, status) {
+  const eventoAntesLog = Array.isArray(eventos)
+    ? eventos.find(e => String(e.id) === String(id))
+    : null;
+  if (!eventoAntesLog) return false;
+
+  const atualizado = {
+    ...eventoAntesLog,
+    status_evento: status,
+    atualizado_em: new Date().toISOString()
+  };
+
+  const salvo = await salvarEventoBanco(atualizado);
+  if (!salvo) return false;
+
+  const idx = eventos.findIndex(e => String(e.id) === String(id));
+  if (idx >= 0) eventos[idx] = salvo;
+  else eventos.push(salvo);
+
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: (eventoAntesLog?.recorrente || eventoAntesLog?.recorrencia_grupo_id) ? "Eventos Recorrentes" : "Eventos",
+      acao: status === "cancelado" ? "Evento cancelado" : "Evento reativado",
+      registro_id: id,
+      registro_nome: eventoAntesLog?.nome || "Evento",
+      antes: eventoAntesLog || null,
+      depois: salvo
     });
   }
 
@@ -721,7 +748,7 @@ function iniciarEventos() {
     });
   });
 
-  ["buscaEvento", "filtroEventoData", "filtroEventoCliente", "filtroEventoTelefone", "filtroEventoPagamento"].forEach(id => {
+  ["buscaEvento", "filtroEventoData", "filtroEventoCliente", "filtroEventoTelefone", "filtroEventoPagamento", "ocultarEventosCancelados"].forEach(id => {
     const campo = document.getElementById(id);
     if (!campo) return;
     campo.addEventListener("input", renderizarEventos);
@@ -773,7 +800,18 @@ function contarOperacoesDiaEvento(dataISO, tipo) {
   if (!dataISO || !Array.isArray(eventos)) return 0;
   const idAtual = document.getElementById("eventoId")?.value || "";
   const campo = tipo === "montagem" ? "montagem" : "desmontagem";
-  return eventos.filter(e => String(e.id || "") !== String(idAtual || "") && dataChaveOperacaoEvento(e[campo]) === dataISO).length;
+  return eventos.filter(e => {
+    if (String(e.id || "") === String(idAtual || "")) return false;
+    if (typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) return false;
+    return dataChaveOperacaoEvento(e[campo]) === dataISO;
+  }).length;
+}
+
+function contarOperacoesDiaEventoResumo(dataISO) {
+  return {
+    montagem: contarOperacoesDiaEvento(dataISO, "montagem"),
+    desmontagem: contarOperacoesDiaEvento(dataISO, "desmontagem")
+  };
 }
 
 function classeAlertaOperacaoQtd(qtd) {
@@ -787,10 +825,10 @@ function renderAlertaOperacaoEvento(prefixo, tipo) {
   const el = document.getElementById(`evento${prefixo}AlertaDia`);
   if (!el) return;
   if (!data) { el.innerHTML = ""; el.className = "evento-dia-operacao-alerta"; return; }
-  const qtd = contarOperacoesDiaEvento(data, tipo);
-  const plural = tipo === "montagem" ? (qtd === 1 ? "montagem" : "montagens") : (qtd === 1 ? "desmontagem" : "desmontagens");
-  el.className = `evento-dia-operacao-alerta ${classeAlertaOperacaoQtd(qtd)}`;
-  el.innerHTML = `⚠ ${qtd} ${plural} neste dia · <button type="button" class="link-button alerta-ver-rota" data-rota-alerta-data="${data}" data-rota-alerta-tipo="${tipo}">Ver rota</button>`;
+  const resumo = contarOperacoesDiaEventoResumo(data);
+  const total = resumo.montagem + resumo.desmontagem;
+  el.className = `evento-dia-operacao-alerta ${classeAlertaOperacaoQtd(total)}`;
+  el.innerHTML = `⚠ ${resumo.montagem} mont. / ${resumo.desmontagem} desm. neste dia · <button type="button" class="link-button alerta-ver-rota" data-rota-alerta-data="${data}" data-rota-alerta-tipo="">Ver rota</button>`;
   el.querySelector("button")?.addEventListener("click", abrirRotaPeloAlertaEvento);
 }
 
@@ -802,11 +840,12 @@ function atualizarAlertasOperacaoEvento() {
 function abrirRotaPeloAlertaEvento(ev) {
   const data = ev.currentTarget?.dataset?.rotaAlertaData || "";
   const tipo = ev.currentTarget?.dataset?.rotaAlertaTipo || "";
-  const rotaTipo = tipo === "desmontagem" ? "Desmontagem" : "Montagem";
+  const rotaTipo = tipo === "desmontagem" ? "Desmontagem" : (tipo === "montagem" ? "Montagem" : "");
   const url = new URL(window.location.href);
   url.searchParams.set("section", "rotas");
   url.searchParams.set("rotaData", data);
-  url.searchParams.set("rotaTipo", rotaTipo);
+  if (rotaTipo) url.searchParams.set("rotaTipo", rotaTipo);
+  else url.searchParams.delete("rotaTipo");
   url.searchParams.set("rotaSomenteData", "1");
   window.open(url.toString(), "_blank", "noopener,noreferrer");
 }
@@ -919,14 +958,9 @@ function calcularRestanteEvento() {
 }
 
 function atualizarQuitadoAutomaticoEvento() {
-  const chk = document.getElementById("eventoPagamentoQuitado");
-  if (!chk) return;
-  const total = moedaParaNumero(document.getElementById("eventoValorTotal")?.value || 0);
-  const sinal = moedaParaNumero(document.getElementById("eventoValorSinal")?.value || 0);
-  const sinal2 = moedaParaNumero(document.getElementById("eventoValorSinal2")?.value || 0);
-  const forma = String(document.getElementById("eventoFormaPagamento")?.value || "").toLowerCase();
-  const temPgTotal = /(^|\n)\s*pg\s*total\s*-/i.test(forma);
-  if ((total > 0 && sinal + sinal2 >= total) || temPgTotal) chk.checked = true;
+  // v19-dev: removido quitado automático por recálculo financeiro.
+  // O evento só fica quitado por marcação manual ou pelo botão explícito "Pg Total".
+  return;
 }
 
 function iniciarSinal2Evento() {
@@ -1207,6 +1241,10 @@ function montarEventoRecorrenteBase(id, existente) {
     forma_pagamento: (sincronizarSinal2FormaPagamentoEvento(), rtSincronizarPagarInlocoFormaPagamento(), document.getElementById("eventoFormaPagamento").value.trim()),
     pagar_inloco: Boolean(document.getElementById("eventoPagarInloco")?.checked),
     pagamento_quitado: document.getElementById("eventoPagamentoQuitado").checked,
+    assinatura_status: document.getElementById("eventoAssinaturaStatus")?.value || existente?.assinatura_status || "nao_enviado",
+    assinatura_link: document.getElementById("eventoAssinaturaLink")?.value.trim() || existente?.assinatura_link || "",
+    assinatura_enviada_em: (document.getElementById("eventoAssinaturaStatus")?.value === "enviado" && !existente?.assinatura_enviada_em) ? new Date().toISOString() : (existente?.assinatura_enviada_em || null),
+    assinatura_realizada_em: (document.getElementById("eventoAssinaturaStatus")?.value === "assinado" && !existente?.assinatura_realizada_em) ? new Date().toISOString() : (existente?.assinatura_realizada_em || null),
     colaborador: obterColaboradorFormularioEvento(existente),
     criado_em: existente?.criado_em || new Date().toISOString(),
     atualizado_em: new Date().toISOString()
@@ -1294,6 +1332,7 @@ function abrirNovoEvento() {
   mostrarSinal2Evento(false);
   document.getElementById("eventoValorRestante").value = numeroParaMoeda(0);
   document.getElementById("eventoFormaPagamento").value = "";
+  rtAtualizarAssinaturaForm("nao_enviado", "");
   atualizarIconesFormaPagamentoEvento();
   const tipoEvento = document.getElementById("eventoTipoEvento");
   if (tipoEvento) tipoEvento.value = "pontual";
@@ -1370,6 +1409,7 @@ function abrirEditarEvento(id) {
   if (chkInloco) chkInloco.checked = rtEventoPagarInlocoMarcado(e);
   atualizarIconesFormaPagamentoEvento();
   document.getElementById("eventoPagamentoQuitado").checked = Boolean(e.pagamento_quitado);
+  rtAtualizarAssinaturaForm(e.assinatura_status || "nao_enviado", e.assinatura_link || "");
   const tipoEvento = document.getElementById("eventoTipoEvento");
   if (tipoEvento) tipoEvento.value = isEventoRecorrente(e) ? "recorrente" : "pontual";
   const tipoRec = document.getElementById("eventoRecorrenciaTipo");
@@ -1426,6 +1466,7 @@ function duplicarEventoAtual() {
 
   const pagamentoQuitado = document.getElementById("eventoPagamentoQuitado");
   if (pagamentoQuitado) pagamentoQuitado.checked = false;
+  rtAtualizarAssinaturaForm("nao_enviado", "");
 
   popularSelectProdutosEvento();
   renderizarProdutosSelecionadosEvento();
@@ -2429,6 +2470,7 @@ async function salvarEventoForm(event) {
     return;
   }
 
+  evento.status_evento = existente?.status_evento || evento.status_evento || "ativo";
   evento.tipo_evento = tipoEvento;
   evento.recorrente = tipoEvento === "recorrente";
   evento.recorrencia_grupo_id = existente?.recorrencia_grupo_id || (tipoEvento === "recorrente" ? gerarId() : null);
@@ -2485,6 +2527,10 @@ async function salvarEventoForm(event) {
           forma_pagamento: evento.forma_pagamento,
           pagar_inloco: evento.pagar_inloco,
           pagamento_quitado: evento.pagamento_quitado,
+          assinatura_status: evento.assinatura_status,
+          assinatura_link: evento.assinatura_link,
+          assinatura_enviada_em: evento.assinatura_enviada_em,
+          assinatura_realizada_em: evento.assinatura_realizada_em,
           colaborador: evento.colaborador,
           atualizado_em: new Date().toISOString()
         };
@@ -2507,9 +2553,11 @@ function filtrarEventos() {
   const cliente = document.getElementById("filtroEventoCliente").value.trim().toLowerCase();
   const telefone = document.getElementById("filtroEventoTelefone").value.trim().toLowerCase();
   const pagamento = document.getElementById("filtroEventoPagamento").value;
+  const ocultarCancelados = document.getElementById("ocultarEventosCancelados")?.checked !== false;
 
   const filtrados = eventos.filter(e => {
     if (isEventoRecorrente(e)) return false;
+    if (ocultarCancelados && typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) return false;
 
     const produtosTxt = [...(e.tendas || []).map(p => `${p.codigo} ${p.categoria} ${p.tamanho}`), ...(e.itens_apoio || []).map(i => `${i.nome} ${i.quantidade}`)].join(" ");
     const texto = `${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${e.bairro || ""} ${e.cidade || ""} ${e.complemento || ""} ${e.referencia_local || e.observacao_cliente || e.observacao || ""} ${e.colaborador || ""} ${produtosTxt}`.toLowerCase();
@@ -2531,9 +2579,11 @@ function filtrarEventosRecorrentes() {
   const cliente = document.getElementById("filtroEventoCliente").value.trim().toLowerCase();
   const telefone = document.getElementById("filtroEventoTelefone").value.trim().toLowerCase();
   const pagamento = document.getElementById("filtroEventoPagamento").value;
+  const ocultarCancelados = document.getElementById("ocultarEventosCancelados")?.checked !== false;
 
   return eventos.filter(e => {
     if (!isEventoRecorrente(e)) return false;
+    if (ocultarCancelados && typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) return false;
 
     const produtosTxt = [...(e.tendas || []).map(p => `${p.codigo} ${p.categoria} ${p.tamanho}`), ...(e.itens_apoio || []).map(i => `${i.nome} ${i.quantidade}`)].join(" ");
     const texto = `${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${e.bairro || ""} ${e.cidade || ""} ${e.complemento || ""} ${e.referencia_local || e.observacao_cliente || e.observacao || ""} ${e.colaborador || ""} ${produtosTxt}`.toLowerCase();
@@ -2826,6 +2876,56 @@ async function rtAplicarProdutosRecorrencia(eventoBase, modo, novasTendas, novoA
   return true;
 }
 
+function rtAssinaturaStatusEvento(evento) {
+  const raw = String(evento?.assinatura_status || evento?.status_assinatura || "nao_enviado").trim().toLowerCase();
+  if (["enviado", "assinado", "recusado"].includes(raw)) return raw;
+  if (["nao-enviado", "não enviado", "nao enviado", "nao_enviado"].includes(raw)) return "nao_enviado";
+  return "nao_enviado";
+}
+
+function rtAssinaturaTituloEvento(status) {
+  const mapa = {
+    nao_enviado: "Contrato não enviado",
+    enviado: "Contrato enviado / aguardando assinatura",
+    assinado: "Contrato assinado",
+    recusado: "Contrato recusado"
+  };
+  return mapa[status] || mapa.nao_enviado;
+}
+
+function rtAssinaturaBadgeEvento(evento) {
+  const status = rtAssinaturaStatusEvento(evento);
+  const titulo = rtAssinaturaTituloEvento(status);
+  return `<span class="assinatura-status-badge" title="${titulo}" aria-label="${titulo}"><span class="assinatura-bolinha assinatura-${status}"></span></span>`;
+}
+
+function rtAtualizarAssinaturaForm(status, link) {
+  const select = document.getElementById("eventoAssinaturaStatus");
+  if (select) select.value = rtAssinaturaStatusEvento({ assinatura_status: status });
+  const campoLink = document.getElementById("eventoAssinaturaLink");
+  if (campoLink) campoLink.value = link || "";
+  rtAssinaturaAtualizarCampoLinkForm();
+}
+
+function rtAssinaturaAtualizarCampoLinkForm() {
+  const select = document.getElementById("eventoAssinaturaStatus");
+  const campoLink = document.getElementById("eventoAssinaturaLink");
+  if (!campoLink) return;
+  const status = rtAssinaturaStatusEvento({ assinatura_status: select?.value || "nao_enviado" });
+  const deveMostrar = status !== "nao_enviado" || String(campoLink.value || "").trim();
+  campoLink.classList.toggle("assinatura-link-visivel", !!deveMostrar);
+  campoLink.style.display = deveMostrar ? "inline-block" : "none";
+}
+
+if (!window.__rtAssinaturaContratoCompactaBind) {
+  window.__rtAssinaturaContratoCompactaBind = true;
+  document.addEventListener("DOMContentLoaded", () => {
+    const select = document.getElementById("eventoAssinaturaStatus");
+    if (select) select.addEventListener("change", rtAssinaturaAtualizarCampoLinkForm);
+    rtAssinaturaAtualizarCampoLinkForm();
+  });
+}
+
 function renderizarEventos() {
   normalizarOrdemEventosGlobal();
 
@@ -2851,19 +2951,19 @@ function renderizarEventos() {
   const recorrentes = filtrarEventosRecorrentes();
 
   document.getElementById("eventosTotal").textContent = lista.length + recorrentes.length;
-  document.getElementById("eventosEmAberto").textContent = [...lista, ...recorrentes].filter(e => !e.pagamento_quitado).length;
+  document.getElementById("eventosEmAberto").textContent = [...lista, ...recorrentes].filter(e => !(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) && !e.pagamento_quitado).length;
 
   if (!lista.length) {
-    tbody.innerHTML = `<tr><td colspan="12" class="empty">Nenhum evento pontual cadastrado.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" class="empty">Nenhum evento pontual cadastrado.</td></tr>`;
   } else {
     tbody.innerHTML = lista.map(e => `
-      <tr class="${rtLinhaPagamentoClasse(e)} evento-status-${rtStatusDataEvento(e.data_evento)}">
+      <tr class="${rtLinhaPagamentoClasse(e)} evento-status-${rtStatusDataEvento(e.data_evento)} ${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? "evento-cancelado" : ""}">
         <td class="clientes-actions"><div class="clientes-actions-row">${dataEventoCompactaVisual(e.data_evento)}
           <small class="weekday-badge">${typeof diaSemanaTexto === "function" ? diaSemanaTexto(e.data_evento) : diaSemana(e.data_evento)}</small>
           <small class="event-hour-under">${horarioEventoAbaixoData(e) || "-"}</small>
         </td>
         <td class="mont-desm-cell">${montagemDesmontagemCompacta(e)}</td>
-        <td><button class="code-link" data-action="editar" data-id="${e.id}">${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
+        <td><button class="code-link" data-action="editar" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '<span class="evento-cancelado-badge">Cancelado</span> ' : ''}${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
         <td>${e.telefone || "-"}</td>
         <td><div class="cell-scroll cell-endereco">${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(e) : e.endereco) || "-"}</div></td>
         <td>
@@ -2877,9 +2977,10 @@ function renderizarEventos() {
         <td>${dinheiro(e.valor_sinal)}</td>
         <td>${dinheiro(e.valor_restante)}</td>
         <td class="pagamento-status-cell">${rtPagamentoEventoBadge(e)}</td>
+        <td class="assinatura-status-cell">${rtAssinaturaBadgeEvento(e)}</td>
         <td>${e.colaborador || "-"}</td>
         <td class="actions clientes-actions"><div class="clientes-actions-row"><button class="btn-outline evento-editar-lista-btn" data-action="editar" data-id="${e.id}" title="Editar">Editar</button>
-          <button class="btn-outline" data-action="excluir" data-id="${e.id}">Excluir</button></div></td>
+          <button class="btn-outline" data-action="${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'reativar' : 'cancelar'}" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'Reativar' : 'Cancelar'}</button></div></td>
       </tr>
     `).join("");
   }
@@ -2889,16 +2990,16 @@ function renderizarEventos() {
   if (!tbodyRec) return;
 
   if (!recorrentes.length) {
-    tbodyRec.innerHTML = `<tr><td colspan="11" class="empty">Nenhum evento recorrente cadastrado.</td></tr>`;
+    tbodyRec.innerHTML = `<tr><td colspan="12" class="empty">Nenhum evento recorrente cadastrado.</td></tr>`;
     return;
   }
 
   tbodyRec.innerHTML = recorrentes.map(e => `
-    <tr class="recurring-row ${rtLinhaPagamentoClasse(e)} evento-status-${rtStatusDataEvento(e.data_evento)}">
+    <tr class="recurring-row ${rtLinhaPagamentoClasse(e)} evento-status-${rtStatusDataEvento(e.data_evento)} ${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? "evento-cancelado" : ""}">
       <td class="clientes-actions"><div class="clientes-actions-row">${dataCompactaComDiaRecorrente(e.data_evento)}</td>
       <td>${periodoRecorrenciaTexto(e)}</td>
       <td>${recorrenciaLabel(e.recorrencia_tipo, e.recorrencia_dias)}</td>
-      <td><button class="code-link" data-action="editar" data-id="${e.id}">${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
+      <td><button class="code-link" data-action="editar" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '<span class="evento-cancelado-badge">Cancelado</span> ' : ''}${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
       <td>${e.telefone || "-"}</td>
       <td><div class="cell-scroll cell-endereco">${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(e) : e.endereco) || "-"}</div></td>
       <td>
@@ -2910,8 +3011,9 @@ function renderizarEventos() {
       </td>
       <td>${dinheiro(e.valor_total)}</td>
       <td class="pagamento-status-cell">${rtPagamentoEventoBadge(e)}</td>
+      <td class="assinatura-status-cell">${rtAssinaturaBadgeEvento(e)}</td>
       <td>${e.colaborador || "-"}</td>
-      <td class="actions clientes-actions"><div class="clientes-actions-row"><button class="btn-mini" data-action="editar" data-id="${e.id}" title="Editar">✎</button><button class="btn-outline btn-atendimento-extra btn-mini" data-action="atendimento-extra" data-id="${e.id}" title="Gerenciar atendimentos extras">+ Extra</button><button class="btn-outline btn-mini" data-action="excluir" data-id="${e.id}" title="Excluir">🗑</button></div></td>
+      <td class="actions clientes-actions"><div class="clientes-actions-row"><button class="btn-mini" data-action="editar" data-id="${e.id}" title="Editar">✎</button><button class="btn-outline btn-atendimento-extra btn-mini" data-action="atendimento-extra" data-id="${e.id}" title="Gerenciar atendimentos extras">+ Extra</button><button class="btn-outline btn-mini" data-action="${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'reativar' : 'cancelar'}" data-id="${e.id}" title="${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'Reativar' : 'Cancelar'}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '↩' : '🚫'}</button></div></td>
     </tr>
   `).join("");
 
@@ -3153,6 +3255,38 @@ async function lidarAcaoEvento(event) {
   if (action === "editar-produtos") return abrirProdutosRapido(id);
   if (action === "atendimento-extra") return criarAtendimentoExtraRecorrente(id);
   if (action === "detalhe") return abrirDetalheEvento(id);
+
+  if (action === "cancelar") {
+    const e = eventos.find(x => String(x.id) === String(id));
+    if (!confirm(`Cancelar o evento de ${e?.nome || ""}?
+
+Ele continuará salvo, mas não contará em rotas, valores e disponibilidade.`)) return;
+    const ok = await atualizarStatusEventoBanco(id, "cancelado");
+    if (!ok) return;
+    normalizarOrdemEventosGlobal();
+    renderizarEventos();
+    if (typeof renderizarCalendario === "function") renderizarCalendario();
+    if (typeof renderizarRotas === "function") renderizarRotas();
+    if (typeof renderizarProdutos === "function") renderizarProdutos();
+    if (typeof rtFinAtualizarResumo === "function") rtFinAtualizarResumo();
+    return;
+  }
+
+  if (action === "reativar") {
+    const e = eventos.find(x => String(x.id) === String(id));
+    if (!confirm(`Reativar o evento de ${e?.nome || ""}?
+
+Ele voltará a contar em rotas, valores e disponibilidade.`)) return;
+    const ok = await atualizarStatusEventoBanco(id, "ativo");
+    if (!ok) return;
+    normalizarOrdemEventosGlobal();
+    renderizarEventos();
+    if (typeof renderizarCalendario === "function") renderizarCalendario();
+    if (typeof renderizarRotas === "function") renderizarRotas();
+    if (typeof renderizarProdutos === "function") renderizarProdutos();
+    if (typeof rtFinAtualizarResumo === "function") rtFinAtualizarResumo();
+    return;
+  }
 
   if (action === "excluir") {
     const e = eventos.find(x => x.id === id);
