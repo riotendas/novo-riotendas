@@ -1781,6 +1781,7 @@ function rtTamanhoProduto(item) {
 function rtTipoApoioResumo(item) {
   const texto = rtNormalizarTexto([item?.nome, item?.descricao, item?.categoria, item?.tipo].filter(Boolean).join(" "));
   if (texto.includes("ombrel") || texto.includes("omb")) return "omb";
+  if (texto.includes("lateral") || texto.includes("laterais")) return "lat";
   if (texto.includes("cadeira") || texto.includes(" banco") || texto.startsWith("banco")) return "cad";
   if (texto.includes("mesa")) return "mes";
   return "";
@@ -1821,6 +1822,22 @@ function rtTipoMaterialResumo(item, textoExtra = "") {
   if (texto.includes("crist")) return "Crist";
   if (texto.includes("branca") || texto.includes("branco")) return "Br";
   return "";
+}
+
+function rtLateralResumo(item, textoExtra = "") {
+  const texto = rtNormalizarTexto([
+    item?.nome,
+    item?.descricao,
+    item?.categoria,
+    item?.tipo,
+    item?.material,
+    textoExtra
+  ].filter(Boolean).join(" "));
+
+  const m = texto.match(/(?:lateral|laterais)?\s*(10|8|6|5|4[,.]?5|4|3)\s*m?\b/i)
+    || texto.match(/\b(10|8|6|5|4[,.]?5|4|3)\s*m\b/i);
+  if (m && m[1]) return `Lat ${String(m[1]).replace(".", ",")}m`;
+  return "Lat";
 }
 
 function rtAdicionarContagemMapa(mapa, chave, qtd) {
@@ -1911,12 +1928,14 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
   const tendas = {};
   const mesas = {};
   const cadeiras = {};
+  const laterais = {};
   const outros = {};
 
   let pontosTendas = 0;
   let totalMesas = 0;
   let totalCadeiras = 0;
   let totalOmbrelones = 0;
+  let totalLaterais = 0;
   let cargaPts = 0;
 
   function processarItem(item, textoExtra = "") {
@@ -1949,6 +1968,14 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
       return;
     }
 
+    if (tipoApoio === "lat") {
+      const lateral = rtLateralResumo(item, textoExtra);
+      rtAdicionarContagemMapa(laterais, lateral, qtd);
+      totalLaterais += qtd;
+      cargaPts += rtPontosOperacionaisPorChave("lateral", qtd);
+      return;
+    }
+
     if (tipoApoio === "omb") {
       rtAdicionarContagemMapa(outros, "Omb", qtd);
       totalOmbrelones += qtd;
@@ -1976,6 +2003,7 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
     ...rtFormatoContagemMapa(tendas),
     ...rtFormatoContagemMapa(mesas),
     ...rtFormatoContagemMapa(cadeiras),
+    ...rtFormatoContagemMapa(laterais),
     ...rtFormatoContagemMapa(outros)
   ].join(" • ");
 
@@ -1983,6 +2011,7 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
   if (pontosTendas) resumoOperacional.push(`T${rtNumeroCurto(pontosTendas)}`);
   if (totalMesas) resumoOperacional.push(`M${rtNumeroCurto(totalMesas)}`);
   if (totalCadeiras) resumoOperacional.push(`C${rtNumeroCurto(totalCadeiras)}`);
+  if (totalLaterais) resumoOperacional.push(`L${rtNumeroCurto(totalLaterais)}`);
   if (totalOmbrelones) resumoOperacional.push(`O${rtNumeroCurto(totalOmbrelones)}`);
 
   const linhas = [];
