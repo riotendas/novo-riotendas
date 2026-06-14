@@ -82,6 +82,85 @@ function ruaMobileWhatsappUrl(telefone) {
   return `https://wa.me/${comPais}`;
 }
 
+
+// v19-dev: WhatsApp com mensagens prontas para alertas rápidos ao cliente.
+// Fase 1: abre o WhatsApp com texto preenchido; o envio final continua manual pelo usuário.
+function ruaMobileWhatsappMensagemUrl(telefone, mensagem) {
+  const base = ruaMobileWhatsappUrl(telefone);
+  if (!base) return "";
+  const texto = String(mensagem || "").trim();
+  return texto ? `${base}?text=${encodeURIComponent(texto)}` : base;
+}
+
+function ruaMobileFormatarDataWhatsapp(dataISO) {
+  if (!dataISO) return "";
+  const d = new Date(`${String(dataISO).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return String(dataISO);
+  return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function ruaMobileWhatsappHorarioTexto(rota = {}) {
+  const texto = typeof textoHorarioRota === "function" ? textoHorarioRota(rota.tipoHorario, rota.horario, rota.data) : (rota.horario || "");
+  const limpo = String(texto || "").replace(/\s+/g, " ").trim();
+  return limpo && limpo !== "-" ? limpo : "horário a confirmar";
+}
+
+function ruaMobileValorRestanteWhatsapp(evento = {}) {
+  const restante = Math.max(Number(evento.valor_restante || 0), 0);
+  if (restante > 0) return restante;
+  const total = Number(evento.valor_total || 0);
+  const sinal = Number(evento.valor_sinal || 0);
+  return Math.max(total - sinal, 0);
+}
+
+function ruaMobileMensagemWhatsapp(rota = {}, tipoMensagem = "previsao") {
+  const evento = rota.evento || {};
+  const cliente = ruaMobilePrimeiroNome(rota.cliente || evento.nome || "");
+  const operacao = String(rota.tipo || "serviço").toLowerCase();
+  const data = ruaMobileFormatarDataWhatsapp(rota.data || evento.data_evento || "");
+  const horario = ruaMobileWhatsappHorarioTexto(rota);
+  const endereco = String(rota.endereco || evento.endereco || "").trim();
+  const materiais = ruaMobileResumoMateriais(rota);
+  const restante = ruaMobileValorRestanteWhatsapp(evento);
+  const valorTexto = restante > 0 ? ruaMobileDinheiro(restante) : "";
+
+  if (tipoMensagem === "chegando") {
+    return `Olá, ${cliente}! Aqui é da RioTendas. Nossa equipe já está a caminho para a ${operacao}.\n\nEndereço: ${endereco || "endereço do evento"}.\n\nQualquer dúvida, pode responder por aqui.`;
+  }
+
+  if (tipoMensagem === "concluido") {
+    const textoOperacao = rota.tipo === "Desmontagem" ? "recolhido" : (rota.tipo === "Montagem" ? "entregue" : "efetuado");
+    return `Olá, ${cliente}! Aqui é da RioTendas. Passando para avisar que o atendimento foi ${textoOperacao}.\n\nMuito obrigado pela preferência!`;
+  }
+
+  if (tipoMensagem === "cobranca") {
+    return `Olá, ${cliente}! Aqui é da RioTendas. Consta um valor restante de ${valorTexto || "R$ 0,00"} referente ao evento.\n\nPode nos enviar o comprovante por aqui quando realizar o pagamento. Obrigado!`;
+  }
+
+  return `Olá, ${cliente}! Aqui é da RioTendas. Sua ${operacao} está prevista para ${data || "a data combinada"}, ${horario}.\n\nEndereço: ${endereco || "endereço do evento"}.\nMateriais: ${materiais}.\n\nQualquer ajuste avisamos por aqui.`;
+}
+
+function ruaMobileWhatsappBotoesHtml(rota = {}) {
+  if (!ruaMobileWhatsappUrl(rota.telefone)) return "";
+  const tipos = [
+    ["previsao", "⏱️", "Previsão", "Enviar previsão de horário"],
+    ["chegando", "🚚", "Chegando", "Avisar que a equipe está a caminho"],
+    ["concluido", "✅", "Concluído", "Avisar conclusão do atendimento"]
+  ];
+  const cobranca = ruaMobileValorRestanteWhatsapp(rota.evento || {}) > 0;
+  if (cobranca) tipos.push(["cobranca", "💰", "Cobrar", "Enviar cobrança do restante"]);
+
+  return `
+    <div class="rua-mobile-whatsapp-alertas" aria-label="Mensagens prontas para WhatsApp">
+      ${tipos.map(([tipo, icone, label, titulo]) => `
+        <a class="btn-outline rua-mobile-whatsapp-alerta-btn" href="${ruaMobileWhatsappMensagemUrl(rota.telefone, ruaMobileMensagemWhatsapp(rota, tipo))}" target="_blank" rel="noopener" title="${titulo}">
+          <span>${icone}</span><small>${label}</small>
+        </a>
+      `).join("")}
+    </div>
+  `;
+}
+
 function ruaMobileDinheiro(valor) {
   const n = Number(valor || 0);
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -350,8 +429,9 @@ function ruaMobileOptionsCarro(carroAtual) {
 }
 
 function ruaMobileHtmlClienteEvento(rota) {
-  const nomeCurto = ruaMobilePrimeiroNome(rota?.cliente);
   const nomeCompleto = rota?.cliente || "";
+  const colaborador = String(rota?.evento?.colaborador || rota?.colaborador || "").trim();
+  const colabHtml = colaborador ? `<small class="rua-mobile-colaborador">Colab. ${ruaMobileEscAttr(colaborador)}</small>` : "";
   const eventoId = rota?.evento?.id || rota?.evento_id || "";
   const eventoAlerta = { ...(rota?.evento || {}), ...rota, data_evento: rota?.data || rota?.evento?.data_evento || rota?.data_evento };
   const alerta = typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(eventoAlerta) : "";
@@ -359,12 +439,12 @@ function ruaMobileHtmlClienteEvento(rota) {
   if (ruaMobileUsuarioAdmin() && eventoId) {
     return `
       ${alerta}<button type="button" class="rua-mobile-cliente-link" data-rua-editar-evento="${ruaMobileEscAttr(eventoId)}" title="Editar dados do evento">
-        <span>${nomeCurto}</span> <small>${nomeCompleto}</small>
+        <span>${ruaMobileEscAttr(nomeCompleto)}</span>${colabHtml}
       </button>
     `;
   }
 
-  return `${alerta}${nomeCurto} <small>${nomeCompleto}</small>`;
+  return `${alerta}<span>${ruaMobileEscAttr(nomeCompleto)}</span>${colabHtml}`;
 }
 
 function ruaMobileAbrirEdicaoEvento(eventoId) {
@@ -693,15 +773,17 @@ function iniciarRuaMobile() {
     if (typeof sincronizarRotasOperacaoNuvem === "function") await sincronizarRotasOperacaoNuvem(false);
     renderizarRuaMobile();
   }, 800);
+  // v19-dev: sincronização leve e segura. Não atualiza a tela enquanto alguém digita/edita/arrasta,
+  // evitando o bug antigo de a rota "voltar sozinha" durante alterações manuais.
   setInterval(async () => {
     const usuario = typeof getUsuarioLogado === "function" ? getUsuarioLogado() : null;
-    if (usuario?.perfil === "rua" || document.getElementById("ruaMobileSection")?.classList.contains("active-section")) {
-      if (typeof atualizarCarrosRotasDaNuvemSeNecessario === "function") await atualizarCarrosRotasDaNuvemSeNecessario();
-      if (typeof atualizarOrdemRotasDaNuvemSeNecessario === "function") await atualizarOrdemRotasDaNuvemSeNecessario();
-      if (typeof sincronizarRotasOperacaoNuvem === "function") await sincronizarRotasOperacaoNuvem(false);
-      renderizarRuaMobile();
-    }
-  }, 15000);
+    const ruaAtiva = usuario?.perfil === "rua" || document.getElementById("ruaMobileSection")?.classList.contains("active-section");
+    const editando = typeof window.rtUsuarioEditandoOperacional === "function" && window.rtUsuarioEditandoOperacional();
+    if (!ruaAtiva || editando) return;
+    if (typeof atualizarCarrosRotasDaNuvemSeNecessario === "function") await atualizarCarrosRotasDaNuvemSeNecessario();
+    if (typeof sincronizarRotasOperacaoNuvem === "function") await sincronizarRotasOperacaoNuvem(false);
+    renderizarRuaMobile();
+  }, 60000);
 }
 
 window.renderizarRuaMobile = renderizarRuaMobile;

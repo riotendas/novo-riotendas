@@ -728,6 +728,240 @@ function atualizarResumoManutencaoAdmin() {
   renderizarManutencaoPendencias();
 }
 
+
+/* =====================================================
+   Manutenção avançada — reprocessamento de disponibilidade
+===================================================== */
+
+function manutencaoEventoAtivo(evento) {
+  try {
+    if (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)) return false;
+  } catch {}
+  const status = String(evento?.status_evento || evento?.status || "ativo").toLowerCase();
+  return !status.includes("cancel");
+}
+
+function manutencaoCodigoProduto(item) {
+  return String(item?.codigo || item?.produto_codigo || item?.id || item || "").trim();
+}
+
+function manutencaoCodigosEvento(evento) {
+  const out = new Set();
+  const coletar = (lista) => (Array.isArray(lista) ? lista : []).forEach(item => {
+    const codigo = manutencaoCodigoProduto(item);
+    if (codigo) out.add(codigo);
+  });
+  coletar(evento?.tendas);
+  coletar(typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []);
+  coletar(evento?.produtos);
+  coletar(evento?.itens);
+  coletar(evento?.produtos_selecionados);
+  return out;
+}
+
+function manutencaoProdutoPorCodigo(codigo) {
+  const codigoTxt = String(codigo || "").trim();
+  if (!codigoTxt || !Array.isArray(produtos)) return null;
+  return produtos.find(p => {
+    const pc = String(p?.codigo || p?.id || "").trim();
+    try {
+      if (typeof codigosEquivalentesProdutoDisponibilidade === "function") return codigosEquivalentesProdutoDisponibilidade(pc, codigoTxt);
+    } catch {}
+    return pc === codigoTxt;
+  }) || null;
+}
+
+function manutencaoStatusProtegido(produto) {
+  const s = String(produto?.status || "").toLowerCase();
+  return s.includes("bloque") || s.includes("consert") || s.includes("revis");
+}
+
+function manutencaoOperacoes() {
+  try {
+    if (typeof rotasOperacao !== "undefined" && rotasOperacao && typeof rotasOperacao === "object") return rotasOperacao;
+  } catch {}
+  try {
+    const local = JSON.parse(localStorage.getItem("novoRioTendasRotasOperacaoV1") || "{}");
+    return local && typeof local === "object" ? local : {};
+  } catch {
+    return {};
+  }
+}
+
+function manutencaoMontagemEntregue(evento, ops) {
+  const op = ops?.[`${evento?.id}-montagem`];
+  return String(op?.status || "").toLowerCase() === "entregue";
+}
+
+function manutencaoDesmontagemRecolhida(evento, ops) {
+  const op = ops?.[`${evento?.id}-desmontagem`];
+  return String(op?.status || "").toLowerCase() === "recolhido";
+}
+
+async function manutencaoCarregarBaseReprocessamento() {
+  if (typeof carregarEventos === "function") await carregarEventos();
+  if (typeof carregarProdutos === "function") await carregarProdutos(true);
+  if (typeof carregarEventosDisponibilidadeProduto === "function") await carregarEventosDisponibilidadeProduto();
+}
+
+async function manutencaoSalvarProdutoReprocessado(produto, alteracao, observacao) {
+  produto.atualizado_em = new Date().toISOString();
+  produto.colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : (produto.colaborador || "Administrador");
+  produto.historico = Array.isArray(produto.historico) ? produto.historico : [];
+  produto.historico.push({
+    data: produto.atualizado_em,
+    colaborador: produto.colaborador,
+    alteracao,
+    observacao
+  });
+  if (typeof salvarProdutoBanco === "function") await salvarProdutoBanco(produto);
+}
+
+async function manutencaoLimparVinculosCancelados(silencioso = false) {
+  if (!manutencaoAdminEhPermitida()) return { ok: 0, alterados: 0 };
+  await manutencaoCarregarBaseReprocessamento();
+  const cancelados = (Array.isArray(eventos) ? eventos : []).filter(e => !manutencaoEventoAtivo(e));
+  let alterados = 0;
+
+  for (const evento of cancelados) {
+    try {
+      if (typeof rtLiberarProdutosEventoCancelado === "function") await rtLiberarProdutosEventoCancelado(evento);
+      if (typeof rtLimparOperacoesRotasEventoCancelado === "function") rtLimparOperacoesRotasEventoCancelado(evento.id);
+      const codigos = manutencaoCodigosEvento(evento);
+      for (const codigo of codigos) {
+        const produto = manutencaoProdutoPorCodigo(codigo);
+        if (!produto) continue;
+        const obs = String(produto.observacao || "").toLowerCase();
+        const nome = String(evento.nome || "").toLowerCase();
+        const ligado = nome && obs.includes(nome);
+        if (String(produto.status || "").toLowerCase() === "alugado" && ligado) {
+          produto.status = "Livre";
+          produto.observacao = "";
+          produto.locacoes = Array.isArray(produto.locacoes) ? produto.locacoes.filter(l => String(l?.evento_id || l?.id || "") !== String(evento.id)) : [];
+          await manutencaoSalvarProdutoReprocessado(produto, "Vínculo de evento cancelado removido", `Evento cancelado: ${evento.nome || evento.id}`);
+          alterados++;
+        }
+      }
+    } catch (erro) {
+      console.warn("Falha ao limpar cancelado", evento, erro);
+    }
+  }
+
+  if (!silencioso) {
+    manutencaoResultado(`Cancelados verificados: ${cancelados.length}. Produto(s) ajustado(s): ${alterados}.`, "ok");
+    manutencaoRegistrarLog("Limpeza de vínculos cancelados", `${cancelados.length} cancelado(s) verificado(s); ${alterados} produto(s) ajustado(s).`);
+  }
+  return { ok: cancelados.length, alterados };
+}
+
+async function manutencaoReprocessarDisponibilidade(silencioso = false) {
+  if (!manutencaoAdminEhPermitida()) { alert("Acesso restrito ao administrador."); return { alugados: 0, liberados: 0, revisar: 0 }; }
+  await manutencaoCarregarBaseReprocessamento();
+  const ops = manutencaoOperacoes();
+  const eventosAtivos = (Array.isArray(eventos) ? eventos : []).filter(manutencaoEventoAtivo);
+  const produtosAlugadosCorretos = new Map();
+  const produtosRevisarPorRecolhimento = new Map();
+
+  for (const evento of eventosAtivos) {
+    const codigos = manutencaoCodigosEvento(evento);
+    if (!codigos.size) continue;
+    if (manutencaoMontagemEntregue(evento, ops) && !manutencaoDesmontagemRecolhida(evento, ops)) {
+      for (const codigo of codigos) produtosAlugadosCorretos.set(String(codigo), evento);
+    } else if (manutencaoDesmontagemRecolhida(evento, ops)) {
+      for (const codigo of codigos) produtosRevisarPorRecolhimento.set(String(codigo), evento);
+    }
+  }
+
+  let alugados = 0, liberados = 0, revisar = 0;
+  const todosAlugadosSet = new Set(Array.from(produtosAlugadosCorretos.keys()).map(String));
+
+  for (const produto of (Array.isArray(produtos) ? produtos : [])) {
+    const codigo = String(produto.codigo || produto.id || "").trim();
+    if (!codigo) continue;
+    const statusAtual = String(produto.status || "");
+    const obsAtual = String(produto.observacao || "");
+    let eventoAlugado = null;
+    for (const [cod, ev] of produtosAlugadosCorretos.entries()) {
+      if ((typeof codigosEquivalentesProdutoDisponibilidade === "function" && codigosEquivalentesProdutoDisponibilidade(cod, codigo)) || cod === codigo) { eventoAlugado = ev; break; }
+    }
+    let eventoRevisar = null;
+    for (const [cod, ev] of produtosRevisarPorRecolhimento.entries()) {
+      if ((typeof codigosEquivalentesProdutoDisponibilidade === "function" && codigosEquivalentesProdutoDisponibilidade(cod, codigo)) || cod === codigo) { eventoRevisar = ev; break; }
+    }
+
+    if (eventoAlugado) {
+      const novaObs = `Evento: ${eventoAlugado.nome || "Evento"}`;
+      if (statusAtual !== "Alugado" || obsAtual !== novaObs) {
+        produto.status = "Alugado";
+        produto.observacao = novaObs;
+        await manutencaoSalvarProdutoReprocessado(produto, "Disponibilidade reprocessada", `Produto vinculado ao evento ativo: ${eventoAlugado.nome || eventoAlugado.id}`);
+        alugados++;
+      }
+      continue;
+    }
+
+    if (eventoRevisar && String(statusAtual).toLowerCase() === "alugado") {
+      produto.status = "Revisar";
+      produto.observacao = `Recolhido do evento ${eventoRevisar.nome || "Evento"}. Aguardando revisão.`;
+      await manutencaoSalvarProdutoReprocessado(produto, "Status reprocessado para Revisar", `Desmontagem recolhida: ${eventoRevisar.nome || eventoRevisar.id}`);
+      revisar++;
+      continue;
+    }
+
+    if (String(statusAtual).toLowerCase() === "alugado") {
+      // Alugado sem montagem entregue ativa é sujeira operacional; libera.
+      produto.status = "Livre";
+      produto.observacao = "";
+      produto.locacoes = Array.isArray(produto.locacoes) ? produto.locacoes.filter(l => {
+        const eid = String(l?.evento_id || l?.id || "");
+        return eventosAtivos.some(e => String(e.id) === eid);
+      }) : [];
+      await manutencaoSalvarProdutoReprocessado(produto, "Disponibilidade reprocessada para Livre", "Produto estava alugado sem evento ativo entregue correspondente.");
+      liberados++;
+    }
+  }
+
+  if (typeof invalidarCacheProdutosGlobal === "function") invalidarCacheProdutosGlobal();
+  if (typeof carregarProdutos === "function") await carregarProdutos(true);
+  if (typeof carregarEventosDisponibilidadeProduto === "function") await carregarEventosDisponibilidadeProduto();
+  if (typeof renderizarProdutos === "function") renderizarProdutos();
+  if (typeof renderizarRotas === "function") renderizarRotas();
+  if (typeof renderizarRotaMobile === "function") renderizarRotaMobile();
+  if (typeof atualizarDashboard === "function") atualizarDashboard(produtos || []);
+
+  const msg = `Disponibilidade reprocessada. Alugado(s): ${alugados}. Liberado(s): ${liberados}. Para revisar: ${revisar}.`;
+  if (!silencioso) {
+    manutencaoResultado(msg, "ok");
+    manutencaoRegistrarLog("Reprocessar disponibilidade", msg);
+  }
+  return { alugados, liberados, revisar };
+}
+
+async function manutencaoReprocessarProximosUsos(silencioso = false) {
+  if (!manutencaoAdminEhPermitida()) { alert("Acesso restrito ao administrador."); return; }
+  await manutencaoCarregarBaseReprocessamento();
+  if (typeof invalidarCacheProdutosGlobal === "function") invalidarCacheProdutosGlobal();
+  if (typeof renderizarProdutos === "function") renderizarProdutos();
+  if (typeof atualizarDashboard === "function") atualizarDashboard(produtos || []);
+  if (!silencioso) {
+    manutencaoResultado("Próximos usos reprocessados com base nos eventos ativos.", "ok");
+    manutencaoRegistrarLog("Reprocessar próximos usos", "Próximos usos reprocessados com base nos eventos ativos.");
+  }
+}
+
+async function manutencaoReprocessarTudo() {
+  if (!manutencaoAdminEhPermitida()) { alert("Acesso restrito ao administrador."); return; }
+  const confirma = confirm("Reprocessar disponibilidade, limpar cancelados e atualizar próximos usos agora?");
+  if (!confirma) return;
+  manutencaoResultado("Reprocessando... aguarde.", "aviso");
+  const cancelados = await manutencaoLimparVinculosCancelados(true);
+  const disp = await manutencaoReprocessarDisponibilidade(true);
+  await manutencaoReprocessarProximosUsos(true);
+  const msg = `Reprocessamento concluído. Cancelados ajustados: ${cancelados.alterados}. Alugados: ${disp.alugados}. Liberados: ${disp.liberados}. Revisar: ${disp.revisar}.`;
+  manutencaoResultado(msg, "ok");
+  manutencaoRegistrarLog("Reprocessar tudo", msg);
+}
+
 function iniciarManutencaoAdminConfig() {
   const bind = (id, fn) => {
     const el = document.getElementById(id);
@@ -740,6 +974,11 @@ function iniciarManutencaoAdminConfig() {
   bind("manutSelectAll", () => manutencaoSelecionarTodos(true));
   bind("manutClearSelection", () => manutencaoSelecionarTodos(false));
   bind("manutZerarSelecionados", manutencaoResetarSelecionados);
+  bind("manutReprocessarDisponibilidade", () => manutencaoReprocessarDisponibilidade(false));
+  bind("manutRecalcularStatusProdutos", () => manutencaoReprocessarDisponibilidade(false));
+  bind("manutLimparCancelados", () => manutencaoLimparVinculosCancelados(false));
+  bind("manutReprocessarProximosUsos", () => manutencaoReprocessarProximosUsos(false));
+  bind("manutReprocessarTudo", manutencaoReprocessarTudo);
   const tipo = document.getElementById("manutTipoPendencia");
   if (tipo && !tipo.dataset.manutListener) {
     tipo.dataset.manutListener = "1";
@@ -1242,7 +1481,7 @@ function filtrarEventosExportacao() {
 function textoProdutosEventoConfig(evento) {
   const tendas = (evento.tendas || []).map(p => [p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - "));
   const apoio = (evento.itens_apoio || []).map(i => `${i.nome} (${i.quantidade})`);
-  const extras = (evento.produtos_extras || []).map(i => `${i.descricao} (${i.quantidade})`);
+  const extras = (typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento.produtos_extras || [])).map(i => `${i.descricao} (${i.quantidade})`);
   return [...tendas, ...apoio, ...extras].join(" | ");
 }
 

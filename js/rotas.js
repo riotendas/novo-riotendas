@@ -371,7 +371,7 @@ async function alterarStatusProdutosEventoRota(rota, novoStatus, motivo, opAnter
 
     produto.status = statusDestino;
     if (statusDestino === "Alugado") {
-      produto.observacao = produto.observacao || `Entregue/montado no evento ${nomeEvento}.`;
+      produto.observacao = `Evento: ${nomeEvento}`;
     } else if (statusDestino === "Revisar") {
       produto.observacao = produto.observacao || `Recolhido do evento ${nomeEvento}. Aguardando revisão.`;
     }
@@ -978,24 +978,29 @@ function iniciarRotas() {
   });
 
   setTimeout(renderizarRotas, 400);
-  setTimeout(renderizarRotas, 1200);
 
   setInterval(() => {
+    if (typeof rtUsuarioEditandoOperacional === "function" && rtUsuarioEditandoOperacional()) return;
+    const rotasAtiva = document.getElementById("rotasSection")?.classList.contains("active-section");
+    const ruaAtiva = document.getElementById("ruaMobileSection")?.classList.contains("active-section");
+    if (!rotasAtiva && !ruaAtiva) return;
     atualizarCarrosRotasDaNuvemSeNecessario().catch(() => {});
     atualizarOrdemRotasDaNuvemSeNecessario().catch(() => {});
-    sincronizarRotasOperacaoNuvem(true).catch(() => {});
-    renderizarRotas();
-  }, 30000);
+    sincronizarRotasOperacaoNuvem(true).then(() => {
+      if (rotasAtiva && typeof renderizarRotas === "function") renderizarRotas();
+      if (ruaAtiva && typeof renderizarRuaMobile === "function") renderizarRuaMobile();
+    }).catch(() => {});
+  }, 120000);
 
   if (!window.__rtRotasOperacaoSyncTimer) {
     window.__rtRotasOperacaoSyncTimer = setInterval(() => {
       const rotasAtiva = document.getElementById("rotasSection")?.classList.contains("active-section");
       const ruaAtiva = document.getElementById("ruaMobileSection")?.classList.contains("active-section");
       const produtosAtiva = document.getElementById("produtosSection")?.classList.contains("active-section");
-      if (rotasAtiva || ruaAtiva || produtosAtiva) {
+      if ((rotasAtiva || ruaAtiva || produtosAtiva) && !(typeof rtUsuarioEditandoOperacional === "function" && rtUsuarioEditandoOperacional())) {
         sincronizarRotasOperacaoNuvem(true).catch(() => {});
       }
-    }, 15000);
+    }, 120000);
   }
 }
 
@@ -1074,11 +1079,13 @@ function montarListaMateriais(evento) {
     return nome || "Produto com código";
   });
 
+  const reservas = (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).map(i => typeof rtProdutoReservaParaTexto === "function" ? rtProdutoReservaParaTexto(i) : `🔄 R${i.codigo || ""}`);
+
   const apoio = (evento.itens_apoio || []).map(i => `${i.nome} (${i.quantidade})`);
 
   const extras = (typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento.produtos_extras || [])).map(i => `${i.descricao} (${i.quantidade})`);
 
-  return [...tendas, ...apoio, ...extras];
+  return [...tendas, ...reservas, ...apoio, ...extras];
 }
 
 function montarMateriaisRotaDetalhados(evento) {
@@ -1095,6 +1102,11 @@ function montarMateriaisRotaDetalhados(evento) {
       tamanho: p.tamanho || "",
       texto: nome || "Produto com código"
     });
+  });
+
+  (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).forEach((p, index) => {
+    const nome = typeof rtProdutoReservaParaTexto === "function" ? rtProdutoReservaParaTexto(p) : `🔄 R${p.codigo || ""}`;
+    materiais.push({ tipo: "reserva", index, id: p.id, categoria: p.categoria || p.tipo || "", tamanho: p.tamanho || "", texto: nome });
   });
 
   (evento.itens_apoio || []).forEach((i, index) => {
@@ -1197,26 +1209,80 @@ function eventoUsaProdutoRotaPorIdOuCodigo(evento, produto) {
   });
 }
 
-function produtoDisponivelParaTrocaRota(produto, evento) {
+function rtIntervalosEventosConflitamRota(a, b) {
+  if (!a?.inicio || !a?.fim || !b?.inicio || !b?.fim) return false;
+  return new Date(a.inicio).getTime() < new Date(b.fim).getTime()
+    && new Date(a.fim).getTime() > new Date(b.inicio).getTime();
+}
+
+function produtoDisponivelParaTrocaRota(produto, evento, ignorarEventosIds = []) {
   if (!produto || !evento) return { livre: false, texto: "Produto inválido" };
 
   const intervaloAtual = intervaloEventoRotaDisponibilidade(evento);
   if (!intervaloAtual.inicio || !intervaloAtual.fim) return { livre: true, texto: "Sem data definida" };
 
+  const ignorar = new Set((Array.isArray(ignorarEventosIds) ? ignorarEventosIds : [ignorarEventosIds]).map(x => String(x || "")).filter(Boolean));
+  ignorar.add(String(evento.id));
+
   const conflito = (Array.isArray(eventos) ? eventos : []).find(outro => {
-    if (String(outro.id) === String(evento.id)) return false;
+    if (!outro || ignorar.has(String(outro.id))) return false;
+    if (typeof rtEventoCancelado === "function" && rtEventoCancelado(outro)) return false;
     if (!eventoUsaProdutoRotaPorIdOuCodigo(outro, produto)) return false;
 
     const intervaloOutro = intervaloEventoRotaDisponibilidade(outro);
-    return new Date(intervaloAtual.inicio).getTime() < new Date(intervaloOutro.fim).getTime()
-      && new Date(intervaloAtual.fim).getTime() > new Date(intervaloOutro.inicio).getTime();
+    return rtIntervalosEventosConflitamRota(intervaloAtual, intervaloOutro);
   });
 
   if (conflito) {
-    return { livre: false, texto: `Indisponível: ${conflito.nome || "cliente"}` };
+    return { livre: false, texto: `Indisponível: ${conflito.nome || "cliente"}`, conflito };
   }
 
   return { livre: true, texto: "Disponível" };
+}
+
+function rtEventoMontagemEntregueRota(evento) {
+  if (!evento?.id) return false;
+  const op = obterOperacaoRota(`${evento.id}-montagem`);
+  return String(op?.status || "") === "entregue";
+}
+
+function rtProdutoMesmoTipoTrocaRota(a, b) {
+  if (!a || !b) return false;
+  const catA = String(a.categoria || a.tipo || "");
+  const catB = String(b.categoria || b.tipo || "");
+  const tamA = String(a.tamanho || "");
+  const tamB = String(b.tamanho || "");
+  return catA === catB && tamA === tamB;
+}
+
+function rtPermutaPossivelTrocaRota(produtoNovo, eventoAtual, produtoAntigo) {
+  const disponibilidade = produtoDisponivelParaTrocaRota(produtoNovo, eventoAtual);
+  const conflito = disponibilidade?.conflito || null;
+  if (!conflito || !produtoAntigo) return null;
+  if (typeof rtEventoCancelado === "function" && rtEventoCancelado(conflito)) return null;
+  if (rtEventoMontagemEntregueRota(conflito)) return null;
+  if (!rtProdutoMesmoTipoTrocaRota(produtoNovo, produtoAntigo)) return null;
+
+  const antigoLivreParaConflito = produtoDisponivelParaTrocaRota(produtoAntigo, conflito, [eventoAtual.id, conflito.id]);
+  if (!antigoLivreParaConflito.livre) return null;
+
+  const idxProdutoConflito = Array.isArray(conflito.tendas)
+    ? conflito.tendas.findIndex(item => {
+        const idItem = String(item?.id || "");
+        const codItem = String(item?.codigo || "").trim();
+        const idNovo = String(produtoNovo?.id || "");
+        const codNovo = String(produtoNovo?.codigo || "").trim();
+        return (idItem && idNovo && idItem === idNovo) || (codItem && codNovo && codItem === codNovo);
+      })
+    : -1;
+
+  if (idxProdutoConflito < 0) return null;
+
+  return {
+    conflito,
+    idxProdutoConflito,
+    texto: "Reservada para evento futuro"
+  };
 }
 
 function produtosDisponiveisParaTrocaRota(produtoAtual, evento) {
@@ -1242,29 +1308,78 @@ function produtosDisponiveisParaTrocaRota(produtoAtual, evento) {
     .sort((a, b) => String(a.codigo || "").localeCompare(String(b.codigo || ""), "pt-BR", { numeric: true }));
 }
 
-function statusTrocaRotaProduto(p, evento) {
+function statusTrocaRotaProduto(p, evento, produtoAtual = null) {
   const status = String(p?.status || "").trim();
   const statusLower = status.toLowerCase();
   const disponibilidade = produtoDisponivelParaTrocaRota(p, evento);
 
   const statusLivre = ["livre", "livre para locação", "livre para locacao", "disponível", "disponivel"];
+  const statusRevisar = (typeof rtProdutoEventoEstaRevisar === "function" && rtProdutoEventoEstaRevisar(p)) || statusLower.includes("revis");
+  const statusConsertar = (typeof rtProdutoEventoEstaConsertar === "function" && rtProdutoEventoEstaConsertar(p)) || statusLower.includes("consert");
+
+  if (statusRevisar || statusConsertar) {
+    if (!disponibilidade.livre) {
+      const permutaInfo = produtoAtual ? rtPermutaPossivelTrocaRota(p, evento, produtoAtual) : null;
+      if (permutaInfo) {
+        return {
+          livre: false,
+          permuta: true,
+          conflito: permutaInfo.conflito,
+          idxProdutoConflito: permutaInfo.idxProdutoConflito,
+          texto: "Reservada para evento futuro"
+        };
+      }
+      return { livre: false, permuta: false, texto: disponibilidade.texto || "Ocupada no período" };
+    }
+    return {
+      livre: true,
+      permuta: false,
+      texto: statusConsertar ? "⚠ Para consertar" : "⚠ Para revisar"
+    };
+  }
 
   if (!statusLivre.includes(statusLower)) {
+    const statusPermutavel = statusLower.includes("alug") || statusLower.includes("reserv");
+    const permutaInfo = statusPermutavel && produtoAtual ? rtPermutaPossivelTrocaRota(p, evento, produtoAtual) : null;
+    if (permutaInfo) {
+      return {
+        livre: false,
+        permuta: true,
+        conflito: permutaInfo.conflito,
+        idxProdutoConflito: permutaInfo.idxProdutoConflito,
+        texto: "Reservada para evento futuro"
+      };
+    }
+
     return {
       livre: false,
+      permuta: false,
       texto: status || "Indisponível"
     };
   }
 
   if (!disponibilidade.livre) {
+    const permutaInfo = produtoAtual ? rtPermutaPossivelTrocaRota(p, evento, produtoAtual) : null;
+    if (permutaInfo) {
+      return {
+        livre: false,
+        permuta: true,
+        conflito: permutaInfo.conflito,
+        idxProdutoConflito: permutaInfo.idxProdutoConflito,
+        texto: "Reservada para evento futuro"
+      };
+    }
+
     return {
       livre: false,
+      permuta: false,
       texto: disponibilidade.texto || "Ocupada no período"
     };
   }
 
   return {
     livre: true,
+    permuta: false,
     texto: "Disponível"
   };
 }
@@ -1316,6 +1431,59 @@ function garantirModalTrocaProdutoRota() {
   document.getElementById("confirmarTrocaProdutoRota")?.addEventListener("click", confirmarTrocaProdutoRota);
 
   return modal;
+}
+
+function garantirModalPermutaProdutoRota() {
+  let modal = document.getElementById("rotaPermutaProdutoDialog");
+  if (modal) return modal;
+
+  modal = document.createElement("dialog");
+  modal.id = "rotaPermutaProdutoDialog";
+  modal.className = "modal rota-permuta-produto-dialog";
+  modal.innerHTML = `
+    <div class="modal-header">
+      <h2>Troca rápida</h2>
+      <button type="button" class="icon-btn" data-permuta-acao="cancelar">×</button>
+    </div>
+    <div class="rota-permuta-body">
+      <div class="rota-permuta-alerta">⚠ Reservada para evento futuro.</div>
+      <div class="rota-permuta-actions">
+        <button type="button" class="btn-primary" data-permuta-acao="permutar">Permutar</button>
+        <button type="button" class="btn-outline" data-permuta-acao="outra">Escolher outra</button>
+        <button type="button" class="btn-outline" data-permuta-acao="cancelar">Cancelar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function confirmarPermutaProdutoRota() {
+  const modal = garantirModalPermutaProdutoRota();
+  return new Promise(resolve => {
+    const limpar = () => {
+      modal.querySelectorAll("[data-permuta-acao]").forEach(btn => btn.removeEventListener("click", onClick));
+      modal.removeEventListener("cancel", onCancel);
+    };
+    const fechar = valor => {
+      limpar();
+      try { modal.close(); } catch {}
+      resolve(valor);
+    };
+    const onClick = ev => {
+      const acao = ev.currentTarget?.dataset?.permutaAcao;
+      if (acao === "permutar") return fechar("permutar");
+      if (acao === "outra") return fechar("outra");
+      return fechar("cancelar");
+    };
+    const onCancel = ev => {
+      ev.preventDefault();
+      fechar("cancelar");
+    };
+    modal.querySelectorAll("[data-permuta-acao]").forEach(btn => btn.addEventListener("click", onClick));
+    modal.addEventListener("cancel", onCancel);
+    modal.showModal();
+  });
 }
 
 
@@ -1392,13 +1560,13 @@ async function abrirTrocaProdutoAtendimentoExtraRota(eventoId, produtoIndex) {
   } else {
     const opcoesComStatus = opcoes.map(p => {
       const st = statusTrocaRotaProduto(p, evento);
-      return { produto: p, livre: st.livre, texto: st.texto };
+      return { produto: p, livre: st.livre, texto: st.texto, statusAviso: st.texto && st.texto !== "Disponível" && (st.livre || st.permuta) };
     });
     select.innerHTML = `
       <option value="">Selecione o produto substituto</option>
       ${opcoesComStatus.map(item => `
         <option value="${item.produto.id}" ${item.livre ? "" : "disabled"}>
-          ${produtoDescricaoRota(item.produto)} | ${item.livre ? "Disponível" : item.texto}
+          ${produtoDescricaoRota(item.produto)} | ${item.statusAviso ? item.texto : (item.livre ? "Disponível" : item.texto)}
         </option>
       `).join("")}
     `;
@@ -1433,6 +1601,11 @@ async function confirmarTrocaProdutoAtendimentoExtraRota(eventoId, produtoIndex,
       (String(produtoAtual.codigo || "").trim() && String(produtoAtual.codigo || "").trim() === String(novoProduto.codigo || "").trim())) {
     alert("O produto escolhido é o mesmo produto atual.");
     return;
+  }
+
+  if (typeof rtConfirmarUsoProdutoRevisar === "function" && typeof rtProdutoEventoExigeConfirmacao === "function" && rtProdutoEventoExigeConfirmacao(novoProduto)) {
+    const permitidoRevisao = await rtConfirmarUsoProdutoRevisar(novoProduto, evento);
+    if (!permitidoRevisao) return;
   }
 
   const validacaoTroca = produtoDisponivelParaTrocaRota(novoProduto, evento);
@@ -1517,20 +1690,20 @@ async function abrirTrocaProdutoRota(eventoId, produtoIndex) {
     document.getElementById("confirmarTrocaProdutoRota").disabled = true;
   } else {
     const opcoesComStatus = opcoes.map(p => {
-      const st = statusTrocaRotaProduto(p, evento);
-      return { produto: p, livre: st.livre, texto: st.texto };
+      const st = statusTrocaRotaProduto(p, evento, produtoAtual);
+      return { produto: p, livre: st.livre, permuta: !!st.permuta, texto: st.texto, statusAviso: st.texto && st.texto !== "Disponível" && (st.livre || st.permuta) };
     });
 
     select.innerHTML = `
       <option value="">Selecione o produto substituto</option>
       ${opcoesComStatus.map(item => `
-        <option value="${item.produto.id}" ${item.livre ? "" : "disabled"}>
-          ${produtoDescricaoRota(item.produto)} | ${item.livre ? "Disponível" : item.texto}
+        <option value="${item.produto.id}" ${(item.livre || item.permuta) ? "" : "disabled"} data-permuta="${item.permuta ? "1" : "0"}">
+          ${produtoDescricaoRota(item.produto)} | ${item.statusAviso ? item.texto : (item.livre ? "Disponível" : item.texto)}
         </option>
       `).join("")}
     `;
 
-    document.getElementById("confirmarTrocaProdutoRota").disabled = !opcoesComStatus.some(item => item.livre);
+    document.getElementById("confirmarTrocaProdutoRota").disabled = !opcoesComStatus.some(item => item.livre || item.permuta);
   }
 
   modal.showModal();
@@ -1573,13 +1746,48 @@ async function confirmarTrocaProdutoRota() {
     return;
   }
 
-  const validacaoTroca = produtoDisponivelParaTrocaRota(novoProduto, evento);
-  if (!validacaoTroca.livre) {
-    alert(validacaoTroca.texto || "Este produto não está disponível para este evento.");
-    return;
+  if (typeof rtConfirmarUsoProdutoRevisar === "function" && typeof rtProdutoEventoExigeConfirmacao === "function" && rtProdutoEventoExigeConfirmacao(novoProduto)) {
+    const permitidoRevisao = await rtConfirmarUsoProdutoRevisar(novoProduto, evento);
+    if (!permitidoRevisao) {
+      const select = document.getElementById("trocaRotaProdutoSelect");
+      if (select) {
+        select.value = "";
+        select.focus();
+      }
+      return;
+    }
   }
 
-  evento.tendas[produtoIndex] = {
+  const validacaoTroca = produtoDisponivelParaTrocaRota(novoProduto, evento);
+  let permutaInfo = null;
+  let aplicarPermuta = false;
+
+  if (!validacaoTroca.livre) {
+    permutaInfo = rtPermutaPossivelTrocaRota(novoProduto, evento, produtoAntigo);
+
+    if (!permutaInfo) {
+      alert(validacaoTroca.texto || "Este produto não está disponível para este evento.");
+      return;
+    }
+
+    const acaoPermuta = await confirmarPermutaProdutoRota();
+    if (acaoPermuta === "outra") {
+      const select = document.getElementById("trocaRotaProdutoSelect");
+      if (select) {
+        select.value = "";
+        select.focus();
+      }
+      return;
+    }
+    if (acaoPermuta !== "permutar") {
+      document.getElementById("rotaTrocaProdutoDialog")?.close();
+      return;
+    }
+
+    aplicarPermuta = true;
+  }
+
+  const produtoNovoEvento = {
     id: novoProduto.id,
     codigo: novoProduto.codigo || "",
     categoria: novoProduto.categoria || novoProduto.tipo || "",
@@ -1587,6 +1795,23 @@ async function confirmarTrocaProdutoRota() {
     tamanho: novoProduto.tamanho || "",
     cor: novoProduto.cor || ""
   };
+
+  const produtoAntigoEvento = {
+    id: produtoAntigo.id || "",
+    codigo: produtoAntigo.codigo || "",
+    categoria: produtoAntigo.categoria || produtoAntigo.tipo || "",
+    tipo: produtoAntigo.tipo || produtoAntigo.categoria || "",
+    tamanho: produtoAntigo.tamanho || "",
+    cor: produtoAntigo.cor || ""
+  };
+
+  evento.tendas[produtoIndex] = produtoNovoEvento;
+
+  if (aplicarPermuta && permutaInfo?.conflito && Number.isFinite(permutaInfo.idxProdutoConflito)) {
+    permutaInfo.conflito.tendas[permutaInfo.idxProdutoConflito] = produtoAntigoEvento;
+    permutaInfo.conflito.atualizado_em = new Date().toISOString();
+    permutaInfo.conflito.colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : permutaInfo.conflito.colaborador;
+  }
 
   evento.atualizado_em = new Date().toISOString();
   evento.colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : evento.colaborador;
@@ -1600,8 +1825,20 @@ async function confirmarTrocaProdutoRota() {
     return;
   }
 
+  let salvoPermuta = null;
+  if (aplicarPermuta && permutaInfo?.conflito) {
+    salvoPermuta = typeof salvarEventoBanco === "function" ? await salvarEventoBanco(permutaInfo.conflito) : null;
+    if (!salvoPermuta) {
+      alert("A troca principal foi salva, mas não foi possível salvar a permuta do evento futuro. Verifique o outro evento antes de continuar.");
+    }
+  }
+
   const idx = eventos.findIndex(e => String(e.id) === String(evento.id));
   if (idx >= 0) eventos[idx] = salvo;
+  if (salvoPermuta) {
+    const idxPermuta = eventos.findIndex(e => String(e.id) === String(salvoPermuta.id));
+    if (idxPermuta >= 0) eventos[idxPermuta] = salvoPermuta;
+  }
 
   document.getElementById("rotaTrocaProdutoDialog")?.close();
 
@@ -1616,12 +1853,14 @@ async function confirmarTrocaProdutoRota() {
   if (typeof registrarLogSistema === "function") {
     registrarLogSistema({
       modulo: "Rotas",
-      acao: "Troca rápida de produto",
+      acao: aplicarPermuta ? "Troca rápida com permuta" : "Troca rápida de produto",
       registro_id: evento.id,
       registro_nome: evento.nome || "Evento",
       antes: produtoAntigo,
       depois: evento.tendas[produtoIndex],
-      detalhes: `${produtoDescricaoRota(produtoAntigo)} → ${produtoDescricaoRota(novoProduto)}`
+      detalhes: aplicarPermuta && permutaInfo?.conflito
+        ? `${produtoDescricaoRota(produtoAntigo)} ↔ ${produtoDescricaoRota(novoProduto)}`
+        : `${produtoDescricaoRota(produtoAntigo)} → ${produtoDescricaoRota(novoProduto)}`
     });
   }
 
@@ -1993,6 +2232,7 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
     }
 
     (evento.tendas || []).forEach(item => processarItem(item));
+    (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).forEach(item => processarItem(item));
     [
       ...(evento.itens_apoio || []),
       ...(typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento.produtos_extras || []))
@@ -2090,7 +2330,7 @@ function rtBairroEndereco(endereco) {
 
 function rtPontosTendasEvento(evento) {
   let pontos = 0;
-  (evento?.tendas || []).forEach(item => {
+  [...(evento?.tendas || []), ...(typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : [])].forEach(item => {
     const qtd = rtQuantidadeItem(item);
     const tamanho = rtTamanhoProduto(item);
     if (tamanho) pontos += rtPesoOperacionalTenda(tamanho, qtd);
@@ -2100,7 +2340,7 @@ function rtPontosTendasEvento(evento) {
 
 function rtMesasCadeirasOmbEvento(evento) {
   const r = { mes: 0, cad: 0, omb: 0 };
-  const todos = [...(evento?.tendas || []), ...(evento?.itens_apoio || []), ...(typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento?.produtos_extras || []))];
+  const todos = [...(evento?.tendas || []), ...(typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []), ...(evento?.itens_apoio || []), ...(typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento?.produtos_extras || []))];
   todos.forEach(item => {
     const tipo = rtTipoApoioResumo(item);
     if (tipo) r[tipo] += rtQuantidadeItem(item);
@@ -2261,6 +2501,220 @@ function rtAbrirGoogleMapsRotas(listaRotas) {
   window.open(url, "_blank");
 }
 
+// v19-dev: notas simples na rota por carro/dia
+const RT_ROTAS_NOTAS_KEY = "rt_notas_rota_v1";
+
+function rtNotasCarregar() {
+  try {
+    const raw = localStorage.getItem(RT_ROTAS_NOTAS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function rtNotasSalvar(notas) {
+  try { localStorage.setItem(RT_ROTAS_NOTAS_KEY, JSON.stringify(Array.isArray(notas) ? notas : [])); } catch {}
+}
+
+function rtHtml(valor) {
+  return String(valor ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function rtNotaId() {
+  return "nota_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+}
+
+function rtNotasDaRota(data, carro) {
+  return rtNotasCarregar()
+    .filter(n => n && n.data === data && n.carro === carro)
+    .sort((a, b) => (Number(a.posicao || 0) - Number(b.posicao || 0)) || String(a.id || "").localeCompare(String(b.id || "")));
+}
+
+function rtNotasEnderecos(data, carro) {
+  return rtNotasDaRota(data, carro).map(n => rtEnderecoRotaValido(n.endereco)).filter(Boolean);
+}
+
+function rtNotaTextoHtml(textoBruto) {
+  const textoOriginal = String(textoBruto || "Nota").trim() || "Nota";
+  const destaque = /^\*[^*].*[^*]\*$/.test(textoOriginal) || /^\*[^*]\*$/.test(textoOriginal);
+  const textoLimpo = destaque ? textoOriginal.replace(/^\*/, "").replace(/\*$/, "").trim() : textoOriginal;
+  const safe = rtHtml(textoLimpo || "Nota");
+  return destaque ? `<strong>${safe}</strong>` : safe;
+}
+
+function rtNotaLinhaHtml(nota) {
+  const admin = rotaUsuarioEhAdmin();
+  const temEndereco = String(nota?.endereco || "").trim();
+  const icone = temEndereco ? "📍" : "📝";
+  const texto = rtNotaTextoHtml(nota?.texto || "Nota");
+  const enderecoCurto = temEndereco ? ` <span class="rota-nota-endereco">${rtHtml(nota.endereco)}</span>` : "";
+  const dragAttrs = admin ? ` draggable="true" title="Arrastar para reposicionar"` : "";
+  return `
+    <div class="rota-nota-linha" data-rota-nota-id="${rtHtml(nota.id)}" data-rota-nota-data="${rtHtml(nota.data || "")}" data-rota-nota-carro="${rtHtml(nota.carro || "")}"${dragAttrs}>
+      <span class="rota-nota-texto">${icone} ${texto}${enderecoCurto}</span>
+      ${admin ? `
+        <button type="button" class="rota-nota-icon" title="Editar" data-rota-nota-editar="${rtHtml(nota.id)}">✏️</button>
+        <button type="button" class="rota-nota-icon" title="Excluir" data-rota-nota-excluir="${rtHtml(nota.id)}">🗑️</button>
+      ` : ""}
+    </div>
+  `;
+}
+
+function rtRenderizarListaComNotas(rotasOrdenadas, data, carro) {
+  const notas = rtNotasDaRota(data, carro);
+  const porPosicao = new Map();
+  notas.forEach(nota => {
+    const pos = Math.max(0, Math.min(Number(nota.posicao || 0), rotasOrdenadas.length));
+    if (!porPosicao.has(pos)) porPosicao.set(pos, []);
+    porPosicao.get(pos).push(nota);
+  });
+
+  const partes = [];
+  (porPosicao.get(0) || []).forEach(nota => partes.push(rtNotaLinhaHtml(nota)));
+  rotasOrdenadas.forEach((rota, idx) => {
+    partes.push(renderizarCardRota(rota, idx, rotasOrdenadas.length));
+    (porPosicao.get(idx + 1) || []).forEach(nota => partes.push(rtNotaLinhaHtml(nota)));
+  });
+  return partes.join("");
+}
+
+function rtNomeCurtoRota(rota, idx) {
+  const evento = rota?.evento || {};
+  const cliente = String(rota?.cliente || evento.nome || `Parada ${idx + 1}`).trim();
+  const bairro = typeof rtBairroResumo === "function"
+    ? rtBairroResumo({ ...evento, bairro: evento.bairro || rota.bairro, cidade: evento.cidade || rota.cidade, endereco: evento.endereco || rota.endereco })
+    : "";
+  return [cliente.split(/\s+/).slice(0, 2).join(" "), bairro].filter(Boolean).join(" - ");
+}
+
+function rtAbrirNotaRota(data, carro, listaRotas = [], notaId = "") {
+  if (!rotaUsuarioEhAdmin()) return;
+
+  const notas = rtNotasCarregar();
+  const existente = notaId ? notas.find(n => n.id === notaId) : null;
+
+  let dialog = document.getElementById("rotaNotaDialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "rotaNotaDialog";
+    dialog.className = "modal rota-nota-modal";
+    document.body.appendChild(dialog);
+  }
+
+  const lista = Array.isArray(listaRotas) ? listaRotas : [];
+  const posAtual = existente ? Number(existente.posicao || 0) : 0;
+  const opcoes = [`<option value="0"${posAtual === 0 ? " selected" : ""}>Início da rota</option>`]
+    .concat(lista.map((rota, idx) => {
+      const val = idx + 1;
+      const label = `Depois de ${rtNomeCurtoRota(rota, idx)}`;
+      return `<option value="${val}"${posAtual === val ? " selected" : ""}>${rtHtml(label)}</option>`;
+    })).join("");
+
+  dialog.innerHTML = `
+    <div class="modal-header">
+      <div>
+        <h2>${existente ? "Editar nota na rota" : "Adicionar nota na rota"}</h2>
+        <p>${rtHtml(carro)} • ${rtHtml(formatarDataRota(data))}</p>
+      </div>
+      <button type="button" class="modal-close" data-rota-nota-fechar>×</button>
+    </div>
+    <div class="rota-nota-form">
+      <label>Nota</label>
+      <input type="text" id="rotaNotaTexto" placeholder="Ex.: Segunda viagem" value="${rtHtml(existente?.texto || "")}" />
+      <label>Endereço opcional</label>
+      <input type="text" id="rotaNotaEndereco" placeholder="Preencher só se entrar na rota" value="${rtHtml(existente?.endereco || "")}" />
+      <label>Posição</label>
+      <select id="rotaNotaPosicao">${opcoes}</select>
+      <div class="modal-actions">
+        <button type="button" class="btn-outline" data-rota-nota-fechar>Cancelar</button>
+        <button type="button" class="btn-primary" data-rota-nota-salvar>Salvar</button>
+      </div>
+    </div>
+  `;
+
+  const fechar = () => { if (dialog.open) dialog.close(); };
+  dialog.querySelectorAll("[data-rota-nota-fechar]").forEach(btn => btn.addEventListener("click", fechar));
+  dialog.querySelector("[data-rota-nota-salvar]")?.addEventListener("click", () => {
+    const texto = dialog.querySelector("#rotaNotaTexto")?.value?.trim() || "";
+    const endereco = dialog.querySelector("#rotaNotaEndereco")?.value?.trim() || "";
+    const posicao = Number(dialog.querySelector("#rotaNotaPosicao")?.value || 0);
+    if (!texto && !endereco) {
+      alert("Informe uma nota ou endereço.");
+      return;
+    }
+
+    if (existente) {
+      existente.texto = texto || endereco;
+      existente.endereco = endereco;
+      existente.posicao = posicao;
+      existente.atualizadoEm = new Date().toISOString();
+    } else {
+      notas.push({
+        id: rtNotaId(),
+        data,
+        carro,
+        texto: texto || endereco,
+        endereco,
+        posicao,
+        criadoEm: new Date().toISOString()
+      });
+    }
+
+    rtNotasSalvar(notas);
+    fechar();
+    renderizarRotas();
+  });
+
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else alert("Seu navegador não suporta esta janela de nota.");
+}
+
+function rtExcluirNotaRota(notaId) {
+  if (!rotaUsuarioEhAdmin() || !notaId) return;
+  const notas = rtNotasCarregar();
+  const nota = notas.find(n => n.id === notaId);
+  if (!nota) return;
+  if (!confirm(`Excluir a nota "${nota.texto || nota.endereco || "sem texto"}"?`)) return;
+  rtNotasSalvar(notas.filter(n => n.id !== notaId));
+  renderizarRotas();
+}
+
+function rtGoogleMapsUrlRotasComExtras(listaRotas, extras = []) {
+  const enderecos = [
+    ...(Array.isArray(listaRotas) ? listaRotas.map(r => rtEnderecoRotaValido(r.endereco)) : []),
+    ...(Array.isArray(extras) ? extras.map(rtEnderecoRotaValido) : [])
+  ].filter(Boolean);
+
+  const unicos = [];
+  enderecos.forEach(end => {
+    if (!unicos.some(x => x.toLowerCase() === end.toLowerCase())) unicos.push(end);
+  });
+
+  if (!unicos.length) return "";
+  const origem = "Current Location";
+  const destino = unicos[unicos.length - 1];
+  const intermediarios = unicos.slice(0, -1);
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origem)}&destination=${encodeURIComponent(destino)}&travelmode=driving`;
+  if (intermediarios.length) url += `&waypoints=${intermediarios.map(encodeURIComponent).join("|")}`;
+  return url;
+}
+
+function rtAbrirGoogleMapsRotasComNotas(listaRotas, data, carro) {
+  const url = rtGoogleMapsUrlRotasComExtras(listaRotas, rtNotasEnderecos(data, carro));
+  if (!url) {
+    alert("Nenhum endereço encontrado para gerar a rota.");
+    return;
+  }
+  window.open(url, "_blank");
+}
+
 function renderizarRotas() {
   aplicarParametrosRotaLinkSeExistirem();
   const container = document.getElementById("rotasConteudo");
@@ -2302,6 +2756,7 @@ function renderizarRotas() {
               <div class="rota-carro-topo">
                 <h4>${carro}</h4>
                 <div class="rota-carro-acoes">
+                  ${rotaUsuarioEhAdmin() ? `<button type="button" class="btn-outline rota-nota-btn" data-rota-nota-data="${data}" data-rota-nota-carro="${carro}">+Nota</button>` : ""}
                   <button type="button" class="btn-outline rota-contador-btn" data-rota-contador-data="${data}" data-rota-contador-carro="${carro}">Contador</button>
                   <button type="button" class="btn-outline rota-maps-btn rota-maps-header-btn" data-rota-maps-data="${data}" data-rota-maps-carro="${carro}">Rota</button>
                 </div>
@@ -2311,7 +2766,7 @@ function renderizarRotas() {
               </div>
             </div>
             <div class="rota-lista">
-              ${rotasOrdenadas.map((rota, idx) => renderizarCardRota(rota, idx, rotasOrdenadas.length)).join("")}
+              ${rtRenderizarListaComNotas(rotasOrdenadas, data, carro)}
             </div>
           </div>
         `;
@@ -2348,8 +2803,43 @@ function renderizarRotas() {
         ? ordenarRotasPorOrdemManual(grupos[data][carro])
         : [];
 
-      rtAbrirGoogleMapsRotas(lista);
+      rtAbrirGoogleMapsRotasComNotas(lista, data, carro);
     });
+  });
+
+  container.querySelectorAll("button[data-rota-nota-data]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const data = btn.dataset.rotaNotaData;
+      const carro = btn.dataset.rotaNotaCarro;
+
+      const todas = criarRotasDosEventos();
+      const grupos = agruparPorDataECarro(todas);
+      const lista = (grupos[data] && grupos[data][carro])
+        ? ordenarRotasPorOrdemManual(grupos[data][carro])
+        : [];
+
+      rtAbrirNotaRota(data, carro, lista);
+    });
+  });
+
+  container.querySelectorAll("[data-rota-nota-editar]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const notaId = btn.dataset.rotaNotaEditar;
+      const nota = rtNotasCarregar().find(n => n.id === notaId);
+      if (!nota) return;
+
+      const todas = criarRotasDosEventos();
+      const grupos = agruparPorDataECarro(todas);
+      const lista = (grupos[nota.data] && grupos[nota.data][nota.carro])
+        ? ordenarRotasPorOrdemManual(grupos[nota.data][nota.carro])
+        : [];
+
+      rtAbrirNotaRota(nota.data, nota.carro, lista, notaId);
+    });
+  });
+
+  container.querySelectorAll("[data-rota-nota-excluir]").forEach(btn => {
+    btn.addEventListener("click", () => rtExcluirNotaRota(btn.dataset.rotaNotaExcluir));
   });
 
   container.querySelectorAll("button[data-rota-move]").forEach(btn => {
@@ -2612,12 +3102,14 @@ function rtConfigurarPainelOrganizarEventos(listaEl) {
       rtFocarRotaNaListaEsquerda(item.dataset.orgRotaId);
     });
     item.addEventListener("dragstart", ev => {
+      window.__rtUsuarioArrastandoRota = true;
       drag = { id: item.dataset.orgRotaId, data: item.dataset.orgData, carro: item.dataset.orgCarro };
       item.classList.add("arrastando");
       ev.dataTransfer.effectAllowed = "move";
       ev.dataTransfer.setData("text/plain", drag.id);
     });
     item.addEventListener("dragend", () => {
+      window.__rtUsuarioArrastandoRota = false;
       item.classList.remove("arrastando");
       rtLimparIndicadoresOrganizador(listaEl);
       drag = null;
@@ -2920,10 +3412,10 @@ async function atualizarHorarioRotaEvento(rotaId, novoValor) {
       const rotasAtiva = document.getElementById("rotasSection")?.classList.contains("active-section");
       const ruaAtiva = document.getElementById("ruaMobileSection")?.classList.contains("active-section");
       const produtosAtiva = document.getElementById("produtosSection")?.classList.contains("active-section");
-      if (rotasAtiva || ruaAtiva || produtosAtiva) {
+      if ((rotasAtiva || ruaAtiva || produtosAtiva) && !(typeof rtUsuarioEditandoOperacional === "function" && rtUsuarioEditandoOperacional())) {
         sincronizarRotasOperacaoNuvem(true).catch(() => {});
       }
-    }, 15000);
+    }, 120000);
   }
 }
 
@@ -2982,6 +3474,14 @@ function alertaRotaClienteHtml(rota = {}) {
   return typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(eventoAlerta) : "";
 }
 
+
+function rtColaboradorRotaHtml(rota = {}) {
+  const nome = String(rota?.evento?.colaborador || rota?.colaborador || "").trim();
+  if (!nome) return "";
+  const safe = typeof rtTextoVisual === "function" ? rtTextoVisual(nome) : nome.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  return `<div class="rota-colaborador-financeiro">Colab. ${safe}</div>`;
+}
+
 function renderizarCardRota(rota, index = 0, total = 0) {
   const carroAtual = rotasCarros[rota.id] || "Sem carro";
   const materiais = rota.materiais && rota.materiais.length ? rota.materiais : ["Sem materiais informados"];
@@ -3000,6 +3500,7 @@ function renderizarCardRota(rota, index = 0, total = 0) {
             ${conflito ? '<b class="rota-alerta">Conflito</b>' : ''}
             ${badgeOperacaoRota(rota)}
           </div>
+          ${rtColaboradorRotaHtml(rota)}
 
 
       </div>
@@ -3852,6 +4353,49 @@ function moverRotaParaIndice(rotaId, alvoId, listaRotas, inserirDepois = false) 
   return salvarRotasOrdemManual();
 }
 
+function rtMoverNotaRotaParaPosicao(notaId, data, carro, posicao) {
+  const notas = rtNotasCarregar();
+  const nota = notas.find(n => String(n.id) === String(notaId));
+  if (!nota) return false;
+  nota.data = data || nota.data;
+  nota.carro = carro || nota.carro;
+  nota.posicao = Math.max(0, Number(posicao) || 0);
+  nota.atualizadoEm = new Date().toISOString();
+  rtNotasSalvar(notas);
+  return true;
+}
+
+function rtFinalizarMovimentoNotaRota(dragInfo, alvoEl, inserirDepois = false) {
+  if (!dragInfo || dragInfo.tipo !== "nota" || !alvoEl) return false;
+  const todas = criarRotasDosEventos();
+  const grupos = agruparPorDataECarro(todas);
+  const data = dragInfo.data;
+  const carro = dragInfo.carro;
+  const lista = (grupos[data] && grupos[data][carro])
+    ? ordenarRotasPorOrdemManual(grupos[data][carro])
+    : [];
+
+  let posicao = 0;
+  const card = alvoEl.closest?.('.rota-card[data-rota-card]');
+  const notaAlvo = alvoEl.closest?.('.rota-nota-linha[data-rota-nota-id]');
+
+  if (card) {
+    const idx = lista.findIndex(r => String(r.id) === String(card.dataset.rotaCard));
+    posicao = idx >= 0 ? idx + (inserirDepois ? 1 : 0) : lista.length;
+  } else if (notaAlvo) {
+    const alvo = rtNotasCarregar().find(n => String(n.id) === String(notaAlvo.dataset.rotaNotaId));
+    posicao = Math.max(0, Number(alvo?.posicao || 0));
+  } else {
+    return false;
+  }
+
+  if (!rtMoverNotaRotaParaPosicao(dragInfo.id, data, carro, posicao)) return false;
+  renderizarRotas();
+  if (typeof renderizarRuaMobile === 'function') renderizarRuaMobile();
+  if (typeof renderizarCalendario === 'function') renderizarCalendario();
+  return true;
+}
+
 function configurarArrastarOrdemRotas(container) {
   if (!container) return;
   let dragInfo = null;
@@ -3861,7 +4405,9 @@ function configurarArrastarOrdemRotas(container) {
     if (!handle) return;
 
     handle.addEventListener('dragstart', ev => {
+      window.__rtUsuarioArrastandoRota = true;
       dragInfo = {
+        tipo: "rota",
         id: card.dataset.rotaCard,
         data: card.dataset.rotaData,
         carro: card.dataset.rotaCarroGrupo
@@ -3874,13 +4420,14 @@ function configurarArrastarOrdemRotas(container) {
     });
 
     handle.addEventListener('dragend', () => {
+      window.__rtUsuarioArrastandoRota = false;
       card.classList.remove('rota-card-arrastando');
       container.querySelectorAll('.rota-drop-before, .rota-drop-after').forEach(el => el.classList.remove('rota-drop-before', 'rota-drop-after'));
       dragInfo = null;
     });
 
     card.addEventListener('dragover', ev => {
-      if (!dragInfo || String(card.dataset.rotaCard) === String(dragInfo.id)) return;
+      if (!dragInfo || (dragInfo.tipo !== "nota" && String(card.dataset.rotaCard) === String(dragInfo.id))) return;
       if (card.dataset.rotaData !== dragInfo.data || card.dataset.rotaCarroGrupo !== dragInfo.carro) return;
       ev.preventDefault();
       const rect = card.getBoundingClientRect();
@@ -3895,11 +4442,15 @@ function configurarArrastarOrdemRotas(container) {
     });
 
     card.addEventListener('drop', ev => {
-      if (!dragInfo || String(card.dataset.rotaCard) === String(dragInfo.id)) return;
+      if (!dragInfo || (dragInfo.tipo !== "nota" && String(card.dataset.rotaCard) === String(dragInfo.id))) return;
       if (card.dataset.rotaData !== dragInfo.data || card.dataset.rotaCarroGrupo !== dragInfo.carro) return;
       ev.preventDefault();
       const rect = card.getBoundingClientRect();
       const inserirDepois = ev.clientY > rect.top + rect.height / 2;
+      if (dragInfo.tipo === "nota") {
+        rtFinalizarMovimentoNotaRota(dragInfo, card, inserirDepois);
+        return;
+      }
       const todas = criarRotasDosEventos();
       const grupos = agruparPorDataECarro(todas);
       const lista = (grupos[dragInfo.data] && grupos[dragInfo.data][dragInfo.carro])
@@ -3913,22 +4464,87 @@ function configurarArrastarOrdemRotas(container) {
     });
   });
 
+  container.querySelectorAll('.rota-nota-linha[data-rota-nota-id][draggable="true"]').forEach(notaEl => {
+    notaEl.addEventListener('dragstart', ev => {
+      window.__rtUsuarioArrastandoRota = true;
+      dragInfo = {
+        tipo: "nota",
+        id: notaEl.dataset.rotaNotaId,
+        data: notaEl.dataset.rotaNotaData,
+        carro: notaEl.dataset.rotaNotaCarro
+      };
+      notaEl.classList.add('rota-nota-arrastando');
+      if (ev.dataTransfer) {
+        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer.setData('text/plain', dragInfo.id || '');
+      }
+    });
+    notaEl.addEventListener('dragend', () => {
+      window.__rtUsuarioArrastandoRota = false;
+      notaEl.classList.remove('rota-nota-arrastando');
+      container.querySelectorAll('.rota-drop-before, .rota-drop-after').forEach(el => el.classList.remove('rota-drop-before', 'rota-drop-after'));
+      dragInfo = null;
+    });
+    notaEl.addEventListener('dragover', ev => {
+      if (!dragInfo || dragInfo.tipo !== "nota" || String(dragInfo.id) === String(notaEl.dataset.rotaNotaId)) return;
+      if (notaEl.dataset.rotaNotaData !== dragInfo.data || notaEl.dataset.rotaNotaCarro !== dragInfo.carro) return;
+      ev.preventDefault();
+      if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+    });
+    notaEl.addEventListener('drop', ev => {
+      if (!dragInfo || dragInfo.tipo !== "nota" || String(dragInfo.id) === String(notaEl.dataset.rotaNotaId)) return;
+      if (notaEl.dataset.rotaNotaData !== dragInfo.data || notaEl.dataset.rotaNotaCarro !== dragInfo.carro) return;
+      ev.preventDefault();
+      rtFinalizarMovimentoNotaRota(dragInfo, notaEl, false);
+    });
+  });
+
   // Suporte básico a toque: usa a faixa lateral como alça e move para o card onde soltar.
   container.querySelectorAll('.rota-tipo-vertical').forEach(handle => {
     handle.addEventListener('touchstart', ev => {
       const card = handle.closest('.rota-card[data-rota-card]');
       if (!card) return;
-      dragInfo = { id: card.dataset.rotaCard, data: card.dataset.rotaData, carro: card.dataset.rotaCarroGrupo };
+      dragInfo = { tipo: "rota", id: card.dataset.rotaCard, data: card.dataset.rotaData, carro: card.dataset.rotaCarroGrupo };
       card.classList.add('rota-card-arrastando');
+    }, { passive: true });
+  });
+
+  container.querySelectorAll('.rota-nota-linha[data-rota-nota-id][draggable="true"]').forEach(notaEl => {
+    notaEl.addEventListener('touchstart', () => {
+      dragInfo = { tipo: "nota", id: notaEl.dataset.rotaNotaId, data: notaEl.dataset.rotaNotaData, carro: notaEl.dataset.rotaNotaCarro };
+      notaEl.classList.add('rota-nota-arrastando');
     }, { passive: true });
   });
 
   container.addEventListener('touchend', ev => {
     if (!dragInfo) return;
     const touch = ev.changedTouches && ev.changedTouches[0];
-    const alvo = touch ? document.elementFromPoint(touch.clientX, touch.clientY)?.closest?.('.rota-card[data-rota-card]') : null;
-    container.querySelectorAll('.rota-card-arrastando').forEach(el => el.classList.remove('rota-card-arrastando'));
-    if (!alvo || String(alvo.dataset.rotaCard) === String(dragInfo.id) || alvo.dataset.rotaData !== dragInfo.data || alvo.dataset.rotaCarroGrupo !== dragInfo.carro) {
+    const alvo = touch ? document.elementFromPoint(touch.clientX, touch.clientY)?.closest?.('.rota-card[data-rota-card], .rota-nota-linha[data-rota-nota-id]') : null;
+    container.querySelectorAll('.rota-card-arrastando, .rota-nota-arrastando').forEach(el => el.classList.remove('rota-card-arrastando', 'rota-nota-arrastando'));
+    if (!alvo) {
+      dragInfo = null;
+      return;
+    }
+    if (dragInfo.tipo === "nota") {
+      const alvoCard = alvo.closest?.('.rota-card[data-rota-card]');
+      const alvoNota = alvo.closest?.('.rota-nota-linha[data-rota-nota-id]');
+      if (alvoNota && String(alvoNota.dataset.rotaNotaId) === String(dragInfo.id)) {
+        dragInfo = null;
+        return;
+      }
+      const alvoData = alvoCard ? alvoCard.dataset.rotaData : alvoNota?.dataset.rotaNotaData;
+      const alvoCarro = alvoCard ? alvoCard.dataset.rotaCarroGrupo : alvoNota?.dataset.rotaNotaCarro;
+      if (alvoData !== dragInfo.data || alvoCarro !== dragInfo.carro) {
+        dragInfo = null;
+        return;
+      }
+      const rect = alvo.getBoundingClientRect();
+      const inserirDepoisNota = touch.clientY > rect.top + rect.height / 2;
+      rtFinalizarMovimentoNotaRota(dragInfo, alvo, inserirDepoisNota);
+      dragInfo = null;
+      return;
+    }
+    if (String(alvo.dataset.rotaCard) === String(dragInfo.id) || alvo.dataset.rotaData !== dragInfo.data || alvo.dataset.rotaCarroGrupo !== dragInfo.carro) {
       dragInfo = null;
       return;
     }

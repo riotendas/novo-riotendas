@@ -185,14 +185,24 @@ function rtEhAtendimentoExtraRecorrente(item) {
 function rtAtendimentosExtrasRecorrente(evento) {
   return (Array.isArray(evento?.produtos_extras) ? evento.produtos_extras : []).filter(rtEhAtendimentoExtraRecorrente);
 }
+function rtEhProdutoReservaEvento(item) {
+  return Boolean(item && (item.rt_tipo === "produto_reserva" || item.produto_reserva || item.reserva_operacional));
+}
+function rtProdutosReservaEvento(evento) {
+  return (Array.isArray(evento?.produtos_extras) ? evento.produtos_extras : []).filter(rtEhProdutoReservaEvento);
+}
 function rtProdutosExtrasOperacionais(evento) {
-  return (Array.isArray(evento?.produtos_extras) ? evento.produtos_extras : []).filter(item => !rtEhAtendimentoExtraRecorrente(item));
+  return (Array.isArray(evento?.produtos_extras) ? evento.produtos_extras : []).filter(item => !rtEhAtendimentoExtraRecorrente(item) && !rtEhProdutoReservaEvento(item));
 }
 function rtMesclarProdutosExtrasComAtendimentos(produtosExtrasVisiveis, eventoExistente) {
   return [
-    ...(Array.isArray(produtosExtrasVisiveis) ? produtosExtrasVisiveis.filter(item => !rtEhAtendimentoExtraRecorrente(item)) : []),
+    ...(Array.isArray(produtosExtrasVisiveis) ? produtosExtrasVisiveis.filter(item => !rtEhAtendimentoExtraRecorrente(item) && !rtEhProdutoReservaEvento(item)) : []),
     ...rtAtendimentosExtrasRecorrente(eventoExistente)
   ];
+}
+function rtProdutoReservaParaTexto(item) {
+  const codigo = item?.codigo ? String(item.codigo).trim() : "-";
+  return `🔄 Res - ${codigo}`;
 }
 function rtLabelAtendimentoExtra(item) {
   return String(item?.tipo || item?.descricao || "Atendimento extra").trim() || "Atendimento extra";

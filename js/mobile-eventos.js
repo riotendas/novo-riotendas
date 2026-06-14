@@ -64,12 +64,16 @@ function eventosMobilePrimeiroNome(nome) {
 function eventosMobileResumoProdutos(evento = {}) {
   const itens = [];
   const tendas = Array.isArray(evento.tendas) ? evento.tendas : [];
+  const reservas = typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : [];
   const apoio = Array.isArray(evento.itens_apoio) ? evento.itens_apoio : [];
   const extras = typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (Array.isArray(evento.produtos_extras) ? evento.produtos_extras : []);
 
   tendas.slice(0, 4).forEach(t => {
     if (typeof t === "string") itens.push(t);
     else itens.push(t?.codigo || t?.descricao || t?.nome || t?.tamanho || "Produto");
+  });
+  reservas.slice(0, 2).forEach(r => {
+    itens.push(typeof rtProdutoReservaParaTexto === "function" ? rtProdutoReservaParaTexto(r) : `🔄 R${r?.codigo || ""}`);
   });
   apoio.slice(0, 4).forEach(a => {
     const qtd = a?.quantidade || a?.qtd || "";

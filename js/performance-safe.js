@@ -92,3 +92,133 @@
     }, 120);
   });
 })();
+
+/* =====================================================
+   v19-dev - Navegação rápida entre telas
+   Troca a tela imediatamente e deixa renderizações/sync
+   para depois do clique, evitando sensação de botão lento.
+===================================================== */
+(function(){
+  if (window.__rtNavegacaoRapidaInstalada) return;
+  window.__rtNavegacaoRapidaInstalada = true;
+
+  const timers = {};
+  let ultimaSecao = "";
+
+  function agendar(chave, fn, delay){
+    clearTimeout(timers[chave]);
+    timers[chave] = setTimeout(() => {
+      try { fn(); } catch (err) { console.warn("Navegação rápida:", chave, err); }
+    }, delay || 0);
+  }
+
+  function secaoAtiva(id){
+    const el = document.getElementById(id);
+    return !!(el && (el.classList.contains("active-section") || el.classList.contains("active")));
+  }
+
+  function ativarSecao(sectionId, botao){
+    if (!sectionId) return;
+    const alvo = document.getElementById(sectionId);
+    if (!alvo) return;
+
+    document.querySelectorAll(".tab-btn").forEach(b => {
+      b.classList.toggle("active", b === botao || b.dataset.section === sectionId && botao?.dataset?.section === sectionId && botao.closest('.tabs'));
+    });
+    document.querySelectorAll(".section").forEach(s => s.classList.remove("active-section", "active"));
+    alvo.classList.add("active-section");
+    ultimaSecao = sectionId;
+
+    try { sessionStorage.setItem("riotendas_secao_atual", sectionId); } catch {}
+    window.dispatchEvent(new CustomEvent("riotendas:secao-alterada", { detail: { sectionId } }));
+  }
+
+  function renderLeve(sectionId){
+    // Renderiza apenas a tela que acabou de abrir. Banco/sync pesado fica em segundo plano.
+    if (sectionId === "dashboardSection") {
+      if (typeof atualizarDashboard === "function") atualizarDashboard(typeof produtos !== "undefined" ? produtos : []);
+      return;
+    }
+    if (sectionId === "produtosSection") {
+      if (typeof renderizarProdutos === "function") renderizarProdutos();
+      return;
+    }
+    if (sectionId === "clientesSection") {
+      if (typeof renderizarClientes === "function") renderizarClientes();
+      return;
+    }
+    if (sectionId === "eventosSection") {
+      if (typeof renderizarEventos === "function") renderizarEventos();
+      return;
+    }
+    if (sectionId === "calendarioSection") {
+      if (typeof renderizarCalendario === "function") renderizarCalendario();
+      return;
+    }
+    if (sectionId === "rotasSection") {
+      if (typeof renderizarRotas === "function") renderizarRotas();
+      return;
+    }
+    if (sectionId === "orcamentosSection") {
+      if (typeof renderizarOrcamentos === "function") renderizarOrcamentos();
+      return;
+    }
+    if (sectionId === "financeiroSection") {
+      if (typeof rtFinRenderTudoFase1 === "function") rtFinRenderTudoFase1();
+      else if (typeof rtFinAtualizarResumo === "function") rtFinAtualizarResumo();
+      return;
+    }
+    if (sectionId === "relatoriosSection") {
+      if (typeof renderizarRelatorioChecagem === "function") renderizarRelatorioChecagem();
+      return;
+    }
+    if (sectionId === "usuariosSection") {
+      if (typeof renderizarUsuariosSistema === "function") renderizarUsuariosSistema();
+      return;
+    }
+    if (sectionId === "configSection") {
+      if (typeof renderizarManutencaoPendencias === "function") renderizarManutencaoPendencias();
+      if (typeof montarPainelLogsSistema === "function") montarPainelLogsSistema();
+      return;
+    }
+    if (sectionId === "ruaMobileSection") {
+      if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
+      return;
+    }
+    if (sectionId === "manutencaoMobileSection") {
+      if (typeof renderizarManutencaoMobile === "function") renderizarManutencaoMobile();
+      return;
+    }
+    if (sectionId === "eventosMobileSection") {
+      if (typeof renderizarEventosMobile === "function") renderizarEventosMobile();
+    }
+  }
+
+  function syncLeve(sectionId){
+    if (!sectionId || ultimaSecao !== sectionId || !secaoAtiva(sectionId)) return;
+    // Evita rodar sync no meio de digitação/arraste/modal.
+    if (typeof window.rtUsuarioEditandoOperacional === "function" && window.rtUsuarioEditandoOperacional()) return;
+    if (typeof window.rtSincronizarOperacionalSeguro === "function") {
+      window.rtSincronizarOperacionalSeguro();
+    }
+  }
+
+  function tratarClickNavegacao(ev){
+    const botao = ev.target?.closest?.(".tab-btn[data-section]");
+    if (!botao || botao.disabled) return;
+    const sectionId = botao.dataset.section;
+    if (!sectionId || !document.getElementById(sectionId)) return;
+
+    // Assume o controle para impedir renderizações pesadas duplicadas de outros listeners no mesmo clique.
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+
+    ativarSecao(sectionId, botao);
+
+    // Dá chance para o navegador pintar a nova tela antes de qualquer trabalho mais caro.
+    agendar("render-" + sectionId, () => renderLeve(sectionId), 25);
+    agendar("sync-" + sectionId, () => syncLeve(sectionId), 350);
+  }
+
+  document.addEventListener("click", tratarClickNavegacao, true);
+})();

@@ -57,6 +57,17 @@ function coresProdutosAtivas() {
   return window.coresProdutosConfig || coresProdutos;
 }
 
+
+function rtProdutoObsEventoCurta(valor) {
+  const texto = String(valor || '').trim();
+  if (!texto) return '';
+  const m = texto.match(/^(?:entregue\s*\/?\s*montado\s+no\s+evento|entregue\s+no\s+evento|montado\s+no\s+evento|alugad[oa]\s+para|evento)\s*:?\s*(.+)$/i);
+  if (m && m[1]) {
+    return `Evento: ${m[1].replace(/\.\s*Aguardando revisão\.?$/i, '').trim()}`;
+  }
+  return texto;
+}
+
 async function buscarProdutosBanco() {
   if (!supabaseClient) {
     return JSON.parse(localStorage.getItem(storageProdutosKey) || "[]");
@@ -78,7 +89,7 @@ async function buscarProdutosBanco() {
       );
       return JSON.parse(localStorage.getItem(storageProdutosKey) || "[]");
     }
-    localStorage.setItem(storageProdutosKey, JSON.stringify(data || []));
+    try { localStorage.removeItem(storageProdutosKey); } catch {}
     return data || [];
   } catch (erro) {
     console.warn("Falha temporária ao buscar produtos. Mantendo dados locais e tentando novamente depois.", erro);
@@ -417,10 +428,10 @@ function iniciarProdutos() {
   if (!window.__rtProdutosOperacaoSyncTimer) {
     window.__rtProdutosOperacaoSyncTimer = setInterval(() => {
       const produtosAtiva = document.getElementById("produtosSection")?.classList.contains("active-section");
-      if (produtosAtiva && typeof sincronizarRotasOperacaoNuvem === "function") {
+      if (produtosAtiva && typeof sincronizarRotasOperacaoNuvem === "function" && !(typeof rtUsuarioEditandoOperacional === "function" && rtUsuarioEditandoOperacional())) {
         sincronizarRotasOperacaoNuvem(false).then(() => renderizarProdutos()).catch(() => {});
       }
-    }, 15000);
+    }, 120000);
   }
 
   ["dispProdutoInicio", "dispProdutoFim", "mostrarSomenteDisponiveis"].forEach(id => {
@@ -870,12 +881,16 @@ function dataInicioDiaProdutoDisponibilidade(valor) {
 }
 
 function eventoUsaProdutoParaDisponibilidade(evento, produto) {
-  if (!Array.isArray(evento.tendas)) return false;
+  const listaEventoProduto = [
+    ...(Array.isArray(evento.tendas) ? evento.tendas : []),
+    ...(typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : [])
+  ];
+  if (!listaEventoProduto.length) return false;
 
   const produtoId = String(produto.id || "");
   const produtoCodigo = String(produto.codigo || "").trim();
 
-  return evento.tendas.some(item => {
+  return listaEventoProduto.some(item => {
     const itemId = String(item.id || "");
     const itemCodigo = String(item.codigo || "").trim();
 
@@ -1435,7 +1450,7 @@ function renderizarProdutos() {
           ${statusProdutos.map(s => `<option value="${s}" ${statusParaSelect === s ? "selected" : ""}>${s}</option>`).join("")}
         </select>
       </td>
-      <td><input data-action="obs" data-id="${p.id}" value="${(p.observacao || "").replaceAll('"', '&quot;')}" /></td>
+      <td><input data-action="obs" data-id="${p.id}" value="${rtProdutoObsEventoCurta(p.observacao).replaceAll('"', '&quot;')}" /></td>
       <td class="check-cell">${htmlCheckDepositoProduto(p)}</td>
       <td class="availability-cell">${htmlDisponibilidadePeriodoProduto(p)}</td>
       <td class="actions">
@@ -1738,8 +1753,11 @@ function eventosProdutoAgenda(produtoId) {
 
   return eventos.filter(evento => {
     if (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)) return false;
-    return Array.isArray(evento.tendas) &&
-      evento.tendas.some(p => String(p.id) === String(produtoId));
+    const listaEventoProduto = [
+      ...(Array.isArray(evento.tendas) ? evento.tendas : []),
+      ...(typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : [])
+    ];
+    return listaEventoProduto.some(p => String(p.id) === String(produtoId));
   }).sort((a, b) => String(a.data_evento || "").localeCompare(String(b.data_evento || "")));
 }
 
@@ -1758,8 +1776,11 @@ function eventosProdutoAgenda(produtoId) {
 
     return eventos.filter(evento => {
       if (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)) return false;
-      return Array.isArray(evento.tendas) &&
-        evento.tendas.some(p => String(p.id) === String(produtoId));
+      const listaEventoProduto = [
+        ...(Array.isArray(evento.tendas) ? evento.tendas : []),
+        ...(typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : [])
+      ];
+      return listaEventoProduto.some(p => String(p.id) === String(produtoId));
     }).sort((a, b) => String(a.data_evento || "").localeCompare(String(b.data_evento || "")));
   } catch (erro) {
     console.warn("Não foi possível montar agenda do produto:", erro);
@@ -2032,7 +2053,7 @@ async function abrirDetalheProduto(id) {
             <div><span>Cadastro</span><strong>${formatarData(p.criado_em || p.data_cadastro || p.data_compra)}</strong></div>
           </div>
           <div class="produto-dados-linha produto-dados-linha-2">
-            <div><span>Observação</span><strong>${p.observacao || "-"}</strong></div>
+            <div><span>Observação</span><strong>${rtProdutoObsEventoCurta(p.observacao) || "-"}</strong></div>
             <div><span>Atualizado</span><strong>${formatarData(p.atualizado_em)}</strong></div>
           </div>
         </div>

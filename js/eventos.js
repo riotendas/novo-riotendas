@@ -180,6 +180,7 @@ function formatarDataHoraCurta(valor) {
 
 let eventos = [];
 let produtosSelecionadosEventoAtual = [];
+let produtosReservaEventoAtual = [];
 let produtosExtrasEventoAtual = [];
 let produtosRapidoAtual = [];
 let apoioRapidoAtual = [];
@@ -492,6 +493,61 @@ async function excluirEventoBanco(id) {
   return true;
 }
 
+
+async function rtLiberarProdutosEventoCancelado(eventoCancelado) {
+  try {
+    if (!eventoCancelado) return;
+    const codigos = new Set();
+    const coletar = (lista) => (Array.isArray(lista) ? lista : []).forEach(item => {
+      const codigo = String(item?.codigo || item?.produto_codigo || item?.id || item || "").trim();
+      if (codigo) codigos.add(codigo);
+    });
+    coletar(eventoCancelado.produtos);
+    coletar(eventoCancelado.itens);
+    coletar(eventoCancelado.produtos_selecionados);
+    if (!codigos.size && eventoCancelado.produtos_texto) {
+      String(eventoCancelado.produtos_texto).split(/[,;\n]+/).forEach(t => { const m = t.match(/\b[A-Z]*\d+[A-Z0-9-]*\b/i); if (m) codigos.add(m[0]); });
+    }
+    if (!Array.isArray(produtos) || !codigos.size) return;
+    const nome = String(eventoCancelado.nome || "").toLowerCase();
+    for (const produto of produtos) {
+      const codigo = String(produto.codigo || produto.id || "").trim();
+      if (!codigos.has(codigo)) continue;
+      const statusAtual = String(produto.status || "").toLowerCase();
+      const obs = String(produto.observacao || "");
+      const locacoes = Array.isArray(produto.locacoes) ? produto.locacoes : [];
+      const ligadoAoEvento = locacoes.some(l => String(l?.evento_id || l?.id || "") === String(eventoCancelado.id)) || (nome && obs.toLowerCase().includes(nome));
+      if (statusAtual === "alugado" || ligadoAoEvento) {
+        produto.status = "Livre";
+        produto.colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : produto.colaborador;
+        if (ligadoAoEvento || obs.toLowerCase().includes("alugad")) produto.observacao = "";
+        produto.locacoes = locacoes.filter(l => String(l?.evento_id || l?.id || "") !== String(eventoCancelado.id));
+        produto.atualizado_em = new Date().toISOString();
+        if (typeof salvarProdutoBanco === "function") await salvarProdutoBanco(produto);
+      }
+    }
+    if (typeof renderizarProdutos === "function") renderizarProdutos();
+  } catch (err) {
+    console.warn("Não foi possível liberar todos os produtos do evento cancelado:", err);
+  }
+}
+
+function rtLimparOperacoesRotasEventoCancelado(eventoId) {
+  try {
+    if (!eventoId || typeof rotasOperacao !== "object" || !rotasOperacao) return;
+    let alterou = false;
+    Object.keys(rotasOperacao).forEach(chave => {
+      if (String(rotasOperacao[chave]?.evento_id || "") === String(eventoId)) {
+        delete rotasOperacao[chave];
+        alterou = true;
+      }
+    });
+    if (alterou && typeof salvarRotasOperacaoLocal === "function") salvarRotasOperacaoLocal();
+  } catch (err) {
+    console.warn("Não foi possível limpar status de rota do evento cancelado:", err);
+  }
+}
+
 async function atualizarStatusEventoBanco(id, status) {
   const eventoAntesLog = Array.isArray(eventos)
     ? eventos.find(e => String(e.id) === String(id))
@@ -727,6 +783,7 @@ function iniciarEventos() {
   onEventoSeguro("btnMontagemDiaAnterior", "click", () => definirOperacaoDiaRelativo("Montagem", -1));
   onEventoSeguro("btnDesmontagemDiaPosterior", "click", () => definirOperacaoDiaRelativo("Desmontagem", 1));
   onEventoSeguro("adicionarProdutoEvento", "click", adicionarProdutoSelecionadoAoEvento);
+  onEventoSeguro("adicionarReservaEvento", "click", adicionarProdutoReservaAoEvento);
   document.querySelectorAll("[data-produto-atalho]").forEach(btn => {
     btn.addEventListener("click", () => adicionarProdutoAtalhoEvento(btn.dataset.produtoAtalho));
   });
@@ -1234,7 +1291,7 @@ function montarEventoRecorrenteBase(id, existente) {
     desmontagem: valorOperacaoParaSalvar("eventoDesmontagem", "eventoDesmontagemTipo"),
     tendas: obterProdutosSelecionadosEvento(),
     itens_apoio: obterApoioSelecionadoEvento(),
-    produtos_extras: typeof rtMesclarProdutosExtrasComAtendimentos === "function" ? rtMesclarProdutosExtrasComAtendimentos(produtosExtrasEventoAtual, existente) : produtosExtrasEventoAtual,
+    produtos_extras: rtEventoMesclarExtrasReservasAtendimentos(existente),
     valor_total: moedaParaNumero(document.getElementById("eventoValorTotal").value),
     valor_sinal: moedaParaNumero(document.getElementById("eventoValorSinal").value),
     valor_restante: moedaParaNumero(document.getElementById("eventoValorRestante").value),
@@ -1348,6 +1405,7 @@ function abrirNovoEvento() {
   atualizarCampoDiasRecorrencia();
   configurarCampoColaboradorEvento(getColaboradorLogado());
   produtosSelecionadosEventoAtual = [];
+  produtosReservaEventoAtual = [];
   produtosExtrasEventoAtual = [];
   atualizarDatalistClientes();
   popularSelectProdutosEvento();
@@ -1425,6 +1483,7 @@ function abrirEditarEvento(id) {
   configurarCampoColaboradorEvento(e.colaborador || getColaboradorLogado());
 
   produtosSelecionadosEventoAtual = Array.isArray(e.tendas) ? [...e.tendas] : [];
+  produtosReservaEventoAtual = typeof rtProdutosReservaEvento === "function" ? [...rtProdutosReservaEvento(e)] : [];
   produtosExtrasEventoAtual = typeof rtProdutosExtrasOperacionais === "function" ? [...rtProdutosExtrasOperacionais(e)] : (Array.isArray(e.produtos_extras) ? [...e.produtos_extras] : []);
   atualizarDatalistClientes();
   popularSelectProdutosEvento();
@@ -1597,12 +1656,16 @@ function intervaloDeEventoParaDisponibilidade(evento) {
 }
 
 function eventoUsaProdutoPorIdOuCodigo(evento, produto) {
-  if (!evento || !Array.isArray(evento.tendas) || !produto) return false;
+  if (!evento || !produto) return false;
 
   const id = String(produto.id || "");
   const codigo = String(produto.codigo || "").trim();
 
-  return evento.tendas.some(item => {
+  const lista = [
+    ...(Array.isArray(evento.tendas) ? evento.tendas : []),
+    ...(typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : [])
+  ];
+  return lista.some(item => {
     return (id && String(item.id || "") === id)
       || (codigo && String(item.codigo || "").trim() === codigo);
   });
@@ -1638,7 +1701,99 @@ function rtNormalizarEventoTexto(valor) {
 
 function produtoEventoEstaBloqueado(produto) {
   const status = rtNormalizarEventoTexto(produto?.status || produto?.situacao || produto?.estado || "");
-  return status === "bloqueada" || status === "bloqueado";
+  return status === "bloqueada" || status === "bloqueado" || status.includes("bloquead");
+}
+
+function rtProdutoEventoEstaRevisar(produto) {
+  const status = rtNormalizarEventoTexto(produto?.status || produto?.situacao || produto?.estado || "");
+  return status === "revisar" || status === "para revisar" || status.includes("revisao") || status.includes("revisar");
+}
+
+function rtProdutoEventoEstaConsertar(produto) {
+  const status = rtNormalizarEventoTexto(produto?.status || produto?.situacao || produto?.estado || "");
+  return status === "consertar" || status === "para consertar" || status.includes("consert");
+}
+
+function rtProdutoEventoExigeConfirmacao(produto) {
+  return rtProdutoEventoEstaRevisar(produto) || rtProdutoEventoEstaConsertar(produto);
+}
+
+function rtProdutoEventoStatusTexto(produto) {
+  const status = String(produto?.status || produto?.situacao || produto?.estado || "").trim();
+  return status || "Livre";
+}
+
+function rtMostrarDialogStatusProduto(produto) {
+  return new Promise(resolve => {
+    let dialog = document.getElementById("rtProdutoRevisarDialog");
+    if (!dialog) {
+      dialog = document.createElement("dialog");
+      dialog.id = "rtProdutoRevisarDialog";
+      dialog.className = "troca-rapida-dialog rt-produto-revisar-dialog";
+      document.body.appendChild(dialog);
+    }
+    const codigo = rtEventoEscape(produto?.codigo || "Produto");
+    const ehConsertar = rtProdutoEventoEstaConsertar(produto);
+    const rotulo = ehConsertar ? "conserto" : "revisão";
+    const manter = ehConsertar ? "Manter Conserto" : "Manter Revisão";
+    dialog.innerHTML = `
+      <div class="troca-rapida-header">
+        <h3>Produto em ${rotulo}</h3>
+        <button type="button" class="troca-rapida-fechar" aria-label="Fechar">×</button>
+      </div>
+      <div class="rt-produto-revisar-body">
+        <div class="rt-produto-revisar-alerta">⚠ ${codigo} está marcada para ${rotulo}.</div>
+        <div class="rt-produto-revisar-actions">
+          <button type="button" class="btn-primary" data-rt-revisar-acao="manter">${manter}</button>
+          <button type="button" class="btn-outline" data-rt-revisar-acao="liberar">Liberar para uso</button>
+          <button type="button" class="btn-outline" data-rt-revisar-acao="outra">Escolher outra</button>
+          <button type="button" class="btn-outline" data-rt-revisar-acao="cancelar">Cancelar</button>
+        </div>
+      </div>
+    `;
+    const fechar = (valor) => {
+      try { dialog.close(); } catch {}
+      resolve(valor);
+    };
+    dialog.querySelector(".troca-rapida-fechar")?.addEventListener("click", () => fechar("cancelar"), { once: true });
+    dialog.querySelector('[data-rt-revisar-acao="manter"]')?.addEventListener("click", () => fechar("manter"), { once: true });
+    dialog.querySelector('[data-rt-revisar-acao="liberar"]')?.addEventListener("click", () => fechar("liberar"), { once: true });
+    dialog.querySelector('[data-rt-revisar-acao="outra"]')?.addEventListener("click", () => fechar("outra"), { once: true });
+    dialog.querySelector('[data-rt-revisar-acao="cancelar"]')?.addEventListener("click", () => fechar("cancelar"), { once: true });
+    dialog.addEventListener("cancel", ev => { ev.preventDefault(); fechar("cancelar"); }, { once: true });
+    dialog.showModal();
+  });
+}
+
+async function rtConfirmarUsoProdutoRevisar(produto, evento) {
+  if (!rtProdutoEventoExigeConfirmacao(produto)) return true;
+  const acao = await rtMostrarDialogStatusProduto(produto);
+  if (acao === "manter") return true;
+  if (acao !== "liberar") return false;
+
+  const statusAnterior = produto.status || (rtProdutoEventoEstaConsertar(produto) ? "Consertar" : "Revisar");
+  produto.status = "Livre";
+  produto.observacao = produto.observacao || "Liberado para uso a partir da tela de eventos.";
+  produto.colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : produto.colaborador;
+  produto.atualizado_em = new Date().toISOString();
+  produto.historico = Array.isArray(produto.historico) ? produto.historico : [];
+  produto.historico.push({
+    data: produto.atualizado_em,
+    colaborador: produto.colaborador || "Sistema",
+    alteracao: "Liberado para uso",
+    observacao: `Produto estava em ${statusAnterior}. Evento: ${evento?.nome || "-"}`
+  });
+  try { if (typeof salvarProdutoBanco === "function") await salvarProdutoBanco(produto); } catch (e) { console.warn("Falha ao salvar liberação do produto:", e); }
+  try { if (typeof registrarLogSistema === "function") registrarLogSistema({
+    modulo: "Eventos",
+    acao: "Produto liberado para uso",
+    registro_id: produto.id,
+    registro_nome: produto.codigo || "Produto",
+    antes: { status: statusAnterior },
+    depois: { status: produto.status },
+    detalhes: `${produto.colaborador || "Usuário"} liberou ${produto.codigo || "produto"} para uso em evento ${evento?.nome || "-"}.`
+  }); } catch {}
+  return true;
 }
 
 function rtDescricaoProdutoEvento(produto) {
@@ -1672,18 +1827,71 @@ function rtAdicionarProdutoObjetoEvento(p) {
   });
 }
 
-function adicionarProdutoAtalhoEvento(tipo) {
+
+function rtProdutoHistoricoDataMs(produto, termos) {
+  const lista = Array.isArray(produto?.historico) ? produto.historico : [];
+  let melhor = 0;
+  lista.forEach(h => {
+    const texto = rtNormalizarEventoTexto([h.alteracao, h.observacao, h.status].filter(Boolean).join(' '));
+    if (!termos.some(t => texto.includes(t))) return;
+    const ms = Date.parse(h.data || h.criado_em || h.atualizado_em || '');
+    if (Number.isFinite(ms) && ms > melhor) melhor = ms;
+  });
+  return melhor;
+}
+
+function rtProdutoUltimoUsoMs(produto) {
+  const codigo = String(produto?.codigo || '').trim();
+  const id = String(produto?.id || '');
+  let melhor = 0;
+  (Array.isArray(eventos) ? eventos : []).forEach(ev => {
+    if (ev?.cancelado || String(ev?.status || '').toLowerCase().includes('cancel')) return;
+    const usa = Array.isArray(ev?.tendas) && ev.tendas.some(t =>
+      (id && String(t.id || '') === id) || (codigo && String(t.codigo || '').trim() === codigo)
+    );
+    if (!usa) return;
+    const base = ev.desmontagem || ev.data_evento || ev.montagem || '';
+    const ms = Date.parse(String(base).includes('T') ? base : `${base}T00:00:00`);
+    if (Number.isFinite(ms) && ms > melhor) melhor = ms;
+  });
+  return melhor;
+}
+
+function rtScoreProdutoAtalho(produto) {
+  const agora = Date.now();
+  const limpezaMs = rtProdutoHistoricoDataMs(produto, ['limpo', 'limpa', 'limpeza', 'revisado']);
+  const ultimoUsoMs = rtProdutoUltimoUsoMs(produto);
+  const diasDesdeLimpeza = limpezaMs ? (agora - limpezaMs) / 86400000 : 9999;
+  const diasSemUso = ultimoUsoMs ? (agora - ultimoUsoMs) / 86400000 : 9999;
+  const codigoNumero = Number(String(produto?.codigo || '').replace(/\D+/g, '')) || 0;
+  const desempateAleatorio = Math.random() * 0.25;
+
+  // Preferência: 1) livre e limpa/revisada recentemente; 2) livre há mais tempo sem sair; 3) desempate leve para não repetir sempre o mesmo código.
+  if (limpezaMs && diasDesdeLimpeza <= 30) return 100000 - diasDesdeLimpeza + desempateAleatorio;
+  return Math.min(diasSemUso, 3650) + (codigoNumero ? 1 / (codigoNumero + 1) : 0) + desempateAleatorio;
+}
+
+async function adicionarProdutoAtalhoEvento(tipo) {
   const ids = new Set(produtosSelecionadosEventoAtual.map(p => String(p.id)));
   const candidato = (Array.isArray(produtos) ? produtos : [])
     .filter(p => !ids.has(String(p.id)))
     .filter(p => rtProdutoCompatAtalho(p, tipo))
-    .map(p => ({ produto: p, disp: disponibilidadeProdutoParaEvento(p.id) }))
-    .filter(item => item.disp?.livre)
-    .sort((a, b) => String(a.produto.codigo || "").localeCompare(String(b.produto.codigo || ""), "pt-BR", { numeric: true }))
+    .filter(p => !rtProdutoEventoExigeConfirmacao(p))
+    .map(p => ({ produto: p, disp: disponibilidadeProdutoParaEvento(p.id), score: rtScoreProdutoAtalho(p) }))
+    .filter(item => item.disp?.livre && item.disp?.classe !== "warning")
+    .sort((a, b) => {
+      const diff = (b.score || 0) - (a.score || 0);
+      if (Math.abs(diff) > 0.001) return diff;
+      return String(a.produto.codigo || "").localeCompare(String(b.produto.codigo || ""), "pt-BR", { numeric: true });
+    })
     [0]?.produto;
 
   if (!candidato) {
     alert("Nenhum produto disponível para este atalho na data/período informado.");
+    return;
+  }
+
+  if (!(await rtConfirmarUsoProdutoRevisar(candidato, { nome: document.getElementById("eventoNome")?.value || document.getElementById("eventoCliente")?.value || "Evento" }))) {
     return;
   }
 
@@ -1740,6 +1948,9 @@ function produtoEstaDisponivelNoEvento(produto, evento, ignorarIndex = -1) {
     return { livre: false, texto: "Produto bloqueado", classe: "busy" };
   }
 
+  const produtoEmRevisao = rtProdutoEventoEstaRevisar(produto);
+  const produtoEmConserto = rtProdutoEventoEstaConsertar(produto);
+
   if (produtoJaSelecionadoNoEvento(produtosRapidoAtual || evento.tendas || [], produto, ignorarIndex)) {
     return { livre: false, texto: "Já selecionado neste evento", classe: "busy" };
   }
@@ -1766,6 +1977,8 @@ function produtoEstaDisponivelNoEvento(produto, evento, ignorarIndex = -1) {
     };
   }
 
+  if (produtoEmRevisao) return { livre: true, texto: "⚠ Para revisar", classe: "warning" };
+  if (produtoEmConserto) return { livre: true, texto: "⚠ Para consertar", classe: "warning" };
   return { livre: true, texto: "Livre para a data", classe: "free" };
 }
 
@@ -1800,6 +2013,9 @@ function disponibilidadeProdutoParaEvento(produtoId) {
     return { livre: false, texto: "Produto bloqueado", classe: "busy" };
   }
 
+  const produtoEmRevisao = rtProdutoEventoEstaRevisar(produto);
+  const produtoEmConserto = rtProdutoEventoEstaConsertar(produto);
+
   if (!intervaloAtual.inicio || !intervaloAtual.fim) {
     return { livre: true, texto: "Defina a data para verificar", classe: "neutral" };
   }
@@ -1820,13 +2036,15 @@ function disponibilidadeProdutoParaEvento(produtoId) {
     };
   }
 
+  if (produtoEmRevisao) return { livre: true, texto: "⚠ Para revisar", classe: "warning" };
+  if (produtoEmConserto) return { livre: true, texto: "⚠ Para consertar", classe: "warning" };
   return { livre: true, texto: "Livre para a data", classe: "free" };
 }
 
 function popularSelectProdutosEvento() {
   const select = document.getElementById("eventoProdutoSelect");
   if (!select) return;
-  const ids = produtosSelecionadosEventoAtual.map(p => String(p.id));
+  const ids = [...produtosSelecionadosEventoAtual, ...produtosReservaEventoAtual].map(p => String(p.id));
   const disponiveis = (Array.isArray(produtos) ? produtos : [])
     .filter(p => (p.categoria || p.tipo) !== "Materiais de Apoio")
     .filter(p => !ids.includes(String(p.id)));
@@ -1839,7 +2057,7 @@ function popularSelectProdutosEvento() {
     `;
   }).join("");
 }
-function adicionarProdutoSelecionadoAoEvento() {
+async function adicionarProdutoSelecionadoAoEvento() {
   const select = document.getElementById("eventoProdutoSelect");
   const id = select.value;
   if (!id) return;
@@ -1853,13 +2071,47 @@ function adicionarProdutoSelecionadoAoEvento() {
     return;
   }
 
+  if (!(await rtConfirmarUsoProdutoRevisar(p, { nome: document.getElementById("eventoNome")?.value || document.getElementById("eventoCliente")?.value || "Evento" }))) {
+    select.value = "";
+    return;
+  }
+
   rtAdicionarProdutoObjetoEvento(p);
   select.value = "";
   popularSelectProdutosEvento();
   renderizarProdutosSelecionadosEvento();
 }
+
+async function adicionarProdutoReservaAoEvento() {
+  const select = document.getElementById("eventoProdutoSelect");
+  const id = select?.value || "";
+  if (!id) { alert("Selecione um produto para adicionar como reserva."); return; }
+  const p = produtos.find(x => String(x.id) === String(id));
+  if (!p) return;
+  const disponibilidade = disponibilidadeProdutoParaEvento(p.id);
+  if (!disponibilidade.livre) {
+    alert(`Este produto está indisponível para a data/período selecionado.\n\n${disponibilidade.texto}`);
+    if (select) select.value = "";
+    return;
+  }
+  if (!(await rtConfirmarUsoProdutoRevisar(p, { nome: document.getElementById("eventoNome")?.value || "Evento" }))) {
+    if (select) select.value = "";
+    return;
+  }
+  produtosReservaEventoAtual.push({
+    id: p.id, codigo: p.codigo || "", categoria: p.categoria || p.tipo || "", tipo: p.tipo || p.categoria || "", tamanho: p.tamanho || "", cor: p.cor || "", quantidade: 1, rt_tipo: "produto_reserva", produto_reserva: true, reserva_operacional: true
+  });
+  if (select) select.value = "";
+  popularSelectProdutosEvento();
+  renderizarProdutosSelecionadosEvento();
+}
 function removerProdutoDoEvento(id) {
   produtosSelecionadosEventoAtual = produtosSelecionadosEventoAtual.filter(p => String(p.id) !== String(id));
+  popularSelectProdutosEvento();
+  renderizarProdutosSelecionadosEvento();
+}
+function removerProdutoReservaDoEvento(id) {
+  produtosReservaEventoAtual = produtosReservaEventoAtual.filter(p => String(p.id) !== String(id));
   popularSelectProdutosEvento();
   renderizarProdutosSelecionadosEvento();
 }
@@ -1948,11 +2200,7 @@ function rtEventoAbrirSeletorPendente(pendenteId) {
 function renderizarProdutosSelecionadosEvento() {
   const area = document.getElementById("eventoProdutosSelecionados");
   if (!area) return;
-  if (!produtosSelecionadosEventoAtual.length) {
-    area.innerHTML = `<p class="empty">Nenhum produto com código selecionado.</p>`;
-    return;
-  }
-  area.innerHTML = produtosSelecionadosEventoAtual.map(p => {
+  const htmlProdutos = produtosSelecionadosEventoAtual.length ? produtosSelecionadosEventoAtual.map(p => {
     if (p.pendente_codigo) {
       const necessario = Number(p.quantidade_pendente || 1);
       const jaSelecionados = new Set(produtosSelecionadosEventoAtual.filter(x => !x.pendente_codigo).map(x => String(x.id)));
@@ -1982,12 +2230,17 @@ function renderizarProdutosSelecionadosEvento() {
         </span>
         <button type="button" class="btn-outline" data-remove-produto="${p.id}">×</button>
       </div>`;
-  }).join("");
+  }).join("") : `<p class="empty">Nenhum produto com código selecionado.</p>`;
+  const htmlReservas = produtosReservaEventoAtual.length ? produtosReservaEventoAtual.map(p => { const disp = disponibilidadeProdutoParaEvento(p.id); return `<div class="selected-item evento-produto-selecionado-compacto reserva-operacional-item"><span><strong>🔄 Res - ${p.codigo || "-"}</strong><em>${rtDescricaoProdutoEvento(p)}</em><small class="availability-badge ${disp.classe}">${disp.texto}</small></span><button type="button" class="btn-outline" data-remove-reserva="${p.id}">×</button></div>`; }).join("") : "";
+  area.innerHTML = htmlProdutos + htmlReservas;
   area.querySelectorAll("[data-remove-produto]").forEach(btn => {
     btn.addEventListener("click", () => removerProdutoDoEvento(btn.dataset.removeProduto));
   });
   area.querySelectorAll("[data-definir-pendente]").forEach(el => {
     el.addEventListener("click", () => rtEventoAbrirSeletorPendente(el.dataset.definirPendente));
+  });
+  area.querySelectorAll("[data-remove-reserva]").forEach(btn => {
+    btn.addEventListener("click", () => removerProdutoReservaDoEvento(btn.dataset.removeReserva));
   });
 }
 
@@ -2287,6 +2540,29 @@ function renderizarApoioEvento(selecionados = []) {
   rtEventoAtualizarResumoApoio("eventoApoioLista");
 }
 
+function obterProdutosReservaEvento() {
+  return (produtosReservaEventoAtual || []).map(p => ({
+    id: p.id,
+    codigo: p.codigo || "",
+    categoria: p.categoria || p.tipo || "",
+    tipo: p.tipo || p.categoria || "",
+    tamanho: p.tamanho || "",
+    cor: p.cor || "",
+    quantidade: Number(p.quantidade || 1),
+    rt_tipo: "produto_reserva",
+    produto_reserva: true,
+    reserva_operacional: true,
+    descricao: p.descricao || `Reserva ${p.codigo || ""}`.trim()
+  }));
+}
+
+function rtEventoMesclarExtrasReservasAtendimentos(existente) {
+  const extras = Array.isArray(produtosExtrasEventoAtual) ? produtosExtrasEventoAtual.filter(item => !(typeof rtEhProdutoReservaEvento === "function" && rtEhProdutoReservaEvento(item))) : [];
+  const reservas = obterProdutosReservaEvento();
+  const atendimentos = typeof rtAtendimentosExtrasRecorrente === "function" ? rtAtendimentosExtrasRecorrente(existente) : [];
+  return [...extras, ...reservas, ...atendimentos];
+}
+
 function obterProdutosSelecionadosEvento() {
   return produtosSelecionadosEventoAtual.map(p => ({
     id: p.id,
@@ -2366,7 +2642,7 @@ function disponibilidadeApoioParaEvento(item, quantidadeDesejada = 0) {
 }
 
 function validarProdutosDoEvento() {
-  const bloqueados = produtosSelecionadosEventoAtual
+  const bloqueados = [...produtosSelecionadosEventoAtual, ...produtosReservaEventoAtual]
     .filter(p => !p.pendente_codigo)
     .map(p => (Array.isArray(produtos) ? produtos : []).find(prod => String(prod.id) === String(p.id)) || p)
     .filter(produtoEventoEstaBloqueado);
@@ -2376,7 +2652,7 @@ function validarProdutosDoEvento() {
     return false;
   }
 
-  const indisponiveis = produtosSelecionadosEventoAtual
+  const indisponiveis = [...produtosSelecionadosEventoAtual, ...produtosReservaEventoAtual]
     .filter(p => !p.pendente_codigo)
     .map(p => ({ produto: p, disponibilidade: disponibilidadeProdutoParaEvento(p.id) }))
     .filter(item => !item.disponibilidade.livre);
@@ -3263,6 +3539,8 @@ async function lidarAcaoEvento(event) {
 Ele continuará salvo, mas não contará em rotas, valores e disponibilidade.`)) return;
     const ok = await atualizarStatusEventoBanco(id, "cancelado");
     if (!ok) return;
+    await rtLiberarProdutosEventoCancelado(e);
+    rtLimparOperacoesRotasEventoCancelado(id);
     normalizarOrdemEventosGlobal();
     renderizarEventos();
     if (typeof renderizarCalendario === "function") renderizarCalendario();
@@ -3352,8 +3630,7 @@ function statusProdutoBloqueiaTrocaRapida(produto) {
     "manutencao",
     "precisa manutenção",
     "precisa manutencao",
-    "limpar",
-    "consertar"
+    "limpar"
   ].some(palavra => status.includes(palavra));
 }
 
@@ -3386,6 +3663,12 @@ function abrirTrocaRapidaProduto(index) {
       if (bloqueadoPorStatus) {
         texto = textoStatusProdutoTrocaRapida(p);
         classe = "busy";
+      } else if (rtProdutoEventoEstaRevisar(p)) {
+        texto = "⚠ Para revisar";
+        classe = "warning";
+      } else if (rtProdutoEventoEstaConsertar(p)) {
+        texto = "⚠ Para consertar";
+        classe = "warning";
       } else if (!disponibilidade.livre) {
         texto = disponibilidade.texto || "Ocupada";
         classe = disponibilidade.classe || "busy";
@@ -3432,7 +3715,7 @@ function abrirTrocaRapidaProduto(index) {
         <option value="">Selecione um produto compatível disponível</option>
         ${opcoesTroca.map(item => `
           <option value="${item.produto.id}" ${item.livre ? "" : "disabled"}>
-            ${descricaoProdutoCompacta(item.produto)} — ${item.livre ? "Disponível" : item.texto}
+            ${descricaoProdutoCompacta(item.produto)} — ${item.texto}
           </option>
         `).join("")}
       </select>
@@ -3445,11 +3728,11 @@ function abrirTrocaRapidaProduto(index) {
           class="troca-rapida-opcao ${item.livre ? "" : "troca-rapida-opcao-bloqueada"}"
           data-troca-produto-id="${item.produto.id}"
           ${item.livre ? "" : "disabled"}
-          title="${item.livre ? "Disponível para troca" : item.texto}"
+          title="${item.texto}"
         >
           <strong>${item.produto.codigo || "-"}</strong>
           <span>${[item.produto.categoria || item.produto.tipo, item.produto.tamanho, item.produto.cor].filter(Boolean).join(" ")}</span>
-          <em class="troca-rapida-status ${item.livre ? "ok" : "bloqueado"}">${item.livre ? "Disponível" : item.texto}</em>
+          <em class="troca-rapida-status ${item.classe === "warning" ? "warning" : (item.livre ? "ok" : "bloqueado")}">${item.texto}</em>
         </button>
       `).join("")}
     </div>
@@ -3462,7 +3745,7 @@ function abrirTrocaRapidaProduto(index) {
     </div>
   `;
 
-  function confirmarTroca(produtoId) {
+  async function confirmarTroca(produtoId) {
     const itemEscolhido = opcoesTroca.find(item => String(item.produto.id) === String(produtoId));
 
     if (!itemEscolhido) {
@@ -3480,6 +3763,10 @@ function abrirTrocaRapidaProduto(index) {
     const validacao = produtoEstaDisponivelNoEvento(novoProduto, evento, index);
     if (!validacao.livre || statusProdutoBloqueiaTrocaRapida(novoProduto)) {
       alert(validacao.texto || textoStatusProdutoTrocaRapida(novoProduto) || "Este produto não está disponível para este evento.");
+      return;
+    }
+
+    if (!(await rtConfirmarUsoProdutoRevisar(novoProduto, evento))) {
       return;
     }
 
@@ -3564,7 +3851,7 @@ function popularSelectProdutosRapido() {
   }).join("");
 }
 
-function adicionarProdutoRapido() {
+async function adicionarProdutoRapido() {
   const select = document.getElementById("eventoProdutoRapidoSelect");
   const id = select.value;
   if (!id) return;
@@ -3578,6 +3865,11 @@ function adicionarProdutoRapido() {
       ? "Produto bloqueado.\n\nEste item não pode ser reservado."
       : "Este produto está indisponível para este evento.";
     alert(msg);
+    select.value = "";
+    return;
+  }
+
+  if (!(await rtConfirmarUsoProdutoRevisar(produto, eventoProdutosRapidoAtual()))) {
     select.value = "";
     return;
   }
@@ -4297,6 +4589,7 @@ function rtDocEventoDescricaoServico(dados) {
 
 function rtDocEventoColetarDados() {
   const dados = {
+    id: document.getElementById('eventoId')?.value || '',
     nome: document.getElementById('eventoNome')?.value || '',
     documento: document.getElementById('eventoDocumento')?.value || '',
     telefone: document.getElementById('eventoTelefone')?.value || '',
@@ -4363,6 +4656,13 @@ function rtDocEventoAplicarModelo(template, d) {
     restante: rtDocEventoValorHtml(dinheiro(d.valorRestante)),
     forma_pagamento: rtDocEventoValorHtml((d.formaPagamento || '') + (d.quitado ? '\nPagamento quitado' : ''), true),
     data_hoje: rtDocEventoValorHtml(rtDocEventoDataExtensoHoje()),
+    numero_orcamento: rtDocEventoValorHtml(d.numeroOrcamento || d.id || 'PREVIEW'),
+    data_orcamento: rtDocEventoValorHtml(rtDocEventoDataBR(new Date().toISOString().slice(0,10))),
+    validade_orcamento: rtDocEventoValorHtml(rtDocEventoValidadeOrcamentoBR()),
+    itens: rtDocEventoItensTabelaOrcamento(d),
+    valor_materiais: rtDocEventoValorHtml(dinheiro(rtDocEventoValorMateriais(d))),
+    valor_frete: rtDocEventoValorHtml(dinheiro(0)),
+    desconto: '',
     assinaturas: rtDocEventoAssinaturas()
   };
 
@@ -4373,12 +4673,78 @@ function rtDocEventoObterModeloConfigurado(tipo, d) {
   try {
     const config = (typeof carregarConfiguracoes === 'function') ? carregarConfiguracoes() : (window.configRioTendas || {});
     const modelos = config.modelosDocumentos || {};
-    if (modelos && modelos[tipo]) return rtDocEventoAplicarModelo(modelos[tipo], d);
+    const modelo = modelos && modelos[tipo] ? String(modelos[tipo]) : '';
+    if (!modelo) return null;
+
+    // Proteção: alguns modelos antigos foram salvos já preenchidos com dados de um evento/orçamento.
+    // Se não houver placeholders {{...}}, usar o modelo padrão dinâmico para não repetir orçamento antigo.
+    if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(modelo)) {
+      console.warn('Modelo configurado sem placeholders ignorado para evitar dados antigos no PDF:', tipo);
+      return null;
+    }
+
+    return rtDocEventoAplicarModelo(modelo, d);
   } catch (erro) {
     console.warn('Não foi possível carregar modelo configurado do documento.', erro);
   }
   return null;
 }
+
+
+function rtDocEventoValidadeOrcamentoBR() {
+  const validade = new Date();
+  validade.setDate(validade.getDate() + 30);
+  return rtDocEventoDataBR(validade.toISOString().slice(0,10));
+}
+
+function rtDocEventoValorMateriais(d) {
+  const total = Number(d.valorTotal || 0) || 0;
+  return total;
+}
+
+function rtDocEventoItensTabelaOrcamento(d) {
+  const linhas = [];
+  (d.produtos || []).forEach(item => {
+    const desc = [item.codigo ? `Cód. ${item.codigo}` : '', item.categoria || '', item.tamanho || '', item.cor || ''].filter(Boolean).join(' — ') || 'Produto';
+    linhas.push({ qtd: 1, desc, valor: '' });
+  });
+  (d.apoio || []).forEach(item => {
+    linhas.push({ qtd: item.quantidade || 1, desc: item.nome || 'Material de apoio', valor: '' });
+  });
+  (d.extras || []).forEach(item => {
+    linhas.push({ qtd: item.quantidade || 1, desc: item.descricao || 'Extra', valor: '' });
+  });
+  const corpo = linhas.length ? linhas.map(i => `<tr><td>${rtDocEventoEscape(i.qtd)}</td><td>${rtDocEventoEscape(i.desc)}</td><td>${i.valor ? dinheiro(i.valor) : '-'}</td><td>${i.valor ? dinheiro(Number(i.qtd||0)*Number(i.valor||0)) : '-'}</td></tr>`).join('') : '<tr><td colspan="4">Materiais a combinar.</td></tr>';
+  return `<table class="doc-table"><thead><tr><th>Qtd</th><th>Descrição</th><th>Valor Unit.</th><th>Total</th></tr></thead><tbody>${corpo}</tbody></table>`;
+}
+
+function rtDocEventoModeloOrcamento(d) {
+  return `
+    <section class="doc-header">
+      ${rtDocEventoLogoEmpresaHtml()}
+      <h1>ORÇAMENTO ${rtDocEventoEscape(d.id || '')}</h1>
+      <p>RioTendas – Empresa do Grupo Maximum<br>CNPJ: 05.831.617/0001-72<br>Tels.: (21) 3490-2333 / 99692-9292<br>www.riotendas.com.br</p>
+    </section>
+    <table class="doc-table">
+      <tr><th>Cliente</th><td>${rtDocEventoEscape(d.nome)}</td><th>Telefone</th><td>${rtDocEventoEscape(d.telefone)}</td></tr>
+      <tr><th>CPF/CNPJ</th><td>${rtDocEventoEscape(d.documento)}</td><th>E-mail</th><td>${rtDocEventoEscape(d.email)}</td></tr>
+      <tr><th>Endereço</th><td colspan="3">${rtDocEventoEscape((typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(d) : d.endereco))}</td></tr>
+      <tr><th>Data do evento</th><td>${rtDocEventoDataBR(d.dataEvento)}</td><th>Horário</th><td>${rtDocEventoHora(d.horaInicio)}${d.horaTermino ? ' às ' + rtDocEventoHora(d.horaTermino) : ''}</td></tr>
+      <tr><th>Montagem</th><td>${rtDocEventoEscape(d.montagem)}</td><th>Desmontagem</th><td>${rtDocEventoEscape(d.desmontagem)}</td></tr>
+    </table>
+    <h3>Itens do orçamento</h3>
+    ${rtDocEventoItensTabelaOrcamento(d)}
+    <h3>Valores</h3>
+    <table class="doc-table compact">
+      <tr><th>Total</th><td>${dinheiro(d.valorTotal)}</td><th>Sinal</th><td>${dinheiro(d.valorSinal)}</td><th>Restante</th><td>${dinheiro(d.valorRestante)}</td></tr>
+      <tr><th>Forma de pagamento</th><td colspan="5">${rtDocEventoLinhasTexto(d.formaPagamento)}${d.quitado ? '<br><strong>Pagamento quitado</strong>' : ''}</td></tr>
+    </table>
+    <p><strong>Validade do orçamento:</strong> ${rtDocEventoValidadeOrcamentoBR()}</p>
+    ${d.observacaoCliente ? `<p><strong>Observações:</strong><br>${rtDocEventoLinhasTexto(d.observacaoCliente)}</p>` : ''}
+    ${rtDocEventoAssinaturas()}
+  `;
+}
+
 
 function rtDocEventoModeloGuia(d) {
   return `
@@ -4505,9 +4871,9 @@ function rtDocEventoAssinaturas() {
 
 function rtDocEventoAbrir(tipo) {
   const d = rtDocEventoColetarDados();
-  const titulo = tipo === 'contrato' ? 'Contrato' : tipo === 'recibo' ? 'Recibo' : 'Guia de serviço';
+  const titulo = tipo === 'contrato' ? 'Contrato' : tipo === 'recibo' ? 'Recibo' : tipo === 'orcamento' ? 'Orçamento' : 'Guia de serviço';
   const conteudoConfigurado = rtDocEventoObterModeloConfigurado(tipo, d);
-  const conteudo = conteudoConfigurado || (tipo === 'contrato' ? rtDocEventoModeloContrato(d) : tipo === 'recibo' ? rtDocEventoModeloRecibo(d) : rtDocEventoModeloGuia(d));
+  const conteudo = conteudoConfigurado || (tipo === 'contrato' ? rtDocEventoModeloContrato(d) : tipo === 'recibo' ? rtDocEventoModeloRecibo(d) : tipo === 'orcamento' ? rtDocEventoModeloOrcamento(d) : rtDocEventoModeloGuia(d));
   const janela = window.open('', '_blank');
   if (!janela) {
     alert('O navegador bloqueou a abertura do documento. Libere pop-ups para este sistema.');
@@ -4613,8 +4979,134 @@ function rtDocEventoAbrir(tipo) {
   janela.document.close();
 }
 
+
+
+// v19-dev: WhatsApp dentro da tela do evento.
+// Fase 1: abre o WhatsApp com mensagem pronta; o envio continua manual pelo usuário.
+function rtEventoWhatsappTelefoneUrl(telefone) {
+  let tel = String(telefone || '').replace(/\D/g, '');
+  if (!tel) return '';
+  tel = tel.replace(/^00+/, '');
+  while (tel.startsWith('5555') && tel.length > 13) tel = tel.slice(2);
+  if (tel.startsWith('55') && (tel.length === 12 || tel.length === 13)) return `https://wa.me/${tel}`;
+  if (tel.startsWith('55') && (tel.length === 10 || tel.length === 11)) {
+    const local = tel.slice(2);
+    if (local.length === 8 || local.length === 9) return `https://wa.me/5521${local}`;
+  }
+  if (tel.length === 10 || tel.length === 11) return `https://wa.me/55${tel}`;
+  if (tel.length === 8 || tel.length === 9) return `https://wa.me/5521${tel}`;
+  return `https://wa.me/${tel.startsWith('55') ? tel : '55' + tel}`;
+}
+
+function rtEventoWhatsappUrl(telefone, mensagem) {
+  const base = rtEventoWhatsappTelefoneUrl(telefone);
+  if (!base) return '';
+  const texto = String(mensagem || '').trim();
+  return texto ? `${base}?text=${encodeURIComponent(texto)}` : base;
+}
+
+function rtEventoWhatsappPrimeiroNome(nome) {
+  return String(nome || 'cliente').trim().split(/\s+/)[0] || 'cliente';
+}
+
+function rtEventoWhatsappResumoDados() {
+  const dados = (typeof rtDocEventoColetarDados === 'function') ? rtDocEventoColetarDados() : {};
+  const endereco = (typeof rtEnderecoCompleto === 'function') ? rtEnderecoCompleto({
+    endereco: dados.endereco,
+    bairro: dados.bairro,
+    cidade: dados.cidade,
+    complemento: dados.complemento,
+    referencia_local: dados.observacaoCliente
+  }) : [dados.endereco, dados.bairro, dados.cidade, dados.complemento, dados.observacaoCliente].filter(Boolean).join(' - ');
+  return {
+    ...dados,
+    primeiroNome: rtEventoWhatsappPrimeiroNome(dados.nome),
+    dataTxt: (typeof rtDocEventoDataBR === 'function') ? rtDocEventoDataBR(dados.dataEvento) : (dados.dataEvento || 'data combinada'),
+    enderecoCompleto: endereco || 'endereço combinado',
+    produtosTxt: dados.descricaoServico || 'Materiais combinados',
+    restante: Math.max(Number(dados.valorRestante || 0), 0)
+  };
+}
+
+function rtEventoWhatsappMensagem(tipo) {
+  const d = rtEventoWhatsappResumoDados();
+  const nome = d.primeiroNome;
+  if (tipo === 'orcamento') {
+    return `Olá, ${nome}! Aqui é da RioTendas. Estou enviando as informações do orçamento do seu evento para ${d.dataTxt}.\n\nItens:\n${d.produtosTxt}\n\nEndereço:\n${d.enderecoCompleto}\n\nValor total: ${dinheiro(d.valorTotal)}\nSinal: ${dinheiro(d.valorSinal)}\nRestante: ${dinheiro(d.valorRestante)}\n\nQualquer dúvida, pode responder por aqui.`;
+  }
+  if (tipo === 'confirmar') {
+    return `Olá, ${nome}! Aqui é da RioTendas. Passando para confirmar a reserva do seu evento em ${d.dataTxt}.\n\nItens:\n${d.produtosTxt}\n\nEndereço:\n${d.enderecoCompleto}\n\nQualquer ajuste, pode nos avisar por aqui.`;
+  }
+  if (tipo === 'montagem') {
+    return `Olá, ${nome}! Aqui é da RioTendas. Sua montagem está programada para ${d.montagem || d.dataTxt}.\n\nEndereço:\n${d.enderecoCompleto}\n\nItens:\n${d.produtosTxt}\n\nQualquer ajuste avisamos por aqui.`;
+  }
+  if (tipo === 'chegando') {
+    return `Olá, ${nome}! Aqui é da RioTendas. Nossa equipe já está a caminho.\n\nEndereço:\n${d.enderecoCompleto}\n\nQualquer dúvida, pode responder por aqui.`;
+  }
+  if (tipo === 'entregue') {
+    return `Olá, ${nome}! Aqui é da RioTendas. Passando para avisar que o material do seu evento foi entregue/montado.\n\nMuito obrigado pela preferência!`;
+  }
+  if (tipo === 'retirada') {
+    return `Olá, ${nome}! Aqui é da RioTendas. A retirada do material está programada para ${d.desmontagem || d.dataTxt}.\n\nEndereço:\n${d.enderecoCompleto}\n\nQualquer ajuste avisamos por aqui.`;
+  }
+  if (tipo === 'recolhido') {
+    return `Olá, ${nome}! Aqui é da RioTendas. Passando para avisar que o material do seu evento foi recolhido.\n\nMuito obrigado pela preferência!`;
+  }
+  if (tipo === 'cobrar') {
+    return `Olá, ${nome}! Aqui é da RioTendas. Consta um valor restante de ${dinheiro(d.restante || d.valorRestante)} referente ao evento de ${d.dataTxt}.\n\nPode nos enviar o comprovante por aqui quando realizar o pagamento. Obrigado!`;
+  }
+  return `Olá, ${nome}! Aqui é da RioTendas.`;
+}
+
+function rtEventoWhatsappAbrir() {
+  const dialog = document.getElementById('eventoWhatsappDialog');
+  const conteudo = document.getElementById('eventoWhatsappConteudo');
+  if (!dialog || !conteudo) return;
+  const d = rtEventoWhatsappResumoDados();
+  if (!rtEventoWhatsappTelefoneUrl(d.telefone)) {
+    conteudo.innerHTML = `<p class="empty">Cadastre o telefone do cliente no evento para habilitar os atalhos de WhatsApp.</p>`;
+  } else {
+    const botoes = [
+      ['orcamento', '📋', 'Orçamento'],
+      ['confirmar', '✅', 'Confirmar reserva'],
+      ['montagem', '🚚', 'Previsão de montagem'],
+      ['chegando', '📍', 'Estamos a caminho'],
+      ['entregue', '⛺', 'Material entregue'],
+      ['retirada', '🕒', 'Previsão de retirada'],
+      ['recolhido', '📦', 'Material recolhido']
+    ];
+    if (d.restante > 0) botoes.push(['cobrar', '💰', 'Cobrar restante']);
+    botoes.push(['conversa', '📞', 'Conversa livre']);
+    conteudo.innerHTML = `
+      <div class="evento-whatsapp-resumo">
+        <strong>${d.nome || 'Cliente sem nome'}</strong>
+        <span>${d.telefone || 'Sem telefone'} · ${d.dataTxt || ''}</span>
+      </div>
+      <div class="evento-whatsapp-grid">
+        ${botoes.map(([tipo, icone, label]) => `
+          <a class="btn-outline evento-whatsapp-atalho" href="${rtEventoWhatsappUrl(d.telefone, rtEventoWhatsappMensagem(tipo))}" target="_blank" rel="noopener">
+            <span>${icone}</span><strong>${label}</strong>
+          </a>
+        `).join('')}
+      </div>
+    `;
+  }
+  if (typeof dialog.showModal === 'function') dialog.showModal();
+  else dialog.classList.add('open');
+}
+
+function rtEventoWhatsappFechar() {
+  const dialog = document.getElementById('eventoWhatsappDialog');
+  if (!dialog) return;
+  if (typeof dialog.close === 'function') dialog.close();
+  else dialog.classList.remove('open');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   onEventoSeguro('gerarGuiaServicoEvento', 'click', () => rtDocEventoAbrir('guia'));
   onEventoSeguro('gerarContratoEvento', 'click', () => rtDocEventoAbrir('contrato'));
   onEventoSeguro('gerarReciboEvento', 'click', () => rtDocEventoAbrir('recibo'));
+  onEventoSeguro('gerarOrcamentoEvento', 'click', () => rtDocEventoAbrir('orcamento'));
+  onEventoSeguro('abrirWhatsappEvento', 'click', rtEventoWhatsappAbrir);
+  onEventoSeguro('fecharEventoWhatsappDialog', 'click', rtEventoWhatsappFechar);
 });

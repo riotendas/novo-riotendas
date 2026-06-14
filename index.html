@@ -785,12 +785,9 @@
       </div>
 
       <div class="manutencao-mobile-dashboard" id="manutencaoMobileResumo">
-        <button type="button" class="active" data-manut-filtro="pendentes"><strong>0</strong><span>Pendentes</span></button>
-        <button type="button" data-manut-filtro="Revisar"><strong>0</strong><span>Revisar</span></button>
-        <button type="button" data-manut-filtro="Limpar"><strong>0</strong><span>Limpar</span></button>
-        <button type="button" data-manut-filtro="Consertar"><strong>0</strong><span>Consertar</span></button>
-        <button type="button" data-manut-filtro="Bloqueada"><strong>0</strong><span>Bloqueados</span></button>
+        <button type="button" id="manutMobileStatusFiltroBtn" class="active manut-status-ciclo" data-manut-filtro="pendentes"><strong>0</strong><span>Pendentes</span></button>
         <button type="button" id="manutMobileUsabilidadeFiltroBtn" class="manut-usab-filtro" data-manut-usab-filtro="Todos"><strong>Todos</strong><span>Usab.</span></button>
+        <button type="button" id="manutMobileTamanhoFiltroBtn" class="manut-tam-filtro" data-manut-tam-filtro=""><strong>0</strong><span>Tamanho</span></button>
       </div>
       <button type="button" class="manut-mobile-exibir-todos" data-manut-filtro="todos">Exibir todos</button>
 
@@ -1329,6 +1326,20 @@
             <small>Entrega marcada como Entregue atualiza os produtos como Alugado. Retirada marcada como Recolhido envia os produtos para Revisar, seguindo a mesma lógica do botão da rota.</small>
           </div>
 
+
+          <div class="config-card manutencao-avancada-card" id="manutencaoReprocessamentoCard">
+            <h3>Manutenção avançada</h3>
+            <p>Ferramentas para corrigir inconsistências de disponibilidade, eventos cancelados e produtos presos em status antigo.</p>
+            <div class="config-actions manutencao-actions manutencao-reprocess-actions">
+              <button id="manutReprocessarDisponibilidade" type="button" class="btn-outline">Reprocessar disponibilidade</button>
+              <button id="manutRecalcularStatusProdutos" type="button" class="btn-outline">Recalcular status dos produtos</button>
+              <button id="manutLimparCancelados" type="button" class="btn-outline">Limpar vínculos de cancelados</button>
+              <button id="manutReprocessarProximosUsos" type="button" class="btn-outline">Reprocessar próximos usos</button>
+              <button id="manutReprocessarTudo" type="button" class="danger-soft">Reprocessar tudo</button>
+            </div>
+            <small>Use quando algum produto ficar como alugado indevidamente, quando um cancelamento deixar resíduo, ou quando a tela de produtos não refletir a rota atual.</small>
+          </div>
+
           <div id="manutencaoResultado" class="manutencao-resultado"></div>
         </div>
       </dialog>
@@ -1588,7 +1599,8 @@
           <select id="eventoProdutoSelect">
             <option value="">Selecione um produto para adicionar</option>
           </select>
-          <button type="button" id="adicionarProdutoEvento" class="btn-outline">Adicionar produto</button>
+          <button type="button" id="adicionarProdutoEvento" class="btn-outline">+ Produto</button>
+          <button type="button" id="adicionarReservaEvento" class="btn-outline" title="Adicionar reserva">🔄</button>
         </div>
         <div id="eventoProdutosSelecionados" class="selected-list"></div>
       </div>
@@ -1624,6 +1636,8 @@
           <button type="button" class="btn-outline btn-doc-evento" id="gerarGuiaServicoEvento" title="Gerar guia de serviço">📄 Guia</button>
           <button type="button" class="btn-outline btn-doc-evento" id="gerarContratoEvento" title="Gerar contrato">📑 Cont.</button>
           <button type="button" class="btn-outline btn-doc-evento" id="gerarReciboEvento" title="Gerar recibo">🧾 Rec.</button>
+          <button type="button" class="btn-outline btn-doc-evento" id="gerarOrcamentoEvento" title="Gerar orçamento">💰 Orç.</button>
+          <button type="button" class="btn-outline btn-doc-evento btn-whatsapp-evento" id="abrirWhatsappEvento" title="Mensagens prontas para WhatsApp">💬</button>
         </div>
         <div class="evento-rodape-spacer"></div>
         <div class="evento-save-actions">
@@ -1633,6 +1647,15 @@
         </div>
       </div>
     </form>
+  </dialog>
+
+
+  <dialog id="eventoWhatsappDialog" class="modal evento-whatsapp-dialog">
+    <div class="modal-header">
+      <h2>WhatsApp do Cliente</h2>
+      <button type="button" class="icon-btn" id="fecharEventoWhatsappDialog">×</button>
+    </div>
+    <div id="eventoWhatsappConteudo" class="evento-whatsapp-conteudo"></div>
   </dialog>
 
   <dialog id="eventoDetalheDialog" class="modal large-modal">
@@ -2029,6 +2052,7 @@
   <script src="js/calendario-nav-fix.js"></script>
   <script src="js/logs.js"></script>
   <script src="js/sync-produtos-disponibilidade.js"></script>
+  <script src="js/rt-realtime-sync.js"></script>
   <script src="js/performance-safe.js"></script>
 
   <dialog id="previewImportarEventosDialog" class="modal large-modal import-preview-dialog">

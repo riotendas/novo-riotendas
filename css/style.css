@@ -17871,3 +17871,725 @@ tr.evento-cancelado .product-list-button {
   #manutencaoMobileResumo .manut-usab-filtro strong{font-size:9.5px !important;}
   #manutencaoMobileResumo.manutencao-mobile-dashboard span{font-size:7.2px !important;}
 }
+
+/* v19-dev-sync-colab: colaborador abaixo do cliente sem criar coluna nova */
+.rota-colaborador-cliente{
+  display:block;
+  margin-top:2px;
+  font-size:10.5px;
+  line-height:1.05;
+  font-weight:500;
+  color:#64748b;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.rua-mobile-cliente .rua-mobile-colaborador,
+.rua-mobile-cliente-link .rua-mobile-colaborador{
+  display:block;
+  margin-top:1px;
+  font-size:11px;
+  line-height:1.1;
+  font-weight:500;
+  color:#64748b;
+}
+.rua-mobile-cliente-link{
+  text-align:left;
+}
+.rt-sync-pendente-indicador{
+  position:fixed;
+  right:12px;
+  bottom:34px;
+  z-index:9999;
+  background:#0f172a;
+  color:white;
+  border-radius:999px;
+  padding:6px 10px;
+  font-size:11px;
+  box-shadow:0 6px 18px rgba(15,23,42,.22);
+  opacity:.88;
+}
+
+/* v19-dev-colab-financeiro: colaborador acima de Pagamento/Forma pagamento */
+#rotasSection .rota-card-top-refinado{
+  display:flex !important;
+  align-items:flex-end !important;
+  gap:8px !important;
+}
+#rotasSection .rota-colaborador-financeiro{
+  margin-left:auto;
+  margin-right:8px;
+  margin-bottom:-2px;
+  font-size:10.5px;
+  line-height:1;
+  font-weight:500;
+  color:#64748b;
+  white-space:nowrap;
+  text-align:left;
+  min-width:190px;
+}
+#rotasSection .rota-colaborador-cliente{
+  display:none !important;
+}
+
+/* v19-dev-colab-status-linha: status no local original + colaborador à direita na mesma linha */
+#rotasSection .rota-card-top-refinado{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:6px !important;
+  width:100% !important;
+  min-height:0 !important;
+  margin:0 0 2px 0 !important;
+  padding:0 !important;
+}
+#rotasSection .rota-identificacao{
+  flex:0 1 auto !important;
+  margin:0 !important;
+  padding:0 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  text-align:left !important;
+}
+#rotasSection .rota-identificacao .rota-operacao-badge,
+#rotasSection .rota-operacao-badge{
+  margin:0 !important;
+  line-height:1.05 !important;
+  white-space:nowrap !important;
+}
+#rotasSection .rota-colaborador-financeiro{
+  flex:0 0 auto !important;
+  min-width:0 !important;
+  max-width:160px !important;
+  margin:0 4px 0 auto !important;
+  padding:0 !important;
+  font-size:10px !important;
+  line-height:1.05 !important;
+  font-weight:500 !important;
+  color:#94a3b8 !important;
+  white-space:nowrap !important;
+  text-align:right !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+}
+
+/* v19-dev-colab-status-esquerda: mantém Status/Entregue/Recolhido fixo à esquerda e Colab. à direita */
+#rotasSection .rota-card-top-refinado{
+  position:relative !important;
+  display:block !important;
+  width:100% !important;
+  min-height:18px !important;
+  margin:0 0 2px 0 !important;
+  padding:0 !important;
+  border-bottom:0 !important;
+}
+#rotasSection .rota-card-top-refinado .rota-identificacao{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  width:calc(100% - 170px) !important;
+  min-width:0 !important;
+  max-width:calc(100% - 170px) !important;
+  margin:0 !important;
+  padding:0 !important;
+  text-align:left !important;
+}
+#rotasSection .rota-card-top-refinado .rota-identificacao .rota-operacao-badge,
+#rotasSection .rota-card-top-refinado .rota-operacao-badge{
+  margin-left:0 !important;
+  margin-right:0 !important;
+  justify-content:flex-start !important;
+  text-align:left !important;
+}
+#rotasSection .rota-card-top-refinado .rota-colaborador-financeiro{
+  position:absolute !important;
+  right:4px !important;
+  top:50% !important;
+  transform:translateY(-50%) !important;
+  width:160px !important;
+  max-width:160px !important;
+  margin:0 !important;
+  padding:0 !important;
+  text-align:right !important;
+  font-size:10px !important;
+  line-height:1.05 !important;
+  font-weight:500 !important;
+  color:#94a3b8 !important;
+  white-space:nowrap !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+}
+
+
+/* v19-dev-pendencias-sync-mobile: ajuste final Colab. na mesma linha, máximo à direita */
+#rotasSection .rota-card-top-refinado{
+  position:relative !important;
+  display:block !important;
+  width:100% !important;
+  min-height:18px !important;
+  margin:0 0 2px 0 !important;
+  padding:0 !important;
+}
+#rotasSection .rota-card-top-refinado .rota-identificacao{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  width:calc(100% - 185px) !important;
+  max-width:calc(100% - 185px) !important;
+  margin:0 !important;
+  padding:0 !important;
+  text-align:left !important;
+}
+#rotasSection .rota-card-top-refinado .rota-colaborador-financeiro{
+  position:absolute !important;
+  right:0 !important;
+  top:50% !important;
+  transform:translateY(-50%) !important;
+  width:185px !important;
+  max-width:185px !important;
+  margin:0 !important;
+  padding:0 !important;
+  text-align:right !important;
+  font-size:10px !important;
+  line-height:1.05 !important;
+  font-weight:500 !important;
+  color:#94a3b8 !important;
+  white-space:nowrap !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+}
+#rotasSection .rota-colaborador-cliente{display:none !important;}
+
+/* Modal simples da permuta na troca rápida */
+.rota-permuta-produto-dialog {
+  width: min(420px, 92vw) !important;
+}
+
+.rota-permuta-body {
+  display: grid !important;
+  gap: 14px !important;
+  padding-top: 4px !important;
+}
+
+.rota-permuta-alerta {
+  border: 1px solid #f1c86a !important;
+  background: #fff8e6 !important;
+  color: #755000 !important;
+  border-radius: 12px !important;
+  padding: 12px 14px !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+}
+
+.rota-permuta-actions {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 8px !important;
+}
+
+/* RioTendas v19-dev: aviso ao selecionar produto em revisão no evento */
+.availability.warning,
+.troca-rapida-status.warning {
+  background: #fff7d6 !important;
+  color: #8a5a00 !important;
+  border-color: #f6d365 !important;
+}
+
+.rt-produto-revisar-dialog {
+  width: min(420px, 92vw) !important;
+}
+
+.rt-produto-revisar-body {
+  display: grid !important;
+  gap: 14px !important;
+  padding-top: 4px !important;
+}
+
+.rt-produto-revisar-alerta {
+  border: 1px solid #f1c86a !important;
+  background: #fff8e6 !important;
+  color: #755000 !important;
+  border-radius: 12px !important;
+  padding: 12px 14px !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+}
+
+.rt-produto-revisar-actions {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 8px !important;
+}
+
+
+/* v19-dev: ampliar somente a coluna Observação da tabela de Produtos */
+#produtosSection table th:nth-child(8),
+#produtosSection table td:nth-child(8) {
+  width: 260px !important;
+  max-width: 260px !important;
+  min-width: 240px !important;
+}
+#produtosSection table td:nth-child(8) input[data-action="obs"] {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 230px !important;
+}
+
+
+
+/* v19-dev: Manutenção Mobile - filtro de status em botão cíclico único */
+#manutencaoMobileResumo.manutencao-mobile-dashboard{
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+#manutencaoMobileResumo .manut-status-ciclo strong{
+  font-size: 22px !important;
+  line-height: 1 !important;
+}
+#manutencaoMobileResumo .manut-status-ciclo span{
+  font-size: 11px !important;
+}
+@media (max-width:720px){
+  #manutencaoMobileResumo.manutencao-mobile-dashboard{
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+  }
+  #manutencaoMobileResumo.manutencao-mobile-dashboard button{
+    min-height: 48px !important;
+    padding: 7px 6px !important;
+  }
+  #manutencaoMobileResumo .manut-status-ciclo strong{font-size:18px !important;}
+  #manutencaoMobileResumo .manut-status-ciclo span{font-size:9.5px !important;}
+}
+
+
+/* v19-dev: Manutenção Mobile - filtro cíclico de tamanho */
+#manutencaoMobileResumo.manutencao-mobile-dashboard{
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+}
+#manutencaoMobileResumo .manut-tam-filtro strong{
+  font-size: 18px !important;
+  line-height: 1 !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+}
+#manutencaoMobileResumo .manut-tam-filtro span{
+  font-size: 9.5px !important;
+  line-height: 1.05 !important;
+  color:#64748b !important;
+  font-weight:700 !important;
+}
+#manutencaoMobileResumo .manut-tam-filtro.active{
+  outline:2px solid #2563eb !important;
+  outline-offset:1px !important;
+}
+@media (max-width:720px){
+  #manutencaoMobileResumo.manutencao-mobile-dashboard{
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 5px !important;
+  }
+  #manutencaoMobileResumo.manutencao-mobile-dashboard button{
+    min-height: 48px !important;
+    padding: 7px 3px !important;
+  }
+  #manutencaoMobileResumo .manut-status-ciclo strong,
+  #manutencaoMobileResumo .manut-tam-filtro strong{font-size:16px !important;}
+  #manutencaoMobileResumo .manut-usab-filtro strong{font-size:10px !important;}
+  #manutencaoMobileResumo .manut-status-ciclo span,
+  #manutencaoMobileResumo .manut-tam-filtro span{font-size:8.5px !important;}
+}
+
+/* v19-dev: Reserva operacional compacta + botões menores no cadastro de evento */
+#eventoDialog .produto-adder.produto-adder-compacto {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+#eventoDialog .produto-adder.produto-adder-compacto select {
+  flex: 1 1 auto !important;
+  min-width: 120px !important;
+}
+#eventoDialog .produto-adder.produto-adder-compacto #adicionarProdutoEvento {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+  padding: 7px 10px !important;
+  min-width: 0 !important;
+}
+#eventoDialog .produto-adder.produto-adder-compacto #adicionarReservaEvento {
+  flex: 0 0 38px !important;
+  width: 38px !important;
+  min-width: 38px !important;
+  padding: 7px 0 !important;
+  justify-content: center !important;
+}
+#eventoProdutosSelecionados .reserva-operacional-item {
+  background: #f8fafc;
+  border-style: dashed;
+}
+#eventoProdutosSelecionados .reserva-operacional-item span strong {
+  color: #475569;
+}
+
+
+/* v19-dev: notas compactas na rota */
+.rota-nota-btn{
+  white-space:nowrap;
+}
+.rota-lista .rota-nota-linha{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:24px;
+  padding:2px 8px;
+  margin:3px 0;
+  font-size:13px;
+  color:var(--blue);
+  background:rgba(245, 250, 255, .85);
+  border:1px dashed #cfe0f2;
+  border-radius:10px;
+}
+.rota-nota-texto{
+  flex:1;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.rota-nota-endereco{
+  color:#50627a;
+}
+.rota-nota-icon{
+  border:0;
+  background:transparent;
+  padding:2px 4px;
+  cursor:pointer;
+  font-size:13px;
+  line-height:1;
+}
+.rota-nota-modal{
+  width:min(560px,94vw);
+}
+.rota-nota-form{
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.rota-nota-form label{
+  font-size:12px;
+  font-weight:700;
+  color:#50627a;
+}
+.rota-nota-form input,
+.rota-nota-form select{
+  width:100%;
+}
+
+/* v19-dev: nota da rota final - botão igual aos demais, destaque e arraste */
+.rota-carro-header-maps .rota-nota-btn{
+  justify-self:end !important;
+  margin:0 !important;
+  padding:4px 10px !important;
+  min-height:26px !important;
+  line-height:1 !important;
+  font-size:12px !important;
+  font-weight:800 !important;
+  white-space:nowrap !important;
+  border:1px solid var(--blue) !important;
+  border-radius:10px !important;
+  background:#fff !important;
+  color:var(--blue) !important;
+  box-shadow:none !important;
+}
+.rota-carro-header-maps .rota-nota-btn:hover{
+  background:var(--blue-soft) !important;
+}
+.rota-nota-linha[draggable="true"]{
+  cursor:grab;
+}
+.rota-nota-linha.rota-nota-arrastando{
+  opacity:.55;
+  cursor:grabbing;
+}
+.rota-nota-texto strong{
+  font-weight:900;
+}
+
+
+/* v19-dev: Mobile > Rua - alertas rápidos por WhatsApp */
+.rua-mobile-whatsapp-alertas{
+  display:grid !important;
+  grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+  gap:5px !important;
+  width:100% !important;
+  margin-top:8px !important;
+}
+.rua-mobile-whatsapp-alerta-btn{
+  min-width:0 !important;
+  width:100% !important;
+  min-height:38px !important;
+  padding:5px 2px !important;
+  border-radius:10px !important;
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:1px !important;
+  line-height:1.05 !important;
+  text-align:center !important;
+  white-space:nowrap !important;
+  font-size:10px !important;
+  background:#f0fdf4 !important;
+  color:#166534 !important;
+  border:1px solid #bbf7d0 !important;
+  box-shadow:none !important;
+}
+.rua-mobile-whatsapp-alerta-btn span{
+  display:block !important;
+  font-size:14px !important;
+  line-height:1 !important;
+}
+.rua-mobile-whatsapp-alerta-btn small{
+  display:block !important;
+  font-size:9px !important;
+  line-height:1.05 !important;
+  font-weight:800 !important;
+}
+@media (max-width:360px){
+  .rua-mobile-whatsapp-alertas{ gap:4px !important; }
+  .rua-mobile-whatsapp-alerta-btn{ min-height:36px !important; padding-left:1px !important; padding-right:1px !important; }
+  .rua-mobile-whatsapp-alerta-btn small{ font-size:8px !important; }
+}
+
+/* v19-dev: Clientes > atalhos de WhatsApp para teste */
+.cliente-whatsapp-panel{
+  margin-top:12px;
+}
+.cliente-whatsapp-botoes{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:stretch;
+}
+.cliente-whatsapp-btn{
+  min-width:92px;
+  min-height:42px;
+  display:inline-flex !important;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  text-decoration:none !important;
+  padding:8px 10px !important;
+  border-radius:10px;
+  line-height:1;
+}
+.cliente-whatsapp-btn span{
+  font-size:16px;
+}
+.cliente-whatsapp-btn small{
+  font-size:12px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.cliente-evento-whatsapp{
+  margin:10px 0 8px;
+}
+.cliente-evento-whatsapp .cliente-whatsapp-botoes{
+  gap:6px;
+}
+.cliente-evento-whatsapp .cliente-whatsapp-btn{
+  min-width:78px;
+  min-height:36px;
+  padding:6px 8px !important;
+}
+.cliente-evento-whatsapp .cliente-whatsapp-btn small{
+  font-size:11px;
+}
+
+@media (max-width:640px){
+  .cliente-whatsapp-botoes{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+  }
+  .cliente-whatsapp-btn{
+    width:100%;
+    min-width:0;
+  }
+}
+
+
+/* v19-dev: deixar WhatsApp visível também na listagem e no modal de edição do cliente */
+.clientes-actions-row-wrap{
+  flex-wrap:wrap !important;
+}
+.cliente-whatsapp-lista-btn{
+  min-width:92px;
+  white-space:nowrap;
+}
+.cliente-whatsapp-form-panel{
+  margin-top:4px;
+  padding:10px;
+}
+.cliente-whatsapp-form-panel h3{
+  margin:0 0 8px;
+}
+
+
+/* v19-dev: WhatsApp dentro do evento */
+#eventoModal .btn-whatsapp-evento{
+  min-width: 44px !important;
+  width: 44px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  font-size: 17px !important;
+}
+.evento-whatsapp-dialog .modal-header{
+  align-items:center;
+}
+.evento-whatsapp-conteudo{
+  padding: 14px 16px 18px;
+}
+.evento-whatsapp-resumo{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  padding:10px 12px;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  background:#f8fafc;
+  margin-bottom:12px;
+}
+.evento-whatsapp-resumo span{
+  color:#64748b;
+  font-size:12px;
+}
+.evento-whatsapp-grid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:8px;
+}
+.evento-whatsapp-atalho{
+  display:flex !important;
+  align-items:center;
+  gap:8px;
+  justify-content:flex-start;
+  text-decoration:none !important;
+  min-height:42px;
+  border-radius:10px !important;
+}
+.evento-whatsapp-atalho span{
+  font-size:18px;
+  width:24px;
+  text-align:center;
+}
+.evento-whatsapp-atalho strong{
+  font-size:13px;
+}
+@media (max-width: 640px){
+  .evento-whatsapp-grid{ grid-template-columns:1fr; }
+  #eventoModal .btn-whatsapp-evento{ min-width:40px !important; width:40px !important; }
+}
+
+/* v19-dev: Evento - barra de ações compacta em uma linha */
+#eventoModal .evento-rodape-documentos-final,
+#eventoDialog .evento-rodape-documentos-final{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  gap:6px !important;
+  flex-wrap:nowrap !important;
+}
+#eventoModal .evento-rodape-documentos-final .evento-assinatura-compacta,
+#eventoDialog .evento-rodape-documentos-final .evento-assinatura-compacta{
+  flex:1 1 auto !important;
+  min-width:180px !important;
+}
+#eventoModal .evento-rodape-documentos-final .evento-doc-actions,
+#eventoDialog .evento-rodape-documentos-final .evento-doc-actions,
+#eventoModal .evento-rodape-documentos-final .evento-save-actions,
+#eventoDialog .evento-rodape-documentos-final .evento-save-actions{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  gap:6px !important;
+  flex:0 0 auto !important;
+  width:auto !important;
+  max-width:none !important;
+  margin:0 !important;
+}
+#eventoModal .evento-rodape-documentos-final .evento-rodape-spacer,
+#eventoDialog .evento-rodape-documentos-final .evento-rodape-spacer{
+  display:none !important;
+}
+#eventoModal .evento-rodape-documentos-final button,
+#eventoDialog .evento-rodape-documentos-final button,
+#eventoModal .evento-rodape-documentos-final .btn-doc-evento,
+#eventoDialog .evento-rodape-documentos-final .btn-doc-evento,
+#eventoModal .evento-rodape-documentos-final .btn-whatsapp-evento,
+#eventoDialog .evento-rodape-documentos-final .btn-whatsapp-evento{
+  width:78px !important;
+  min-width:78px !important;
+  max-width:78px !important;
+  height:38px !important;
+  min-height:38px !important;
+  padding:0 6px !important;
+  font-size:13px !important;
+  line-height:1.05 !important;
+  font-weight:700 !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  text-align:center !important;
+  white-space:nowrap !important;
+  border-radius:11px !important;
+}
+#eventoModal .evento-rodape-documentos-final .btn-whatsapp-evento,
+#eventoDialog .evento-rodape-documentos-final .btn-whatsapp-evento{
+  font-size:15px !important;
+}
+@media (max-width: 900px){
+  #eventoModal .evento-rodape-documentos-final,
+  #eventoDialog .evento-rodape-documentos-final{
+    align-items:stretch !important;
+    flex-wrap:wrap !important;
+  }
+  #eventoModal .evento-rodape-documentos-final .evento-assinatura-compacta,
+  #eventoDialog .evento-rodape-documentos-final .evento-assinatura-compacta{
+    flex:1 1 100% !important;
+    width:100% !important;
+  }
+  #eventoModal .evento-rodape-documentos-final .evento-doc-actions,
+  #eventoDialog .evento-rodape-documentos-final .evento-doc-actions,
+  #eventoModal .evento-rodape-documentos-final .evento-save-actions,
+  #eventoDialog .evento-rodape-documentos-final .evento-save-actions{
+    flex:1 1 100% !important;
+    width:100% !important;
+    display:grid !important;
+    grid-template-columns:repeat(8, minmax(0, 1fr)) !important;
+    gap:5px !important;
+  }
+  #eventoModal .evento-rodape-documentos-final .evento-doc-actions,
+  #eventoDialog .evento-rodape-documentos-final .evento-doc-actions{
+    display:contents !important;
+  }
+  #eventoModal .evento-rodape-documentos-final .evento-save-actions,
+  #eventoDialog .evento-rodape-documentos-final .evento-save-actions{
+    display:contents !important;
+  }
+  #eventoModal .evento-rodape-documentos-final button,
+  #eventoDialog .evento-rodape-documentos-final button,
+  #eventoModal .evento-rodape-documentos-final .btn-doc-evento,
+  #eventoDialog .evento-rodape-documentos-final .btn-doc-evento,
+  #eventoModal .evento-rodape-documentos-final .btn-whatsapp-evento,
+  #eventoDialog .evento-rodape-documentos-final .btn-whatsapp-evento{
+    width:auto !important;
+    min-width:0 !important;
+    max-width:none !important;
+    font-size:12px !important;
+    padding:0 3px !important;
+  }
+}

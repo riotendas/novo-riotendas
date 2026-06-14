@@ -67,6 +67,7 @@ function iniciarClientes() {
   document.getElementById("novoClienteBtn").addEventListener("click", abrirNovoCliente);
   document.getElementById("fecharClienteModal").addEventListener("click", fecharClienteModal);
   document.getElementById("cancelarCliente").addEventListener("click", fecharClienteModal);
+  ["clienteNome", "clienteTelefone"].forEach(id => document.getElementById(id)?.addEventListener("input", () => atualizarWhatsappClienteForm()));
   document.getElementById("clienteForm").addEventListener("submit", salvarClienteForm);
   document.getElementById("fecharClienteDetalheModal").addEventListener("click", () => document.getElementById("clienteDetalheDialog").close());
 
@@ -81,6 +82,7 @@ function abrirNovoCliente() {
   document.getElementById("clienteForm").reset();
   document.getElementById("clienteId").value = "";
   document.getElementById("clienteModalTitulo").textContent = "Novo cliente";
+  setTimeout(() => atualizarWhatsappClienteForm({ nome: "", telefone: "" }), 0);
   const cidadePadrao = (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro");
   const campoCidade = document.getElementById("clienteCidade");
   if (campoCidade) campoCidade.value = cidadePadrao;
@@ -104,6 +106,7 @@ function abrirEditarCliente(id) {
   document.getElementById("clienteObservacao").value = c.observacao_cliente || "";
   document.getElementById("clienteObservacaoInterna").value = c.observacao_interna || "";
   document.getElementById("clienteModalTitulo").textContent = "Editar cliente";
+  atualizarWhatsappClienteForm(c);
   document.getElementById("clienteDialog").showModal();
 }
 
@@ -205,7 +208,8 @@ function renderizarClientes() {
       <td><span class="cliente-perfil-badge perfil-${normalizarPerfilCliente(c.perfil_cliente)}">${c.perfil_cliente || "Normal"}</span></td>
       <td>${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(c) : c.endereco) || "-"}</td>
       <td>${c.colaborador || "-"}</td>
-      <td class="actions clientes-actions"><div class="clientes-actions-row"><button data-action="editar" data-id="${c.id}">✏️</button>
+      <td class="actions clientes-actions"><div class="clientes-actions-row clientes-actions-row-wrap"><button data-action="editar" data-id="${c.id}">✏️</button>
+        <button class="btn-outline cliente-whatsapp-lista-btn" title="Abrir dados e WhatsApp" data-action="whatsapp" data-id="${c.id}">💬 WhatsApp</button>
         <button class="btn-outline" title="Excluir" data-action="excluir" data-id="${c.id}">🗑️</button></div></td>
     </tr>
   `).join("");
@@ -219,6 +223,7 @@ async function lidarAcaoCliente(event) {
 
   if (action === "editar") return abrirEditarCliente(id);
   if (action === "detalhe") return abrirDetalheCliente(id);
+  if (action === "whatsapp") return abrirDetalheCliente(id);
 
   if (action === "excluir") {
     const c = clientes.find(x => x.id === id);
@@ -244,6 +249,117 @@ async function lidarAcaoCliente(event) {
   }
 }
 
+
+
+// v19-dev: WhatsApp na tela de dados do cliente (fase de teste).
+// Abre o WhatsApp com mensagem pronta; o envio final continua manual.
+function clienteTelefoneLimpoWhatsapp(telefone) {
+  return String(telefone || "").replace(/\D/g, "");
+}
+
+function clienteWhatsappUrl(telefone) {
+  let tel = clienteTelefoneLimpoWhatsapp(telefone);
+  if (!tel) return "";
+
+  tel = tel.replace(/^00+/, "");
+  while (tel.startsWith("5555") && tel.length > 13) tel = tel.slice(2);
+
+  if (tel.startsWith("55") && (tel.length === 12 || tel.length === 13)) return `https://wa.me/${tel}`;
+  if (tel.startsWith("55") && (tel.length === 10 || tel.length === 11)) {
+    const local = tel.slice(2);
+    if (local.length === 8 || local.length === 9) return `https://wa.me/5521${local}`;
+  }
+  if (tel.length === 10 || tel.length === 11) return `https://wa.me/55${tel}`;
+  if (tel.length === 8 || tel.length === 9) return `https://wa.me/5521${tel}`;
+
+  return `https://wa.me/${tel.startsWith("55") ? tel : "55" + tel}`;
+}
+
+function clienteWhatsappMensagemUrl(telefone, mensagem) {
+  const base = clienteWhatsappUrl(telefone);
+  if (!base) return "";
+  const texto = String(mensagem || "").trim();
+  return texto ? `${base}?text=${encodeURIComponent(texto)}` : base;
+}
+
+function clientePrimeiroNomeWhatsapp(nome) {
+  return String(nome || "cliente").trim().split(/\s+/)[0] || "cliente";
+}
+
+function clienteDataWhatsapp(dataISO) {
+  if (!dataISO) return "data combinada";
+  const texto = String(dataISO);
+  const base = texto.includes("T") ? texto.slice(0, 10) : texto;
+  const partes = base.split("-");
+  if (partes.length === 3) return `${partes[2]}/${partes[1]}/${partes[0]}`;
+  return texto;
+}
+
+function clienteHorarioWhatsapp(evento = {}) {
+  const inicio = evento.hora_inicio || evento.hora_evento || evento.horario || "";
+  const fim = evento.hora_termino || "";
+  return inicio ? `${inicio}${fim ? " às " + fim : ""}` : "horário a confirmar";
+}
+
+function clienteValorRestanteWhatsapp(evento = {}) {
+  const restante = Math.max(Number(evento.valor_restante || 0), 0);
+  if (restante > 0) return restante;
+  const total = Number(evento.valor_total || 0);
+  const sinal = Number(evento.valor_sinal || 0);
+  return Math.max(total - sinal, 0);
+}
+
+function clienteMensagemWhatsapp(cliente = {}, tipo = "conversa", evento = null) {
+  const nome = clientePrimeiroNomeWhatsapp(cliente.nome || evento?.nome || "");
+  const endereco = (evento && (typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(evento) : evento.endereco)) || (typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(cliente) : cliente.endereco) || "endereço combinado";
+  const data = clienteDataWhatsapp(evento?.data_evento || evento?.data_montagem || "");
+  const horario = clienteHorarioWhatsapp(evento || {});
+  const restante = evento ? clienteValorRestanteWhatsapp(evento) : 0;
+
+  if (tipo === "orcamento") {
+    return `Olá, ${nome}! Aqui é da RioTendas. Estou enviando as informações do seu orçamento. Qualquer dúvida, pode responder por aqui.`;
+  }
+  if (tipo === "montagem") {
+    return `Olá, ${nome}! Aqui é da RioTendas. Sua montagem está prevista para ${data}, ${horario}.\n\nEndereço: ${endereco}.\n\nQualquer ajuste avisamos por aqui.`;
+  }
+  if (tipo === "retirada") {
+    return `Olá, ${nome}! Aqui é da RioTendas. A retirada do material está prevista para ${data}, ${horario}.\n\nEndereço: ${endereco}.\n\nQualquer ajuste avisamos por aqui.`;
+  }
+  if (tipo === "chegando") {
+    return `Olá, ${nome}! Aqui é da RioTendas. Nossa equipe já está a caminho.\n\nEndereço: ${endereco}.`;
+  }
+  if (tipo === "cobranca") {
+    return `Olá, ${nome}! Aqui é da RioTendas. Consta um valor restante de ${dinheiroClienteEvento(restante)} referente ao evento.\n\nPode nos enviar o comprovante por aqui quando realizar o pagamento. Obrigado!`;
+  }
+  return `Olá, ${nome}! Aqui é da RioTendas.`;
+}
+
+function clienteWhatsappBotoesHtml(cliente = {}, evento = null) {
+  const telefone = cliente.telefone || evento?.telefone || "";
+  if (!clienteWhatsappUrl(telefone)) return `<p class="empty">Cadastre um telefone para habilitar os atalhos de WhatsApp.</p>`;
+
+  const botoes = [
+    ["conversa", "💬", "Conversa"],
+    ["orcamento", "📄", "Orçamento"]
+  ];
+
+  if (evento) {
+    botoes.push(["montagem", "⏱️", "Montagem"]);
+    botoes.push(["retirada", "↩️", "Retirada"]);
+    botoes.push(["chegando", "🚚", "Chegando"]);
+    if (clienteValorRestanteWhatsapp(evento) > 0) botoes.push(["cobranca", "💰", "Cobrar"]);
+  }
+
+  return `
+    <div class="cliente-whatsapp-botoes">
+      ${botoes.map(([tipo, icone, label]) => `
+        <a class="btn-outline cliente-whatsapp-btn" href="${clienteWhatsappMensagemUrl(telefone, clienteMensagemWhatsapp(cliente, tipo, evento))}" target="_blank" rel="noopener">
+          <span>${icone}</span><small>${label}</small>
+        </a>
+      `).join("")}
+    </div>
+  `;
+}
 
 function normalizarTextoCliente(valor) {
   return String(valor || "")
@@ -308,7 +424,7 @@ function resumoProdutosClienteEvento(evento) {
   });
 
   const apoio = (evento.itens_apoio || []).map(i => `${i.nome} (${i.quantidade})`);
-  const extras = (evento.produtos_extras || []).map(i => `${i.descricao} (${i.quantidade})`);
+  const extras = (typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento.produtos_extras || [])).map(i => `${i.descricao} (${i.quantidade})`);
 
   const todos = [...tendas, ...apoio, ...extras];
 
@@ -364,6 +480,10 @@ function renderizarEventosCliente(cliente) {
             <strong>${resumoProdutosClienteEvento(evento)}</strong>
           </div>
 
+          <div class="cliente-evento-whatsapp">
+            ${clienteWhatsappBotoesHtml(cliente, evento)}
+          </div>
+
           <button type="button" class="btn-outline cliente-abrir-evento" data-cliente-evento="${evento.id}">
             Abrir evento
           </button>
@@ -388,6 +508,10 @@ async function abrirDetalheCliente(id) {
       <div class="info-box"><span>Endereço</span><strong>${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(c) : c.endereco) || "-"}</strong></div>
       <div class="info-box"><span>Colaborador</span><strong>${c.colaborador || "-"}</strong></div>
       <div class="info-box"><span>Cadastro</span><strong>${formatarData(c.criado_em)}</strong></div>
+    </div>
+    <div class="subpanel cliente-whatsapp-panel">
+      <h3>WhatsApp</h3>
+      ${clienteWhatsappBotoesHtml(c)}
     </div>
     <div class="subpanel cliente-observacoes-panel">
       <h3>Observações</h3>

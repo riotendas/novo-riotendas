@@ -6,6 +6,7 @@ let manutencaoMobileFiltroAtual = "pendentes";
 let manutencaoMobileProdutoAtualId = null;
 let manutencaoMobileStatusSelecionado = "";
 let manutencaoMobileUsabilidadeFiltroAtual = "Todos";
+let manutencaoMobileTamanhoFiltroAtual = "";
 let manutMobileSyncTimer = null;
 let manutMobileSyncExecutando = false;
 
@@ -328,6 +329,89 @@ function manutMobileUsabilidadeCombina(produto = {}) {
   return atual === filtro;
 }
 
+
+function manutMobileTamanhoLabel(produto = {}) {
+  const categoria = manutMobileNormalizar([produto.categoria, produto.tipo, produto.nome, produto.descricao].filter(Boolean).join(" "));
+  const tamanhoOriginal = String(produto.tamanho || produto.medida || "").trim();
+  const tamNorm = manutMobileNormalizar(tamanhoOriginal).replace(/\s+/g, "");
+  if (categoria.includes("ombrelone") || categoria === "omb" || tamNorm.includes("2,40") || tamNorm.includes("2.40") || tamNorm === "240") return "OMB";
+  return tamanhoOriginal || "Sem tamanho";
+}
+
+function manutMobileTamanhoKey(valor) {
+  const txt = String(valor || "").trim();
+  if (!txt) return "";
+  const norm = manutMobileNormalizar(txt).replace(/\s+/g, "");
+  if (norm === "omb" || norm.includes("ombrelone") || norm.includes("2,40") || norm.includes("2.40") || norm === "240") return "omb";
+  return norm.replace(/,/g, ".");
+}
+
+function manutMobileTamanhoOpcoes() {
+  const ordem = ["3x3", "4,5x3", "4x4", "5x5", "6x3", "6x6", "8x8", "10x10", "OMB"];
+  const existentes = new Map();
+  (Array.isArray(produtos) ? produtos : []).forEach(produto => {
+    const label = manutMobileTamanhoLabel(produto);
+    const key = manutMobileTamanhoKey(label);
+    if (key && !existentes.has(key)) existentes.set(key, label === "OMB" ? "OMB" : label);
+  });
+  const usados = new Set();
+  const ordenados = [];
+  ordem.forEach(label => {
+    const key = manutMobileTamanhoKey(label);
+    if (existentes.has(key)) {
+      ordenados.push(label);
+      usados.add(key);
+    }
+  });
+  existentes.forEach((label, key) => {
+    if (!usados.has(key)) ordenados.push(label);
+  });
+  return ordenados;
+}
+
+function manutMobileTamanhoCombina(produto = {}) {
+  const filtro = manutMobileTamanhoKey(manutencaoMobileTamanhoFiltroAtual || "");
+  if (!filtro) return true;
+  return manutMobileTamanhoKey(manutMobileTamanhoLabel(produto)) === filtro;
+}
+
+function manutMobileContarTamanho(tamanhoFiltro) {
+  const key = manutMobileTamanhoKey(tamanhoFiltro || "");
+  return (Array.isArray(produtos) ? produtos : []).filter(produto => {
+    if (!manutMobileStatusCombina(produto, manutencaoMobileFiltroAtual || "pendentes")) return false;
+    if (!manutMobileUsabilidadeCombina(produto)) return false;
+    if (!key) return true;
+    return manutMobileTamanhoKey(manutMobileTamanhoLabel(produto)) === key;
+  }).length;
+}
+
+function manutMobileAtualizarBotaoTamanhoFiltro() {
+  const btn = document.getElementById("manutMobileTamanhoFiltroBtn");
+  if (!btn) return;
+  const valor = manutencaoMobileTamanhoFiltroAtual || "";
+  const strong = btn.querySelector("strong");
+  const span = btn.querySelector("span");
+  if (strong) strong.textContent = manutMobileContarTamanho(valor);
+  if (span) span.textContent = valor || "Tamanho";
+  btn.dataset.manutTamFiltro = valor;
+  btn.classList.toggle("active", !!manutMobileTamanhoKey(valor));
+}
+
+function manutMobileAlternarTamanhoFiltro() {
+  const opcoes = manutMobileTamanhoOpcoes();
+  if (!opcoes.length) {
+    manutencaoMobileTamanhoFiltroAtual = "";
+    manutMobileAtualizarBotaoTamanhoFiltro();
+    renderizarManutencaoMobile();
+    return;
+  }
+  const atualKey = manutMobileTamanhoKey(manutencaoMobileTamanhoFiltroAtual || "");
+  const idx = opcoes.findIndex(op => manutMobileTamanhoKey(op) === atualKey);
+  manutencaoMobileTamanhoFiltroAtual = opcoes[(idx + 1 + opcoes.length) % opcoes.length];
+  manutMobileAtualizarBotaoTamanhoFiltro();
+  renderizarManutencaoMobile();
+}
+
 function manutMobileAtualizarBotaoUsabilidadeFiltro() {
   const btn = document.getElementById("manutMobileUsabilidadeFiltroBtn");
   if (!btn) return;
@@ -454,41 +538,82 @@ function manutMobileProdutoPendente(produto = {}) {
   return ["revisar", "limpar", "consertar", "bloqueada", "bloqueado"].includes(status);
 }
 
+function manutMobileStatusFiltrosCiclo() {
+  return [
+    { valor: "pendentes", label: "Pendentes" },
+    { valor: "Revisar", label: "Revisar" },
+    { valor: "Limpar", label: "Limpar" },
+    { valor: "Consertar", label: "Consertar" },
+    { valor: "Bloqueada", label: "Bloqueados" }
+  ];
+}
+
+function manutMobileStatusLabel(filtroValor) {
+  const alvo = manutMobileNormalizar(filtroValor || "pendentes");
+  const item = manutMobileStatusFiltrosCiclo().find(op => manutMobileNormalizar(op.valor) === alvo);
+  return item ? item.label : "Pendentes";
+}
+
+function manutMobileAtualizarBotaoStatusFiltro() {
+  const btn = document.getElementById("manutMobileStatusFiltroBtn");
+  if (!btn) return;
+  const filtro = manutencaoMobileFiltroAtual || "pendentes";
+  btn.dataset.manutFiltro = filtro;
+  const strong = btn.querySelector("strong");
+  const span = btn.querySelector("span");
+  if (strong) strong.textContent = manutMobileContar(filtro);
+  if (span) span.textContent = manutMobileStatusLabel(filtro);
+  btn.classList.toggle("active", manutMobileNormalizar(filtro) !== "todos");
+  document.querySelectorAll(".manut-mobile-exibir-todos").forEach(b => {
+    b.classList.toggle("active", manutMobileNormalizar(filtro) === "todos");
+  });
+}
+
+function manutMobileAlternarStatusFiltro() {
+  const opcoes = manutMobileStatusFiltrosCiclo();
+  const atual = manutMobileNormalizar(manutencaoMobileFiltroAtual || "pendentes");
+  const idx = opcoes.findIndex(op => manutMobileNormalizar(op.valor) === atual);
+  manutencaoMobileFiltroAtual = opcoes[(idx + 1 + opcoes.length) % opcoes.length].valor;
+  manutMobileAtualizarBotaoStatusFiltro();
+  renderizarManutencaoMobile();
+}
+
+
+function manutMobileStatusCombina(produto = {}, filtroValor = "pendentes") {
+  const filtro = manutMobileNormalizar(filtroValor || "pendentes");
+  if (filtro === "todos") return true;
+  if (!filtro || filtro === "pendentes") return manutMobileProdutoPendente(produto);
+  const status = manutMobileNormalizar(produto.status);
+  if (filtro === "bloqueada") return status === "bloqueada" || status === "bloqueado";
+  return status === filtro;
+}
+
 function manutMobileProdutosFiltrados() {
   const lista = Array.isArray(produtos) ? produtos : [];
   const filtro = manutMobileNormalizar(manutencaoMobileFiltroAtual || "pendentes");
   return lista
     .filter(produto => {
       if (!manutMobileUsabilidadeCombina(produto)) return false;
-      if (filtro === "todos") return true;
-      if (!filtro || filtro === "pendentes") return manutMobileProdutoPendente(produto);
-      const status = manutMobileNormalizar(produto.status);
-      if (filtro === "bloqueada") return status === "bloqueada" || status === "bloqueado";
-      return status === filtro;
+      if (!manutMobileTamanhoCombina(produto)) return false;
+      return manutMobileStatusCombina(produto, filtro);
     })
     .sort((a, b) => String(a.codigo || "").localeCompare(String(b.codigo || ""), "pt-BR", { numeric: true }));
 }
 
 function manutMobileContar(statusEsperado) {
-  const esperado = manutMobileNormalizar(statusEsperado);
   return (Array.isArray(produtos) ? produtos : []).filter(produto => {
-    if (!esperado || esperado === "pendentes") return manutMobileProdutoPendente(produto);
-    if (esperado === "todos") return true;
-    const st = manutMobileNormalizar(produto.status);
-    if (esperado === "bloqueada") return st === "bloqueada" || st === "bloqueado";
-    return st === esperado;
+    if (!manutMobileUsabilidadeCombina(produto)) return false;
+    if (!manutMobileTamanhoCombina(produto)) return false;
+    return manutMobileStatusCombina(produto, statusEsperado);
   }).length;
 }
 
 function renderizarManutencaoMobileResumo() {
   const resumo = document.getElementById("manutencaoMobileResumo");
   if (!resumo) return;
-  resumo.querySelectorAll("[data-manut-filtro]").forEach(btn => {
-    const filtro = btn.dataset.manutFiltro || "";
-    const strong = btn.querySelector("strong");
-    if (strong) strong.textContent = manutMobileContar(filtro);
-  });
+  manutMobileAtualizarBotaoStatusFiltro();
   manutMobileAtualizarBotaoUsabilidadeFiltro();
+  manutMobileAtualizarBotaoTamanhoFiltro();
 }
 
 function renderizarManutencaoMobile() {
@@ -1097,19 +1222,26 @@ function iniciarManutencaoMobile() {
 
   document.querySelectorAll("[data-manut-filtro]").forEach(btn => {
     btn.addEventListener("click", () => {
+      if (btn.id === "manutMobileStatusFiltroBtn") {
+        manutMobileAlternarStatusFiltro();
+        return;
+      }
       manutencaoMobileFiltroAtual = btn.dataset.manutFiltro || "pendentes";
-      document.querySelectorAll("#manutencaoMobileResumo [data-manut-filtro]").forEach(b => {
-        b.classList.toggle("active", (b.dataset.manutFiltro || "pendentes") === manutencaoMobileFiltroAtual);
-      });
-      document.querySelectorAll(".manut-mobile-exibir-todos").forEach(b => {
-        b.classList.toggle("active", manutencaoMobileFiltroAtual === "todos");
-      });
+      if (manutMobileNormalizar(manutencaoMobileFiltroAtual) === "todos") {
+        manutencaoMobileUsabilidadeFiltroAtual = "Todos";
+        manutencaoMobileTamanhoFiltroAtual = "";
+      }
+      manutMobileAtualizarBotaoStatusFiltro();
+      manutMobileAtualizarBotaoUsabilidadeFiltro();
+      manutMobileAtualizarBotaoTamanhoFiltro();
       renderizarManutencaoMobile();
     });
   });
 
   document.getElementById("manutMobileUsabilidadeFiltroBtn")?.addEventListener("click", manutMobileAlternarUsabilidadeFiltro);
+  document.getElementById("manutMobileTamanhoFiltroBtn")?.addEventListener("click", manutMobileAlternarTamanhoFiltro);
   manutMobileAtualizarBotaoUsabilidadeFiltro();
+  manutMobileAtualizarBotaoTamanhoFiltro();
 
   setTimeout(renderizarManutencaoMobile, 900);
   manutMobileIniciarSincronizacaoAutomatica();

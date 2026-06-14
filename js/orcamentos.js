@@ -758,7 +758,13 @@ function rtOrcObterModeloDocumento(){
   try {
     const config = (typeof carregarConfiguracoes === 'function') ? carregarConfiguracoes() : null;
     const padrao = (typeof modelosDocumentosPadrao === 'function') ? modelosDocumentosPadrao() : {};
-    return (config?.modelosDocumentos?.orcamento) || padrao.orcamento || '';
+    const configurado = String(config?.modelosDocumentos?.orcamento || '');
+
+    // Proteção: se o modelo salvo estiver sem placeholders, ele provavelmente foi salvo já preenchido
+    // com dados de um orçamento antigo. Nesse caso, ignorar e usar o padrão dinâmico.
+    if (configurado && /{{\s*[a-zA-Z0-9_]+\s*}}/.test(configurado)) return configurado;
+    if (configurado) console.warn('Modelo de orçamento sem placeholders ignorado para evitar PDF com dados antigos.');
+    return padrao.orcamento || '';
   } catch(e) {
     try { return (typeof modelosDocumentosPadrao === 'function' ? modelosDocumentosPadrao().orcamento : '') || ''; } catch(_) { return ''; }
   }
