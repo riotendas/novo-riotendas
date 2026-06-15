@@ -230,7 +230,7 @@
               <th>E-mail</th>
               <th>Perfil</th>
               <th>Endereço</th>
-              <th>Colaborador</th>
+              <th>Colab.</th>
               <th>Ações</th>
             </tr>
           </thead>
@@ -255,6 +255,13 @@
         <label class="eventos-data-filtro">Data
           <input id="filtroEventoData" type="date">
         </label>
+        <div class="eventos-nav-data" aria-label="Navegação rápida de eventos">
+          <button type="button" id="eventosNavMesAnterior" class="btn-outline btn-nav-eventos" title="Mês anterior">≪</button>
+          <button type="button" id="eventosNavDiaAnterior" class="btn-outline btn-nav-eventos" title="Dia anterior">‹</button>
+          <button type="button" id="eventosNavHoje" class="btn-outline btn-nav-eventos hoje" title="Hoje">Hoje</button>
+          <button type="button" id="eventosNavDiaPosterior" class="btn-outline btn-nav-eventos" title="Próximo dia">›</button>
+          <button type="button" id="eventosNavMesPosterior" class="btn-outline btn-nav-eventos" title="Próximo mês">≫</button>
+        </div>
         <label class="eventos-pagamento-filtro">Pagamento
           <select id="filtroEventoPagamento">
             <option value="">Todos</option>
@@ -270,7 +277,7 @@
           <select id="eventosItensPorPagina">
             <option value="10">10 eventos</option>
             <option value="15">15 eventos</option>
-            <option value="25">25 eventos</option>
+            <option value="20">20 eventos</option>
             <option value="50">50 eventos</option>
             <option value="100">100 eventos</option>
             <option value="todos">Todos</option>
@@ -289,7 +296,7 @@
       <div class="eventos-table-scroll table-wrapper">
         <table>
           <colgroup>
-            <col style="width:7%"><col style="width:9%"><col style="width:14%"><col style="width:8%"><col style="width:16%"><col style="width:16%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:6.2%"><col class="col-assinatura" style="width:32px"><col style="width:6.2%"><col style="width:7%">
+            <col style="width:7%"><col style="width:9%"><col style="width:15%"><col style="width:8%"><col style="width:16%"><col style="width:16%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col class="col-assinatura" style="width:28px"><col style="width:5%"><col style="width:6%">
           </colgroup>
           <thead>
             <tr>
@@ -305,7 +312,7 @@
               <th>Restante</th>
               <th>Pagamento</th>
               <th class="col-assinatura" title="Assinatura do contrato">●</th>
-              <th>Colaborador</th>
+              <th>Colab.</th>
               <th>Ações</th>
             </tr>
           </thead>
@@ -327,6 +334,15 @@
             <h3>Eventos recorrentes</h3>
             <p>Eventos gerados por recorrência, separados da listagem normal.</p>
           </div>
+          <label class="eventos-mostrar-filtro recorrentes-mostrar-filtro">Mostrar
+            <select id="eventosRecorrentesItensPorPagina">
+              <option value="10">10</option>
+              <option value="15">15</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="todos">Todos</option>
+            </select>
+          </label>
         </div>
 
         <div class="table-wrapper recurring-table-wrapper">
@@ -343,7 +359,7 @@
                 <th>Total</th>
                 <th>Pagamento</th>
                 <th class="col-assinatura" title="Assinatura do contrato">●</th>
-                <th>Colaborador</th>
+                <th>Colab.</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -952,7 +968,7 @@
                   <th>Tamanho</th>
                   <th>Cor</th>
                   <th>Última checagem</th>
-                  <th>Colaborador</th>
+                  <th>Colab.</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -1024,6 +1040,10 @@
         <button type="button" class="config-link-item" data-config-modal="preferencias">
           <strong>Preferências do aplicativo</strong>
           <span>Personalização visual e ajustes operacionais.</span>
+        </button>
+        <button type="button" class="config-link-item" data-config-modal="whatsapp">
+          <strong>WhatsApp</strong>
+          <span>Editar, criar e remover modelos de mensagens usadas no botão 💬 dos eventos.</span>
         </button>
         <button type="button" class="config-link-item" data-config-modal="logs">
           <strong>Log do Sistema</strong>
@@ -1207,6 +1227,39 @@
               </div>
               <small>As alterações ficam salvas nas configurações do sistema. Depois, os botões Guia, Contrato, Recibo e Orçamento usam estes modelos automaticamente.</small>
             </section>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="configModalWhatsapp" class="modal large-modal config-popup config-popup-whatsapp">
+        <div class="modal-header"><div><h2>Modelos de WhatsApp</h2><p>Edite os textos usados nos botões 💬 de eventos e orçamentos. Use variáveis entre chaves.</p></div><button type="button" class="modal-close" data-close-config="configModalWhatsapp">×</button></div>
+        <div class="config-popup-body">
+          <div class="config-card whatsapp-vars-box">
+            <strong>Variáveis disponíveis:</strong>
+            <div class="whatsapp-vars-list">
+              <code>{CLIENTE}</code><code>{PRIMEIRO_NOME}</code><code>{DATA}</code><code>{MONTAGEM}</code><code>{RETIRADA}</code><code>{ENDERECO}</code><code>{PRODUTOS}</code><code>{TOTAL}</code><code>{SINAL}</code><code>{RESTANTE}</code><code>{PIX}</code><code>{EMPRESA}</code>
+            </div>
+          </div>
+          <div class="config-inline-form whatsapp-modelo-form">
+            <input id="whatsappModeloTitulo" type="text" placeholder="Nome do modelo. Ex.: Estamos chegando">
+            <input id="whatsappModeloIcone" type="text" placeholder="Ícone" maxlength="3">
+            <select id="whatsappModeloTipoBase">
+              <option value="personalizado">Personalizado</option>
+              <option value="orcamento">Orçamento</option>
+              <option value="confirmar">Confirmar reserva</option>
+              <option value="montagem">Previsão de montagem</option>
+              <option value="chegando">Estamos a caminho</option>
+              <option value="entregue">Material entregue</option>
+              <option value="retirada">Previsão de retirada</option>
+              <option value="recolhido">Material recolhido</option>
+              <option value="cobrar">Cobrar restante</option>
+            </select>
+            <button id="adicionarWhatsappModeloConfig" type="button">Adicionar modelo</button>
+          </div>
+          <div id="listaWhatsappModelosConfig" class="config-list whatsapp-modelos-list"></div>
+          <div class="config-actions">
+            <button id="salvarWhatsappModelosConfig" type="button">Salvar modelos</button>
+            <button id="restaurarWhatsappModelosConfig" type="button" class="btn-outline">Restaurar padrão</button>
           </div>
         </div>
       </dialog>
@@ -1573,9 +1626,9 @@
             <textarea id="eventoFormaPagamento" rows="2" placeholder="Ex: Pix, dinheiro, cartão..."></textarea>
           </label>
           <div class="finance-check-stack">
-            <label class="checkbox-line finance-paid-compact finance-inloco-compact" title="Cliente pagará o valor total no local. Confirma a reserva, mas não quita o pagamento.">
+            <label class="checkbox-line finance-paid-compact finance-inloco-compact" title="Cliente pagará no local ou será faturado. Confirma a reserva, mas não quita o pagamento.">
               <input id="eventoPagarInloco" type="checkbox">
-              <span>Pagar in loco</span>
+              <span>In loco / Faturado</span>
             </label>
             <label class="checkbox-line finance-paid-compact">
               <input id="eventoPagamentoQuitado" type="checkbox">
@@ -1969,6 +2022,7 @@
       <div class="modal-actions evento-modal-actions" style="display:flex;justify-content:space-between;gap:10px;align-items:center;">
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button type="button" class="btn-outline" id="gerarPdfOrcamento">Gerar PDF</button>
+          <button type="button" class="btn-outline" id="enviarWhatsappOrcamento">💬 WhatsApp</button>
           <button type="button" class="btn-outline" id="aprovarOrcamentoBtn" style="display:none;">Aprovar e virar evento</button>
         </div>
         <div style="display:flex;gap:8px;">
@@ -2054,6 +2108,7 @@
   <script src="js/sync-produtos-disponibilidade.js"></script>
   <script src="js/rt-realtime-sync.js"></script>
   <script src="js/performance-safe.js"></script>
+  <script src="js/whatsapp-orcamentos-ajuste.js"></script>
 
   <dialog id="previewImportarEventosDialog" class="modal large-modal import-preview-dialog">
     <div class="modal-header">

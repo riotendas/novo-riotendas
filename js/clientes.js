@@ -69,6 +69,19 @@ function iniciarClientes() {
   document.getElementById("cancelarCliente").addEventListener("click", fecharClienteModal);
   ["clienteNome", "clienteTelefone"].forEach(id => document.getElementById(id)?.addEventListener("input", () => atualizarWhatsappClienteForm()));
   document.getElementById("clienteForm").addEventListener("submit", salvarClienteForm);
+  const clienteDialogEnter = document.getElementById("clienteDialog");
+  if (clienteDialogEnter && !clienteDialogEnter.dataset.enterSalvarFechar) {
+    clienteDialogEnter.dataset.enterSalvarFechar = "1";
+    clienteDialogEnter.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Enter") return;
+      const ativo = document.activeElement;
+      const tag = (ativo?.tagName || "").toUpperCase();
+      const editandoCampo = ["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(tag) || ativo?.isContentEditable;
+      if (editandoCampo) return;
+      ev.preventDefault();
+      document.getElementById("clienteForm")?.requestSubmit();
+    });
+  }
   document.getElementById("fecharClienteDetalheModal").addEventListener("click", () => document.getElementById("clienteDetalheDialog").close());
 
   ["buscaCliente", "filtroClienteNome", "filtroClienteDocumento", "filtroClienteTelefone", "filtroClienteEndereco"].forEach(id => {

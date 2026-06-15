@@ -128,6 +128,19 @@ function modelosDocumentosPadrao() {
   };
 }
 
+function modelosWhatsappPadrao() {
+  return [
+    { id: "orcamento", tipo: "orcamento", icone: "📋", titulo: "Orçamento", ativo: true, texto: "Olá, {PRIMEIRO_NOME}! Tudo bem?\n\nSegue o orçamento solicitado pela {EMPRESA}.\n\nQualquer dúvida, fico à disposição." },
+    { id: "confirmar", tipo: "confirmar", icone: "✅", titulo: "Confirmar reserva", ativo: true, texto: "Olá, {PRIMEIRO_NOME}! Aqui é da {EMPRESA}. Passando para confirmar a reserva do seu evento em {DATA}.\n\nItens:\n{PRODUTOS}\n\nEndereço:\n{ENDERECO}\n\nQualquer ajuste, pode nos avisar por aqui." },
+    { id: "montagem", tipo: "montagem", icone: "🚚", titulo: "Previsão de montagem", ativo: true, texto: "Olá, {PRIMEIRO_NOME}! Aqui é da {EMPRESA}. Sua montagem está programada para {MONTAGEM}.\n\nEndereço:\n{ENDERECO}\n\nItens:\n{PRODUTOS}\n\nQualquer ajuste avisamos por aqui." },
+    { id: "chegando", tipo: "chegando", icone: "📍", titulo: "Estamos a caminho", ativo: true, texto: "Olá, {PRIMEIRO_NOME}! Aqui é da {EMPRESA}. Nossa equipe já está a caminho.\n\nEndereço:\n{ENDERECO}\n\nQualquer dúvida, pode responder por aqui." },
+    { id: "entregue", tipo: "entregue", icone: "⛺", titulo: "Material entregue", ativo: true, texto: "Olá, {PRIMEIRO_NOME}! Aqui é da {EMPRESA}. Passando para avisar que o material do seu evento foi entregue/montado.\n\nMuito obrigado pela preferência!" },
+    { id: "retirada", tipo: "retirada", icone: "🕒", titulo: "Previsão de retirada", ativo: true, texto: "Olá, {PRIMEIRO_NOME}! Aqui é da {EMPRESA}. A retirada do material está programada para {RETIRADA}.\n\nEndereço:\n{ENDERECO}\n\nQualquer ajuste avisamos por aqui." },
+    { id: "recolhido", tipo: "recolhido", icone: "📦", titulo: "Material recolhido", ativo: true, texto: "Olá, {PRIMEIRO_NOME}! Aqui é da {EMPRESA}. Passando para avisar que o material do seu evento foi recolhido.\n\nMuito obrigado pela preferência!" },
+    { id: "cobrar", tipo: "cobrar", icone: "💰", titulo: "Cobrar restante", ativo: true, somenteComRestante: true, texto: "Olá, {PRIMEIRO_NOME}! Aqui é da {EMPRESA}. Consta um valor restante de {RESTANTE} referente ao evento de {DATA}.\n\nPode nos enviar o comprovante por aqui quando realizar o pagamento. Obrigado!" },
+    { id: "conversa", tipo: "conversa", icone: "📞", titulo: "Conversa livre", ativo: true, texto: "Olá, {PRIMEIRO_NOME}! Aqui é da {EMPRESA}." }
+  ];
+}
 
 function configPadrao() {
   return {
@@ -200,7 +213,8 @@ function configPadrao() {
         Caminhão: 40
       }
     },
-    modelosDocumentos: modelosDocumentosPadrao()
+    modelosDocumentos: modelosDocumentosPadrao(),
+    modelosWhatsapp: modelosWhatsappPadrao()
   };
 }
 
@@ -212,6 +226,7 @@ function rtMesclarConfigPadrao(configSalva = null) {
   mesclada.pix = { ...(padrao.pix || {}), ...(salva.pix || {}) };
   mesclada.horarioComercial = { ...(padrao.horarioComercial || {}), ...(salva.horarioComercial || {}) };
   mesclada.modelosDocumentos = { ...(padrao.modelosDocumentos || {}), ...(salva.modelosDocumentos || {}) };
+  mesclada.modelosWhatsapp = Array.isArray(salva.modelosWhatsapp) ? salva.modelosWhatsapp : (padrao.modelosWhatsapp || []);
   mesclada.cargaOperacional = {
     ...(padrao.cargaOperacional || {}),
     ...(salva.cargaOperacional || {}),
@@ -405,6 +420,7 @@ function iniciarConfiguracoes() {
     renderizarCoresConfig();
     renderizarFotosPadraoConfig();
     renderizarCargaOperacionalConfig();
+    renderizarWhatsappModelosConfig();
   });
   preencherPreferenciasConfig();
   renderizarCarrosConfig();
@@ -414,6 +430,7 @@ function iniciarConfiguracoes() {
   preencherSelectsFotoPadrao();
   renderizarFotosPadraoConfig();
   renderizarCargaOperacionalConfig();
+  renderizarWhatsappModelosConfig();
   iniciarModelosDocumentosConfig();
 
   iniciarPopupsConfiguracoes();
@@ -443,6 +460,9 @@ function iniciarConfiguracoes() {
   aoClicar("adicionarCarroConfig", adicionarCarroConfig);
   aoClicar("adicionarCategoriaConfig", adicionarCategoriaConfig);
   aoClicar("adicionarCorConfig", adicionarCorConfig);
+  aoClicar("adicionarWhatsappModeloConfig", adicionarWhatsappModeloConfig);
+  aoClicar("salvarWhatsappModelosConfig", salvarWhatsappModelosConfig);
+  aoClicar("restaurarWhatsappModelosConfig", restaurarWhatsappModelosConfig);
   const categoriaFotoPadrao = document.getElementById("fotoPadraoCategoria");
   if (categoriaFotoPadrao) categoriaFotoPadrao.addEventListener("change", preencherTamanhosFotoPadrao);
 
@@ -465,6 +485,7 @@ function iniciarPopupsConfiguracoes() {
     cores: "configModalCores",
     fotos: "configModalFotos",
     documentos: "configModalDocumentos",
+    whatsapp: "configModalWhatsapp",
     preferencias: "configModalPreferencias",
     carga: "configModalCarga",
     logs: "configModalLogs",
@@ -488,6 +509,9 @@ function iniciarPopupsConfiguracoes() {
       if (btn.dataset.configModal === "documentos") {
         iniciarModelosDocumentosConfig();
       }
+      if (btn.dataset.configModal === "whatsapp") {
+        renderizarWhatsappModelosConfig();
+      }
       if (btn.dataset.configModal === "logs" && typeof montarPainelLogsSistema === "function") {
         montarPainelLogsSistema();
         setTimeout(() => { if (typeof renderizarLogsSistema === "function") renderizarLogsSistema(); }, 50);
@@ -509,6 +533,91 @@ function iniciarPopupsConfiguracoes() {
 
 }
 
+
+
+function normalizarModelosWhatsapp(lista) {
+  const base = modelosWhatsappPadrao();
+  const normalizados = (Array.isArray(lista) && lista.length ? lista : base).map((m, idx) => ({
+    id: String(m.id || m.tipo || ("modelo_" + Date.now() + "_" + idx)),
+    tipo: String(m.tipo || "personalizado"),
+    icone: String(m.icone || "💬"),
+    titulo: String(m.titulo || "Mensagem"),
+    texto: String(m.texto || ""),
+    ativo: m.ativo !== false,
+    somenteComRestante: !!m.somenteComRestante
+  }));
+  base.forEach(b => {
+    if (!normalizados.some(m => m.tipo === b.tipo || m.id === b.id)) normalizados.push({ ...b });
+  });
+  return normalizados;
+}
+
+function renderizarWhatsappModelosConfig() {
+  const lista = document.getElementById("listaWhatsappModelosConfig");
+  if (!lista) return;
+  const config = carregarConfiguracoes();
+  const modelos = normalizarModelosWhatsapp(config.modelosWhatsapp);
+  lista.innerHTML = modelos.map((m, i) => `
+    <div class="whatsapp-modelo-item" data-index="${i}">
+      <div class="whatsapp-modelo-head">
+        <input class="wa-modelo-icone" value="${escapeHtml(m.icone || "💬")}" maxlength="3" title="Ícone">
+        <input class="wa-modelo-titulo" value="${escapeHtml(m.titulo || "")}" placeholder="Título">
+        <select class="wa-modelo-tipo">
+          ${["personalizado","orcamento","confirmar","montagem","chegando","entregue","retirada","recolhido","cobrar","conversa"].map(t => `<option value="${t}" ${m.tipo===t?'selected':''}>${t}</option>`).join("")}
+        </select>
+        <label class="inline-check"><input type="checkbox" class="wa-modelo-ativo" ${m.ativo !== false ? 'checked' : ''}> ativo</label>
+        <button type="button" class="btn-outline btn-mini wa-modelo-remover">Remover</button>
+      </div>
+      <textarea class="wa-modelo-texto" placeholder="Texto da mensagem">${escapeHtml(m.texto || "")}</textarea>
+      <label class="inline-check"><input type="checkbox" class="wa-modelo-restante" ${m.somenteComRestante ? 'checked' : ''}> mostrar somente quando houver restante</label>
+    </div>
+  `).join("");
+  lista.querySelectorAll(".wa-modelo-remover").forEach(btn => {
+    btn.addEventListener("click", () => {
+      btn.closest(".whatsapp-modelo-item")?.remove();
+    });
+  });
+}
+
+function coletarWhatsappModelosConfig() {
+  return Array.from(document.querySelectorAll("#listaWhatsappModelosConfig .whatsapp-modelo-item")).map((item, idx) => ({
+    id: item.dataset.id || (item.querySelector(".wa-modelo-tipo")?.value || "modelo") + "_" + idx + "_" + Date.now(),
+    tipo: item.querySelector(".wa-modelo-tipo")?.value || "personalizado",
+    icone: item.querySelector(".wa-modelo-icone")?.value || "💬",
+    titulo: item.querySelector(".wa-modelo-titulo")?.value || "Mensagem",
+    texto: item.querySelector(".wa-modelo-texto")?.value || "",
+    ativo: !!item.querySelector(".wa-modelo-ativo")?.checked,
+    somenteComRestante: !!item.querySelector(".wa-modelo-restante")?.checked
+  })).filter(m => m.titulo.trim() || m.texto.trim());
+}
+
+function adicionarWhatsappModeloConfig() {
+  const config = carregarConfiguracoes();
+  const modelos = coletarWhatsappModelosConfig();
+  const tipo = document.getElementById("whatsappModeloTipoBase")?.value || "personalizado";
+  const titulo = document.getElementById("whatsappModeloTitulo")?.value.trim() || (tipo === "personalizado" ? "Nova mensagem" : tipo);
+  const icone = document.getElementById("whatsappModeloIcone")?.value.trim() || "💬";
+  const base = modelosWhatsappPadrao().find(m => m.tipo === tipo);
+  modelos.push({ id: tipo + "_" + Date.now(), tipo, icone: icone || base?.icone || "💬", titulo, ativo: true, somenteComRestante: tipo === "cobrar", texto: base?.texto || "Olá, {PRIMEIRO_NOME}! Aqui é da {EMPRESA}." });
+  config.modelosWhatsapp = modelos;
+  salvarConfiguracoes(config);
+  renderizarWhatsappModelosConfig();
+}
+
+async function salvarWhatsappModelosConfig() {
+  const config = carregarConfiguracoes();
+  config.modelosWhatsapp = coletarWhatsappModelosConfig();
+  await salvarConfiguracoes(config);
+  alert("Modelos de WhatsApp salvos.");
+}
+
+async function restaurarWhatsappModelosConfig() {
+  if (!confirm("Restaurar os modelos padrão de WhatsApp?")) return;
+  const config = carregarConfiguracoes();
+  config.modelosWhatsapp = modelosWhatsappPadrao();
+  await salvarConfiguracoes(config);
+  renderizarWhatsappModelosConfig();
+}
 
 
 function manutencaoAdminEhPermitida() {
@@ -3715,3 +3824,237 @@ if (document.readyState === "loading") {
 } else {
   configurarCamposNovoMaterialApoio();
 }
+
+// v19-dev-whatsapp-config-botoes-fix: garante funcionamento dos botões do popup WhatsApp
+(function(){
+  if (window.__RT_WHATSAPP_CONFIG_FIX__) return;
+  window.__RT_WHATSAPP_CONFIG_FIX__ = true;
+
+  function rtWaEnsureFunctions(){
+    if (typeof window.modelosWhatsappPadrao !== 'function' && typeof modelosWhatsappPadrao === 'function') window.modelosWhatsappPadrao = modelosWhatsappPadrao;
+    if (typeof window.carregarConfiguracoes !== 'function' && typeof carregarConfiguracoes === 'function') window.carregarConfiguracoes = carregarConfiguracoes;
+    if (typeof window.salvarConfiguracoes !== 'function' && typeof salvarConfiguracoes === 'function') window.salvarConfiguracoes = salvarConfiguracoes;
+  }
+
+  function rtWaModelosPadraoSeguro(){
+    rtWaEnsureFunctions();
+    if (typeof modelosWhatsappPadrao === 'function') return modelosWhatsappPadrao();
+    return [
+      { id:'confirmar', tipo:'confirmar', icone:'✅', titulo:'Confirmar reserva', ativo:true, texto:'Olá, {PRIMEIRO_NOME}! Sua reserva com a {EMPRESA} está confirmada.\n\nData: {DATA}\nLocal: {ENDERECO}\n\nItens:\n{PRODUTOS}' },
+      { id:'montagem', tipo:'montagem', icone:'🚚', titulo:'Previsão de montagem', ativo:true, texto:'Olá, {PRIMEIRO_NOME}! A montagem do seu evento está programada para {MONTAGEM}.\n\nLocal: {ENDERECO}\n\nEquipe {EMPRESA}' },
+      { id:'chegando', tipo:'chegando', icone:'📍', titulo:'Estamos a caminho', ativo:true, texto:'Olá, {PRIMEIRO_NOME}! Nossa equipe está a caminho do local do evento.\n\nEquipe {EMPRESA}' },
+      { id:'entregue', tipo:'entregue', icone:'⛺', titulo:'Material entregue', ativo:true, texto:'Olá, {PRIMEIRO_NOME}! O material do seu evento foi entregue/montado.\n\nObrigado pela confiança.\nEquipe {EMPRESA}' },
+      { id:'retirada', tipo:'retirada', icone:'🕒', titulo:'Previsão de retirada', ativo:true, texto:'Olá, {PRIMEIRO_NOME}! A retirada do material está programada para {RETIRADA}.\n\nEquipe {EMPRESA}' },
+      { id:'recolhido', tipo:'recolhido', icone:'📦', titulo:'Material recolhido', ativo:true, texto:'Olá, {PRIMEIRO_NOME}! O material do seu evento foi recolhido.\n\nObrigado pela preferência.\nEquipe {EMPRESA}' },
+      { id:'cobrar', tipo:'cobrar', icone:'💰', titulo:'Cobrar restante', ativo:true, somenteComRestante:true, texto:'Olá, {PRIMEIRO_NOME}! Identificamos um saldo restante de {RESTANTE} referente ao seu evento de {DATA}.\n\nPIX: {PIX}\n\nEquipe {EMPRESA}' },
+      { id:'conversa', tipo:'conversa', icone:'📞', titulo:'Conversa livre', ativo:true, texto:'Olá, {PRIMEIRO_NOME}! Tudo bem? Aqui é da {EMPRESA}.' }
+    ];
+  }
+
+  function rtWaNormalizar(lista){
+    const base = rtWaModelosPadraoSeguro();
+    const arr = Array.isArray(lista) && lista.length ? lista : base;
+    return arr.map((m, idx) => ({
+      id: String(m.id || m.tipo || ('modelo_' + idx + '_' + Date.now())),
+      tipo: String(m.tipo || 'personalizado'),
+      icone: String(m.icone || '💬'),
+      titulo: String(m.titulo || 'Mensagem'),
+      texto: String(m.texto || ''),
+      ativo: m.ativo !== false,
+      somenteComRestante: !!m.somenteComRestante
+    }));
+  }
+
+  function rtWaEscape(txt){
+    if (typeof escapeHtml === 'function') return escapeHtml(txt);
+    return String(txt ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
+  }
+
+  window.rtRenderizarWhatsappModelosConfigSeguro = function(){
+    const listaEl = document.getElementById('listaWhatsappModelosConfig');
+    if (!listaEl) return;
+    rtWaEnsureFunctions();
+    const config = (typeof carregarConfiguracoes === 'function') ? carregarConfiguracoes() : {};
+    const modelos = rtWaNormalizar(config.modelosWhatsapp);
+    const tipos = ['personalizado','confirmar','montagem','chegando','entregue','retirada','recolhido','cobrar','conversa'];
+    listaEl.innerHTML = modelos.map((m, i) => `
+      <div class="whatsapp-modelo-item" data-id="${rtWaEscape(m.id)}" data-index="${i}">
+        <div class="whatsapp-modelo-head">
+          <input class="wa-modelo-icone" value="${rtWaEscape(m.icone)}" maxlength="3" title="Ícone">
+          <input class="wa-modelo-titulo" value="${rtWaEscape(m.titulo)}" placeholder="Título">
+          <select class="wa-modelo-tipo">${tipos.map(t => `<option value="${t}" ${m.tipo===t?'selected':''}>${t}</option>`).join('')}</select>
+          <label class="inline-check"><input type="checkbox" class="wa-modelo-ativo" ${m.ativo !== false ? 'checked' : ''}> ativo</label>
+          <button type="button" class="btn-outline btn-mini wa-modelo-remover">Remover</button>
+        </div>
+        <textarea class="wa-modelo-texto" placeholder="Texto da mensagem">${rtWaEscape(m.texto)}</textarea>
+        <label class="inline-check"><input type="checkbox" class="wa-modelo-restante" ${m.somenteComRestante ? 'checked' : ''}> mostrar somente quando houver restante</label>
+      </div>
+    `).join('');
+  };
+
+  function rtWaColetar(){
+    return Array.from(document.querySelectorAll('#listaWhatsappModelosConfig .whatsapp-modelo-item')).map((item, idx) => ({
+      id: item.dataset.id || ((item.querySelector('.wa-modelo-tipo')?.value || 'modelo') + '_' + idx + '_' + Date.now()),
+      tipo: item.querySelector('.wa-modelo-tipo')?.value || 'personalizado',
+      icone: item.querySelector('.wa-modelo-icone')?.value || '💬',
+      titulo: item.querySelector('.wa-modelo-titulo')?.value || 'Mensagem',
+      texto: item.querySelector('.wa-modelo-texto')?.value || '',
+      ativo: !!item.querySelector('.wa-modelo-ativo')?.checked,
+      somenteComRestante: !!item.querySelector('.wa-modelo-restante')?.checked
+    })).filter(m => String(m.titulo || '').trim() || String(m.texto || '').trim());
+  }
+
+  async function rtWaSalvar(){
+    rtWaEnsureFunctions();
+    const config = (typeof carregarConfiguracoes === 'function') ? carregarConfiguracoes() : {};
+    config.modelosWhatsapp = rtWaColetar();
+    if (typeof salvarConfiguracoes === 'function') await salvarConfiguracoes(config);
+    try { localStorage.setItem('riotendas_configuracoes', JSON.stringify(config)); } catch(e) {}
+    alert('Modelos de WhatsApp salvos.');
+  }
+
+  async function rtWaRestaurar(){
+    if (!confirm('Restaurar os modelos padrão de WhatsApp?')) return;
+    rtWaEnsureFunctions();
+    const config = (typeof carregarConfiguracoes === 'function') ? carregarConfiguracoes() : {};
+    config.modelosWhatsapp = rtWaModelosPadraoSeguro();
+    if (typeof salvarConfiguracoes === 'function') await salvarConfiguracoes(config);
+    try { localStorage.setItem('riotendas_configuracoes', JSON.stringify(config)); } catch(e) {}
+    window.rtRenderizarWhatsappModelosConfigSeguro();
+  }
+
+  async function rtWaAdicionar(){
+    rtWaEnsureFunctions();
+    const config = (typeof carregarConfiguracoes === 'function') ? carregarConfiguracoes() : {};
+    const modelos = rtWaColetar();
+    const tipo = document.getElementById('whatsappModeloTipoBase')?.value || 'personalizado';
+    const base = rtWaModelosPadraoSeguro().find(m => m.tipo === tipo) || {};
+    const tituloInput = document.getElementById('whatsappModeloTitulo');
+    const iconeInput = document.getElementById('whatsappModeloIcone');
+    const titulo = tituloInput?.value.trim() || base.titulo || (tipo === 'personalizado' ? 'Nova mensagem' : tipo);
+    const icone = iconeInput?.value.trim() || base.icone || '💬';
+    modelos.push({
+      id: tipo + '_' + Date.now(), tipo, icone, titulo, ativo: true,
+      somenteComRestante: tipo === 'cobrar',
+      texto: base.texto || 'Olá, {PRIMEIRO_NOME}! Aqui é da {EMPRESA}.'
+    });
+    config.modelosWhatsapp = modelos;
+    if (typeof salvarConfiguracoes === 'function') await salvarConfiguracoes(config);
+    try { localStorage.setItem('riotendas_configuracoes', JSON.stringify(config)); } catch(e) {}
+    if (tituloInput) tituloInput.value = '';
+    if (iconeInput) iconeInput.value = '';
+    window.rtRenderizarWhatsappModelosConfigSeguro();
+  }
+
+  document.addEventListener('click', function(ev){
+    const abrir = ev.target.closest('[data-config-modal="whatsapp"]');
+    if (abrir) {
+      setTimeout(window.rtRenderizarWhatsappModelosConfigSeguro, 30);
+      const modal = document.getElementById('configModalWhatsapp');
+      if (modal && !modal.open && typeof modal.showModal === 'function') modal.showModal();
+      ev.preventDefault();
+      return;
+    }
+    if (ev.target.closest('#adicionarWhatsappModeloConfig')) { ev.preventDefault(); rtWaAdicionar(); return; }
+    if (ev.target.closest('#salvarWhatsappModelosConfig')) { ev.preventDefault(); rtWaSalvar(); return; }
+    if (ev.target.closest('#restaurarWhatsappModelosConfig')) { ev.preventDefault(); rtWaRestaurar(); return; }
+    const remover = ev.target.closest('#listaWhatsappModelosConfig .wa-modelo-remover');
+    if (remover) { ev.preventDefault(); remover.closest('.whatsapp-modelo-item')?.remove(); return; }
+  }, true);
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(window.rtRenderizarWhatsappModelosConfigSeguro, 120);
+  });
+})();
+
+// v19-dev-config-modal-delegado-fix: reforça abertura/fechamento dos popups de Configurações
+// Corrige casos em que os cards/botões de Configurações param de abrir depois da inclusão do WhatsApp.
+(function(){
+  if (window.__RT_CONFIG_MODAL_DELEGADO_FIX__) return;
+  window.__RT_CONFIG_MODAL_DELEGADO_FIX__ = true;
+
+  const RT_CONFIG_MODAL_MAP = {
+    usuarios: 'configModalUsuarios',
+    produtos: 'configModalProdutos',
+    materiais: 'configModalMateriais',
+    eventos: 'configModalEventos',
+    carros: 'configModalCarros',
+    cores: 'configModalCores',
+    fotos: 'configModalFotos',
+    documentos: 'configModalDocumentos',
+    whatsapp: 'configModalWhatsapp',
+    preferencias: 'configModalPreferencias',
+    carga: 'configModalCarga',
+    logs: 'configModalLogs',
+    manutencao: 'configModalManutencao'
+  };
+
+  function rtChamar(nome){
+    try { if (typeof window[nome] === 'function') window[nome](); } catch(e){ console.warn('[Config fix]', nome, e); }
+  }
+
+  function rtPrepararConfigModal(tipo){
+    if (tipo === 'usuarios') {
+      rtChamar('garantirUsuariosDentroConfiguracoes');
+      setTimeout(() => rtChamar('renderizarUsuariosSistemaConfig'), 30);
+    }
+    if (tipo === 'materiais' || tipo === 'produtos') {
+      rtChamar('renderizarMateriaisApoioConfig');
+      rtChamar('renderizarCoresConfig');
+      rtChamar('preencherSelectsFotoPadrao');
+      rtChamar('renderizarFotosPadraoConfig');
+    }
+    if (tipo === 'documentos') rtChamar('iniciarModelosDocumentosConfig');
+    if (tipo === 'whatsapp') {
+      if (typeof window.rtRenderizarWhatsappModelosConfigSeguro === 'function') window.rtRenderizarWhatsappModelosConfigSeguro();
+      else rtChamar('renderizarWhatsappModelosConfig');
+    }
+    if (tipo === 'logs') {
+      rtChamar('montarPainelLogsSistema');
+      setTimeout(() => rtChamar('renderizarLogsSistema'), 30);
+    }
+    if (tipo === 'manutencao') {
+      try {
+        if (typeof window.usuarioEhAdministrador === 'function' && !window.usuarioEhAdministrador()) {
+          alert('Acesso restrito ao administrador.');
+          return false;
+        }
+      } catch(e) {}
+      rtChamar('atualizarResumoManutencaoAdmin');
+    }
+    return true;
+  }
+
+  function rtAbrirConfigModal(tipo){
+    const id = RT_CONFIG_MODAL_MAP[tipo];
+    const modal = id ? document.getElementById(id) : null;
+    if (!modal) return;
+    if (rtPrepararConfigModal(tipo) === false) return;
+    try {
+      if (typeof modal.showModal === 'function') {
+        if (!modal.open) modal.showModal();
+      } else {
+        modal.setAttribute('open', 'open');
+      }
+    } catch(e) {
+      console.warn('[Config fix] Falha ao abrir modal:', tipo, e);
+    }
+  }
+
+  document.addEventListener('click', function(ev){
+    const configBtn = ev.target.closest && ev.target.closest('[data-config-modal]');
+    if (configBtn) {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      rtAbrirConfigModal(configBtn.dataset.configModal);
+      return;
+    }
+    const closeBtn = ev.target.closest && ev.target.closest('[data-close-config]');
+    if (closeBtn) {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      const modal = document.getElementById(closeBtn.dataset.closeConfig);
+      try { if (modal?.close) modal.close(); else modal?.removeAttribute('open'); } catch(e) {}
+    }
+  }, true);
+})();

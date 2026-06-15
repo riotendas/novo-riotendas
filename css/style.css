@@ -18593,3 +18593,153 @@ tr.evento-cancelado .product-list-button {
     padding:0 3px !important;
   }
 }
+
+/* v19-dev: modelos editáveis do WhatsApp */
+.config-popup-whatsapp .whatsapp-vars-box{margin-bottom:12px}
+.whatsapp-vars-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.whatsapp-vars-list code{background:#f3f6fb;border:1px solid #d7e3f4;border-radius:8px;padding:4px 7px;font-size:12px;color:#0f4c81}
+.whatsapp-modelo-form{display:grid;grid-template-columns:1.4fr 70px 1fr auto;gap:8px;align-items:center;margin-bottom:12px}
+.whatsapp-modelos-list{display:flex;flex-direction:column;gap:10px}
+.whatsapp-modelo-item{border:1px solid #d7e3f4;border-radius:12px;padding:10px;background:#fff}
+.whatsapp-modelo-head{display:grid;grid-template-columns:60px 1.2fr 1fr auto auto;gap:8px;align-items:center;margin-bottom:8px}
+.whatsapp-modelo-item textarea{width:100%;min-height:105px;resize:vertical;font-size:13px;line-height:1.35}
+.whatsapp-modelo-item .btn-mini{height:34px;padding:0 10px;font-size:13px}
+@media(max-width:760px){.whatsapp-modelo-form,.whatsapp-modelo-head{grid-template-columns:1fr}.whatsapp-modelo-head .btn-mini{width:100%}}
+
+
+/* v19-dev: orçamento WhatsApp/PDF - ações compactas sem estourar a tela */
+#orcamentosSection .orc-col-acoes,
+#orcamentosSection .actions-cell{
+  width:156px!important;
+  max-width:156px!important;
+  min-width:156px!important;
+  overflow:visible!important;
+}
+#orcamentosSection .orc-actions-row{
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:4px!important;
+  flex-wrap:nowrap!important;
+  white-space:nowrap!important;
+}
+#orcamentosSection .actions-cell .btn-mini,
+#orcamentosSection .orc-actions-row .btn-mini{
+  width:auto!important;
+  min-width:32px!important;
+  height:28px!important;
+  min-height:28px!important;
+  padding:3px 6px!important;
+  font-size:11px!important;
+  line-height:1!important;
+  border-radius:7px!important;
+}
+#orcamentosSection .orc-actions-row [data-editar-orc]{min-width:42px!important;}
+#orcamentosSection .orc-actions-row [data-pdf-orc]{min-width:34px!important;}
+#orcamentosSection .orc-actions-row [data-wa-orc-lista]{min-width:32px!important;padding-left:4px!important;padding-right:4px!important;}
+#orcamentosSection .orc-actions-row [data-aprovar-orc]{min-width:48px!important;}
+@media(max-width:760px){
+  #orcamentosSection .table-wrap{overflow-x:auto!important;}
+  #orcamentosSection .orc-col-acoes,
+  #orcamentosSection .actions-cell{width:150px!important;min-width:150px!important;max-width:150px!important;}
+}
+
+/* v19-dev: orçamento - ações finais compactas [✏️] [PDF] [💬] [Aprovar] sem estourar */
+#orcamentosSection .orc-col-acoes,
+#orcamentosSection .actions-cell{
+  width:174px!important;
+  min-width:174px!important;
+  max-width:174px!important;
+  overflow:visible!important;
+}
+#orcamentosSection .orc-actions-row{
+  display:inline-flex!important;
+  flex-wrap:nowrap!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:3px!important;
+  white-space:nowrap!important;
+  max-width:100%!important;
+}
+#orcamentosSection .actions-cell .btn-mini,
+#orcamentosSection .orc-actions-row .btn-mini{
+  height:27px!important;
+  min-height:27px!important;
+  padding:3px 5px!important;
+  font-size:11px!important;
+  line-height:1!important;
+  border-radius:7px!important;
+  box-sizing:border-box!important;
+}
+#orcamentosSection .orc-actions-row [data-editar-orc]{min-width:30px!important;width:30px!important;padding-left:0!important;padding-right:0!important;}
+#orcamentosSection .orc-actions-row [data-pdf-orc]{min-width:36px!important;width:36px!important;}
+#orcamentosSection .orc-actions-row [data-wa-orc-lista]{min-width:30px!important;width:30px!important;padding-left:0!important;padding-right:0!important;}
+#orcamentosSection .orc-actions-row [data-aprovar-orc]{min-width:62px!important;width:62px!important;}
+@media(max-width:760px){
+  #orcamentosSection .table-wrap{overflow-x:auto!important;}
+  #orcamentosSection .orc-col-acoes,
+  #orcamentosSection .actions-cell{width:174px!important;min-width:174px!important;max-width:174px!important;}
+}
+
+/* Nota da rota também visível no Rua Mobile */
+.rua-mobile-nota-linha{
+  margin:6px 0 6px 0;
+  padding:9px 10px;
+  border:1px dashed #9dc3e6;
+  border-radius:12px;
+  background:#fffdf2;
+  color:#0f3b63;
+  font-size:13px;
+  line-height:1.35;
+  box-shadow:0 1px 4px rgba(15,59,99,.08);
+}
+.rua-mobile-nota-texto{
+  font-weight:700;
+}
+.rua-mobile-nota-endereco{
+  margin-top:4px;
+  font-weight:600;
+}
+.rua-mobile-nota-endereco a{
+  color:#0d4f86;
+  text-decoration:none;
+}
+
+/* v19-dev: ajustes funcionais eventos - navegação, colunas compactas e recorrência */
+.eventos-toolbar{
+  display:flex;
+  align-items:end;
+  gap:6px;
+  flex-wrap:nowrap;
+}
+.eventos-toolbar label{ margin:0; }
+.eventos-busca-geral{ flex:0 1 240px; min-width:170px; }
+.eventos-data-filtro{ flex:0 0 135px; }
+.eventos-pagamento-filtro{ flex:0 0 118px; }
+.eventos-ocultar-cancelados-filtro{ flex:0 0 auto; white-space:nowrap; }
+.eventos-mostrar-filtro{ flex:0 0 95px; }
+.eventos-nav-data{ display:flex; align-items:center; gap:3px; flex:0 0 auto; }
+.btn-nav-eventos{ min-width:30px!important; height:34px!important; padding:0 7px!important; font-size:14px!important; line-height:1!important; }
+.btn-nav-eventos.hoje{ min-width:48px!important; font-weight:700; }
+.eventos-compact-section table th:nth-child(11),
+.eventos-compact-section table td:nth-child(11){ width:28px!important; max-width:28px!important; padding-left:3px!important; padding-right:3px!important; text-align:center; }
+.eventos-compact-section table th:nth-child(12),
+.eventos-compact-section table td:nth-child(12){ width:70px!important; max-width:70px!important; padding-left:4px!important; padding-right:4px!important; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.eventos-compact-section table th:nth-child(13),
+.eventos-compact-section table td:nth-child(13){ width:82px!important; max-width:82px!important; padding-left:4px!important; padding-right:4px!important; }
+.eventos-compact-section .clientes-actions-row{ gap:3px!important; flex-wrap:nowrap!important; }
+.eventos-compact-section .actions button,
+.eventos-compact-section .btn-mini{ min-width:28px!important; height:30px!important; padding:3px 6px!important; font-size:12px!important; }
+.eventos-compact-section .btn-atendimento-extra{ min-width:28px!important; width:28px!important; padding-left:0!important; padding-right:0!important; }
+.recorrentes-mostrar-filtro{ font-size:12px; max-width:90px; }
+.recorrentes-mostrar-filtro select{ height:34px; padding:4px 6px; }
+.recorrencia-final-badge{ display:inline-block; padding:1px 5px; margin-right:4px; border-radius:999px; background:#fff2b8; color:#7a4a00; font-size:11px; font-weight:800; white-space:nowrap; }
+.recurring-table-wrapper{ overflow-y:auto; }
+.finance-inloco-compact span{ white-space:nowrap; }
+@media (max-width: 980px){
+  .eventos-toolbar{ flex-wrap:wrap; align-items:end; }
+  .eventos-busca-geral{ flex:1 1 180px; }
+  .eventos-data-filtro{ flex:0 0 132px; }
+  .eventos-pagamento-filtro{ flex:0 0 112px; }
+}

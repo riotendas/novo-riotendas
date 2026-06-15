@@ -1076,7 +1076,12 @@ function classePagamentoRota(evento) {
 function montarListaMateriais(evento) {
   const tendas = (evento.tendas || []).map((p, index) => {
     const nome = [p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - ");
-    return nome || "Produto com código";
+    const base = nome || "Produto com código";
+    if (p.uso_transito || p.usoEmTransito) {
+      const origem = p.origem_transito_texto || (p.origem_evento_nome ? `Retirar de ${p.origem_evento_nome}` : "Retirar no caminho");
+      return `⚠ Uso em trânsito: ${base} — ${origem}`;
+    }
+    return base;
   });
 
   const reservas = (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).map(i => typeof rtProdutoReservaParaTexto === "function" ? rtProdutoReservaParaTexto(i) : `🔄 R${i.codigo || ""}`);
@@ -1100,7 +1105,7 @@ function montarMateriaisRotaDetalhados(evento) {
       id: p.id,
       categoria: p.categoria || p.tipo || "",
       tamanho: p.tamanho || "",
-      texto: nome || "Produto com código"
+      texto: (p.uso_transito || p.usoEmTransito) ? `⚠ Uso em trânsito: ${nome || "Produto com código"} — ${p.origem_transito_texto || (p.origem_evento_nome ? "Retirar de " + p.origem_evento_nome : "Retirar no caminho")}` : (nome || "Produto com código")
     });
   });
 
@@ -1234,7 +1239,7 @@ function produtoDisponivelParaTrocaRota(produto, evento, ignorarEventosIds = [])
   });
 
   if (conflito) {
-    return { livre: false, texto: `Indisponível: ${conflito.nome || "cliente"}`, conflito };
+    return { livre: false, texto: `Em uso - ${conflito.nome || conflito.cliente || "Cliente"} - ${conflito.data_evento ? formatarDataRota(conflito.data_evento) : "data não informada"}`, conflito, permiteUsoTransito: true };
   }
 
   return { livre: true, texto: "Disponível" };
@@ -1316,6 +1321,16 @@ function statusTrocaRotaProduto(p, evento, produtoAtual = null) {
   const statusLivre = ["livre", "livre para locação", "livre para locacao", "disponível", "disponivel"];
   const statusRevisar = (typeof rtProdutoEventoEstaRevisar === "function" && rtProdutoEventoEstaRevisar(p)) || statusLower.includes("revis");
   const statusConsertar = (typeof rtProdutoEventoEstaConsertar === "function" && rtProdutoEventoEstaConsertar(p)) || statusLower.includes("consert");
+  const statusAlugadoReservado = statusLower.includes("alug") || statusLower.includes("reserv");
+
+  if (!disponibilidade.livre && disponibilidade.permiteUsoTransito && !statusRevisar && !statusConsertar) {
+    return {
+      livre: false,
+      transito: true,
+      conflito: disponibilidade.conflito,
+      texto: `${disponibilidade.texto || "Em uso"} | ⚠ Uso em trânsito`
+    };
+  }
 
   if (statusRevisar || statusConsertar) {
     if (!disponibilidade.livre) {
@@ -1560,17 +1575,17 @@ async function abrirTrocaProdutoAtendimentoExtraRota(eventoId, produtoIndex) {
   } else {
     const opcoesComStatus = opcoes.map(p => {
       const st = statusTrocaRotaProduto(p, evento);
-      return { produto: p, livre: st.livre, texto: st.texto, statusAviso: st.texto && st.texto !== "Disponível" && (st.livre || st.permuta) };
+      return { produto: p, livre: st.livre, transito: !!st.transito, texto: st.texto, statusAviso: st.texto && st.texto !== "Disponível" && (st.livre || st.permuta || st.transito) };
     });
     select.innerHTML = `
       <option value="">Selecione o produto substituto</option>
       ${opcoesComStatus.map(item => `
-        <option value="${item.produto.id}" ${item.livre ? "" : "disabled"}>
+        <option value="${item.produto.id}" ${(item.livre || item.transito) ? "" : "disabled"}>
           ${produtoDescricaoRota(item.produto)} | ${item.statusAviso ? item.texto : (item.livre ? "Disponível" : item.texto)}
         </option>
       `).join("")}
     `;
-    document.getElementById("confirmarTrocaProdutoRota").disabled = !opcoesComStatus.some(item => item.livre);
+    document.getElementById("confirmarTrocaProdutoRota").disabled = !opcoesComStatus.some(item => item.livre || item.transito);
   }
 
   modal.showModal();
@@ -1691,19 +1706,19 @@ async function abrirTrocaProdutoRota(eventoId, produtoIndex) {
   } else {
     const opcoesComStatus = opcoes.map(p => {
       const st = statusTrocaRotaProduto(p, evento, produtoAtual);
-      return { produto: p, livre: st.livre, permuta: !!st.permuta, texto: st.texto, statusAviso: st.texto && st.texto !== "Disponível" && (st.livre || st.permuta) };
+      return { produto: p, livre: st.livre, permuta: !!st.permuta, transito: !!st.transito, texto: st.texto, statusAviso: st.texto && st.texto !== "Disponível" && (st.livre || st.permuta || st.transito) };
     });
 
     select.innerHTML = `
       <option value="">Selecione o produto substituto</option>
       ${opcoesComStatus.map(item => `
-        <option value="${item.produto.id}" ${(item.livre || item.permuta) ? "" : "disabled"} data-permuta="${item.permuta ? "1" : "0"}">
+        <option value="${item.produto.id}" ${(item.livre || item.permuta || item.transito) ? "" : "disabled"} data-permuta="${item.permuta ? "1" : "0"}" data-transito="${item.transito ? "1" : "0"}">
           ${produtoDescricaoRota(item.produto)} | ${item.statusAviso ? item.texto : (item.livre ? "Disponível" : item.texto)}
         </option>
       `).join("")}
     `;
 
-    document.getElementById("confirmarTrocaProdutoRota").disabled = !opcoesComStatus.some(item => item.livre || item.permuta);
+    document.getElementById("confirmarTrocaProdutoRota").disabled = !opcoesComStatus.some(item => item.livre || item.permuta || item.transito);
   }
 
   modal.showModal();
@@ -1761,14 +1776,20 @@ async function confirmarTrocaProdutoRota() {
   const validacaoTroca = produtoDisponivelParaTrocaRota(novoProduto, evento);
   let permutaInfo = null;
   let aplicarPermuta = false;
+  let aplicarUsoTransito = false;
 
   if (!validacaoTroca.livre) {
-    permutaInfo = rtPermutaPossivelTrocaRota(novoProduto, evento, produtoAntigo);
+    const statusNovoLower = String(novoProduto.status || "").toLowerCase();
+    const podeTransito = validacaoTroca.permiteUsoTransito && (statusNovoLower.includes("alug") || statusNovoLower.includes("reserv") || validacaoTroca.conflito);
+    if (podeTransito && typeof rtConfirmarUsoEmTransito === "function" && rtConfirmarUsoEmTransito(novoProduto, validacaoTroca, evento)) {
+      aplicarUsoTransito = true;
+    } else {
+      permutaInfo = rtPermutaPossivelTrocaRota(novoProduto, evento, produtoAntigo);
 
-    if (!permutaInfo) {
-      alert(validacaoTroca.texto || "Este produto não está disponível para este evento.");
-      return;
-    }
+      if (!permutaInfo) {
+        alert(validacaoTroca.texto || "Este produto não está disponível para este evento.");
+        return;
+      }
 
     const acaoPermuta = await confirmarPermutaProdutoRota();
     if (acaoPermuta === "outra") {
@@ -1779,12 +1800,13 @@ async function confirmarTrocaProdutoRota() {
       }
       return;
     }
-    if (acaoPermuta !== "permutar") {
-      document.getElementById("rotaTrocaProdutoDialog")?.close();
-      return;
-    }
+      if (acaoPermuta !== "permutar") {
+        document.getElementById("rotaTrocaProdutoDialog")?.close();
+        return;
+      }
 
-    aplicarPermuta = true;
+      aplicarPermuta = true;
+    }
   }
 
   const produtoNovoEvento = {
@@ -1795,6 +1817,10 @@ async function confirmarTrocaProdutoRota() {
     tamanho: novoProduto.tamanho || "",
     cor: novoProduto.cor || ""
   };
+
+  if (aplicarUsoTransito && typeof rtAplicarUsoEmTransitoProduto === "function") {
+    rtAplicarUsoEmTransitoProduto(produtoNovoEvento, validacaoTroca);
+  }
 
   const produtoAntigoEvento = {
     id: produtoAntigo.id || "",
@@ -3609,6 +3635,12 @@ function dataHoraEventoPrintCurta(evento, rota) {
   return data;
 }
 
+
+function rtColaboradorRotaTextoPdf(rota = {}) {
+  const nome = String(rota?.evento?.colaborador || rota?.colaborador || "").trim();
+  return nome ? `Colab.: ${nome}` : "Colab.: -";
+}
+
 function imprimirRotaData(data) {
   const todas = criarRotasDosEventos();
   const rotasData = todas.filter(r => r.data === data);
@@ -3919,19 +3951,21 @@ function imprimirRotaData(data) {
           </div>
         </div>
 
-        ${carros.map(carro => `
+        ${carros.map(carro => {
+          const rotasDoCarroPdf = ordenarRotasPorOrdemManual(grupos[data][carro] || []);
+          return `
           <h2>${carro}</h2>
           <div class="carro-materiais">
-            ${listaMateriaisRotas(grupos[data][carro] || []).map(item => `<span>${item}</span>`).join("")}
+            ${listaMateriaisRotas(rotasDoCarroPdf).map(item => `<span>${item}</span>`).join("")}
           </div>
 
-          ${(grupos[data][carro] || []).map(rota => {
+          ${rotasDoCarroPdf.map(rota => {
             const evento = rota.evento || {};
             return `
               <div class="card ${rota.tipo === "Desmontagem" ? "desmontagem" : ""}">
                 <div class="titulo">
                   <strong>${rota.tipo}</strong>
-                  <span>${textoHorarioRota(rota.tipoHorario, rota.horario, rota.data)}</span>
+                  <span>${rtColaboradorRotaTextoPdf(rota)}</span>
                 </div>
 
                 <div class="grid">
@@ -3996,7 +4030,8 @@ function imprimirRotaData(data) {
               </div>
             `;
           }).join("")}
-        `).join("")}
+        `;
+        }).join("")}
         </main>
 
         <script>

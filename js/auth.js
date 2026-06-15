@@ -13,11 +13,40 @@ function perfilUsuarioLabel(perfil) {
   return perfil || "-";
 }
 
+
+function normalizarPerfilSistemaApp(perfil) {
+  const p = String(perfil || "").trim().toLowerCase();
+  if (["admin", "administrador", "administrator"].includes(p)) return "administrador";
+  if (["operador", "operacional", "operation"].includes(p)) return "operacional";
+  if (["manutencao", "manutenção", "manutencao_mobile"].includes(p)) return "manutencao";
+  if (["rua", "motorista", "entrega"].includes(p)) return "rua";
+  return p || "operacional";
+}
+
+function normalizarUsuarioSistemaApp(usuario) {
+  if (!usuario) return usuario;
+  const perfil = normalizarPerfilSistemaApp(usuario.perfil);
+  return {
+    ...usuario,
+    perfil,
+    permissoes: usuario.permissoes || normalizarPermissoesUsuario(perfil, null)
+  };
+}
+
+function opcoesPerfilParaBanco(perfil) {
+  const app = normalizarPerfilSistemaApp(perfil);
+  if (app === "administrador") return ["administrador", "admin"];
+  if (app === "operacional") return ["operacional", "operador"];
+  if (app === "manutencao") return ["manutencao", "manutenção"];
+  if (app === "rua") return ["rua"];
+  return [app || "operacional"];
+}
+
 function getUsuarioLogado() {
   if (usuarioLogadoSistema) return usuarioLogadoSistema;
 
   try {
-    return JSON.parse(localStorage.getItem(storageSessaoUsuarioKey) || "null");
+    return normalizarUsuarioSistemaApp(JSON.parse(localStorage.getItem(storageSessaoUsuarioKey) || "null"));
   } catch {
     return null;
   }
@@ -47,12 +76,12 @@ async function buscarUsuariosSistemaBanco() {
       .select("*")
       .order("nome", { ascending: true });
 
-    if (!error && Array.isArray(data)) return data;
+    if (!error && Array.isArray(data)) return data.map(normalizarUsuarioSistemaApp);
 
     console.warn("Erro ao buscar usuários:", error);
   }
 
-  return JSON.parse(localStorage.getItem(storageUsuariosLocalKey) || "[]");
+  return JSON.parse(localStorage.getItem(storageUsuariosLocalKey) || "[]").map(normalizarUsuarioSistemaApp);
 }
 
 async function salvarUsuarioSistemaBanco(usuario) {
@@ -66,25 +95,43 @@ async function salvarUsuarioSistemaBanco(usuario) {
     return null;
   }
 
+  const perfilAppUsuario = normalizarPerfilSistemaApp(usuario.perfil || "operacional");
   const payload = {
     nome: usuario.nome || "",
     usuario: usuarioLogin,
     senha: usuario.senha || "",
-    perfil: usuario.perfil || "operacional",
+    perfil: perfilAppUsuario,
     ativo: usuario.ativo !== false,
-    permissoes: usuario.permissoes || normalizarPermissoesUsuario(usuario.perfil || "operacional", null),
+    permissoes: usuario.permissoes || normalizarPermissoesUsuario(perfilAppUsuario, null),
     atualizado_em: new Date().toISOString()
   };
 
   if (typeof supabaseClient !== "undefined" && supabaseClient) {
+    const perfisBancoTentativa = Array.from(new Set(opcoesPerfilParaBanco(perfilAppUsuario)));
+
+    async function tentarSalvarUsuarioSistemaNoBanco(operacao) {
+      let ultimoErro = null;
+      for (const perfilBanco of perfisBancoTentativa) {
+        const payloadBanco = { ...payload, perfil: perfilBanco };
+        const resultado = await operacao(payloadBanco);
+        if (!resultado.error) {
+          return { data: normalizarUsuarioSistemaApp(resultado.data), error: null };
+        }
+        ultimoErro = resultado.error;
+        const msg = String(resultado.error?.message || "").toLowerCase();
+        if (!msg.includes("usuarios_sistema_perfil_check") && !msg.includes("check constraint")) break;
+      }
+      return { data: null, error: ultimoErro };
+    }
+
     // EDIÇÃO: atualiza pelo ID do usuário selecionado
     if (usuario.id) {
-      const { data, error } = await supabaseClient
+      const { data, error } = await tentarSalvarUsuarioSistemaNoBanco(payloadBanco => supabaseClient
         .from("usuarios_sistema")
-        .update(payload)
+        .update(payloadBanco)
         .eq("id", usuario.id)
         .select()
-        .single();
+        .single());
 
       if (error) {
         alert("Erro ao editar usuário: " + (error.message || ""));
@@ -107,11 +154,11 @@ async function salvarUsuarioSistemaBanco(usuario) {
 
     // CRIAÇÃO: usa upsert pelo campo usuario.
     // Se o login já existir, atualiza o cadastro existente em vez de travar com erro de duplicidade.
-    const { data, error } = await supabaseClient
+    const { data, error } = await tentarSalvarUsuarioSistemaNoBanco(payloadBanco => supabaseClient
       .from("usuarios_sistema")
-      .upsert(payload, { onConflict: "usuario" })
+      .upsert(payloadBanco, { onConflict: "usuario" })
       .select()
-      .single();
+      .single());
 
     if (error) {
       alert("Erro ao salvar usuário: " + (error.message || ""));
@@ -213,11 +260,11 @@ async function garantirAdminPadrao() {
 async function autenticarUsuarioSistema(usuario, senha) {
   const lista = await buscarUsuariosSistemaBanco();
 
-  return lista.find(u =>
+  return normalizarUsuarioSistemaApp(lista.find(u =>
     u.ativo !== false &&
     String(u.usuario || "").trim().toLowerCase() === String(usuario || "").trim().toLowerCase() &&
     String(u.senha || "") === String(senha || "")
-  ) || null;
+  ) || null);
 }
 
 function esconderAba(sectionId) {
@@ -1411,6 +1458,33 @@ function resumoPermissoesUsuario(usuario) {
     Object.entries(permissoes || {}).forEach(([chave, valor]) => {
       base[chave] = Boolean(valor);
     });
+
+    // Segurança: perfis exclusivamente mobile não herdam acessos indevidos salvos antes.
+    if (perfil === 'rua') {
+      base.sistemaCompleto = false;
+      base.mobileHubSection = true;
+      base.ruaMobileSection = true;
+      base.manutencaoMobileSection = false;
+      base.eventosMobileSection = false;
+      base.eventosSection = false;
+      base.clientesSection = false;
+      base.orcamentosSection = false;
+      base.configSection = false;
+      base.usuariosSection = false;
+    }
+
+    if (perfil === 'manutencao') {
+      base.sistemaCompleto = false;
+      base.mobileHubSection = true;
+      base.ruaMobileSection = false;
+      base.manutencaoMobileSection = true;
+      base.eventosMobileSection = false;
+      base.eventosSection = false;
+      base.clientesSection = false;
+      base.orcamentosSection = false;
+      base.configSection = false;
+      base.usuariosSection = false;
+    }
 
     if (perfil === 'administrador') {
       Object.keys(base).forEach(k => base[k] = true);

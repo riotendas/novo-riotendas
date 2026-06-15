@@ -418,6 +418,59 @@ function ruaMobileEscAttr(valor) {
   return String(valor ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+
+function ruaMobileNotasCarregar() {
+  try {
+    const raw = localStorage.getItem("rt_notas_rota_v1");
+    const lista = JSON.parse(raw || "[]");
+    return Array.isArray(lista) ? lista : [];
+  } catch { return []; }
+}
+
+function ruaMobileNotasDaRota(data, carro) {
+  const d = String(data || "");
+  const c = String(carro || "Sem carro").trim() || "Sem carro";
+  return ruaMobileNotasCarregar().filter(n => String(n?.data || "") === d && (String(n?.carro || "Sem carro").trim() || "Sem carro") === c);
+}
+
+function ruaMobileNotaTextoHtml(textoBruto) {
+  const textoOriginal = String(textoBruto || "Nota").trim() || "Nota";
+  const partes = textoOriginal.split(/(\*[^*]+\*)/g).map(parte => {
+    if (/^\*[^*]+\*$/.test(parte)) return `<strong>${ruaMobileEscAttr(parte.slice(1, -1))}</strong>`;
+    return ruaMobileEscAttr(parte);
+  });
+  return partes.join("");
+}
+
+function ruaMobileNotaLinhaHtml(nota) {
+  const texto = ruaMobileNotaTextoHtml(nota?.texto || "Nota");
+  const endereco = String(nota?.endereco || "").trim();
+  const mapa = endereco && typeof googleMapsNavigateUrl === "function" ? googleMapsNavigateUrl(endereco) : "";
+  const enderecoHtml = endereco
+    ? `<div class="rua-mobile-nota-endereco">📍 ${mapa ? `<a href="${mapa}" target="_blank" rel="noopener">${ruaMobileEscAttr(endereco)}</a>` : ruaMobileEscAttr(endereco)}</div>`
+    : "";
+  return `<div class="rua-mobile-nota-linha"><div class="rua-mobile-nota-texto">💬 ${texto}</div>${enderecoHtml}</div>`;
+}
+
+function ruaMobileNotasHtml(data, carro, posicao) {
+  const pos = Math.max(0, Number(posicao) || 0);
+  return ruaMobileNotasDaRota(data, carro)
+    .filter(n => Math.max(0, Number(n?.posicao) || 0) === pos)
+    .map(ruaMobileNotaLinhaHtml)
+    .join("");
+}
+
+function ruaMobileNotasFiltradasHtml(data, carroFiltro) {
+  const dataAlvo = String(data || "");
+  const carroAlvo = String(carroFiltro || "").trim();
+  return ruaMobileNotasCarregar()
+    .filter(n => String(n?.data || "") === dataAlvo)
+    .filter(n => !carroAlvo || (String(n?.carro || "Sem carro").trim() || "Sem carro") === carroAlvo)
+    .sort((a,b) => String(a.carro || "").localeCompare(String(b.carro || "")) || (Number(a.posicao)||0) - (Number(b.posicao)||0))
+    .map(n => `<div class="rua-mobile-carro-grupo"><span>🚚 ${ruaMobileEscAttr(n.carro || "Sem carro")}</span></div>${ruaMobileNotaLinhaHtml(n)}`)
+    .join("");
+}
+
 function ruaMobileCarrosParaEdicao() {
   const carros = typeof carrosDisponiveisRotas === "function" ? carrosDisponiveisRotas() : ["Saveiro", "Dupla", "Caminhão"];
   return [...new Set([...(carros || []), "Sem carro"].map(c => String(c || "").trim()).filter(Boolean))];
@@ -564,7 +617,8 @@ function renderizarRuaMobile() {
   }
 
   if (!rotas.length) {
-    listaEl.innerHTML = `<p class="empty">Nenhuma rota encontrada para esta data/filtro.</p>`;
+    const notasHtml = ruaMobileNotasFiltradasHtml(dataInput?.value || ruaMobileHojeISO(), document.getElementById("ruaMobileCarro")?.value || "");
+    listaEl.innerHTML = notasHtml || `<p class="empty">Nenhuma rota encontrada para esta data/filtro.</p>`;
     return;
   }
 
@@ -578,17 +632,17 @@ function renderizarRuaMobile() {
           grupos.get(carroGrupo).push({ rota, idx });
         });
         return Array.from(grupos.entries()).flatMap(([carroGrupo, itens]) =>
-          itens.map((item, pos) => ({ ...item, carroGrupo, inicioGrupo: pos === 0 }))
+          itens.map((item, pos) => ({ ...item, carroGrupo, inicioGrupo: pos === 0, posicaoGrupo: pos, totalGrupo: itens.length }))
         );
       })()
-    : rotas.map((rota, idx) => ({ rota, idx, carroGrupo: ruaMobileCarroDaRota(rota), inicioGrupo: false }));
+    : rotas.map((rota, idx) => ({ rota, idx, carroGrupo: ruaMobileCarroDaRota(rota), inicioGrupo: false, posicaoGrupo: idx, totalGrupo: rotas.length }));
 
   const ruaMobileCarroSelecionado = document.getElementById("ruaMobileCarro")?.value || "";
   const ruaMobileHeaderCarroSelecionado = ruaMobileCarroSelecionado
     ? `<div class="rua-mobile-carro-selecionado"><span>🚚 ${ruaMobileCarroSelecionado}</span><div class="rua-mobile-carro-actions"><button type="button" class="rua-mobile-carro-contador-btn" data-rua-contador-carro="${String(ruaMobileCarroSelecionado).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Ver materiais do carro">📦</button><button type="button" class="rua-mobile-carro-maps-btn" data-rua-maps-carro="${String(ruaMobileCarroSelecionado).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Abrir rota pendente do carro no Google Maps">🗺️</button></div></div>`
     : "";
 
-  listaEl.innerHTML = ruaMobileHeaderCarroSelecionado + rotasRender.map(({ rota, idx, carroGrupo, inicioGrupo }) => {
+  listaEl.innerHTML = ruaMobileHeaderCarroSelecionado + rotasRender.map(({ rota, idx, carroGrupo, inicioGrupo, posicaoGrupo, totalGrupo }) => {
     const index = idx;
     const carro = ruaMobileCarroDaRota(rota);
     const tel = ruaMobileTelefoneLimpo(rota.telefone);
@@ -606,8 +660,12 @@ function renderizarRuaMobile() {
       ? `<div class="rua-mobile-carro-grupo"><span>🚚 ${carroGrupo}</span><div class="rua-mobile-carro-actions"><button type="button" class="rua-mobile-carro-contador-btn" data-rua-contador-carro="${String(carroGrupo).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Ver materiais do carro">📦</button><button type="button" class="rua-mobile-carro-maps-btn" data-rua-maps-carro="${String(carroGrupo).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Abrir rota pendente do carro no Google Maps">🗺️</button></div></div>`
       : "";
 
+    const notasAntes = ruaMobileNotasHtml(rota.data, carro, posicaoGrupo);
+    const notasDepois = (posicaoGrupo === totalGrupo - 1) ? ruaMobileNotasHtml(rota.data, carro, totalGrupo) : "";
+
     return `
       ${ruaMobileGrupoCarro}
+      ${notasAntes}
       <article class="rua-mobile-card tipo-${String(rota.tipo || "").toLowerCase()} ${classeConclusao}" data-rua-card-id="${rota.id}">
         <div class="rua-mobile-card-top">
           <div>
@@ -637,6 +695,7 @@ function renderizarRuaMobile() {
           ${rota.tipo !== "Montagem" && rota.tipo !== "Desmontagem" ? `<button type="button" class="btn-outline rua-mobile-acao-btn rua-mobile-operacao-btn" data-rua-operacao="efetuado" data-rota-id="${rota.id}" title="Marcar atendimento efetuado" aria-label="Marcar atendimento efetuado"><span>✓</span><small>Efetuado</small></button>` : ""}
         </div>`}
       </article>
+      ${notasDepois}
     `;
   }).join("");
 

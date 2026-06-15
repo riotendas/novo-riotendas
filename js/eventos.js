@@ -1089,6 +1089,19 @@ function aplicarFormaPagamentoEvento(tipo, forma) {
     const quitado = document.getElementById("eventoPagamentoQuitado");
     if (quitado) quitado.checked = true;
   }
+
+  if (tipo === "Restante") {
+    const restanteAtual = moedaParaNumero(document.getElementById("eventoValorRestante")?.value || 0);
+    const quitado = document.getElementById("eventoPagamentoQuitado");
+    const inloco = document.getElementById("eventoPagarInloco");
+    if (restanteAtual <= 0 || confirm("O pagamento lançado quita o saldo restante.\n\nMarcar evento como QUITADO?")) {
+      if (quitado) quitado.checked = true;
+      if (inloco?.checked) {
+        inloco.checked = false;
+        rtSincronizarPagarInlocoFormaPagamento();
+      }
+    }
+  }
   const marcadorData = "";
   const novaLinha = `${tipo} - ${forma} -`;
   const linhas = String(campo.value || "")
@@ -1135,7 +1148,7 @@ function atualizarIconesFormaPagamentoEvento() {
 }
 
 function rtEventoPagarInlocoMarcado(evento) {
-  return Boolean(evento?.pagar_inloco) || /(^|\n)\s*pagar\s+in\s*loco\s*($|\n)/i.test(String(evento?.forma_pagamento || ""));
+  return Boolean(evento?.pagar_inloco) || /(^|\n)\s*(pagar\s+in\s*loco|in\s*loco\s*\/\s*faturado)\s*($|\n)/i.test(String(evento?.forma_pagamento || ""));
 }
 
 function rtSincronizarPagarInlocoFormaPagamento() {
@@ -1147,10 +1160,10 @@ function rtSincronizarPagarInlocoFormaPagamento() {
     .split(/\n+/)
     .map(l => l.trim())
     .filter(Boolean)
-    .filter(l => !/^pagar\s+in\s*loco$/i.test(l));
+    .filter(l => !/^(pagar\s+in\s*loco|in\s*loco\s*\/\s*faturado)$/i.test(l));
 
   if (chk.checked) {
-    linhas.push("Pagar in loco");
+    linhas.push("In loco / Faturado");
   }
 
   campo.value = linhas.join("\n");
@@ -1817,14 +1830,16 @@ function rtProdutoCompatAtalho(produto, tipo) {
   return false;
 }
 
-function rtAdicionarProdutoObjetoEvento(p) {
-  produtosSelecionadosEventoAtual.push({
+function rtAdicionarProdutoObjetoEvento(p, disponibilidadeTransito = null) {
+  const item = {
     id: p.id,
     codigo: p.codigo || "",
     categoria: p.categoria || p.tipo || "",
     tamanho: p.tamanho || "",
     cor: p.cor || ""
-  });
+  };
+  rtAplicarUsoEmTransitoProduto(item, disponibilidadeTransito);
+  produtosSelecionadosEventoAtual.push(item);
 }
 
 
@@ -1962,6 +1977,7 @@ function produtoEstaDisponivelNoEvento(produto, evento, ignorarIndex = -1) {
   }
 
   const conflito = eventos.find(outro => {
+    if (!outro || (typeof rtEventoCancelado === "function" && rtEventoCancelado(outro))) return false;
     if (String(outro.id) === String(evento.id)) return false;
     if (!eventoUsaProdutoPorIdOuCodigo(outro, produto)) return false;
 
@@ -1972,8 +1988,10 @@ function produtoEstaDisponivelNoEvento(produto, evento, ignorarIndex = -1) {
   if (conflito) {
     return {
       livre: false,
-      texto: `Indisponível: ${conflito.nome || "cliente"} em ${dataBR(conflito.data_evento)}`,
-      classe: "busy"
+      texto: `Em uso: ${conflito.nome || "cliente"} em ${dataBR(conflito.data_evento)}`,
+      classe: "busy",
+      conflito,
+      permiteUsoTransito: true
     };
   }
 
@@ -2021,6 +2039,7 @@ function disponibilidadeProdutoParaEvento(produtoId) {
   }
 
   const conflito = eventos.find(evento => {
+    if (!evento || (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento))) return false;
     if (String(evento.id) === String(eventoAtualId)) return false;
     if (!eventoUsaProdutoPorIdOuCodigo(evento, produto)) return false;
 
@@ -2031,14 +2050,68 @@ function disponibilidadeProdutoParaEvento(produtoId) {
   if (conflito) {
     return {
       livre: false,
-      texto: `Indisponível: ${conflito.nome || "cliente"} em ${dataBR(conflito.data_evento)}`,
-      classe: "busy"
+      texto: `Em uso: ${conflito.nome || "cliente"} em ${dataBR(conflito.data_evento)}`,
+      classe: "busy",
+      conflito,
+      permiteUsoTransito: true
     };
   }
 
   if (produtoEmRevisao) return { livre: true, texto: "⚠ Para revisar", classe: "warning" };
   if (produtoEmConserto) return { livre: true, texto: "⚠ Para consertar", classe: "warning" };
   return { livre: true, texto: "Livre para a data", classe: "free" };
+}
+
+
+function rtEventoResumoOrigemTransito(conflito) {
+  if (!conflito) return "evento anterior";
+  const nome = conflito.nome || conflito.cliente || "cliente anterior";
+  const data = conflito.data_evento ? dataBR(conflito.data_evento) : "data não informada";
+  return `${nome} (${data})`;
+}
+
+function rtConfirmarUsoEmTransito(produto, disponibilidade, contexto = {}) {
+  if (!disponibilidade || !disponibilidade.permiteUsoTransito) return false;
+  const conflito = disponibilidade.conflito || null;
+  const origem = rtEventoResumoOrigemTransito(conflito);
+  const codigo = produto?.codigo || "Sem código";
+  const desc = [produto?.categoria || produto?.tipo || "", produto?.tamanho || "", produto?.cor || ""].filter(Boolean).join(" ");
+  const destino = contexto?.nome || document.getElementById("eventoNome")?.value || document.getElementById("eventoCliente")?.value || "novo evento";
+  const msg = `⚠ USO EM TRÂNSITO\n\nO produto ${codigo}${desc ? " — " + desc : ""} está em uso no evento de ${origem}.\n\nConfirme apenas se a equipe vai retirar/buscar este produto no caminho ou se o evento anterior já acabou.\n\nDestino: ${destino}\n\nConfirmar uso em trânsito?`;
+  return window.confirm(msg);
+}
+
+function rtAplicarUsoEmTransitoProduto(item, disponibilidade) {
+  if (!item || !disponibilidade?.permiteUsoTransito) return item;
+  const conflito = disponibilidade.conflito || {};
+  item.uso_transito = true;
+  item.usoEmTransito = true;
+  item.origem_evento_id = conflito.id || "";
+  item.origem_evento_nome = conflito.nome || conflito.cliente || "Cliente anterior";
+  item.origem_evento_data = conflito.data_evento || "";
+  item.origem_transito_texto = `Retirar de ${item.origem_evento_nome}${item.origem_evento_data ? " em " + dataBR(item.origem_evento_data) : ""}`;
+  return item;
+}
+
+function rtTextoUsoTransitoProduto(item) {
+  if (!item || !(item.uso_transito || item.usoEmTransito)) return "";
+  return item.origem_transito_texto || `Uso em trânsito${item.origem_evento_nome ? ": retirar de " + item.origem_evento_nome : ""}`;
+}
+
+function rtLinhaDisponibilidadeProdutoEvento(produto, disponibilidade, opcoes = {}) {
+  const disp = disponibilidade || {};
+  const permitirTransito = !!opcoes.transito || !!disp.permiteUsoTransito;
+  if (disp.conflito) {
+    const nome = disp.conflito.nome || disp.conflito.cliente || "Cliente";
+    const data = disp.conflito.data_evento ? dataBR(disp.conflito.data_evento) : "data não informada";
+    return `Em uso - ${nome} - ${data}${permitirTransito ? " | ⚠ Uso em trânsito" : ""}`;
+  }
+  return disp.texto || "Disponível";
+}
+
+function rtProdutoStatusAlugadoOuReservado(produto) {
+  const st = rtNormalizarEventoTexto(produto?.status || produto?.situacao || produto?.estado || "");
+  return st.includes("alug") || st.includes("reserv");
 }
 
 function popularSelectProdutosEvento() {
@@ -2051,8 +2124,8 @@ function popularSelectProdutosEvento() {
   select.innerHTML = `<option value="">Selecione um produto para adicionar</option>` + disponiveis.map(p => {
     const disp = disponibilidadeProdutoParaEvento(p.id);
     return `
-      <option value="${p.id}" ${disp.livre ? "" : "disabled"}>
-        ${p.codigo || "Sem código"} — ${p.categoria || p.tipo || "-"} ${p.tamanho || ""} ${p.cor || ""} | ${disp.texto}
+      <option value="${p.id}" ${disp.livre || disp.permiteUsoTransito ? "" : "disabled"}>
+        ${p.codigo || "Sem código"} — ${p.categoria || p.tipo || "-"} ${p.tamanho || ""} ${p.cor || ""} | ${disp.livre ? disp.texto : (disp.permiteUsoTransito ? rtLinhaDisponibilidadeProdutoEvento(p, disp, { transito: true }) : disp.texto)}
       </option>
     `;
   }).join("");
@@ -2065,10 +2138,15 @@ async function adicionarProdutoSelecionadoAoEvento() {
   if (!p) return;
 
   const disponibilidade = disponibilidadeProdutoParaEvento(p.id);
+  let usoTransitoConfirmado = false;
   if (!disponibilidade.livre) {
-    alert(`Este produto está indisponível para a data/período selecionado.\n\n${disponibilidade.texto}`);
-    select.value = "";
-    return;
+    if (disponibilidade.permiteUsoTransito && rtConfirmarUsoEmTransito(p, disponibilidade, { nome: document.getElementById("eventoNome")?.value || document.getElementById("eventoCliente")?.value || "Evento" })) {
+      usoTransitoConfirmado = true;
+    } else {
+      alert(`Este produto está indisponível para a data/período selecionado.\n\n${disponibilidade.texto}`);
+      select.value = "";
+      return;
+    }
   }
 
   if (!(await rtConfirmarUsoProdutoRevisar(p, { nome: document.getElementById("eventoNome")?.value || document.getElementById("eventoCliente")?.value || "Evento" }))) {
@@ -2076,7 +2154,7 @@ async function adicionarProdutoSelecionadoAoEvento() {
     return;
   }
 
-  rtAdicionarProdutoObjetoEvento(p);
+  rtAdicionarProdutoObjetoEvento(p, usoTransitoConfirmado ? disponibilidade : null);
   select.value = "";
   popularSelectProdutosEvento();
   renderizarProdutosSelecionadosEvento();
@@ -2226,7 +2304,7 @@ function renderizarProdutosSelecionadosEvento() {
         <span>
           <strong>${p.codigo || "Sem código"}</strong>
           <em>${rtDescricaoProdutoEvento(p)}</em>
-          <small class="availability-badge ${disp.classe}">${disp.texto}</small>
+          <small class="availability-badge ${p.uso_transito || p.usoEmTransito ? 'warning' : disp.classe}">${p.uso_transito || p.usoEmTransito ? '⚠ Uso em trânsito — ' + rtTextoUsoTransitoProduto(p) : disp.texto}</small>
         </span>
         <button type="button" class="btn-outline" data-remove-produto="${p.id}">×</button>
       </div>`;
@@ -2655,7 +2733,7 @@ function validarProdutosDoEvento() {
   const indisponiveis = [...produtosSelecionadosEventoAtual, ...produtosReservaEventoAtual]
     .filter(p => !p.pendente_codigo)
     .map(p => ({ produto: p, disponibilidade: disponibilidadeProdutoParaEvento(p.id) }))
-    .filter(item => !item.disponibilidade.livre);
+    .filter(item => !(item.produto.uso_transito || item.produto.usoEmTransito) && !item.disponibilidade.livre);
 
   if (indisponiveis.length) {
     alert(
@@ -3000,7 +3078,7 @@ function rtStatusFinanceiroEvento(evento) {
       texto: 'Confirmado',
       subtitulo: 'Cobrar',
       subtituloIcone: '🔴',
-      titulo: 'Confirmado - Pagamento no local / Cobrar no dia',
+      titulo: 'Confirmado - In loco / Faturado / Cobrar',
       linhaClasse: ''
     };
   }
@@ -3202,6 +3280,22 @@ if (!window.__rtAssinaturaContratoCompactaBind) {
   });
 }
 
+function rtRecorrenciaUltimaOcorrencia(evento) {
+  if (!evento || !isEventoRecorrente(evento)) return false;
+  const grupo = String(evento.recorrencia_grupo_id || "");
+  const data = String(evento.data_evento || "").slice(0, 10);
+  if (!data) return false;
+  const fim = String(evento.recorrencia_fim || "").slice(0, 10);
+  const grupoEventos = grupo ? eventos.filter(e => String(e.recorrencia_grupo_id || "") === grupo) : [];
+  const ultimaData = grupoEventos.map(e => String(e.data_evento || "").slice(0, 10)).filter(Boolean).sort().pop();
+  return Boolean((ultimaData && data === ultimaData) || (fim && data >= fim));
+}
+
+function rtRecorrenciaAlertaHtml(evento) {
+  if (!rtRecorrenciaUltimaOcorrencia(evento)) return "";
+  return `<span class="recorrencia-final-badge" title="Último período cadastrado. Verificar se vai renovar ou encerrar.">⚠ Última recorrência</span> `;
+}
+
 function renderizarEventos() {
   normalizarOrdemEventosGlobal();
 
@@ -3275,7 +3369,7 @@ function renderizarEventos() {
       <td class="clientes-actions"><div class="clientes-actions-row">${dataCompactaComDiaRecorrente(e.data_evento)}</td>
       <td>${periodoRecorrenciaTexto(e)}</td>
       <td>${recorrenciaLabel(e.recorrencia_tipo, e.recorrencia_dias)}</td>
-      <td><button class="code-link" data-action="editar" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '<span class="evento-cancelado-badge">Cancelado</span> ' : ''}${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
+      <td><button class="code-link" data-action="editar" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '<span class="evento-cancelado-badge">Cancelado</span> ' : ''}${rtRecorrenciaAlertaHtml(e)}${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
       <td>${e.telefone || "-"}</td>
       <td><div class="cell-scroll cell-endereco">${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(e) : e.endereco) || "-"}</div></td>
       <td>
@@ -3289,11 +3383,12 @@ function renderizarEventos() {
       <td class="pagamento-status-cell">${rtPagamentoEventoBadge(e)}</td>
       <td class="assinatura-status-cell">${rtAssinaturaBadgeEvento(e)}</td>
       <td>${e.colaborador || "-"}</td>
-      <td class="actions clientes-actions"><div class="clientes-actions-row"><button class="btn-mini" data-action="editar" data-id="${e.id}" title="Editar">✎</button><button class="btn-outline btn-atendimento-extra btn-mini" data-action="atendimento-extra" data-id="${e.id}" title="Gerenciar atendimentos extras">+ Extra</button><button class="btn-outline btn-mini" data-action="${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'reativar' : 'cancelar'}" data-id="${e.id}" title="${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'Reativar' : 'Cancelar'}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '↩' : '🚫'}</button></div></td>
+      <td class="actions clientes-actions"><div class="clientes-actions-row"><button class="btn-mini" data-action="editar" data-id="${e.id}" title="Editar">✎</button><button class="btn-outline btn-atendimento-extra btn-mini" data-action="atendimento-extra" data-id="${e.id}" title="Gerenciar atendimentos extras">+</button><button class="btn-outline btn-mini" data-action="${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'reativar' : 'cancelar'}" data-id="${e.id}" title="${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'Reativar' : 'Cancelar'}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '↩' : '🚫'}</button></div></td>
     </tr>
   `).join("");
 
   tbodyRec.querySelectorAll("button[data-action]").forEach(btn => btn.addEventListener("click", lidarAcaoEvento));
+  setTimeout(() => { if (typeof rtAplicarQuantidadeRecorrentesPorAltura === "function") rtAplicarQuantidadeRecorrentesPorAltura(); }, 0);
 }
 
 
@@ -3654,8 +3749,10 @@ function abrirTrocaRapidaProduto(index) {
     })
     .map(p => {
       const disponibilidade = produtoEstaDisponivelNoEvento(p, evento, index);
-      const bloqueadoPorStatus = statusProdutoBloqueiaTrocaRapida(p);
-      const livre = disponibilidade.livre && !bloqueadoPorStatus;
+      const statusPermiteTransito = rtProdutoStatusAlugadoOuReservado(p) && disponibilidade.permiteUsoTransito;
+      const bloqueadoPorStatus = statusProdutoBloqueiaTrocaRapida(p) && !statusPermiteTransito;
+      const transito = !bloqueadoPorStatus && !disponibilidade.livre && disponibilidade.permiteUsoTransito;
+      const livre = (disponibilidade.livre || transito) && !bloqueadoPorStatus;
 
       let texto = "Disponível";
       let classe = "free";
@@ -3670,15 +3767,17 @@ function abrirTrocaRapidaProduto(index) {
         texto = "⚠ Para consertar";
         classe = "warning";
       } else if (!disponibilidade.livre) {
-        texto = disponibilidade.texto || "Ocupada";
+        texto = rtLinhaDisponibilidadeProdutoEvento(p, disponibilidade);
         classe = disponibilidade.classe || "busy";
       }
 
       return {
         produto: p,
         livre,
-        texto,
-        classe
+        transito,
+        disponibilidade,
+        texto: transito ? rtLinhaDisponibilidadeProdutoEvento(p, disponibilidade, { transito: true }) : texto,
+        classe: transito ? "warning" : classe
       };
     });
 
@@ -3761,16 +3860,21 @@ function abrirTrocaRapidaProduto(index) {
     const novoProduto = itemEscolhido.produto;
 
     const validacao = produtoEstaDisponivelNoEvento(novoProduto, evento, index);
-    if (!validacao.livre || statusProdutoBloqueiaTrocaRapida(novoProduto)) {
-      alert(validacao.texto || textoStatusProdutoTrocaRapida(novoProduto) || "Este produto não está disponível para este evento.");
-      return;
+    let usoTransitoConfirmado = false;
+    if ((!validacao.livre || statusProdutoBloqueiaTrocaRapida(novoProduto))) {
+      if (!statusProdutoBloqueiaTrocaRapida(novoProduto) && validacao.permiteUsoTransito && rtConfirmarUsoEmTransito(novoProduto, validacao, evento)) {
+        usoTransitoConfirmado = true;
+      } else {
+        alert(validacao.texto || textoStatusProdutoTrocaRapida(novoProduto) || "Este produto não está disponível para este evento.");
+        return;
+      }
     }
 
     if (!(await rtConfirmarUsoProdutoRevisar(novoProduto, evento))) {
       return;
     }
 
-    produtosRapidoAtual[index] = {
+    const itemNovoRapido = {
       id: novoProduto.id,
       codigo: novoProduto.codigo || "",
       categoria: novoProduto.categoria || novoProduto.tipo || "",
@@ -3778,6 +3882,8 @@ function abrirTrocaRapidaProduto(index) {
       tamanho: novoProduto.tamanho || "",
       cor: novoProduto.cor || ""
     };
+    rtAplicarUsoEmTransitoProduto(itemNovoRapido, usoTransitoConfirmado ? validacao : null);
+    produtosRapidoAtual[index] = itemNovoRapido;
 
     dialog.close();
     popularSelectProdutosRapido();
@@ -3844,8 +3950,8 @@ function popularSelectProdutosRapido() {
   select.innerHTML = `<option value="">Selecione um produto para adicionar</option>` + disponiveis.map(p => {
     const disp = disponibilidadeProdutoRapido(p.id);
     return `
-      <option value="${p.id}" ${disp.livre ? "" : "disabled"}>
-        ${p.codigo || "Sem código"} — ${p.categoria || p.tipo || "-"} ${p.tamanho || ""} ${p.cor || ""} | ${disp.texto}
+      <option value="${p.id}" ${disp.livre || disp.permiteUsoTransito ? "" : "disabled"}>
+        ${p.codigo || "Sem código"} — ${p.categoria || p.tipo || "-"} ${p.tamanho || ""} ${p.cor || ""} | ${disp.livre ? disp.texto : (disp.permiteUsoTransito ? rtLinhaDisponibilidadeProdutoEvento(p, disp, { transito: true }) : disp.texto)}
       </option>
     `;
   }).join("");
@@ -3860,13 +3966,18 @@ async function adicionarProdutoRapido() {
   if (!produto) return;
 
   const disp = disponibilidadeProdutoRapido(produto.id);
+  let usoTransitoConfirmado = false;
   if (!disp.livre) {
-    const msg = produtoEventoEstaBloqueado(produto)
-      ? "Produto bloqueado.\n\nEste item não pode ser reservado."
-      : "Este produto está indisponível para este evento.";
-    alert(msg);
-    select.value = "";
-    return;
+    if (disp.permiteUsoTransito && rtConfirmarUsoEmTransito(produto, disp, eventoProdutosRapidoAtual())) {
+      usoTransitoConfirmado = true;
+    } else {
+      const msg = produtoEventoEstaBloqueado(produto)
+        ? "Produto bloqueado.\n\nEste item não pode ser reservado."
+        : "Este produto está indisponível para este evento.";
+      alert(msg);
+      select.value = "";
+      return;
+    }
   }
 
   if (!(await rtConfirmarUsoProdutoRevisar(produto, eventoProdutosRapidoAtual()))) {
@@ -3874,13 +3985,15 @@ async function adicionarProdutoRapido() {
     return;
   }
 
-  produtosRapidoAtual.push({
+  const itemRapido = {
     id: produto.id,
     codigo: produto.codigo || "",
     categoria: produto.categoria || produto.tipo || "",
     tamanho: produto.tamanho || "",
     cor: produto.cor || ""
-  });
+  };
+  rtAplicarUsoEmTransitoProduto(itemRapido, usoTransitoConfirmado ? disp : null);
+  produtosRapidoAtual.push(itemRapido);
 
   select.value = "";
   popularSelectProdutosRapido();
@@ -3904,8 +4017,8 @@ function renderizarProdutosRapido() {
 
   container.innerHTML = produtosRapidoAtual.map((produto, index) => {
     const disponibilidade = disponibilidadeProdutoRapido(produto.id);
-    const classe = disponibilidade.classe || "neutral";
-    const textoDisponibilidade = disponibilidade.texto || "Disponibilidade não verificada";
+    const classe = (produto.uso_transito || produto.usoEmTransito) ? "warning" : (disponibilidade.classe || "neutral");
+    const textoDisponibilidade = (produto.uso_transito || produto.usoEmTransito) ? `⚠ Uso em trânsito — ${rtTextoUsoTransitoProduto(produto)}` : (disponibilidade.texto || "Disponibilidade não verificada");
 
     return `
       <div class="produto-rapido-row">
@@ -4524,6 +4637,124 @@ document.addEventListener("click", () => {
 
 setInterval(rtInstalarQuantidadeEventosPorAltura, 1500);
 
+
+// v19-dev: navegação rápida na tela de eventos e limite visual dos recorrentes
+const RT_EVENTOS_RECORRENTES_ITENS_KEY = "novoRioTendasEventosRecorrentesItensPorPaginaV19";
+
+function rtDataISOHojeEventos() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dia = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dia}`;
+}
+
+function rtAddDiasISOEventos(iso, dias) {
+  const d = iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`) : new Date();
+  d.setDate(d.getDate() + dias);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function rtAddMesesISOEventos(iso, meses) {
+  const d = iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`) : new Date();
+  d.setMonth(d.getMonth() + meses, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+function rtEventosDataReferenciaFiltro() {
+  return document.getElementById("filtroEventoData")?.value || rtDataISOHojeEventos();
+}
+
+function rtRolarEventosParaDataAlvo(dataAlvo, modo) {
+  const tbody = document.getElementById("eventosTbody");
+  const wrapper = tbody?.closest(".eventos-table-scroll") || tbody?.closest(".table-wrapper");
+  if (!tbody || !wrapper || !dataAlvo) return;
+
+  const linhas = Array.from(tbody.querySelectorAll("tr")).filter(tr => !tr.querySelector(".empty"));
+  if (!linhas.length) return;
+
+  let alvo = null;
+  for (const tr of linhas) {
+    const id = tr.querySelector("[data-id]")?.dataset?.id;
+    const ev = eventos.find(e => String(e.id) === String(id));
+    const data = String(ev?.data_evento || "").slice(0, 10);
+    if (!data) continue;
+    if (modo === "mes") {
+      if (data.slice(0, 7) === dataAlvo.slice(0, 7)) { alvo = tr; break; }
+    } else if (data === dataAlvo) { alvo = tr; break; }
+  }
+
+  if (!alvo) {
+    alvo = linhas.find(tr => {
+      const id = tr.querySelector("[data-id]")?.dataset?.id;
+      const ev = eventos.find(e => String(e.id) === String(id));
+      return String(ev?.data_evento || "").slice(0, 10) >= dataAlvo;
+    }) || linhas[linhas.length - 1];
+  }
+  wrapper.scrollTop = Math.max(0, alvo.offsetTop - tbody.offsetTop);
+}
+
+function rtEventosNavegarPara(delta, tipo) {
+  const base = rtEventosDataReferenciaFiltro();
+  const alvo = tipo === "mes" ? rtAddMesesISOEventos(base, delta) : (delta === 0 ? rtDataISOHojeEventos() : rtAddDiasISOEventos(base, delta));
+  setTimeout(() => rtRolarEventosParaDataAlvo(alvo, tipo === "mes" ? "mes" : "dia"), 60);
+}
+
+function rtInstalarNavegacaoRapidaEventos() {
+  const bind = (id, fn) => {
+    const btn = document.getElementById(id);
+    if (!btn || btn.dataset.rtNavEventos === "1") return;
+    btn.addEventListener("click", fn);
+    btn.dataset.rtNavEventos = "1";
+  };
+  bind("eventosNavMesAnterior", () => rtEventosNavegarPara(-1, "mes"));
+  bind("eventosNavDiaAnterior", () => rtEventosNavegarPara(-1, "dia"));
+  bind("eventosNavHoje", () => rtEventosNavegarPara(0, "dia"));
+  bind("eventosNavDiaPosterior", () => rtEventosNavegarPara(1, "dia"));
+  bind("eventosNavMesPosterior", () => rtEventosNavegarPara(1, "mes"));
+}
+
+function rtAplicarQuantidadeRecorrentesPorAltura() {
+  const select = document.getElementById("eventosRecorrentesItensPorPagina");
+  const tbody = document.getElementById("eventosRecorrentesTbody");
+  const wrapper = tbody?.closest(".recurring-table-wrapper") || tbody?.closest(".table-wrapper");
+  if (!select || !tbody || !wrapper) return;
+  const valor = select.value || localStorage.getItem(RT_EVENTOS_RECORRENTES_ITENS_KEY) || "10";
+  localStorage.setItem(RT_EVENTOS_RECORRENTES_ITENS_KEY, valor);
+  if (valor === "todos") { wrapper.style.maxHeight = ""; wrapper.style.overflowY = "auto"; return; }
+  const quantidade = Math.max(1, Number(valor) || 10);
+  const primeira = tbody.querySelector("tr");
+  const altura = primeira ? Math.max(38, primeira.getBoundingClientRect().height || 58) : 58;
+  const cab = wrapper.querySelector("thead")?.getBoundingClientRect().height || 42;
+  wrapper.style.maxHeight = `${Math.ceil((altura * quantidade) + cab + 18)}px`;
+  wrapper.style.overflowY = "auto";
+}
+
+function rtInstalarQuantidadeRecorrentes() {
+  const select = document.getElementById("eventosRecorrentesItensPorPagina");
+  const tbody = document.getElementById("eventosRecorrentesTbody");
+  if (select && select.dataset.rtRecorrentesQtd !== "1") {
+    select.value = localStorage.getItem(RT_EVENTOS_RECORRENTES_ITENS_KEY) || "10";
+    select.addEventListener("change", rtAplicarQuantidadeRecorrentesPorAltura);
+    select.dataset.rtRecorrentesQtd = "1";
+  }
+  if (tbody && tbody.dataset.rtRecorrentesObserver !== "1") {
+    new MutationObserver(() => setTimeout(rtAplicarQuantidadeRecorrentesPorAltura, 50)).observe(tbody, { childList: true, subtree: false });
+    tbody.dataset.rtRecorrentesObserver = "1";
+  }
+  rtAplicarQuantidadeRecorrentesPorAltura();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  setTimeout(rtInstalarNavegacaoRapidaEventos, 200);
+  setTimeout(rtInstalarQuantidadeRecorrentes, 250);
+});
+document.addEventListener("click", () => {
+  setTimeout(rtInstalarNavegacaoRapidaEventos, 100);
+  setTimeout(rtInstalarQuantidadeRecorrentes, 150);
+});
+setInterval(() => { rtInstalarNavegacaoRapidaEventos(); rtInstalarQuantidadeRecorrentes(); }, 1500);
+
 /* v19-dev: geração de documentos editáveis do evento (guia, contrato e recibo) */
 function rtDocEventoTexto(valor) {
   const texto = String(valor ?? '').trim();
@@ -5028,8 +5259,67 @@ function rtEventoWhatsappResumoDados() {
   };
 }
 
+
+function rtEventoWhatsappModelosPadraoLocal() {
+  return [
+    { id: "orcamento", tipo: "orcamento", icone: "📋", titulo: "Orçamento", ativo: true },
+    { id: "confirmar", tipo: "confirmar", icone: "✅", titulo: "Confirmar reserva", ativo: true },
+    { id: "montagem", tipo: "montagem", icone: "🚚", titulo: "Previsão de montagem", ativo: true },
+    { id: "chegando", tipo: "chegando", icone: "📍", titulo: "Estamos a caminho", ativo: true },
+    { id: "entregue", tipo: "entregue", icone: "⛺", titulo: "Material entregue", ativo: true },
+    { id: "retirada", tipo: "retirada", icone: "🕒", titulo: "Previsão de retirada", ativo: true },
+    { id: "recolhido", tipo: "recolhido", icone: "📦", titulo: "Material recolhido", ativo: true },
+    { id: "cobrar", tipo: "cobrar", icone: "💰", titulo: "Cobrar restante", ativo: true, somenteComRestante: true },
+    { id: "conversa", tipo: "conversa", icone: "📞", titulo: "Conversa livre", ativo: true }
+  ];
+}
+
+function rtEventoWhatsappModelosAtivos() {
+  let modelos = [];
+  try {
+    const config = (typeof carregarConfiguracoes === "function") ? carregarConfiguracoes() : null;
+    modelos = Array.isArray(config?.modelosWhatsapp) ? config.modelosWhatsapp : [];
+  } catch {}
+  if (!modelos.length) modelos = rtEventoWhatsappModelosPadraoLocal();
+  const d = rtEventoWhatsappResumoDados();
+  return modelos.filter(m => m && m.ativo !== false && m.tipo !== "orcamento" && m.id !== "orcamento" && (!m.somenteComRestante || d.restante > 0));
+}
+
+function rtEventoWhatsappVariaveis(d) {
+  let empresa = "RioTendas";
+  let pix = "";
+  try {
+    const cfg = (typeof carregarConfiguracoes === "function") ? carregarConfiguracoes() : {};
+    empresa = cfg.nomeEmpresa || empresa;
+    pix = cfg.pix?.chave || "";
+  } catch {}
+  return {
+    CLIENTE: d.nome || "cliente",
+    PRIMEIRO_NOME: d.primeiroNome || rtEventoWhatsappPrimeiroNome(d.nome),
+    DATA: d.dataTxt || "data combinada",
+    MONTAGEM: d.montagem || d.dataTxt || "data combinada",
+    RETIRADA: d.desmontagem || d.dataTxt || "data combinada",
+    ENDERECO: d.enderecoCompleto || "endereço combinado",
+    PRODUTOS: d.produtosTxt || "Materiais combinados",
+    TOTAL: dinheiro(d.valorTotal || 0),
+    SINAL: dinheiro(d.valorSinal || 0),
+    RESTANTE: dinheiro(d.restante || d.valorRestante || 0),
+    PIX: pix,
+    EMPRESA: empresa
+  };
+}
+
+function rtEventoWhatsappAplicarModelo(texto, d) {
+  const vars = rtEventoWhatsappVariaveis(d);
+  return String(texto || "").replace(/\{([A-Z_]+)\}/g, (_, chave) => (vars[chave] ?? ""));
+}
+
 function rtEventoWhatsappMensagem(tipo) {
   const d = rtEventoWhatsappResumoDados();
+  try {
+    const modelo = rtEventoWhatsappModelosAtivos().find(m => String(m.tipo || m.id) === String(tipo) || String(m.id) === String(tipo));
+    if (modelo && modelo.texto) return rtEventoWhatsappAplicarModelo(modelo.texto, d);
+  } catch {}
   const nome = d.primeiroNome;
   if (tipo === 'orcamento') {
     return `Olá, ${nome}! Aqui é da RioTendas. Estou enviando as informações do orçamento do seu evento para ${d.dataTxt}.\n\nItens:\n${d.produtosTxt}\n\nEndereço:\n${d.enderecoCompleto}\n\nValor total: ${dinheiro(d.valorTotal)}\nSinal: ${dinheiro(d.valorSinal)}\nRestante: ${dinheiro(d.valorRestante)}\n\nQualquer dúvida, pode responder por aqui.`;
@@ -5066,17 +5356,7 @@ function rtEventoWhatsappAbrir() {
   if (!rtEventoWhatsappTelefoneUrl(d.telefone)) {
     conteudo.innerHTML = `<p class="empty">Cadastre o telefone do cliente no evento para habilitar os atalhos de WhatsApp.</p>`;
   } else {
-    const botoes = [
-      ['orcamento', '📋', 'Orçamento'],
-      ['confirmar', '✅', 'Confirmar reserva'],
-      ['montagem', '🚚', 'Previsão de montagem'],
-      ['chegando', '📍', 'Estamos a caminho'],
-      ['entregue', '⛺', 'Material entregue'],
-      ['retirada', '🕒', 'Previsão de retirada'],
-      ['recolhido', '📦', 'Material recolhido']
-    ];
-    if (d.restante > 0) botoes.push(['cobrar', '💰', 'Cobrar restante']);
-    botoes.push(['conversa', '📞', 'Conversa livre']);
+    const botoes = rtEventoWhatsappModelosAtivos().map(m => [m.tipo || m.id, m.icone || "💬", m.titulo || "Mensagem"]);
     conteudo.innerHTML = `
       <div class="evento-whatsapp-resumo">
         <strong>${d.nome || 'Cliente sem nome'}</strong>
