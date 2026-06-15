@@ -2,7 +2,7 @@ const storageOrcamentosKey = "novoRioTendasOrcamentosV1";
 let orcamentos = [];
 let materiaisOrcamentoAtual = [];
 let orcamentoSinalEditadoManual = false;
-const rtOrcLogoDataUri = "data:image/png;base64,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 5mPv8jXaptvwVuqdv6HZaff1sWUU9Q7Lat 4mJdScv/VejScT9WNkomct8laKemzDu17IZbxMQvrwO9A7axf2vbZ8u+BS+V99lr758lZ2XhXPeNarTxp7RY8zls3DlwA7axf2vbZ8i9DbwUpHO0LHFCxL79WTQvXtl2pY/fOqULM2HHGdV7GsLCGqiZ/ZrhLat 6msaB14bLTwPg01Ck63ybRjfyduqt39MC8o078LBoTO8AVg21Cmgg0LyLhjHC58E5AkLNAFVS6WPojcuGPUe+8aSv05mpEzWTP4YaNqu6s4b573K5h4Y4cBHdO6dkixYcg2rYMaee89ecE23+I6g38r6K3vhcFhQCerIjtYYaiZ3knjAswLQBwuVwNSwMGvsjunuDC+wxrBnCftEDk427cPxB++P8+Xva4pMG3YE/ABqVtcvT7c4mR6sS21zMzP3TyLa8WvmFEmiVjS/xcZzSo/y0AbXaba1Kyt9/M4i9VlY3V4YYlX2RRXkP1Id9NRwCcaAKZeovjIg7M/osENanxwrbGeP5Mq7TxoLkXzRh7Btb+ssOsFqNAULd9uoq5+Bou7k513KaDoE44EfomKFRtgO5dTciqzV0wHh0F2NaZk2DOGGIO6UTpFCHtBw+Pu3o/JojZcyanp+Ds6NZI1wTModvf3PfgceHmwYs3tJkvGlhextgGz+206clME6yT7ME9AY79yGcMy0ctRBt5Vib66TesuwGV69a+a68pnzbioNnn/qdLIYKDoE4cCDCwTIdOBDh/wESSG3DwEJpXgAAAABJRU5ErkJggg==";
+const rtOrcLogoUrlPadrao = "https://riotendas.smartwebinfo.com.br/webapp/public/img/logo.png";
 
 function rtOrcGerarId(){ return (typeof gerarId === "function") ? gerarId() : String(Date.now()) + Math.random().toString(16).slice(2); }
 function rtOrcMoeda(n){ return (typeof numeroParaMoeda === "function") ? numeroParaMoeda(Number(n||0)) : Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
@@ -10,6 +10,63 @@ function rtOrcNumero(v){ return (typeof moedaParaNumero === "function") ? moedaP
 function rtOrcDataBR(d){ return d ? (typeof dataBR === "function" ? dataBR(d) : d.split('-').reverse().join('/')) : ''; }
 function rtOrcEscape(v){ return String(v ?? '').replace(/[&<>"]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s])); }
 function rtOrcPrimeiroNome(nome){ return String(nome||'').trim().split(/\s+/)[0] || ''; }
+
+
+
+function rtOrcFormasPagamentoPadrao(){
+  return [
+    "Sinal de 20% para reserva do material e mobilização da equipe. Restante até o dia do evento em dinheiro, transferência ou cartão.",
+    "Faturado conforme combinado entre as partes.",
+    "À vista no local.",
+    "A combinar."
+  ];
+}
+
+function rtOrcObterFormasPagamentoOrcamento(){
+  try {
+    const cfg = (typeof carregarConfiguracoes === 'function') ? carregarConfiguracoes() : {};
+    const lista = Array.isArray(cfg.formasPagamentoOrcamento) ? cfg.formasPagamentoOrcamento : [];
+    const limpas = lista.map(v => String(v || '').trim()).filter(Boolean);
+    return limpas.length ? limpas : rtOrcFormasPagamentoPadrao();
+  } catch(e) {
+    return rtOrcFormasPagamentoPadrao();
+  }
+}
+
+function preencherFormasPagamentoOrcamento(valorAtual){
+  const select = document.getElementById('orcamentoFormaPagamento');
+  if (!select) return;
+  const atual = valorAtual || select.value || '';
+  const lista = rtOrcObterFormasPagamentoOrcamento();
+  select.innerHTML = lista.map(v => `<option value="${rtOrcEscape(v)}">${rtOrcEscape(v.length > 70 ? v.slice(0,67) + '...' : v)}</option>`).join('');
+  if (atual && lista.includes(atual)) select.value = atual;
+  else if (atual) {
+    const opt = document.createElement('option');
+    opt.value = atual;
+    opt.textContent = atual.length > 70 ? atual.slice(0,67) + '...' : atual;
+    select.appendChild(opt);
+    select.value = atual;
+  }
+}
+
+function rtOrcObterLarguraLogoDocumentos(){
+  try {
+    const cfg = (typeof carregarConfiguracoes === 'function') ? carregarConfiguracoes() : {};
+    const n = Number(cfg.logoLarguraDocumentos || 300);
+    return Math.min(Math.max(n || 300, 80), 600);
+  } catch(e) {
+    return 300;
+  }
+}
+
+function rtOrcSanitizarModeloOrcamento(html){
+  return String(html || '')
+    .replace(/\sheight=["']150["']/gi, '')
+    .replace(/\smin-height\s*:\s*150px\s*;?/gi, '')
+    .replace(/(<section[^>]*class=["'][^"']*doc-header[^"']*["'][^>]*>)/i, '$1')
+    .replace(/(<table\b[^>]*?)\sheight=["'][^"']+["']/gi, '$1')
+    .replace(/(<td\b[^>]*?)\sheight=["'][^"']+["']/gi, '$1');
+}
 
 
 function preencherSelectsHorarioOrcamento(){
@@ -101,6 +158,7 @@ function salvarOrcamentosLocal(){ localStorage.setItem(storageOrcamentosKey, JSO
 
 function iniciarOrcamentos(){
   preencherSelectsHorarioOrcamento();
+  preencherFormasPagamentoOrcamento();
   document.getElementById('novoOrcamentoBtn')?.addEventListener('click', abrirNovoOrcamento);
   document.getElementById('orcamentoForm')?.addEventListener('submit', salvarOrcamentoForm);
   document.getElementById('fecharOrcamentoModal')?.addEventListener('click', fecharOrcamentoModal);
@@ -148,6 +206,7 @@ document.addEventListener('DOMContentLoaded', iniciarOrcamentos);
 
 function abrirNovoOrcamento(){
   preencherSelectsHorarioOrcamento();
+  preencherFormasPagamentoOrcamento();
   const form = document.getElementById('orcamentoForm');
   form?.reset();
   document.getElementById('orcamentoId').value = '';
@@ -207,7 +266,7 @@ function abrirEditarOrcamento(id){
   document.getElementById('orcamentoValorTotal').value = rtOrcMoeda(o.valor_total || 0);
   document.getElementById('orcamentoValorSinal').value = rtOrcMoeda(o.valor_sinal || 0);
   document.getElementById('orcamentoValorRestante').value = rtOrcMoeda(o.valor_restante || 0);
-  document.getElementById('orcamentoFormaPagamento').value = o.forma_pagamento || document.getElementById('orcamentoFormaPagamento').options[0].value;
+  preencherFormasPagamentoOrcamento(o.forma_pagamento || '');
   orcamentoSinalEditadoManual = true;
   document.getElementById('orcamentoObservacoes').value = o.observacoes || '';
   materiaisOrcamentoAtual = Array.isArray(o.materiais) ? JSON.parse(JSON.stringify(o.materiais)) : [];
@@ -770,6 +829,16 @@ function rtOrcObterModeloDocumento(){
   }
 }
 
+function rtOrcObterLogoEmpresaUrl(){
+  try {
+    const config = (typeof carregarConfiguracoes === 'function') ? carregarConfiguracoes() : {};
+    const url = String(config?.logoEmpresa || '').trim();
+    if (url && !url.startsWith('data:image')) return url;
+  } catch(e) {}
+  return rtOrcLogoUrlPadrao;
+}
+
+
 function rtOrcAssinaturaResponsavelHtml(){
   let assinatura = '';
   try {
@@ -780,6 +849,34 @@ function rtOrcAssinaturaResponsavelHtml(){
   return `<div class="orc-assinatura-responsavel">${img}<div class="linha-assinatura">______________________________________</div><strong>Rodrigo Brandão</strong><br><span>RioTendas</span></div>`;
 }
 
+function rtOrcObterObservacaoHorariosOrcamento(){
+  const padrao = 'Nas modalidades Livre ou Comercial, a montagem e/ou desmontagem são realizadas por logística compartilhada. Nessas modalidades não trabalhamos com horário marcado; os horários servem apenas como referência operacional.';
+  try {
+    const configLocal = JSON.parse(localStorage.getItem('novoRioTendasConfiguracoesV1') || 'null');
+    if (configLocal && Object.prototype.hasOwnProperty.call(configLocal, 'observacaoHorariosOrcamento')) {
+      return String(configLocal.observacaoHorariosOrcamento || '').trim();
+    }
+    const cfg = (typeof carregarConfiguracoes === 'function') ? carregarConfiguracoes() : {};
+    if (Object.prototype.hasOwnProperty.call(cfg, 'observacaoHorariosOrcamento')) {
+      return String(cfg.observacaoHorariosOrcamento || '').trim();
+    }
+  } catch(e) {}
+  return padrao;
+}
+
+function rtOrcPrepararModeloObservacoes(modelo){
+  let html = String(modelo || '');
+  if (/{{\s*observacao_horarios\s*}}/i.test(html)) return html;
+
+  // Modelos antigos tinham apenas {{observacao_cliente}} nessa posição.
+  // A partir daqui, a observação de horários é uma preferência separada.
+  html = html.replace(/<p>\s*{{\s*observacao_cliente\s*}}\s*<\/p>/i, '{{observacao_horarios}}\n{{observacao_cliente}}');
+  if (!/{{\s*observacao_horarios\s*}}/i.test(html) && /{{\s*observacao_cliente\s*}}/i.test(html)) {
+    html = html.replace(/{{\s*observacao_cliente\s*}}/i, '{{observacao_horarios}}\n{{observacao_cliente}}');
+  }
+  return html;
+}
+
 function gerarPdfOrcamento(o){
   if (!o || !o.nome) { alert('Preencha pelo menos o nome do cliente antes de gerar o PDF.'); return; }
   const itensTabela = `<table class="doc-table"><thead><tr><th>Qtd</th><th>Descrição</th><th>Valor Unit.</th><th>Total</th></tr></thead><tbody>${(o.materiais||[]).map(i => `<tr><td>${rtOrcEscape(i.quantidade)}</td><td>${rtOrcDescricaoPdfItem(i)}</td><td>${rtOrcMoeda(i.valor_unitario||0)}</td><td>${rtOrcMoeda(Number(i.quantidade||0)*Number(i.valor_unitario||0))}</td></tr>`).join('') || '<tr><td colspan="4">Materiais a combinar.</td></tr>'}</tbody></table>`;
@@ -787,8 +884,10 @@ function gerarPdfOrcamento(o){
   const validade = new Date(); validade.setDate(validade.getDate()+30);
   const validadeBR = rtOrcDataBR(validade.toISOString().slice(0,10));
   const tiposLogistica = `${o.montagem_tipo||''} ${o.desmontagem_tipo||''}`.toLowerCase();
-  const avisoLogistica = /(livre|comercial)/i.test(tiposLogistica) ? `<p><strong>Observação sobre horários:</strong><br>Nas modalidades Livre ou Comercial, a montagem e/ou desmontagem são realizadas por logística compartilhada. Nessas modalidades não trabalhamos com horário marcado; os horários servem apenas como referência operacional.</p>` : '';
-  const logo = `<img src="${rtOrcLogoDataUri}" alt="RioTendas" style="max-width:122px;height:auto;">`;
+  const textoObservacaoHorarios = rtOrcObterObservacaoHorariosOrcamento();
+  const avisoLogistica = /(livre|comercial)/i.test(tiposLogistica) && textoObservacaoHorarios ? `<p><strong>Observação sobre horários:</strong><br>${rtOrcEscape(textoObservacaoHorarios).replace(/\n/g, '<br>')}</p>` : '';
+  const larguraLogo = rtOrcObterLarguraLogoDocumentos();
+  const logo = `<img src="${rtOrcObterLogoEmpresaUrl()}" alt="RioTendas" style="max-width:${larguraLogo}px;width:${larguraLogo}px;height:auto;">`;
   const dados = {
     logo_empresa: logo,
     nome_empresa: 'RioTendas',
@@ -807,7 +906,8 @@ function gerarPdfOrcamento(o){
     montagem: `${rtOrcDataBR(o.montagem_data)} ${rtOrcEscape(o.montagem_tipo||'')} ${rtOrcEscape(o.montagem_hora||'')}`.trim(),
     desmontagem: `${rtOrcDataBR(o.desmontagem_data)} ${rtOrcEscape(o.desmontagem_tipo||'')} ${rtOrcEscape(o.desmontagem_hora||'')}`.trim(),
     descricao_servico: 'LOCAÇÃO DE ARTIGOS PARA EVENTOS',
-    observacao_cliente: `${avisoLogistica}${o.observacoes ? `<p><strong>Observações:</strong><br>${rtOrcEscape(o.observacoes).replace(/\n/g,'<br>')}</p>` : ''}`,
+    observacao_horarios: avisoLogistica,
+    observacao_cliente: o.observacoes ? `<p><strong>Observações:</strong><br>${rtOrcEscape(o.observacoes).replace(/\n/g,'<br>')}</p>` : '',
     itens: itensTabela,
     valor_materiais: rtOrcMoeda(o.valor_materiais || (o.materiais||[]).reduce((s,i)=>s + Number(i.quantidade||0)*Number(i.valor_unitario||0),0)),
     valor_frete: rtOrcMoeda(o.valor_frete_montagem || 0),
@@ -819,10 +919,10 @@ function gerarPdfOrcamento(o){
     data_hoje: hoje,
     assinaturas: rtOrcAssinaturaResponsavelHtml()
   };
-  const modelo = rtOrcObterModeloDocumento();
-  const corpo = rtOrcAplicarModelo(modelo, dados) || `<section class="doc-header">${logo}<h1>ORÇAMENTO Nº ${dados.numero_orcamento}</h1></section>${itensTabela}`;
+  const modelo = rtOrcSanitizarModeloOrcamento(rtOrcPrepararModeloObservacoes(rtOrcObterModeloDocumento()));
+  const corpo = rtOrcSanitizarModeloOrcamento(rtOrcAplicarModelo(modelo, dados) || `<section class="doc-header">${logo}<h1>ORÇAMENTO Nº ${dados.numero_orcamento}</h1></section>${itensTabela}`);
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Orçamento RioTendas</title><style>
-    body{font-family:Arial,sans-serif;margin:0;background:#eee;color:#111}.toolbar{position:sticky;top:0;z-index:50;background:#0d3f73;color:#fff;padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.toolbar button,.toolbar input{padding:6px 8px;border:0;border-radius:7px;cursor:pointer}.toolbar .wa-pdf{background:#25d366;color:#062b14;font-weight:700}.toolbar .hint-wa{font-size:11px;opacity:.95}.page{width:190mm;min-height:277mm;margin:12px auto;background:#fff;padding:14mm;box-shadow:0 0 12px #999;box-sizing:border-box}.doc-header{text-align:left;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:12px}.doc-header img{max-width:122px;height:auto}.doc-header h1{margin:4px 0;font-size:20px}.doc-header h2{margin:8px 0 4px;font-size:18px}.doc-header p,.small{font-size:11px}.doc-table{width:100%;border-collapse:collapse;margin:8px 0 12px}.doc-table th,.doc-table td{border:1px solid #bbb;padding:7px;font-size:12px;text-align:left;resize:both;overflow:auto}.doc-table th{background:#f1f1f1}.compact{max-width:100%}h3{margin:14px 0 6px}p{font-size:12px;line-height:1.45}.orc-assinatura-responsavel{margin:6px 0 10px;text-align:left;font-size:12px}.doc-assinatura-img{display:block;max-width:185px;max-height:55px;object-fit:contain;margin:0 0 -4px}.linha-assinatura{line-height:1;margin-top:0}.footer{margin-top:22px;border-top:1px solid #111;padding-top:8px;display:flex;justify-content:space-between;font-size:11px}.layout-mode *{outline:1px dashed rgba(13,63,115,.25)}@media print{.toolbar{display:none}.page{margin:0;box-shadow:none;width:auto;min-height:auto}.layout-mode *{outline:none}}
+    body{font-family:Arial,sans-serif;margin:0;background:#eee;color:#111}.toolbar{position:sticky;top:0;z-index:50;background:#0d3f73;color:#fff;padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.toolbar button,.toolbar input{padding:6px 8px;border:0;border-radius:7px;cursor:pointer}.toolbar .wa-pdf{background:#25d366;color:#062b14;font-weight:700}.toolbar .hint-wa{font-size:11px;opacity:.95}.page{width:190mm;min-height:277mm;margin:0 auto 12px;background:#fff;padding:0 14mm 14mm;box-shadow:0 0 12px #999;box-sizing:border-box}.doc-header{text-align:left;border-bottom:2px solid #111;padding-top:0;padding-bottom:8px;margin-top:0;margin-bottom:12px}.doc-header img{height:auto}.doc-header h1{margin:4px 0;font-size:20px}.doc-header h2{margin:8px 0 4px;font-size:18px}.doc-header p,.small{font-size:11px}.doc-table{width:100%;border-collapse:collapse;margin:8px 0 12px}.doc-table th,.doc-table td{border:1px solid #bbb;padding:7px;font-size:12px;text-align:left;resize:both;overflow:auto}.doc-table th{background:#f1f1f1}.compact{max-width:100%}h3{margin:14px 0 6px}p{font-size:12px;line-height:1.45}.orc-assinatura-responsavel{margin:6px 0 10px;text-align:left;font-size:12px}.doc-assinatura-img{display:block;max-width:185px;max-height:55px;object-fit:contain;margin:0 0 -4px}.linha-assinatura{line-height:1;margin-top:0}.footer{margin-top:22px;border-top:1px solid #111;padding-top:8px;display:flex;justify-content:space-between;font-size:11px}.layout-mode *{outline:1px dashed rgba(13,63,115,.25)}@page{margin:0} @media print{html,body{margin:0!important;padding:0!important}.toolbar{display:none}.page{margin:0;box-shadow:none;width:auto;min-height:auto;padding-top:0!important}.doc-header{margin-top:0!important;padding-top:0!important}.layout-mode *{outline:none}}
   </style></head><body><div class="toolbar"><strong>Orçamento editável</strong><button onclick="document.execCommand('bold')">B</button><button onclick="document.execCommand('italic')">I</button><button onclick="document.execCommand('underline')">U</button><button onclick="document.execCommand('justifyLeft')">Esq.</button><button onclick="document.execCommand('justifyCenter')">Centro</button><button onclick="document.execCommand('justifyRight')">Dir.</button><button onclick="document.execCommand('fontSize',false,'2')">A-</button><button onclick="document.execCommand('fontSize',false,'4')">A+</button><input type="color" onchange="document.execCommand('foreColor',false,this.value)"><button onclick="document.querySelector('.page').classList.toggle('layout-mode')">Editar layout</button><button onclick="rtSalvarModeloOrcamentoNuvem()">Salvar modelo</button><button onclick="window.print()">Imprimir/PDF</button><button onclick="window.close()">Fechar</button></div><main class="page" contenteditable="true">${corpo}<div class="footer"><div>RioTendas - Locação de Tendas<br>R. Cons. Lampreia, 245 – Cosme Velho</div><div>Tel.(21) 3490-2333 / 99692-9292<br>www.riotendas.com.br</div></div></main><script>
 function rtOrcHtmlLimpo(){var p=document.querySelector('.page'); if(!p) return ''; var c=p.cloneNode(true); return c.innerHTML;}
 async function rtSalvarModeloOrcamentoNuvem(){

@@ -1,5 +1,6 @@
 
 const storageConfigKey = "novoRioTendasConfiguracoesV1";
+const RT_OBSERVACAO_HORARIOS_ORCAMENTO_PADRAO = "Nas modalidades Livre ou Comercial, a montagem e/ou desmontagem são realizadas por logística compartilhada. Nessas modalidades não trabalhamos com horário marcado; os horários servem apenas como referência operacional.";
 window.RT_ASSINATURA_RODRIGO_PADRAO = window.RT_ASSINATURA_RODRIGO_PADRAO || "data:image/gif;base64,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";
 
 function modelosDocumentosPadrao() {
@@ -116,7 +117,8 @@ function modelosDocumentosPadrao() {
 <p><strong>DADOS BANCÁRIOS:</strong> Banco Itaú (341) – Ag. 8054 – CC 06451-7 (Condolink – Eventos, locação e multimídia Ltda) – Pix: CNPJ – 05.831.617/0001-72</p>
 <p><strong>DADOS DO EVENTO:</strong> Data: {{data_evento}}; Entrega/Montagem: {{montagem}}; Retirada: {{desmontagem}}.</p>
 <p><strong>LOCAL:</strong> {{endereco}}</p>
-<p>{{observacao_cliente}}</p>
+{{observacao_horarios}}
+{{observacao_cliente}}
 <p>* Valor válido por 30 dias após data da proposta, mediante disponibilidade de material. Este orçamento não reserva material até confirmação/sinal.</p>
 <p>Sendo o que se tem para o momento, e no aguardo de seu “DE ACORDO”, nos colocamos à disposição para dirimir quaisquer dúvidas que porventura houver.</p>
 <p>Cordialmente,</p>
@@ -155,6 +157,9 @@ function configPadrao() {
     fotosPadrao: {},
     nomeEmpresa: "RioTendas",
     logoEmpresa: "https://riotendas.smartwebinfo.com.br/webapp/public/img/logo.png",
+    logoLarguraDocumentos: 300,
+    formasPagamentoOrcamento: ["Sinal de 20% para reserva do material e mobilização da equipe. Restante até o dia do evento em dinheiro, transferência ou cartão.", "Faturado conforme combinado entre as partes.", "À vista no local.", "A combinar."],
+    observacaoHorariosOrcamento: RT_OBSERVACAO_HORARIOS_ORCAMENTO_PADRAO,
     assinaturaResponsavel: window.RT_ASSINATURA_RODRIGO_PADRAO || "",
     periodoRotas: "30",
     cidadePadrao: "Rio de Janeiro",
@@ -1902,6 +1907,22 @@ function preencherPreferenciasConfig() {
 
   document.getElementById("configNomeEmpresa").value = config.nomeEmpresa || "";
   document.getElementById("configLogoEmpresa").value = config.logoEmpresa || "";
+  const logoLarguraDoc = document.getElementById("configLogoLarguraDocumentos");
+  if (logoLarguraDoc) logoLarguraDoc.value = Number(config.logoLarguraDocumentos || 300);
+  const formasOrc = document.getElementById("configFormasPagamentoOrcamento");
+  if (formasOrc) {
+    const lista = Array.isArray(config.formasPagamentoOrcamento) && config.formasPagamentoOrcamento.length
+      ? config.formasPagamentoOrcamento
+      : (configPadrao().formasPagamentoOrcamento || []);
+    formasOrc.value = lista.join("\n");
+  }
+  const obsHorariosOrc = document.getElementById("configObservacaoHorariosOrcamento");
+  if (obsHorariosOrc) {
+    const temObsHorariosSalva = Object.prototype.hasOwnProperty.call(config, "observacaoHorariosOrcamento");
+    obsHorariosOrc.value = temObsHorariosSalva
+      ? String(config.observacaoHorariosOrcamento || "")
+      : String(configPadrao().observacaoHorariosOrcamento || "");
+  }
   atualizarPreviewAssinaturaResponsavelConfig(config.assinaturaResponsavel || window.RT_ASSINATURA_RODRIGO_PADRAO || "");
   document.getElementById("configPeriodoRotas").value = config.periodoRotas || "30";
   const horarioComercial = config.horarioComercial || {};
@@ -2654,6 +2675,13 @@ function salvarPreferenciasConfig() {
 
   config.nomeEmpresa = document.getElementById("configNomeEmpresa").value.trim() || "RioTendas";
   config.logoEmpresa = document.getElementById("configLogoEmpresa").value.trim() || configPadrao().logoEmpresa;
+  const larguraLogoDoc = Number(document.getElementById("configLogoLarguraDocumentos")?.value || 300);
+  config.logoLarguraDocumentos = Math.min(Math.max(larguraLogoDoc || 300, 80), 600);
+  const formasOrcTexto = document.getElementById("configFormasPagamentoOrcamento")?.value || "";
+  const formasOrc = formasOrcTexto.split(/\n+/).map(v => v.trim()).filter(Boolean);
+  config.formasPagamentoOrcamento = formasOrc.length ? formasOrc : (configPadrao().formasPagamentoOrcamento || []);
+  const obsHorariosOrcCampo = document.getElementById("configObservacaoHorariosOrcamento");
+  config.observacaoHorariosOrcamento = obsHorariosOrcCampo ? String(obsHorariosOrcCampo.value || "").trim() : "";
   config.assinaturaResponsavel = document.getElementById("configAssinaturaResponsavel")?.value || "";
   config.periodoRotas = document.getElementById("configPeriodoRotas").value || "30";
   config.horarioComercial = {

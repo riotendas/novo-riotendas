@@ -329,20 +329,36 @@
       </div>
 
       <div class="recurring-events-panel">
-        <div class="section-header compact-header">
-          <div>
+        <div class="section-header compact-header recorrentes-header">
+          <div class="recorrentes-title-block">
             <h3>Eventos recorrentes</h3>
             <p>Eventos gerados por recorrência, separados da listagem normal.</p>
           </div>
-          <label class="eventos-mostrar-filtro recorrentes-mostrar-filtro">Mostrar
-            <select id="eventosRecorrentesItensPorPagina">
-              <option value="10">10</option>
-              <option value="15">15</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-              <option value="todos">Todos</option>
-            </select>
-          </label>
+          <div class="recorrentes-toolbar" aria-label="Filtros e navegação dos eventos recorrentes">
+            <div class="eventos-nav-data recorrentes-nav-data" aria-label="Navegação rápida de recorrentes">
+              <button type="button" id="recorrentesNavMesAnterior" class="btn-outline btn-nav-eventos" title="Mês anterior">≪</button>
+              <button type="button" id="recorrentesNavDiaAnterior" class="btn-outline btn-nav-eventos" title="Dia anterior">‹</button>
+              <button type="button" id="recorrentesNavHoje" class="btn-outline btn-nav-eventos hoje" title="Hoje">Hoje</button>
+              <button type="button" id="recorrentesNavDiaPosterior" class="btn-outline btn-nav-eventos" title="Próximo dia">›</button>
+              <button type="button" id="recorrentesNavMesPosterior" class="btn-outline btn-nav-eventos" title="Próximo mês">≫</button>
+            </div>
+            <label class="recorrentes-pagamento-filtro"><span>Pagamento</span>
+              <select id="filtroRecorrentePagamento">
+                <option value="">Todos</option>
+                <option value="aberto">Em aberto</option>
+                <option value="quitado">Quitado</option>
+              </select>
+            </label>
+            <label class="eventos-mostrar-filtro recorrentes-mostrar-filtro"><span>Mostrar</span>
+              <select id="eventosRecorrentesItensPorPagina">
+                <option value="10">10 eventos</option>
+                <option value="15">15 eventos</option>
+                <option value="20">20 eventos</option>
+                <option value="50">50 eventos</option>
+                <option value="todos">Todos</option>
+              </select>
+            </label>
+          </div>
         </div>
 
         <div class="table-wrapper recurring-table-wrapper">
@@ -1186,6 +1202,8 @@
                 <code>{{desmontagem}}</code>
                 <code>{{descricao_servico}}</code>
                 <code>{{observacao_cliente}}</code>
+                <code>{{observacao_horarios}}</code>
+                <code>{{observacao_horarios}}</code>
                 <code>{{valor_total}}</code>
                 <code>{{sinal}}</code>
                 <code>{{restante}}</code>
@@ -1270,6 +1288,7 @@
           <div class="form-grid">
             <label>Nome da empresa<input id="configNomeEmpresa" type="text" placeholder="RioTendas"></label>
             <label>Logo da empresa<input id="configLogoEmpresa" type="url" placeholder="https://..."></label>
+            <label>Largura da logo nos documentos (px)<input id="configLogoLarguraDocumentos" type="number" min="80" max="600" step="10" value="300" placeholder="300"></label>
             <label>Assinatura do responsável
               <input id="configAssinaturaResponsavelArquivo" type="file" accept="image/*">
               <input id="configAssinaturaResponsavel" type="hidden">
@@ -1282,6 +1301,14 @@
             <label>Nome recebedor Pix<input id="configPixNome" type="text" placeholder="RIOTENDAS"></label>
             <label>Cidade Pix<input id="configPixCidade" type="text" placeholder="RIO DE JANEIRO"></label>
             <label>Banco Pix<input id="configPixBanco" type="text" placeholder="Itaú"></label>
+            <label class="full-width">Formas de pagamento do orçamento
+              <textarea id="configFormasPagamentoOrcamento" rows="7" placeholder="Uma opção por linha. Ex: Faturado 5 dias conforme combinado entre as partes."></textarea>
+              <small>Uma opção por linha. Esta lista aparece somente na tela de Orçamentos e no PDF do orçamento.</small>
+            </label>
+            <label class="full-width">Observação sobre horários do orçamento
+              <textarea id="configObservacaoHorariosOrcamento" rows="4" placeholder="Texto padrão exibido no PDF quando montagem/desmontagem for Livre ou Comercial."></textarea>
+              <small>Este texto aparece no PDF do orçamento quando a montagem ou desmontagem estiver em modalidade Livre/Comercial.</small>
+            </label>
           </div>
           <div class="assinatura-config-box">
             <strong>Prévia da assinatura nos documentos</strong>
@@ -1291,7 +1318,7 @@
               <button id="removerAssinaturaResponsavelConfig" type="button" class="btn-outline danger">Remover assinatura</button>
             </div>
           </div>
-          <div class="config-actions"><button id="salvarPreferenciasConfig">Salvar preferências</button></div>
+          <div class="config-actions"><button id="salvarPreferenciasConfig" type="button">Salvar preferências</button></div>
         </div>
       </dialog>
 
@@ -2102,6 +2129,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="js/configuracoes.js"></script>
   <script src="js/relatorios.js"></script>
+  <script src="js/configuracoes-botoes-fix.js"></script>
   <script src="js/app.js"></script>
   <script src="js/calendario-nav-fix.js"></script>
   <script src="js/logs.js"></script>

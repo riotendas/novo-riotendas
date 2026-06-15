@@ -824,12 +824,14 @@ function iniciarRuaMobile() {
     atualizarBtn.addEventListener("click", async () => {
       if (typeof carregarEventos === "function") await carregarEventos();
       if (typeof sincronizarRotasOperacaoNuvem === "function") await sincronizarRotasOperacaoNuvem();
+      if (typeof rtNotasSincronizarNuvem === "function") await rtNotasSincronizarNuvem(false);
       renderizarRuaMobile();
     });
   }
 
   setTimeout(async () => {
     if (typeof sincronizarRotasOperacaoNuvem === "function") await sincronizarRotasOperacaoNuvem(false);
+    if (typeof rtNotasSincronizarNuvem === "function") await rtNotasSincronizarNuvem(false);
     renderizarRuaMobile();
   }, 800);
   // v19-dev: sincronização leve e segura. Não atualiza a tela enquanto alguém digita/edita/arrasta,
@@ -841,6 +843,7 @@ function iniciarRuaMobile() {
     if (!ruaAtiva || editando) return;
     if (typeof atualizarCarrosRotasDaNuvemSeNecessario === "function") await atualizarCarrosRotasDaNuvemSeNecessario();
     if (typeof sincronizarRotasOperacaoNuvem === "function") await sincronizarRotasOperacaoNuvem(false);
+    if (typeof rtNotasSincronizarNuvem === "function") await rtNotasSincronizarNuvem(false);
     renderizarRuaMobile();
   }, 60000);
 }

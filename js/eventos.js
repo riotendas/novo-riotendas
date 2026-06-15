@@ -1188,6 +1188,21 @@ function isEventoRecorrente(evento) {
   return Boolean(evento.recorrente || evento.tipo_evento === "recorrente" || evento.recorrencia_grupo_id);
 }
 
+
+function rtRecorrenciaPeriodoLinhaHtml(e) {
+  if (!e || !isEventoRecorrente(e)) return dataCompactaComDiaRecorrente(e?.data_evento);
+  const inicio = String(e.data_evento || e.recorrencia_inicio || '').slice(0, 10);
+  if (!inicio) return '-';
+  let fim = inicio;
+  const tipo = e.recorrencia_tipo || 'mensal';
+  if (tipo === 'mensal') fim = addMesISO(inicio, 1);
+  else if (tipo === 'quinzenal') fim = addDiasISO(inicio, 15);
+  else fim = addDiasISO(inicio, Number(e.recorrencia_dias || 30));
+  const fimGeral = String(e.recorrencia_fim || '').slice(0, 10);
+  if (fimGeral && fim > fimGeral) fim = fimGeral;
+  return `<div class="rec-period-line">${dataCompactaComDiaRecorrente(inicio)}</div><div class="rec-period-line rec-period-end">${dataCompactaComDiaRecorrente(fim)}</div>`;
+}
+
 function recorrenciaLabel(tipo, dias) {
   if (tipo === "mensal") return "Mensal";
   if (tipo === "quinzenal") return "A cada 15 dias";
@@ -2932,7 +2947,7 @@ function filtrarEventosRecorrentes() {
   const data = document.getElementById("filtroEventoData").value;
   const cliente = document.getElementById("filtroEventoCliente").value.trim().toLowerCase();
   const telefone = document.getElementById("filtroEventoTelefone").value.trim().toLowerCase();
-  const pagamento = document.getElementById("filtroEventoPagamento").value;
+  const pagamento = (document.getElementById("filtroRecorrentePagamento")?.value ?? document.getElementById("filtroEventoPagamento")?.value ?? "");
   const ocultarCancelados = document.getElementById("ocultarEventosCancelados")?.checked !== false;
 
   return eventos.filter(e => {
@@ -3365,8 +3380,8 @@ function renderizarEventos() {
   }
 
   tbodyRec.innerHTML = recorrentes.map(e => `
-    <tr class="recurring-row ${rtLinhaPagamentoClasse(e)} evento-status-${rtStatusDataEvento(e.data_evento)} ${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? "evento-cancelado" : ""}">
-      <td class="clientes-actions"><div class="clientes-actions-row">${dataCompactaComDiaRecorrente(e.data_evento)}</td>
+    <tr data-id="${e.id}" class="recurring-row ${rtLinhaPagamentoClasse(e)} evento-status-${rtStatusDataEvento(e.data_evento)} ${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? "evento-cancelado" : ""}">
+      <td class="rec-data-cell">${rtRecorrenciaPeriodoLinhaHtml(e)}</td>
       <td>${periodoRecorrenciaTexto(e)}</td>
       <td>${recorrenciaLabel(e.recorrencia_tipo, e.recorrencia_dias)}</td>
       <td><button class="code-link" data-action="editar" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '<span class="evento-cancelado-badge">Cancelado</span> ' : ''}${rtRecorrenciaAlertaHtml(e)}${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
@@ -4700,6 +4715,44 @@ function rtEventosNavegarPara(delta, tipo) {
   setTimeout(() => rtRolarEventosParaDataAlvo(alvo, tipo === "mes" ? "mes" : "dia"), 60);
 }
 
+function rtRecorrentesDataReferencia() {
+  const tbody = document.getElementById("eventosRecorrentesTbody");
+  const primeira = tbody?.querySelector("tr[data-id]");
+  const ev = primeira ? eventos.find(e => String(e.id) === String(primeira.dataset.id)) : null;
+  return String(ev?.data_evento || document.getElementById("filtroEventoData")?.value || rtDataISOHojeEventos()).slice(0, 10);
+}
+
+function rtRolarRecorrentesParaDataAlvo(dataAlvo, modo) {
+  const tbody = document.getElementById("eventosRecorrentesTbody");
+  const wrapper = tbody?.closest(".recurring-table-wrapper") || tbody?.closest(".table-wrapper");
+  if (!tbody || !wrapper || !dataAlvo) return;
+  const linhas = Array.from(tbody.querySelectorAll("tr[data-id]"));
+  if (!linhas.length) return;
+  let alvo = null;
+  for (const tr of linhas) {
+    const ev = eventos.find(e => String(e.id) === String(tr.dataset.id));
+    const data = String(ev?.data_evento || "").slice(0, 10);
+    if (!data) continue;
+    if (modo === "mes") {
+      if (data.slice(0, 7) === dataAlvo.slice(0, 7)) { alvo = tr; break; }
+    } else if (data === dataAlvo) { alvo = tr; break; }
+  }
+  if (!alvo) {
+    alvo = linhas.find(tr => {
+      const ev = eventos.find(e => String(e.id) === String(tr.dataset.id));
+      return String(ev?.data_evento || "").slice(0, 10) >= dataAlvo;
+    }) || linhas[linhas.length - 1];
+  }
+  wrapper.scrollTop = Math.max(0, alvo.offsetTop - tbody.offsetTop);
+}
+
+function rtRecorrentesNavegarPara(delta, tipo) {
+  const base = rtRecorrentesDataReferencia();
+  const alvo = tipo === "mes" ? rtAddMesesISOEventos(base, delta) : (delta === 0 ? rtDataISOHojeEventos() : rtAddDiasISOEventos(base, delta));
+  setTimeout(() => rtRolarRecorrentesParaDataAlvo(alvo, tipo === "mes" ? "mes" : "dia"), 80);
+}
+
+
 function rtInstalarNavegacaoRapidaEventos() {
   const bind = (id, fn) => {
     const btn = document.getElementById(id);
@@ -4712,6 +4765,16 @@ function rtInstalarNavegacaoRapidaEventos() {
   bind("eventosNavHoje", () => rtEventosNavegarPara(0, "dia"));
   bind("eventosNavDiaPosterior", () => rtEventosNavegarPara(1, "dia"));
   bind("eventosNavMesPosterior", () => rtEventosNavegarPara(1, "mes"));
+  bind("recorrentesNavMesAnterior", () => rtRecorrentesNavegarPara(-1, "mes"));
+  bind("recorrentesNavDiaAnterior", () => rtRecorrentesNavegarPara(-1, "dia"));
+  bind("recorrentesNavHoje", () => rtRecorrentesNavegarPara(0, "dia"));
+  bind("recorrentesNavDiaPosterior", () => rtRecorrentesNavegarPara(1, "dia"));
+  bind("recorrentesNavMesPosterior", () => rtRecorrentesNavegarPara(1, "mes"));
+  const filtroRec = document.getElementById("filtroRecorrentePagamento");
+  if (filtroRec && filtroRec.dataset.rtRecorrentesPagamento !== "1") {
+    filtroRec.addEventListener("change", () => { if (typeof renderizarEventos === "function") renderizarEventos(); });
+    filtroRec.dataset.rtRecorrentesPagamento = "1";
+  }
 }
 
 function rtAplicarQuantidadeRecorrentesPorAltura() {
