@@ -980,6 +980,18 @@ function iniciarRotas() {
 
   setTimeout(renderizarRotas, 400);
 
+  if (!window.__rtNotasRotaSyncRapido) {
+    window.__rtNotasRotaSyncRapido = setInterval(() => {
+      const rotasAtiva = document.getElementById("rotasSection")?.classList.contains("active-section");
+      const ruaAtiva = document.getElementById("ruaMobileSection")?.classList.contains("active-section");
+      if (rotasAtiva || ruaAtiva) rtNotasSincronizarNuvem(true).catch(() => {});
+    }, 20000);
+    window.addEventListener("focus", () => rtNotasSincronizarNuvem(true).catch(() => {}));
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) rtNotasSincronizarNuvem(true).catch(() => {});
+    });
+  }
+
   setInterval(() => {
     if (typeof rtUsuarioEditandoOperacional === "function" && rtUsuarioEditandoOperacional()) return;
     const rotasAtiva = document.getElementById("rotasSection")?.classList.contains("active-section");
@@ -2531,11 +2543,14 @@ function rtAbrirGoogleMapsRotas(listaRotas) {
 }
 
 // v19-dev: notas da rota por carro/dia, com sincronização multiusuário via Supabase.
-// Requer tabela Supabase: notas_rota(id, data_rota, carro, texto, endereco, ordem, criado_por, criado_em, atualizado_em)
+// Fonte definitiva: Supabase/notas_rota. localStorage é apenas cache temporário e migração única de notas antigas.
+// Tabela esperada: notas_rota(id, data_rota, carro, texto, endereco, ordem, criado_por, criado_em, atualizado_em)
 const RT_ROTAS_NOTAS_KEY = "rt_notas_rota_v1";
+const RT_ROTAS_NOTAS_MIGRADO_KEY = "rt_notas_rota_v1_migrado_supabase_20260617";
+window.rtNotasRotaCache = window.rtNotasRotaCache || null;
 
 function rtNotaUuidValido(valor) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(valor || "").trim());
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(String(valor || "").trim());
 }
 
 function rtNotaNovoUuid() {
@@ -2546,34 +2561,40 @@ function rtNotaNovoUuid() {
 function rtNotaNormalizarRegistro(nota) {
   if (!nota || typeof nota !== "object") return null;
   let id = String(nota.id || nota.uuid || "").trim();
-  // A tabela notas_rota usa UUID. Notas antigas locais tinham id tipo "nota_xxx" e não subiam para o Supabase.
-  // Ao carregar/salvar, convertemos para UUID para permitir sincronização real entre desktops/celulares.
   if (!rtNotaUuidValido(id)) id = rtNotaNovoUuid();
   const data = String(nota.data || nota.data_rota || nota.dataRota || "").slice(0, 10);
   const carro = String(nota.carro || "Sem carro").trim() || "Sem carro";
   const texto = String(nota.texto || nota.nota || "").trim();
-  const endereco = String(nota.endereco || "").trim();
+  const endereco = String(nota.endereco || nota.endereço || "").trim();
   const posicao = Number(nota.posicao ?? nota.ordem ?? 0) || 0;
   const criadoEm = nota.criadoEm || nota.criado_em || new Date().toISOString();
   const atualizadoEm = nota.atualizadoEm || nota.atualizado_em || criadoEm;
+  if (!data || (!texto && !endereco)) return null;
   return { id, data, carro, texto: texto || endereco || "Nota", endereco, posicao, criadoEm, atualizadoEm };
+}
+
+function rtNotaAssinatura(nota) {
+  const n = rtNotaNormalizarRegistro(nota);
+  if (!n) return "";
+  return [n.data, n.carro, n.texto, n.endereco, Number(n.posicao || 0)].map(v => String(v || "").trim().toLowerCase()).join("|");
 }
 
 function rtNotaParaSupabase(nota) {
   const n = rtNotaNormalizarRegistro(nota);
   if (!n) return null;
-  // Enviar somente colunas confirmadas na tabela para evitar falha silenciosa no upsert.
   return {
     id: n.id,
     data_rota: n.data,
     carro: n.carro,
     texto: n.texto,
+    endereco: n.endereco || null,
     ordem: Number(n.posicao || 0),
-    criado_por: (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "") || null
+    criado_por: (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "") || null,
+    atualizado_em: new Date().toISOString()
   };
 }
 
-function rtNotasCarregar() {
+function rtNotasLerCacheLocalStorage() {
   try {
     const raw = localStorage.getItem(RT_ROTAS_NOTAS_KEY);
     const arr = raw ? JSON.parse(raw) : [];
@@ -2583,8 +2604,16 @@ function rtNotasCarregar() {
   }
 }
 
+function rtNotasCarregar() {
+  if (Array.isArray(window.rtNotasRotaCache)) return window.rtNotasRotaCache;
+  const cache = rtNotasLerCacheLocalStorage();
+  window.rtNotasRotaCache = cache;
+  return cache;
+}
+
 function rtNotasSalvarLocal(notas) {
   const lista = (Array.isArray(notas) ? notas : []).map(rtNotaNormalizarRegistro).filter(Boolean);
+  window.rtNotasRotaCache = lista;
   try { localStorage.setItem(RT_ROTAS_NOTAS_KEY, JSON.stringify(lista)); } catch {}
   return lista;
 }
@@ -2593,10 +2622,10 @@ function rtNotasSalvar(notas) {
   const lista = rtNotasSalvarLocal(notas);
   rtNotasSalvarNuvem(lista).then(ok => {
     window.rtNotasRotaNuvemOk = !!ok;
-    if (!ok) console.warn("Notas da rota foram salvas localmente, mas não subiram para a nuvem.");
+    if (!ok) console.warn("Notas da rota não foram sincronizadas na nuvem.");
   }).catch((erro) => {
     window.rtNotasRotaNuvemOk = false;
-    console.warn("Notas da rota foram salvas localmente, mas não subiram para a nuvem:", erro);
+    console.warn("Notas da rota não foram sincronizadas na nuvem:", erro);
   });
   return lista;
 }
@@ -2610,66 +2639,50 @@ async function rtNotasCarregarNuvem() {
       .order("data_rota", { ascending: true })
       .order("carro", { ascending: true })
       .order("ordem", { ascending: true });
-    if (!error) {
-      return (data || []).map(rtNotaNormalizarRegistro).filter(Boolean);
+    if (error) {
+      console.warn("Erro ao carregar notas_rota:", error);
+      return null;
     }
-    console.warn("Tabela notas_rota indisponível; tentando fallback app_config:", error);
+    return (data || []).map(rtNotaNormalizarRegistro).filter(Boolean);
   } catch (erro) {
-    console.warn("Erro ao carregar notas_rota; tentando fallback app_config:", erro);
-  }
-
-  try {
-    const { data, error } = await supabaseClient
-      .from("app_config")
-      .select("valor")
-      .eq("chave", "rotas_notas")
-      .maybeSingle();
-    if (error) return null;
-    const valor = data?.valor;
-    return Array.isArray(valor) ? valor.map(rtNotaNormalizarRegistro).filter(Boolean) : [];
-  } catch {
+    console.warn("Erro ao carregar notas_rota:", erro);
     return null;
   }
-}
-
-function rtNotasMesclar(local = [], nuvem = []) {
-  const mapa = new Map();
-  const incluir = nota => {
-    const n = rtNotaNormalizarRegistro(nota);
-    if (!n) return;
-    const atual = mapa.get(n.id);
-    if (!atual) {
-      mapa.set(n.id, n);
-      return;
-    }
-    const tAtual = new Date(atual.atualizadoEm || atual.criadoEm || 0).getTime() || 0;
-    const tNota = new Date(n.atualizadoEm || n.criadoEm || 0).getTime() || 0;
-    if (tNota >= tAtual) mapa.set(n.id, n);
-  };
-  (Array.isArray(local) ? local : []).forEach(incluir);
-  (Array.isArray(nuvem) ? nuvem : []).forEach(incluir);
-  return Array.from(mapa.values());
 }
 
 async function rtNotasSalvarNuvem(notas) {
   const lista = (Array.isArray(notas) ? notas : []).map(rtNotaNormalizarRegistro).filter(Boolean);
   if (typeof supabaseClient === "undefined" || !supabaseClient) return false;
-
-  // Fonte principal multiusuário: tabela notas_rota.
   try {
     const registros = lista.map(rtNotaParaSupabase).filter(Boolean);
-    if (registros.length) {
-      const { error } = await supabaseClient
-        .from("notas_rota")
-        .upsert(registros, { onConflict: "id" });
-      if (!error) return true;
-      console.warn("Não foi possível salvar em notas_rota; fallback app_config:", error);
-    }
+    if (!registros.length) return true;
+    const { error } = await supabaseClient
+      .from("notas_rota")
+      .upsert(registros, { onConflict: "id" });
+    if (!error) return true;
+    console.error("Supabase recusou salvar notas_rota:", error);
+    window.rtNotasRotaUltimoErro = error;
   } catch (erro) {
-    console.warn("Erro ao salvar em notas_rota; fallback app_config:", erro);
+    console.error("Erro ao salvar notas_rota:", erro);
+    window.rtNotasRotaUltimoErro = erro;
   }
+  return false;
+}
 
-  // Não considerar fallback como sincronização válida: as notas precisam ir para notas_rota para aparecerem em todos os desktops.
+async function rtNotaSalvarNuvem(nota) {
+  const n = rtNotaNormalizarRegistro(nota);
+  if (!n || typeof supabaseClient === "undefined" || !supabaseClient) return false;
+  try {
+    const { error } = await supabaseClient
+      .from("notas_rota")
+      .upsert([rtNotaParaSupabase(n)], { onConflict: "id" });
+    if (!error) return true;
+    console.error("Supabase recusou salvar nota_rota:", error);
+    window.rtNotasRotaUltimoErro = error;
+  } catch (erro) {
+    console.error("Erro ao salvar nota_rota:", erro);
+    window.rtNotasRotaUltimoErro = erro;
+  }
   return false;
 }
 
@@ -2678,25 +2691,54 @@ async function rtNotaExcluirNuvem(notaId) {
   try {
     const { error } = await supabaseClient.from("notas_rota").delete().eq("id", notaId);
     if (!error) return true;
-    console.warn("Não foi possível excluir nota em notas_rota:", error);
+    console.error("Supabase recusou excluir nota_rota:", error);
+    window.rtNotasRotaUltimoErro = error;
   } catch (erro) {
-    console.warn("Erro ao excluir nota em notas_rota:", erro);
+    console.error("Erro ao excluir nota_rota:", erro);
+    window.rtNotasRotaUltimoErro = erro;
   }
   return false;
 }
 
+async function rtNotasMigrarLocaisUmaVez(nuvemAtual = []) {
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return false;
+  try {
+    if (localStorage.getItem(RT_ROTAS_NOTAS_MIGRADO_KEY) === "1") return false;
+    const locais = rtNotasLerCacheLocalStorage();
+    if (!locais.length) {
+      localStorage.setItem(RT_ROTAS_NOTAS_MIGRADO_KEY, "1");
+      return false;
+    }
+    const assinaturasNuvem = new Set((Array.isArray(nuvemAtual) ? nuvemAtual : []).map(rtNotaAssinatura).filter(Boolean));
+    const paraSubir = locais.filter(n => !assinaturasNuvem.has(rtNotaAssinatura(n)));
+    if (paraSubir.length) await rtNotasSalvarNuvem([...(Array.isArray(nuvemAtual) ? nuvemAtual : []), ...paraSubir]);
+    localStorage.setItem(RT_ROTAS_NOTAS_MIGRADO_KEY, "1");
+    return paraSubir.length > 0;
+  } catch (erro) {
+    console.warn("Não foi possível migrar notas locais antigas:", erro);
+    return false;
+  }
+}
+
 async function rtNotasSincronizarNuvem(renderizar = true) {
-  const local = rtNotasCarregar();
-  const nuvem = await rtNotasCarregarNuvem();
-  if (!Array.isArray(nuvem)) return local;
-  const mesclado = rtNotasMesclar(local, nuvem);
-  const mudou = JSON.stringify(mesclado) !== JSON.stringify(local);
-  rtNotasSalvarLocal(mesclado);
-  if (mudou) {
-    if (renderizar && typeof renderizarRotas === "function") renderizarRotas();
+  let nuvem = await rtNotasCarregarNuvem();
+  if (!Array.isArray(nuvem)) return rtNotasCarregar();
+
+  // Migração única de notas antigas locais. Depois disso, Supabase vira fonte definitiva.
+  const migrou = await rtNotasMigrarLocaisUmaVez(nuvem);
+  if (migrou) {
+    const recarregada = await rtNotasCarregarNuvem();
+    if (Array.isArray(recarregada)) nuvem = recarregada;
+  }
+
+  const anterior = JSON.stringify(rtNotasCarregar());
+  rtNotasSalvarLocal(nuvem);
+  const atual = JSON.stringify(nuvem);
+  if (renderizar && anterior !== atual) {
+    if (typeof renderizarRotas === "function") renderizarRotas();
     if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
   }
-  return mesclado;
+  return nuvem;
 }
 
 function rtHtml(valor) {
@@ -2831,29 +2873,36 @@ function rtAbrirNotaRota(data, carro, listaRotas = [], notaId = "") {
       return;
     }
 
+    let notaAtual;
     if (existente) {
       existente.texto = texto || endereco;
       existente.endereco = endereco;
       existente.posicao = posicao;
       existente.atualizadoEm = new Date().toISOString();
+      notaAtual = existente;
     } else {
-      notas.push({
+      notaAtual = {
         id: rtNotaId(),
         data,
         carro,
         texto: texto || endereco,
         endereco,
         posicao,
-        criadoEm: new Date().toISOString()
-      });
+        criadoEm: new Date().toISOString(),
+        atualizadoEm: new Date().toISOString()
+      };
+      notas.push(notaAtual);
     }
 
-    const listaAtualizada = rtNotasSalvarLocal(notas);
-    const okNuvem = await rtNotasSalvarNuvem(listaAtualizada);
+    rtNotasSalvarLocal(notas);
+    const okNuvem = await rtNotaSalvarNuvem(notaAtual);
     window.rtNotasRotaNuvemOk = !!okNuvem;
     if (!okNuvem) {
-      alert("Nota salva neste aparelho, mas não foi possível sincronizar na nuvem. Confira a tabela notas_rota/RLS no Supabase.");
+      alert("Não foi possível salvar a nota na nuvem. A nota não ficará sincronizada. Confira a tabela notas_rota/RLS no Supabase.");
+      console.error("Erro Supabase notas_rota:", window.rtNotasRotaUltimoErro || "erro desconhecido");
+      return;
     }
+    await rtNotasSincronizarNuvem(false);
     fechar();
     renderizarRotas();
     if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
@@ -2863,14 +2912,20 @@ function rtAbrirNotaRota(data, carro, listaRotas = [], notaId = "") {
   else alert("Seu navegador não suporta esta janela de nota.");
 }
 
-function rtExcluirNotaRota(notaId) {
+async function rtExcluirNotaRota(notaId) {
   if (!rotaUsuarioEhAdmin() || !notaId) return;
   const notas = rtNotasCarregar();
-  const nota = notas.find(n => n.id === notaId);
+  const nota = notas.find(n => String(n.id) === String(notaId));
   if (!nota) return;
   if (!confirm(`Excluir a nota "${nota.texto || nota.endereco || "sem texto"}"?`)) return;
-  rtNotasSalvar(notas.filter(n => n.id !== notaId));
-  rtNotaExcluirNuvem(notaId).catch(() => {});
+  const okNuvem = await rtNotaExcluirNuvem(notaId);
+  if (!okNuvem) {
+    alert("Não foi possível excluir a nota na nuvem. Tente novamente.");
+    console.error("Erro Supabase notas_rota:", window.rtNotasRotaUltimoErro || "erro desconhecido");
+    return;
+  }
+  rtNotasSalvarLocal(notas.filter(n => String(n.id) !== String(notaId)));
+  await rtNotasSincronizarNuvem(false);
   renderizarRotas();
   if (typeof renderizarRuaMobile === 'function') renderizarRuaMobile();
 }

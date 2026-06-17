@@ -1,9 +1,8 @@
--- RioTendas - Notas de rota sincronizadas entre desktops e celulares
--- Execute no SQL Editor do Supabase se a tabela notas_rota ainda não existir
--- ou se as notas não estiverem aparecendo para todos os usuários.
+-- RioTendas - Notas de rota definitivas na nuvem
+-- Execute no SQL Editor do Supabase para garantir que endereço, edição e exclusão sincronizem em todos os dispositivos.
 
 create table if not exists public.notas_rota (
-  id text primary key,
+  id uuid primary key default gen_random_uuid(),
   data_rota date not null,
   carro text not null default 'Sem carro',
   texto text not null,
@@ -13,6 +12,12 @@ create table if not exists public.notas_rota (
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now()
 );
+
+alter table public.notas_rota add column if not exists endereco text;
+alter table public.notas_rota add column if not exists ordem integer not null default 0;
+alter table public.notas_rota add column if not exists criado_por text;
+alter table public.notas_rota add column if not exists criado_em timestamptz not null default now();
+alter table public.notas_rota add column if not exists atualizado_em timestamptz not null default now();
 
 create index if not exists idx_notas_rota_data_carro
 on public.notas_rota (data_rota, carro, ordem);

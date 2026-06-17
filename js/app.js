@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // v19-dev: controle simples de versão/cache para reduzir app antigo em celulares.
-const RIOTENDAS_APP_VERSION = "v19-dev-2026-06-17-notas-rota-gravacao-corrigida";
+const RIOTENDAS_APP_VERSION = "v19-dev-2026-06-17-notas-rota-definitiva";
 
 function iniciarControleVersaoCache() {
   try {
