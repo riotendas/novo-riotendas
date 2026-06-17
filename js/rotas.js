@@ -2534,10 +2534,21 @@ function rtAbrirGoogleMapsRotas(listaRotas) {
 // Requer tabela Supabase: notas_rota(id, data_rota, carro, texto, endereco, ordem, criado_por, criado_em, atualizado_em)
 const RT_ROTAS_NOTAS_KEY = "rt_notas_rota_v1";
 
+function rtNotaUuidValido(valor) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(valor || "").trim());
+}
+
+function rtNotaNovoUuid() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID();
+  return "10000000-1000-4000-8000-" + Math.random().toString(16).slice(2, 14).padEnd(12, "0");
+}
+
 function rtNotaNormalizarRegistro(nota) {
   if (!nota || typeof nota !== "object") return null;
-  const id = String(nota.id || nota.uuid || "").trim();
-  if (!id) return null;
+  let id = String(nota.id || nota.uuid || "").trim();
+  // A tabela notas_rota usa UUID. Notas antigas locais tinham id tipo "nota_xxx" e não subiam para o Supabase.
+  // Ao carregar/salvar, convertemos para UUID para permitir sincronização real entre desktops/celulares.
+  if (!rtNotaUuidValido(id)) id = rtNotaNovoUuid();
   const data = String(nota.data || nota.data_rota || nota.dataRota || "").slice(0, 10);
   const carro = String(nota.carro || "Sem carro").trim() || "Sem carro";
   const texto = String(nota.texto || nota.nota || "").trim();
@@ -2551,16 +2562,14 @@ function rtNotaNormalizarRegistro(nota) {
 function rtNotaParaSupabase(nota) {
   const n = rtNotaNormalizarRegistro(nota);
   if (!n) return null;
+  // Enviar somente colunas confirmadas na tabela para evitar falha silenciosa no upsert.
   return {
     id: n.id,
     data_rota: n.data,
     carro: n.carro,
     texto: n.texto,
-    endereco: n.endereco || null,
     ordem: Number(n.posicao || 0),
-    criado_por: (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "") || null,
-    criado_em: n.criadoEm || new Date().toISOString(),
-    atualizado_em: n.atualizadoEm || new Date().toISOString()
+    criado_por: (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "") || null
   };
 }
 
@@ -2660,19 +2669,8 @@ async function rtNotasSalvarNuvem(notas) {
     console.warn("Erro ao salvar em notas_rota; fallback app_config:", erro);
   }
 
-  // Fallback para bases antigas.
-  try {
-    const { error } = await supabaseClient
-      .from("app_config")
-      .upsert({
-        chave: "rotas_notas",
-        valor: lista,
-        atualizado_em: new Date().toISOString()
-      }, { onConflict: "chave" });
-    return !error;
-  } catch {
-    return false;
-  }
+  // Não considerar fallback como sincronização válida: as notas precisam ir para notas_rota para aparecerem em todos os desktops.
+  return false;
 }
 
 async function rtNotaExcluirNuvem(notaId) {
@@ -2711,7 +2709,7 @@ function rtHtml(valor) {
 }
 
 function rtNotaId() {
-  return "nota_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  return rtNotaNovoUuid();
 }
 
 function rtNotasDaRota(data, carro) {
