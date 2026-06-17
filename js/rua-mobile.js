@@ -575,12 +575,19 @@ async function ruaMobileExcluirNota(notaId){
   if (!confirm('Excluir esta nota da rota?')) return;
   const restantes = notas.filter(n => String(n.id) !== String(notaId));
   if (typeof rtNotasSalvarLocal === 'function') rtNotasSalvarLocal(restantes);
-  else if (typeof rtNotasSalvar === 'function') rtNotasSalvar(restantes);
-  try {
-    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-      await supabaseClient.from('notas_rota').delete().eq('id', notaId);
-    }
-  } catch(e) { console.warn('Não foi possível excluir nota no Supabase:', e); }
+  let ok = true;
+  if (typeof rtNotaExcluirNuvem === 'function') ok = await rtNotaExcluirNuvem(notaId);
+  else {
+    try {
+      if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        const { error } = await supabaseClient.from('notas_rota').delete().eq('id', notaId);
+        ok = !error;
+        if (error) alert('Não foi possível excluir a nota na nuvem: ' + (error.message || JSON.stringify(error)));
+      }
+    } catch(e) { ok = false; console.warn('Não foi possível excluir nota no Supabase:', e); }
+  }
+  if (!ok) return;
+  try { if (typeof rtNotasMarcarMigrado === 'function') rtNotasMarcarMigrado(); } catch(e) {}
   try { if (typeof rtNotasSincronizarNuvem === 'function') await rtNotasSincronizarNuvem(false); } catch(e) {}
   renderizarRuaMobile();
 }
