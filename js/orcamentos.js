@@ -5,6 +5,7 @@ let orcamentoSinalEditadoManual = false;
 const rtOrcLogoUrlPadrao = "https://riotendas.smartwebinfo.com.br/webapp/public/img/logo.png";
 
 function rtOrcGerarId(){ return (typeof gerarId === "function") ? gerarId() : String(Date.now()) + Math.random().toString(16).slice(2); }
+function rtOrcEhUuid(v){ return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||'').trim()); }
 function rtOrcMoeda(n){ return (typeof numeroParaMoeda === "function") ? numeroParaMoeda(Number(n||0)) : Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
 function rtOrcNumero(v){ return (typeof moedaParaNumero === "function") ? moedaParaNumero(v) : Number(String(v||'').replace(/[^\d,.-]/g,'').replace('.','').replace(',','.')) || 0; }
 function rtOrcDataBR(d){ return d ? (typeof dataBR === "function" ? dataBR(d) : d.split('-').reverse().join('/')) : ''; }
@@ -134,9 +135,20 @@ async function salvarOrcamentoBanco(orcamento){
       atualizado_em: new Date().toISOString()
     };
 
-    const { data, error } = await supabaseClient
-      .from('orcamentos')
-      .upsert(registro, { onConflict: 'id' })
+    // Compatibilidade Supabase: a tabela orcamentos não possui a coluna evento_vinculado_id.
+    // O vínculo oficial com o evento fica em evento_id.
+    delete registro.evento_vinculado_id;
+
+    // A coluna id da tabela orcamentos é UUID. Nunca gravar números de orçamento
+    // como id (ex.: orc_06062026-001). O Supabase deve gerar o UUID automaticamente.
+    const temIdUuid = rtOrcEhUuid(registro.id);
+    if (!temIdUuid) delete registro.id;
+
+    const query = temIdUuid
+      ? supabaseClient.from('orcamentos').upsert(registro, { onConflict: 'id' })
+      : supabaseClient.from('orcamentos').insert(registro);
+
+    const { data, error } = await query
       .select()
       .single();
 
@@ -148,6 +160,7 @@ async function salvarOrcamentoBanco(orcamento){
     return data;
   }
 
+  if (!orcamento.id || orcamento.id === 'preview') orcamento.id = rtOrcGerarId();
   const idx = orcamentos.findIndex(x => String(x.id) === String(orcamento.id));
   if (idx >= 0) orcamentos[idx] = orcamento; else orcamentos.push(orcamento);
   localStorage.setItem(storageOrcamentosKey, JSON.stringify(orcamentos));
@@ -174,7 +187,7 @@ function iniciarOrcamentos(){
   ['orcamentoDataEvento','orcamentoMontagemData','orcamentoMontagemHora','orcamentoMontagemTipo','orcamentoDesmontagemData','orcamentoDesmontagemHora','orcamentoDesmontagemTipo'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', renderizarMateriaisOrcamento);
   });
-  document.getElementById('gerarPdfOrcamento')?.addEventListener('click', () => gerarPdfOrcamento(obterOrcamentoDoForm(true)));
+  document.getElementById('gerarPdfOrcamento')?.addEventListener('click', rtOrcSalvarEGerarPdfAtual);
   document.getElementById('aprovarOrcamentoBtn')?.addEventListener('click', aprovarOrcamentoAtual);
   document.getElementById('orcamentoMontagemDiaAnterior')?.addEventListener('click', aplicarMontagemDiaAnteriorOrcamento);
   document.getElementById('orcamentoRetiradaDiaSeguinte')?.addEventListener('click', aplicarRetiradaDiaSeguinteOrcamento);
@@ -681,20 +694,71 @@ function aplicarRetiradaDiaSeguinteOrcamento(){
   document.getElementById('orcamentoDesmontagemTipo').value = 'Livre / combinar';
 }
 
-function numeroProximoOrcamento(){
-  const d = new Date();
-  const ymd = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
-  const seq = (orcamentos.length + 1).toString().padStart(3,'0');
-  return `${ymd}/${seq}`;
+function rtOrcNumeroBaseData(dataEvento){
+  const data = String(dataEvento || '').slice(0,10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+    const d = new Date();
+    return `${String(d.getDate()).padStart(2,'0')}${String(d.getMonth()+1).padStart(2,'0')}${d.getFullYear()}`;
+  }
+  const [ano, mes, dia] = data.split('-');
+  return `${dia}${mes}${ano}`;
+}
+
+function numeroProximoOrcamento(dataEvento){
+  const base = rtOrcNumeroBaseData(dataEvento || document.getElementById('orcamentoDataEvento')?.value || '');
+  const regex = new RegExp('^' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-(\\d{3})$');
+  const max = (Array.isArray(orcamentos) ? orcamentos : []).reduce((m, o) => {
+    const match = String(o?.numero || '').match(regex);
+    return match ? Math.max(m, Number(match[1] || 0)) : m;
+  }, 0);
+  return `${base}-${String(max + 1).padStart(3,'0')}`;
+}
+
+async function rtOrcGarantirNumero(orcamento){
+  if (!orcamento) return orcamento;
+  if (orcamento.numero && /^\d{8}-\d{3}$/.test(String(orcamento.numero))) return orcamento;
+  const base = rtOrcNumeroBaseData(orcamento.data_evento);
+
+  if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+    for (let tentativa = 0; tentativa < 25; tentativa++) {
+      let maior = 0;
+      try {
+        const { data } = await supabaseClient
+          .from('orcamentos_numeracao')
+          .select('sequencial')
+          .eq('data_evento', orcamento.data_evento)
+          .order('sequencial', { ascending: false })
+          .limit(1);
+        maior = Number(data?.[0]?.sequencial || 0);
+      } catch(e) {}
+
+      const sequencial = maior + 1 + tentativa;
+      const numero = `${base}-${String(sequencial).padStart(3,'0')}`;
+      try {
+        const { error } = await supabaseClient
+          .from('orcamentos_numeracao')
+          .insert({ data_evento: orcamento.data_evento, sequencial, numero_orcamento: numero });
+        if (!error) {
+          orcamento.numero = numero;
+          return orcamento;
+        }
+      } catch(e) {}
+    }
+  }
+
+  orcamento.numero = numeroProximoOrcamento(orcamento.data_evento);
+  return orcamento;
 }
 
 function obterOrcamentoDoForm(temporario=false){
   calcularTotaisOrcamento(false);
-  const id = document.getElementById('orcamentoId').value || (temporario ? 'preview' : rtOrcGerarId());
-  const existente = orcamentos.find(o => String(o.id) === String(id));
+  const idAtual = document.getElementById('orcamentoId').value || '';
+  const usandoSupabase = (typeof supabaseClient !== 'undefined' && supabaseClient);
+  const id = idAtual || (temporario ? 'preview' : (usandoSupabase ? '' : rtOrcGerarId()));
+  const existente = id ? orcamentos.find(o => String(o.id) === String(id)) : null;
   return {
     id,
-    numero: existente?.numero || numeroProximoOrcamento(),
+    numero: existente?.numero || '',
     nome: document.getElementById('orcamentoNome').value.trim(),
     documento: document.getElementById('orcamentoDocumento').value.trim(),
     telefone: document.getElementById('orcamentoTelefone').value.trim(),
@@ -724,22 +788,105 @@ function obterOrcamentoDoForm(temporario=false){
     valor_restante: rtOrcNumero(document.getElementById('orcamentoValorRestante').value),
     forma_pagamento: document.getElementById('orcamentoFormaPagamento').value,
     observacoes: document.getElementById('orcamentoObservacoes').value.trim(),
+    evento_id: existente?.evento_id || window.__rtOrcamentoEventoOrigemId || '',
     criado_em: existente?.criado_em || new Date().toISOString(),
     atualizado_em: new Date().toISOString()
   };
 }
 
+function rtOrcSetBotaoProcessando(el, processando, texto){
+  if (!el) return;
+  if (processando) {
+    el.dataset.rtTextoOriginal = el.textContent || '';
+    el.disabled = true;
+    if (texto) el.textContent = texto;
+  } else {
+    el.disabled = false;
+    if (el.dataset.rtTextoOriginal) el.textContent = el.dataset.rtTextoOriginal;
+    delete el.dataset.rtTextoOriginal;
+  }
+}
+
+function rtOrcAtualizarCacheSalvo(salvo, fallback){
+  const obj = salvo || fallback;
+  if (!obj) return;
+  if (!Array.isArray(orcamentos)) orcamentos = [];
+  const chave = String(obj.id || fallback?.id || '');
+  const idx = chave ? orcamentos.findIndex(x => String(x.id) === chave) : -1;
+  if (idx >= 0) orcamentos[idx] = obj; else if (obj.id || obj.numero) orcamentos.push(obj);
+  const idInput = document.getElementById('orcamentoId');
+  if (idInput && obj.id) idInput.value = obj.id;
+  try {
+    const total = document.getElementById('orcamentosTotal');
+    if (total) total.textContent = String((orcamentos || []).length);
+  } catch(e) {}
+}
+
+async function rtOrcSalvarEmSegundoPlano(orcamento, eventoOrigemId){
+  try {
+    await rtOrcGarantirNumero(orcamento);
+    const salvo = await salvarOrcamentoBanco(orcamento);
+    if (salvo) {
+      rtOrcAtualizarCacheSalvo(salvo, orcamento);
+      if (eventoOrigemId) rtOrcDefinirOrcamentoPendenteEvento(salvo);
+    }
+  } catch(e) {
+    console.warn('Orçamento gerado, mas não foi possível salvar em segundo plano:', e);
+  }
+}
+
+async function rtOrcSalvarEGerarPdfAtual(ev){
+  const btn = ev?.currentTarget || document.getElementById('gerarPdfOrcamento');
+  const o = obterOrcamentoDoForm(false);
+  if (!o.nome) { alert('Informe o nome do cliente.'); return; }
+  if (!o.data_evento) { alert('Informe a data do evento.'); return; }
+
+  const eventoOrigemId = window.__rtOrcamentoEventoOrigemId || document.getElementById('eventoId')?.value || '';
+  if (eventoOrigemId) o.evento_id = eventoOrigemId;
+
+  // Gerar PDF deve responder rápido: se ainda não houver número oficial, usa uma prévia
+  // e grava o orçamento em segundo plano. O botão Salvar orçamento continua fazendo a gravação síncrona.
+  if (!o.numero) o.numero = numeroProximoOrcamento(o.data_evento);
+  rtOrcSetBotaoProcessando(btn, true, 'Gerando...');
+  try {
+    gerarPdfOrcamento(o);
+  } finally {
+    setTimeout(() => rtOrcSetBotaoProcessando(btn, false), 250);
+  }
+
+  rtOrcSalvarEmSegundoPlano(o, eventoOrigemId);
+}
+window.rtOrcSalvarEGerarPdfAtual = rtOrcSalvarEGerarPdfAtual;
+
 async function salvarOrcamentoForm(ev){
   ev.preventDefault();
+  const btn = ev.submitter || document.querySelector('#orcamentoForm button[type="submit"]');
   const o = obterOrcamentoDoForm();
   if (!o.nome) { alert('Informe o nome do cliente.'); return; }
   if (!o.data_evento) { alert('Informe a data do evento.'); return; }
-  const salvo = await salvarOrcamentoBanco(o);
-  if (!salvo) return;
-  const idx = orcamentos.findIndex(x => String(x.id) === String(o.id));
-  if (idx >= 0) orcamentos[idx] = salvo; else orcamentos.push(salvo);
-  await renderizarOrcamentos();
+  const eventoOrigemId = window.__rtOrcamentoEventoOrigemId || document.getElementById('eventoId')?.value || '';
+  if (eventoOrigemId) o.evento_id = eventoOrigemId;
+
+  // Salvar orçamento não deve travar a tela do evento. Fecha rápido e grava em segundo plano.
+  rtOrcSetBotaoProcessando(btn, true, 'Salvando...');
   fecharOrcamentoModal();
+  setTimeout(async () => {
+    try {
+      await rtOrcGarantirNumero(o);
+      const salvo = await salvarOrcamentoBanco(o);
+      if (!salvo) return;
+      rtOrcAtualizarCacheSalvo(salvo, o);
+      if (eventoOrigemId) rtOrcDefinirOrcamentoPendenteEvento(salvo);
+      if (typeof renderizarOrcamentos === 'function' && document.getElementById('orcamentosTbody')) {
+        try { await renderizarOrcamentos(); } catch(e) {}
+      }
+    } catch(e) {
+      console.error('Erro ao salvar orçamento em segundo plano:', e);
+      alert('Não foi possível salvar o orçamento. Verifique sua conexão e tente novamente.');
+    } finally {
+      rtOrcSetBotaoProcessando(btn, false);
+    }
+  }, 0);
 }
 
 async function renderizarOrcamentos(){
@@ -921,7 +1068,7 @@ function gerarPdfOrcamento(o){
   };
   const modelo = rtOrcSanitizarModeloOrcamento(rtOrcPrepararModeloObservacoes(rtOrcObterModeloDocumento()));
   const corpo = rtOrcSanitizarModeloOrcamento(rtOrcAplicarModelo(modelo, dados) || `<section class="doc-header">${logo}<h1>ORÇAMENTO Nº ${dados.numero_orcamento}</h1></section>${itensTabela}`);
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Orçamento RioTendas</title><style>
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${rtOrcEscape((o.numero ? 'Orçamento - RioTendas - ' + o.numero : 'Orçamento RioTendas'))}</title><style>
     body{font-family:Arial,sans-serif;margin:0;background:#eee;color:#111}.toolbar{position:sticky;top:0;z-index:50;background:#0d3f73;color:#fff;padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.toolbar button,.toolbar input{padding:6px 8px;border:0;border-radius:7px;cursor:pointer}.toolbar .wa-pdf{background:#25d366;color:#062b14;font-weight:700}.toolbar .hint-wa{font-size:11px;opacity:.95}.page{width:190mm;min-height:277mm;margin:0 auto 12px;background:#fff;padding:0 14mm 14mm;box-shadow:0 0 12px #999;box-sizing:border-box}.doc-header{text-align:left;border-bottom:2px solid #111;padding-top:0;padding-bottom:8px;margin-top:0;margin-bottom:12px}.doc-header img{height:auto}.doc-header h1{margin:4px 0;font-size:20px}.doc-header h2{margin:8px 0 4px;font-size:18px}.doc-header p,.small{font-size:11px}.doc-table{width:100%;border-collapse:collapse;margin:8px 0 12px}.doc-table th,.doc-table td{border:1px solid #bbb;padding:7px;font-size:12px;text-align:left;resize:both;overflow:auto}.doc-table th{background:#f1f1f1}.compact{max-width:100%}h3{margin:14px 0 6px}p{font-size:12px;line-height:1.45}.orc-assinatura-responsavel{margin:6px 0 10px;text-align:left;font-size:12px}.doc-assinatura-img{display:block;max-width:185px;max-height:55px;object-fit:contain;margin:0 0 -4px}.linha-assinatura{line-height:1;margin-top:0}.footer{margin-top:22px;border-top:1px solid #111;padding-top:8px;display:flex;justify-content:space-between;font-size:11px}.layout-mode *{outline:1px dashed rgba(13,63,115,.25)}@page{margin:0} @media print{html,body{margin:0!important;padding:0!important}.toolbar{display:none}.page{margin:0;box-shadow:none;width:auto;min-height:auto;padding-top:0!important}.doc-header{margin-top:0!important;padding-top:0!important}.layout-mode *{outline:none}}
   </style></head><body><div class="toolbar"><strong>Orçamento editável</strong><button onclick="document.execCommand('bold')">B</button><button onclick="document.execCommand('italic')">I</button><button onclick="document.execCommand('underline')">U</button><button onclick="document.execCommand('justifyLeft')">Esq.</button><button onclick="document.execCommand('justifyCenter')">Centro</button><button onclick="document.execCommand('justifyRight')">Dir.</button><button onclick="document.execCommand('fontSize',false,'2')">A-</button><button onclick="document.execCommand('fontSize',false,'4')">A+</button><input type="color" onchange="document.execCommand('foreColor',false,this.value)"><button onclick="document.querySelector('.page').classList.toggle('layout-mode')">Editar layout</button><button onclick="rtSalvarModeloOrcamentoNuvem()">Salvar modelo</button><button onclick="window.print()">Imprimir/PDF</button><button onclick="window.close()">Fechar</button></div><main class="page" contenteditable="true">${corpo}<div class="footer"><div>RioTendas - Locação de Tendas<br>R. Cons. Lampreia, 245 – Cosme Velho</div><div>Tel.(21) 3490-2333 / 99692-9292<br>www.riotendas.com.br</div></div></main><script>
 function rtOrcHtmlLimpo(){var p=document.querySelector('.page'); if(!p) return ''; var c=p.cloneNode(true); return c.innerHTML;}
@@ -942,6 +1089,162 @@ async function rtSalvarModeloOrcamentoNuvem(){
   w.document.write(html); w.document.close();
 }
 
+
+function rtOrcObjetoDoEventoAtual(){
+  const moeda = v => (typeof moedaParaNumero === 'function' ? moedaParaNumero(v || 0) : rtOrcNumero(v || 0));
+  const dataEvento = document.getElementById('eventoData')?.value || '';
+  const produtosEvento = typeof obterProdutosSelecionadosEvento === 'function' ? obterProdutosSelecionadosEvento() : [];
+  const apoioEvento = typeof obterApoioSelecionadoEvento === 'function' ? obterApoioSelecionadoEvento() : [];
+  const extrasEvento = Array.isArray(window.produtosExtrasEventoAtual || produtosExtrasEventoAtual) ? (window.produtosExtrasEventoAtual || produtosExtrasEventoAtual) : [];
+  const materiais = [];
+  produtosEvento.forEach(p => materiais.push({ quantidade: Number(p.quantidade || p.quantidade_pendente || 1), descricao: [p.categoria, p.tamanho, p.cor].filter(Boolean).join(' ') || p.descricao_orcamento || p.codigo || 'Produto', valor_unitario: 0, total: 0 }));
+  apoioEvento.forEach(a => materiais.push({ quantidade: Number(a.quantidade || 1), descricao: a.nome || 'Material de apoio', valor_unitario: 0, total: 0 }));
+  extrasEvento.forEach(e => materiais.push({ quantidade: Number(e.quantidade || 1), descricao: e.descricao || 'Extra', valor_unitario: 0, total: 0 }));
+  return {
+    id: document.getElementById('eventoOrcamentoIdVinculado')?.value || '',
+    numero: '',
+    nome: document.getElementById('eventoNome')?.value || '',
+    documento: document.getElementById('eventoDocumento')?.value || '',
+    telefone: document.getElementById('eventoTelefone')?.value || '',
+    email: document.getElementById('eventoEmail')?.value || '',
+    endereco: document.getElementById('eventoEndereco')?.value || '',
+    bairro: document.getElementById('eventoBairro')?.value || '',
+    cidade: document.getElementById('eventoCidade')?.value || 'Rio de Janeiro',
+    complemento: document.getElementById('eventoComplemento')?.value || '',
+    observacao_cliente: document.getElementById('eventoClienteObservacao')?.value || '',
+    data_evento: dataEvento,
+    hora_inicio: document.getElementById('eventoHoraInicio')?.value || '',
+    hora_termino: document.getElementById('eventoHoraTermino')?.value || '',
+    montagem_data: document.getElementById('eventoMontagem')?.value || dataEvento,
+    montagem_hora: document.getElementById('eventoMontagemHora')?.value || '',
+    montagem_tipo: document.getElementById('eventoMontagemTipo')?.value || 'Horário comercial',
+    desmontagem_data: document.getElementById('eventoDesmontagem')?.value || dataEvento,
+    desmontagem_hora: document.getElementById('eventoDesmontagemHora')?.value || '',
+    desmontagem_tipo: document.getElementById('eventoDesmontagemTipo')?.value || 'Horário comercial',
+    materiais,
+    valor_materiais: moeda(document.getElementById('eventoValorTotal')?.value || 0),
+    valor_frete_montagem: 0,
+    valor_desconto: 0,
+    valor_total: moeda(document.getElementById('eventoValorTotal')?.value || 0),
+    valor_sinal: moeda(document.getElementById('eventoValorSinal')?.value || 0),
+    valor_restante: moeda(document.getElementById('eventoValorRestante')?.value || 0),
+    forma_pagamento: document.getElementById('eventoFormaPagamento')?.value || '',
+    observacoes: document.getElementById('eventoClienteObservacao')?.value || '',
+    status: 'evento'
+  };
+}
+
+
+function rtOrcPreencherModalComObjeto(o, titulo){
+  preencherSelectsHorarioOrcamento();
+  preencherFormasPagamentoOrcamento(o?.forma_pagamento || '');
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = val ?? '';
+    el.dispatchEvent(new Event('input', { bubbles:true }));
+    el.dispatchEvent(new Event('change', { bubbles:true }));
+  };
+
+  set('orcamentoId', o?.id || '');
+  const tituloEl = document.getElementById('orcamentoModalTitulo');
+  if (tituloEl) tituloEl.textContent = titulo || 'Orçamento do evento';
+
+  set('orcamentoNome', o?.nome || '');
+  set('orcamentoDocumento', o?.documento || '');
+  set('orcamentoTelefone', o?.telefone || '');
+  set('orcamentoEmail', o?.email || '');
+  set('orcamentoEndereco', o?.endereco || '');
+  set('orcamentoBairro', o?.bairro || '');
+  set('orcamentoCidade', o?.cidade || (typeof carregarConfiguracoes === 'function' ? (carregarConfiguracoes().cidadePadrao || 'Rio de Janeiro') : 'Rio de Janeiro'));
+  set('orcamentoComplemento', o?.complemento || '');
+  set('orcamentoObservacaoCliente', o?.observacao_cliente || '');
+  set('orcamentoDataEvento', o?.data_evento || '');
+  set('orcamentoHoraInicio', o?.hora_inicio || '');
+  set('orcamentoHoraTermino', o?.hora_termino || '');
+  set('orcamentoStatus', o?.status || 'em_aberto');
+  set('orcamentoTipoEvento', o?.tipo_evento || 'pontual');
+  set('orcamentoMontagemData', o?.montagem_data || o?.data_evento || '');
+  set('orcamentoMontagemHora', o?.montagem_hora || '');
+  set('orcamentoMontagemTipo', o?.montagem_tipo || 'Horário comercial');
+  set('orcamentoDesmontagemData', o?.desmontagem_data || o?.data_evento || '');
+  set('orcamentoDesmontagemHora', o?.desmontagem_hora || '');
+  set('orcamentoDesmontagemTipo', o?.desmontagem_tipo || 'Horário comercial');
+
+  materiaisOrcamentoAtual = Array.isArray(o?.materiais) ? JSON.parse(JSON.stringify(o.materiais)) : [];
+  set('orcamentoValorMateriais', rtOrcMoeda(o?.valor_materiais || (materiaisOrcamentoAtual || []).reduce((s,i)=>s + Number(i.quantidade||0)*Number(i.valor_unitario||0),0)));
+  set('orcamentoValorFreteMontagem', rtOrcMoeda(o?.valor_frete_montagem || 0));
+  set('orcamentoValorDesconto', rtOrcMoeda(o?.valor_desconto || 0));
+  set('orcamentoValorTotal', rtOrcMoeda(o?.valor_total || 0));
+  set('orcamentoValorSinal', rtOrcMoeda(o?.valor_sinal || 0));
+  set('orcamentoValorRestante', rtOrcMoeda(o?.valor_restante || 0));
+  set('orcamentoFormaPagamento', o?.forma_pagamento || '');
+  set('orcamentoObservacoes', o?.observacoes || '');
+
+  orcamentoSinalEditadoManual = true;
+  renderizarMateriaisOrcamento();
+  calcularTotaisOrcamento(false);
+  const aprovar = document.getElementById('aprovarOrcamentoBtn');
+  if (aprovar) aprovar.style.display = o?.id ? '' : 'none';
+  document.getElementById('orcamentoDialog')?.showModal();
+}
+window.rtOrcPreencherModalComObjeto = rtOrcPreencherModalComObjeto;
+
+async function rtAbrirOrcamentoPdfDeEventoAtual(){
+  const o = rtOrcObjetoDoEventoAtual();
+  if (!o.nome || !o.data_evento) { alert('Informe cliente e data do evento antes de abrir orçamento.'); return; }
+
+  // Fluxo rápido: ao clicar no botão Orçamento dentro do evento, apenas abre o formulário.
+  // O orçamento só será salvo/numerado quando clicar em Salvar, Gerar PDF ou Aprovar.
+  const eventoId = document.getElementById('eventoId')?.value || '';
+  window.__rtOrcamentoEventoOrigemId = eventoId || '';
+  if (eventoId) o.evento_id = eventoId;
+
+  // Se já houver orçamento vinculado, reabre para edição; se não houver, abre como novo preenchido.
+  const vinculadoId = document.getElementById('eventoOrcamentoIdVinculado')?.value || '';
+  const existente = vinculadoId && Array.isArray(orcamentos)
+    ? orcamentos.find(x => String(x.id) === String(vinculadoId))
+    : null;
+
+  rtOrcPreencherModalComObjeto(existente || o, existente ? `Editar orçamento ${existente.numero || ''}` : 'Orçamento do evento');
+}
+window.rtAbrirOrcamentoPdfDeEventoAtual = rtAbrirOrcamentoPdfDeEventoAtual;
+
+function rtOrcDefinirOrcamentoPendenteEvento(o){
+  if (!o) return;
+  window.__rtOrcamentoPendenteEvento = { id: o.id, numero: o.numero || '' };
+  let input = document.getElementById('eventoOrcamentoIdVinculado');
+  if (!input) {
+    input = document.createElement('input');
+    input.type = 'hidden';
+    input.id = 'eventoOrcamentoIdVinculado';
+    const form = document.getElementById('eventoForm') || document.querySelector('#eventoDialog form');
+    (form || document.body).appendChild(input);
+  }
+  input.value = o.id || '';
+}
+window.rtOrcDefinirOrcamentoPendenteEvento = rtOrcDefinirOrcamentoPendenteEvento;
+
+async function rtVincularOrcamentoEventoSePendente(eventoId){
+  const pend = window.__rtOrcamentoPendenteEvento;
+  if (!pend || !pend.id || !eventoId) return;
+  try {
+    const idx = Array.isArray(orcamentos) ? orcamentos.findIndex(o => String(o.id) === String(pend.id)) : -1;
+    if (idx >= 0) {
+      orcamentos[idx].evento_id = eventoId;
+      // Mantém apenas evento_id para compatibilidade com o schema atual do Supabase.
+      orcamentos[idx].status = 'aprovado';
+    }
+  } catch(e) {}
+  if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+    try {
+      await supabaseClient.from('orcamentos').update({ evento_id: eventoId, status: 'aprovado', atualizado_em: new Date().toISOString() }).eq('id', pend.id);
+    } catch(e) { console.warn('Orçamento aprovado, mas não foi possível gravar evento_id na tabela orcamentos. Verifique se a coluna existe.', e); }
+  }
+  window.__rtOrcamentoPendenteEvento = null;
+}
+window.rtVincularOrcamentoEventoSePendente = rtVincularOrcamentoEventoSePendente;
+
 function aprovarOrcamentoAtual(){
   const id = document.getElementById('orcamentoId').value;
   if (id) aprovarOrcamento(id); else alert('Salve o orçamento antes de aprovar.');
@@ -957,7 +1260,7 @@ async function aprovarOrcamento(id){
   await renderizarOrcamentos();
   fecharOrcamentoModal();
   if (typeof abrirNovoEvento === 'function') abrirNovoEvento();
-  setTimeout(() => preencherEventoComOrcamento(o), 250);
+  setTimeout(() => { rtOrcDefinirOrcamentoPendenteEvento(o); preencherEventoComOrcamento(o); }, 250);
 }
 
 function preencherEventoComOrcamento(o){

@@ -1,5 +1,5 @@
-// v19-dev - Financeiro como Conferência Bancária de Pix/Transf./Dep./Boleto
-// Lê automaticamente o campo Forma de Pagamento dos eventos e lista somente registros Pix/Transf./Dep./Boleto.
+// v19-dev - Financeiro como Conferência Bancária de Pix/Transferência
+// Lê automaticamente o campo Forma de Pagamento dos eventos e lista somente registros Pix/Transferência.
 
 const RT_FIN_BANCO_KEY = "novoRioTendasConferenciaBancoV1";
 let rtFinanceiroExtratoLinhas = [];
@@ -10,7 +10,6 @@ let rtFinanceiroResumoAno = String(new Date().getFullYear());
 let rtFinanceiroEventosCache = [];
 let rtFinanceiroCarregandoEventos = null;
 let rtFinanceiroExtratoFiltro = localStorage.getItem("rtFinanceiroExtratoFiltro") || "pendentes";
-let rtFinanceiroExtratoBusca = localStorage.getItem("rtFinanceiroExtratoBusca") || "";
 
 function rtFinEventosLista() {
   const somenteAtivos = (lista) => (Array.isArray(lista) ? lista.filter(e => !(typeof rtEventoCancelado === "function" && rtEventoCancelado(e))) : lista);
@@ -206,7 +205,7 @@ function rtFinExtrairPagamentosBanco() {
         cliente: evento.nome || evento.cliente || "-",
         telefone: evento.telefone || "-",
         tipo,
-        forma: "Pix/Transf./Dep./Boleto",
+        forma: "Pix/Transferência",
         data_informada: dataISO || dataTexto || "",
         data_texto: dataTexto,
         valor,
@@ -312,61 +311,6 @@ function rtFinExtratoLocalCarregar() {
 
 function rtFinExtratoLocalSalvar(lista) {
   try { localStorage.setItem(RT_FIN_EXTRATO_LOCAL_KEY, JSON.stringify(Array.isArray(lista) ? lista : [])); } catch (e) {}
-}
-
-const RT_FIN_AUDITORIA_KEY = "novoRioTendasAuditoriaPagamentosV1";
-let rtFinanceiroAuditoriaFiltro = localStorage.getItem("rtFinanceiroAuditoriaFiltro") || "pendentes";
-
-function rtFinAuditoriaCarregar() {
-  try { return JSON.parse(localStorage.getItem(RT_FIN_AUDITORIA_KEY) || "{}"); } catch (e) { return {}; }
-}
-
-function rtFinAuditoriaSalvar(obj) {
-  try { localStorage.setItem(RT_FIN_AUDITORIA_KEY, JSON.stringify(obj || {})); } catch (e) {}
-}
-
-function rtFinAuditoriaStatus(id) {
-  const dados = rtFinAuditoriaCarregar();
-  return dados[id] || null;
-}
-
-function rtFinAuditoriaGrupo(registro) {
-  const st = rtFinAuditoriaStatus(registro?.id);
-  if (st?.status === "outro") return "outros";
-  if (st?.status === "ignorado") return "ignorados";
-  const forma = rtFinNormalizarTextoBusca(registro?.forma || registro?.linha_original || "");
-  if (/dinheiro|in loco/.test(forma)) return "dinheiro";
-  if (/cartao|rede|maquininha|cielo|getnet|stone|master|visa|debito|credito/.test(forma)) return "cartao";
-  return "pendentes";
-}
-
-function rtFinAuditoriaTextoBusca(registro) {
-  const st = rtFinAuditoriaStatus(registro?.id) || {};
-  return rtFinNormalizarTextoBusca([
-    registro?.data_informada, registro?.data_texto, registro?.valor,
-    registro?.tipo, registro?.forma, registro?.cliente,
-    registro?.data_evento, registro?.evento_descricao, st.observacao
-  ].join(" "));
-}
-
-function rtFinMarcarAuditoriaPagamento(id, status) {
-  const obsEl = document.querySelector(`[data-audit-obs="${CSS.escape(id)}"]`);
-  const dados = rtFinAuditoriaCarregar();
-  dados[id] = {
-    status,
-    observacao: obsEl ? obsEl.value : (dados[id]?.observacao || ""),
-    atualizado_em: new Date().toISOString(),
-    colaborador: rtFinColaboradorAtual()
-  };
-  rtFinAuditoriaSalvar(dados);
-  rtFinRenderPagamentosNaoLocalizados();
-}
-
-function rtFinLimparAuditoriaPagamento(id) {
-  const dados = rtFinAuditoriaCarregar();
-  delete dados[id];
-  rtFinAuditoriaSalvar(dados);
-  rtFinRenderPagamentosNaoLocalizados();
 }
 
 function rtFinStatusLinhaExtrato(linha) {
@@ -517,35 +461,11 @@ function rtFinRegistroPagamentoKey(r) {
 
 function rtFinOpcoesPagamentoEventos(linhaExtrato = null) {
   const registros = rtFinExtrairPagamentosBanco();
-  const item = linhaExtrato ? rtFinItemExtratoDeLinhaSalva(linhaExtrato) : null;
-  const atualId = item ? String(item.id || "") : "";
-  const usados = new Set();
-  const bloqueadosAuditoria = new Set();
-
-  // Pagamentos já vinculados a uma linha de extrato não devem aparecer novamente.
-  rtFinanceiroExtratoSalvo.forEach(l => {
-    if (String(l.status || "") !== "associado") return;
-    if (atualId && String(l.id || l.fingerprint || "") === atualId) return;
-    const keyCompleta = [l.evento_id || "", l.tipo_pagamento || "", l.data_informada || l.data_aviso || "", Number(l.valor_associado || l.valor || 0).toFixed(2)].join("||");
-    const legacy = `${l.evento_id || ""}||${l.tipo_pagamento || ""}`;
-    usados.add(keyCompleta);
-    usados.add(legacy);
-  });
-
-  // Pagamentos resolvidos manualmente na auditoria (Outros/Ignorar) também saem da lista de associação.
-  // Se o usuário marcou ali, ele já decidiu que aquele pagamento não deve ser vinculado a uma entrada do extrato.
-  const auditoria = rtFinAuditoriaCarregar();
-  Object.keys(auditoria || {}).forEach(id => {
-    const st = String(auditoria[id]?.status || "");
-    if (["outro", "ignorado"].includes(st)) bloqueadosAuditoria.add(String(id));
-  });
-
   const opts = registros.map(r => {
     const key = rtFinRegistroPagamentoKey(r);
-    const legacyKey = `${r.evento_id || ""}||${r.tipo || ""}`;
     return {
       key,
-      legacy_key: legacyKey,
+      legacy_key: `${r.evento_id || ""}||${r.tipo || ""}`,
       evento_id: r.evento_id || "",
       cliente: r.cliente || "Cliente",
       data_aviso: r.data_informada || "",
@@ -554,8 +474,9 @@ function rtFinOpcoesPagamentoEventos(linhaExtrato = null) {
       valor: Number(r.valor || 0),
       label: ""
     };
-  }).filter(o => !usados.has(o.key) && !usados.has(o.legacy_key) && !bloqueadosAuditoria.has(o.key) && !bloqueadosAuditoria.has(o.legacy_key)).map(o => ({ ...o, label: rtFinFormatarOpcaoAssociacao(o) }));
+  }).map(o => ({ ...o, label: rtFinFormatarOpcaoAssociacao(o) }));
 
+  const item = linhaExtrato ? rtFinItemExtratoDeLinhaSalva(linhaExtrato) : null;
   opts.forEach(o => { o._score = item ? rtFinPontuarOpcaoPagamentoExtrato(item, o) : 0; });
   return opts.sort((a,b) => {
     if (item) {
@@ -578,15 +499,16 @@ function rtFinEventoKeyLinha(l) {
 function rtFinMetodoPagamentoAuditavel(forma) {
   const n = rtFinNormalizarTextoBusca(forma || "");
   if (!n) return false;
-  // A auditoria 2.1 agora também lista Cartão/Rede e Dinheiro, mas em blocos separados.
-  return /(pix|transfer|transf|ted|doc|deposit|boleto|cartao|rede|maquininha|cielo|getnet|stone|master|visa|dinheiro|in loco)/.test(n);
+  if (/dinheiro|in loco/.test(n)) return false;
+  return /(pix|transfer|ted|doc|deposit|boleto|cartao|cartao|rede|maquininha|cielo|getnet)/.test(n);
 }
 
 function rtFinNormalizarMetodoPagamento(forma) {
   const n = rtFinNormalizarTextoBusca(forma || "");
-  if (/pix|transfer|transf|ted|doc|deposit|boleto/.test(n)) return "Pix/Transf./Dep./Boleto";
-  if (/dinheiro|in loco/.test(n)) return "Dinheiro";
-  if (/cartao|rede|maquininha|cielo|getnet|stone|master|visa|debito|credito/.test(n)) return "Cartão/Rede";
+  if (/pix|transfer|ted|doc/.test(n)) return "Pix/Transferência";
+  if (/deposit/.test(n)) return "Depósito";
+  if (/boleto/.test(n)) return "Boleto";
+  if (/cartao|rede|maquininha|cielo|getnet/.test(n)) return "Cartão/Rede";
   return String(forma || "").trim() || "Outro";
 }
 
@@ -595,7 +517,7 @@ function rtFinExtrairPagamentosAuditaveis() {
   rtFinEventosLista().forEach(evento => {
     const forma = String(evento.forma_pagamento || "");
     forma.split(/\r?\n|;/).map(l => l.trim()).filter(Boolean).forEach(linha => {
-      const m = linha.match(/^(Pg\s*Total|Sinal|Restante)\s*-\s*(Pix\s*\/\s*Transf\.\s*\/\s*Dep\.\s*\/\s*Boleto|Pix\s*\/\s*Transfer[eê]ncia|Pix\s*\/\s*Transf\.\s*\/\s*Dep[oó]sito\s*\/\s*Boleto|Dinheiro|Cart[aã]o(?:\s*\/\s*Rede)?|Rede|Dep[oó]sito|Boleto|[^\-]+?)\s*-\s*(.*)$/i);
+      const m = linha.match(/^(Pg\s*Total|Sinal|Restante)\s*-\s*([^\-]+?)\s*-\s*(.*)$/i);
       if (!m) return;
       const metodoRaw = String(m[2] || "").trim();
       if (!rtFinMetodoPagamentoAuditavel(metodoRaw)) return;
@@ -641,78 +563,32 @@ function rtFinPagamentosNaoLocalizadosExtrato() {
   return rtFinExtrairPagamentosAuditaveis().filter(r => !rtFinPagamentoEstaLocalizadoNoExtrato(r));
 }
 
-function rtFinRenderFiltrosAuditoria() {
-  const wrap = document.getElementById("financeiroAuditoriaFiltroBtns");
-  if (!wrap) return;
-  const todos = rtFinPagamentosNaoLocalizadosExtrato();
-  const counts = { pendentes: 0, cartao: 0, dinheiro: 0, outros: 0, ignorados: 0, todos: todos.length };
-  todos.forEach(r => { const g = rtFinAuditoriaGrupo(r); counts[g] = (counts[g] || 0) + 1; });
-  const labels = [["pendentes", "Pendentes"], ["cartao", "Cartão/Rede"], ["dinheiro", "Dinheiro"], ["outros", "Outros"], ["ignorados", "Ignorados"], ["todos", "Todos"]];
-  wrap.innerHTML = labels.map(([key, label]) => `<button type="button" class="btn-mini ${rtFinanceiroAuditoriaFiltro === key ? "active" : "btn-outline"}" data-audit-filtro="${key}">${label} (${counts[key] || 0})</button>`).join("");
-  wrap.querySelectorAll("[data-audit-filtro]").forEach(btn => btn.addEventListener("click", () => {
-    rtFinanceiroAuditoriaFiltro = btn.dataset.auditFiltro || "pendentes";
-    try { localStorage.setItem("rtFinanceiroAuditoriaFiltro", rtFinanceiroAuditoriaFiltro); } catch(e) {}
-    rtFinRenderPagamentosNaoLocalizados();
-  }));
-}
-
 function rtFinRenderPagamentosNaoLocalizados() {
   const tbody = document.getElementById("financeiroPagamentosNaoLocalizadosTbody");
   const resumo = document.getElementById("financeiroPagamentosNaoLocalizadosResumo");
   if (!tbody && !resumo) return;
-  const todos = rtFinPagamentosNaoLocalizadosExtrato();
-  const pendentes = todos.filter(r => rtFinAuditoriaGrupo(r) === "pendentes");
-  const total = pendentes.reduce((s, r) => s + Number(r.valor || 0), 0);
-  rtFinRenderFiltrosAuditoria();
+  const lista = rtFinPagamentosNaoLocalizadosExtrato();
+  const total = lista.reduce((s, r) => s + Number(r.valor || 0), 0);
   if (resumo) {
-    resumo.innerHTML = pendentes.length
-      ? `<strong>${pendentes.length}</strong> pagamento(s) ainda não localizado(s) · <strong>${rtFinMoeda(total)}</strong>`
-      : `✅ Nenhum pagamento pendente de localização no extrato.`;
+    resumo.innerHTML = lista.length
+      ? `<strong>${lista.length}</strong> pagamento(s) informado(s) no sistema ainda não localizado(s) no extrato · <strong>${rtFinMoeda(total)}</strong>`
+      : `✅ Todos os pagamentos auditáveis cadastrados no sistema já possuem associação no extrato.`;
   }
   if (!tbody) return;
-  let lista = todos;
-  if (rtFinanceiroAuditoriaFiltro !== "todos") lista = todos.filter(r => rtFinAuditoriaGrupo(r) === rtFinanceiroAuditoriaFiltro);
-  lista = lista.slice().sort((a,b) => {
-    const da = String(a.data_informada || "9999").localeCompare(String(b.data_informada || "9999"));
-    if (da) return da;
-    const dv = Number(a.valor || 0) - Number(b.valor || 0);
-    if (dv) return dv;
-    return String(a.cliente || "").localeCompare(String(b.cliente || ""));
-  });
   if (!lista.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">Nenhum pagamento neste filtro.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Nenhum pagamento pendente de localização no extrato.</td></tr>`;
     return;
   }
-  tbody.innerHTML = lista.map(r => {
-    const st = rtFinAuditoriaStatus(r.id) || {};
-    const grupo = rtFinAuditoriaGrupo(r);
-    const statusTexto = grupo === "cartao" ? "💳 Cartão/Rede" : (grupo === "dinheiro" ? "💵 Dinheiro" : (grupo === "outros" ? "📌 Outros" : (grupo === "ignorados" ? "🚫 Ignorado" : "🔴 Não localizado")));
-    const mostrarOutros = grupo !== "outros";
-    const mostrarIgnorar = grupo !== "ignorados";
-    const formaCompleta = rtFinEscapeHtml(r.forma || "");
-    const formaCurta = /pix|transf|dep|boleto/i.test(String(r.forma || "")) ? "Banco" : (grupo === "cartao" ? "Cartão/Rede" : (grupo === "dinheiro" ? "Dinheiro" : String(r.forma || "-")));
-    return `
-    <tr class="financeiro-status-${grupo === "pendentes" ? "nao_encontrado" : grupo}">
+  tbody.innerHTML = lista.map(r => `
+    <tr class="financeiro-status-nao_encontrado">
       <td>${rtFinDataBR(r.data_informada)}</td>
       <td>${rtFinMoeda(r.valor)}</td>
       <td>${rtFinEscapeHtml(r.tipo)}</td>
-      <td title="${formaCompleta}"><span class="fin-forma-chip">${rtFinEscapeHtml(formaCurta)}</span></td>
+      <td>${rtFinEscapeHtml(r.forma)}</td>
       <td><strong>${rtFinEscapeHtml(r.cliente)}</strong><div class="financeiro-registro"><span>Evento ${rtFinDataBR(r.data_evento)} · ${rtFinEscapeHtml(r.evento_descricao || "-")}</span></div></td>
-      <td colspan="2">
-        <div class="financeiro-auditoria-linha-controle">
-          <input class="fin-audit-obs" data-audit-obs="${rtFinEscapeHtml(r.id)}" value="${rtFinEscapeHtml(st.observacao || "")}" placeholder="observação">
-          <span class="financeiro-status-badge">${statusTexto}</span>
-          <span class="financeiro-acoes financeiro-auditoria-acoes">
-            ${mostrarOutros ? `<button type="button" class="btn-mini btn-outline" data-audit-marcar="outro" data-audit-id="${rtFinEscapeHtml(r.id)}">Outros</button>` : ""}
-            ${mostrarIgnorar ? `<button type="button" class="btn-mini btn-outline" data-audit-marcar="ignorado" data-audit-id="${rtFinEscapeHtml(r.id)}">Ignorar</button>` : ""}
-            ${grupo !== "pendentes" ? `<button type="button" class="btn-mini btn-outline" data-audit-limpar="${rtFinEscapeHtml(r.id)}">Voltar</button>` : ""}
-          </span>
-        </div>
-      </td>
-    </tr>`;
-  }).join("");
-  tbody.querySelectorAll("[data-audit-marcar]").forEach(btn => btn.addEventListener("click", () => rtFinMarcarAuditoriaPagamento(btn.dataset.auditId, btn.dataset.auditMarcar)));
-  tbody.querySelectorAll("[data-audit-limpar]").forEach(btn => btn.addEventListener("click", () => rtFinLimparAuditoriaPagamento(btn.dataset.auditLimpar)));
+      <td><span class="financeiro-status-badge">🔴 Não localizado no extrato</span></td>
+    </tr>
+  `).join("");
 }
 
 function rtFinGrupoFiltroExtrato(linha) {
@@ -725,19 +601,9 @@ function rtFinGrupoFiltroExtrato(linha) {
   return "pendentes";
 }
 
-function rtFinLinhaExtratoTextoBusca(linha) {
-  return rtFinNormalizarTextoBusca([
-    linha?.data_lancamento, linha?.descricao, linha?.linha_original,
-    linha?.valor, linha?.valor_assinado, linha?.tipo, linha?.status,
-    linha?.cliente_nome, linha?.evento_data, linha?.tipo_pagamento, linha?.observacao
-  ].join(" "));
-}
-
 function rtFinListaExtratoFiltrada() {
   const filtro = rtFinanceiroExtratoFiltro || "pendentes";
-  const termo = rtFinNormalizarTextoBusca(rtFinanceiroExtratoBusca || "");
-  let lista = (filtro === "todos") ? rtFinanceiroExtratoSalvo : rtFinanceiroExtratoSalvo.filter(l => rtFinGrupoFiltroExtrato(l) === filtro);
-  if (termo) lista = lista.filter(l => rtFinLinhaExtratoTextoBusca(l).includes(termo));
+  const lista = (filtro === "todos") ? rtFinanceiroExtratoSalvo : rtFinanceiroExtratoSalvo.filter(l => rtFinGrupoFiltroExtrato(l) === filtro);
   return lista.slice().sort((a,b) => String(a.data_lancamento || "9999").localeCompare(String(b.data_lancamento || "9999")) || String(a.criado_em || "").localeCompare(String(b.criado_em || "")));
 }
 
@@ -807,7 +673,7 @@ function rtFinRenderExtratoSalvo() {
       <td><strong>${rtFinEscapeHtml(l.descricao || l.linha_original || "")}</strong></td>
       <td>${valor < 0 ? "-" : "+"}${rtFinMoeda(Math.abs(valor))}</td>
       <td>${rtFinTipoExtratoTexto(tipo)}</td>
-      <td><span class="financeiro-status-badge">${rtFinStatusLinhaExtrato(l)}</span>${l.cliente_nome ? `<div class="financeiro-registro fin-ext-assoc-resumo" title="${rtFinEscapeHtml(l.cliente_nome)} · ${rtFinDataBR(l.evento_data)} · ${rtFinEscapeHtml(l.tipo_pagamento || "")}"><span>${rtFinDataBR(l.evento_data)} | ${rtFinEscapeHtml(l.tipo_pagamento || "")} | ${rtFinEscapeHtml(l.cliente_nome)}</span></div>` : ""}</td>
+      <td><span class="financeiro-status-badge">${rtFinStatusLinhaExtrato(l)}</span>${l.cliente_nome ? `<div class="financeiro-registro"><span>${rtFinEscapeHtml(l.cliente_nome)} · ${rtFinDataBR(l.evento_data)} · ${rtFinEscapeHtml(l.tipo_pagamento || "")}</span></div>` : ""}</td>
       <td>${assoc}</td>
       <td><input class="fin-ext-obs" data-ext-obs="${rtFinEscapeHtml(id)}" value="${rtFinEscapeHtml(l.observacao || "")}" placeholder="observação"></td>
       <td class="financeiro-acoes">
@@ -1317,7 +1183,7 @@ function rtFinAtualizarDataFormaPagamento(registro, extrato) {
   if (!evento) return { idFinal: registro.id, dataAlterada: false, dataExtratoTexto };
 
   const linhas = String(evento.forma_pagamento || "").split(/\r?\n/);
-  const prefixo = `${registro.tipo} - Pix/Transf./Dep./Boleto -`;
+  const prefixo = `${registro.tipo} - Pix/Transferência -`;
   let alterou = false;
 
   const novasLinhas = linhas.map(linha => {
@@ -1433,7 +1299,7 @@ function rtFinRender() {
   setTxt("finEmAberto", divergencias, false);
 
   if (!filtrados.length) {
-    tbody.innerHTML = `<tr><td colspan="10" class="empty">Nenhum pagamento bancário encontrado no campo Forma de Pagamento dos eventos.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="empty">Nenhum Pix/Transferência encontrado no campo Forma de Pagamento dos eventos.</td></tr>`;
     return;
   }
 
@@ -1488,11 +1354,11 @@ function rtFinExtrairTodosPagamentosEvento(evento) {
   const registros = [];
   const forma = String(evento.forma_pagamento || "");
   forma.split(/\r?\n|;/).map(l => l.trim()).filter(Boolean).forEach(linha => {
-    const m = linha.match(/^(Pg\s*Total|Sinal|Restante)\s*-\s*(Pix\s*\/\s*Transf\.\s*\/\s*Dep\.\s*\/\s*Boleto|Pix\s*\/\s*Transfer[eê]ncia|Dinheiro|Cart[aã]o(?:\s*\/\s*Rede)?)\s*-\s*(.*)$/i);
+    const m = linha.match(/^(Pg\s*Total|Sinal|Restante)\s*-\s*(Pix\s*\/\s*Transfer[eê]ncia|Dinheiro|Cart[aã]o)\s*-\s*(.*)$/i);
     if (!m) return;
     const tipoRaw = m[1].replace(/\s+/g, " ").trim();
     const tipo = /^pg/i.test(tipoRaw) ? "Pg Total" : tipoRaw.charAt(0).toUpperCase() + tipoRaw.slice(1).toLowerCase();
-    const formaPg = /pix/i.test(m[2]) ? "Pix/Transf./Dep./Boleto" : (/dinheiro/i.test(m[2]) ? "Dinheiro" : "Cartão/Rede");
+    const formaPg = /pix/i.test(m[2]) ? "Pix/Transferência" : (/dinheiro/i.test(m[2]) ? "Dinheiro" : "Cartão");
     const dataTexto = String(m[3] || "").trim();
     const dataISO = rtFinNormalizarData(dataTexto);
     registros.push({ tipo, forma: formaPg, data: dataISO || dataTexto || "", data_texto: dataTexto, valor: rtFinTipoValor(evento, tipo), linha_original: linha });
@@ -1713,15 +1579,6 @@ function iniciarFinanceiro() {
   document.getElementById("financeiroMostrarCapturaBtn")?.addEventListener("click", rtFinMostrarDiagnosticoExtrato);
   document.getElementById("financeiroSalvarExtratoBtn")?.addEventListener("click", rtFinSalvarExtratoProcessado);
   document.getElementById("financeiroRecarregarExtratoSalvoBtn")?.addEventListener("click", rtFinCarregarExtratoSalvo);
-  const buscaExtrato = document.getElementById("financeiroExtratoBuscaSalvos");
-  if (buscaExtrato) {
-    buscaExtrato.value = rtFinanceiroExtratoBusca || "";
-    buscaExtrato.addEventListener("input", () => {
-      rtFinanceiroExtratoBusca = buscaExtrato.value || "";
-      try { localStorage.setItem("rtFinanceiroExtratoBusca", rtFinanceiroExtratoBusca); } catch(e) {}
-      rtFinRenderExtratoSalvo();
-    });
-  }
   document.getElementById("financeiroExtratoTexto")?.addEventListener("paste", rtFinCapturarColagemExtrato);
   document.getElementById("financeiroLimparExtratoBtn")?.addEventListener("click", () => {
     const txt = document.getElementById("financeiroExtratoTexto");

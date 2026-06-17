@@ -338,16 +338,45 @@ async function ruaMobileOrigemAtualParaMaps() {
   }
 }
 
+function ruaMobileNotasEnderecosParaRoteiro(data, carro) {
+  const notas = (typeof rtNotasDaRota === "function")
+    ? rtNotasDaRota(data, carro)
+    : ruaMobileNotasDaRota(data, carro);
+  return (Array.isArray(notas) ? notas : [])
+    .map(n => ({ endereco: ruaMobileEnderecoPrincipalMaps(n?.endereco || ""), posicao: Math.max(0, Number(n?.posicao) || 0) }))
+    .filter(n => n.endereco);
+}
+
+function ruaMobileEnderecosRoteiroComNotas(pendentes, carroAlvo) {
+  const data = document.getElementById("ruaMobileData")?.value || ruaMobileHojeISO();
+  const carro = String(carroAlvo || "").trim() || "Sem carro";
+  const notas = ruaMobileNotasEnderecosParaRoteiro(data, carro);
+  const enderecos = [];
+  const adicionar = (end) => {
+    const limpo = ruaMobileEnderecoPrincipalMaps(end);
+    if (limpo && !enderecos.some(x => x.toLowerCase() === limpo.toLowerCase())) enderecos.push(limpo);
+  };
+
+  const lista = Array.isArray(pendentes) ? pendentes : [];
+  notas.filter(n => n.posicao === 0).forEach(n => adicionar(n.endereco));
+  lista.forEach((rota, idx) => {
+    adicionar(rota?.endereco);
+    notas.filter(n => n.posicao === idx + 1).forEach(n => adicionar(n.endereco));
+  });
+  notas.filter(n => n.posicao > lista.length).forEach(n => adicionar(n.endereco));
+  return enderecos.slice(0, 10);
+}
+
 async function abrirGoogleMapsPendenciasCarro(carroAlvo) {
+  // Mantém a abertura sincronizada com o clique para evitar bloqueio de pop-up no mobile.
   const pendentes = ruaMobileRotasPendentesPorCarro(carroAlvo);
-  if (!pendentes.length) {
-    alert("Não há endereços pendentes para este carro na data/filtro selecionado.");
+  const enderecos = ruaMobileEnderecosRoteiroComNotas(pendentes, carroAlvo);
+  if (!enderecos.length) {
+    alert("Não há endereços pendentes ou notas com endereço para este carro na data/filtro selecionado.");
     return;
   }
 
-  const janela = window.open("about:blank", "_blank");
-  const origem = await ruaMobileOrigemAtualParaMaps();
-  const enderecos = pendentes.map(r => ruaMobileEnderecoPrincipalMaps(r.endereco)).filter(Boolean).slice(0, 10);
+  const origem = "Current Location";
   const destino = enderecos[enderecos.length - 1];
   const waypoints = enderecos.slice(0, -1);
   const params = new URLSearchParams({
@@ -358,8 +387,7 @@ async function abrirGoogleMapsPendenciasCarro(carroAlvo) {
   });
   if (waypoints.length) params.set("waypoints", waypoints.join("|"));
   const url = `https://www.google.com/maps/dir/?${params.toString()}`;
-  if (janela) janela.location.href = url;
-  else window.open(url, "_blank", "noopener");
+  window.open(url, "_blank", "noopener");
 }
 
 
@@ -421,6 +449,7 @@ function ruaMobileEscAttr(valor) {
 
 function ruaMobileNotasCarregar() {
   try {
+    if (typeof rtNotasCarregar === "function") return rtNotasCarregar();
     const raw = localStorage.getItem("rt_notas_rota_v1");
     const lista = JSON.parse(raw || "[]");
     return Array.isArray(lista) ? lista : [];
@@ -444,12 +473,28 @@ function ruaMobileNotaTextoHtml(textoBruto) {
 
 function ruaMobileNotaLinhaHtml(nota) {
   const texto = ruaMobileNotaTextoHtml(nota?.texto || "Nota");
+  const textoPlano = ruaMobileEscAttr(String(nota?.texto || "Nota").trim() || "Nota");
   const endereco = String(nota?.endereco || "").trim();
   const mapa = endereco && typeof googleMapsNavigateUrl === "function" ? googleMapsNavigateUrl(endereco) : "";
   const enderecoHtml = endereco
     ? `<div class="rua-mobile-nota-endereco">📍 ${mapa ? `<a href="${mapa}" target="_blank" rel="noopener">${ruaMobileEscAttr(endereco)}</a>` : ruaMobileEscAttr(endereco)}</div>`
     : "";
-  return `<div class="rua-mobile-nota-linha"><div class="rua-mobile-nota-texto">💬 ${texto}</div>${enderecoHtml}</div>`;
+  const admin = ruaMobileUsuarioAdmin();
+  const id = ruaMobileEscAttr(nota?.id || "");
+  const acoes = admin ? `
+    <div class="rua-mobile-nota-acoes" aria-label="Ações da nota">
+      <button type="button" class="rua-mobile-nota-btn" data-rua-nota-editar="${id}" title="Editar nota">✏️</button>
+      <button type="button" class="rua-mobile-nota-btn rua-mobile-nota-btn-danger" data-rua-nota-excluir="${id}" title="Excluir nota">🗑</button>
+      <button type="button" class="rua-mobile-nota-btn" data-rua-nota-mover="${id}" data-dir="up" title="Subir nota">▲</button>
+      <button type="button" class="rua-mobile-nota-btn" data-rua-nota-mover="${id}" data-dir="down" title="Descer nota">▼</button>
+    </div>` : "";
+  return `<div class="rua-mobile-nota-linha" data-rua-nota-id="${id}" title="${textoPlano}">
+    <div class="rua-mobile-nota-topo">
+      <div class="rua-mobile-nota-texto"><span class="rua-mobile-nota-icone">📝</span><span class="rua-mobile-nota-conteudo">${texto}</span></div>
+      ${acoes}
+    </div>
+    ${enderecoHtml}
+  </div>`;
 }
 
 function ruaMobileNotasHtml(data, carro, posicao) {
@@ -470,6 +515,76 @@ function ruaMobileNotasFiltradasHtml(data, carroFiltro) {
     .map(n => `<div class="rua-mobile-carro-grupo"><span>🚚 ${ruaMobileEscAttr(n.carro || "Sem carro")}</span></div>${ruaMobileNotaLinhaHtml(n)}`)
     .join("");
 }
+
+
+function ruaMobileNotaListaRotas(data, carro){
+  const todas = typeof obterRotasRuaMobile === "function" ? obterRotasRuaMobile() : [];
+  const c = String(carro || "Sem carro").trim() || "Sem carro";
+  return todas.filter(r => String(ruaMobileCarroDaRota(r) || "Sem carro").trim() === c && String(r.data || "") === String(data || ""));
+}
+
+function ruaMobileCriarNota(){
+  if (!ruaMobileUsuarioAdmin()) return;
+  const data = document.getElementById("ruaMobileData")?.value || ruaMobileHojeISO();
+  let carro = String(document.getElementById("ruaMobileCarro")?.value || "").trim();
+  if (!carro) {
+    const carros = ruaMobileCarrosParaEdicao();
+    carro = prompt("Carro da nota:", carros[0] || "Sem carro") || "";
+  }
+  carro = carro.trim() || "Sem carro";
+  if (typeof rtAbrirNotaRota === "function") {
+    rtAbrirNotaRota(data, carro, ruaMobileNotaListaRotas(data, carro));
+  } else {
+    alert("Editor de nota indisponível nesta versão.");
+  }
+}
+
+function ruaMobileEditarNota(notaId){
+  if (!ruaMobileUsuarioAdmin() || !notaId) return;
+  const nota = ruaMobileNotasCarregar().find(n => String(n.id) === String(notaId));
+  if (!nota) return;
+  const carro = String(nota.carro || "Sem carro").trim() || "Sem carro";
+  if (typeof rtAbrirNotaRota === "function") {
+    rtAbrirNotaRota(nota.data, carro, ruaMobileNotaListaRotas(nota.data, carro), nota.id);
+  }
+}
+
+async function ruaMobileMoverNota(notaId, dir){
+  if (!ruaMobileUsuarioAdmin() || !notaId) return;
+  const notas = ruaMobileNotasCarregar();
+  const nota = notas.find(n => String(n.id) === String(notaId));
+  if (!nota) return;
+  const delta = dir === "up" ? -1 : 1;
+  const novaPos = Math.max(0, Number(nota.posicao || 0) + delta);
+  if (typeof rtMoverNotaRotaParaPosicao === "function") {
+    rtMoverNotaRotaParaPosicao(nota.id, nota.data, nota.carro || "Sem carro", novaPos);
+  } else if (typeof rtNotasSalvar === "function") {
+    nota.posicao = novaPos;
+    nota.atualizadoEm = new Date().toISOString();
+    rtNotasSalvar(notas);
+  }
+  if (typeof rtNotasSincronizarNuvem === "function") await rtNotasSincronizarNuvem(false);
+  renderizarRuaMobile();
+}
+
+async function ruaMobileExcluirNota(notaId){
+  if (!ruaMobileUsuarioAdmin() || !notaId) return;
+  const notas = ruaMobileNotasCarregar();
+  const nota = notas.find(n => String(n.id) === String(notaId));
+  if (!nota) return;
+  if (!confirm('Excluir esta nota da rota?')) return;
+  const restantes = notas.filter(n => String(n.id) !== String(notaId));
+  if (typeof rtNotasSalvarLocal === 'function') rtNotasSalvarLocal(restantes);
+  else if (typeof rtNotasSalvar === 'function') rtNotasSalvar(restantes);
+  try {
+    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+      await supabaseClient.from('notas_rota').delete().eq('id', notaId);
+    }
+  } catch(e) { console.warn('Não foi possível excluir nota no Supabase:', e); }
+  try { if (typeof rtNotasSincronizarNuvem === 'function') await rtNotasSincronizarNuvem(false); } catch(e) {}
+  renderizarRuaMobile();
+}
+
 
 function ruaMobileCarrosParaEdicao() {
   const carros = typeof carrosDisponiveisRotas === "function" ? carrosDisponiveisRotas() : ["Saveiro", "Dupla", "Caminhão"];
@@ -593,6 +708,45 @@ function ruaMobileAbrirContadorCarro(carroAlvo) {
   alert(`${carro}\n\n${contagem.length ? contagem.join("; ") : "Sem material de montagem neste carro."}`);
 }
 
+
+function ruaMobileConfigurarAcoesNotas(container){
+  if (!container) return;
+  container.querySelectorAll("[data-rua-nota-nova]").forEach(btn => {
+    btn.addEventListener("click", ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      ruaMobileCriarNota();
+    });
+  });
+  container.querySelectorAll("[data-rua-nota-editar]").forEach(btn => {
+    btn.addEventListener("click", ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      ruaMobileEditarNota(btn.dataset.ruaNotaEditar || "");
+    });
+  });
+  container.querySelectorAll("[data-rua-nota-mover]").forEach(btn => {
+    btn.addEventListener("click", async ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      await ruaMobileMoverNota(btn.dataset.ruaNotaMover || "", btn.dataset.dir || "");
+    });
+  });
+  container.querySelectorAll("[data-rua-nota-excluir]").forEach(btn => {
+    btn.addEventListener("click", async ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      await ruaMobileExcluirNota(btn.dataset.ruaNotaExcluir || "");
+    });
+  });
+  container.querySelectorAll(".rua-mobile-nota-linha").forEach(card => {
+    card.addEventListener("click", ev => {
+      if (ev.target.closest("button,a")) return;
+      card.classList.toggle("is-expanded");
+    });
+  });
+}
+
 function renderizarRuaMobile() {
   const listaEl = document.getElementById("ruaMobileLista");
   const resumoEl = document.getElementById("ruaMobileResumo");
@@ -618,7 +772,11 @@ function renderizarRuaMobile() {
 
   if (!rotas.length) {
     const notasHtml = ruaMobileNotasFiltradasHtml(dataInput?.value || ruaMobileHojeISO(), document.getElementById("ruaMobileCarro")?.value || "");
-    listaEl.innerHTML = notasHtml || `<p class="empty">Nenhuma rota encontrada para esta data/filtro.</p>`;
+    const toolbarNotas = ruaMobileUsuarioAdmin()
+      ? `<div class="rua-mobile-nota-toolbar"><button type="button" class="btn-outline btn-mini" data-rua-nota-nova>+ Nota</button></div>`
+      : "";
+    listaEl.innerHTML = toolbarNotas + (notasHtml || `<p class="empty">Nenhuma rota encontrada para esta data/filtro.</p>`);
+    ruaMobileConfigurarAcoesNotas(listaEl);
     return;
   }
 
@@ -641,8 +799,11 @@ function renderizarRuaMobile() {
   const ruaMobileHeaderCarroSelecionado = ruaMobileCarroSelecionado
     ? `<div class="rua-mobile-carro-selecionado"><span>🚚 ${ruaMobileCarroSelecionado}</span><div class="rua-mobile-carro-actions"><button type="button" class="rua-mobile-carro-contador-btn" data-rua-contador-carro="${String(ruaMobileCarroSelecionado).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Ver materiais do carro">📦</button><button type="button" class="rua-mobile-carro-maps-btn" data-rua-maps-carro="${String(ruaMobileCarroSelecionado).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Abrir rota pendente do carro no Google Maps">🗺️</button></div></div>`
     : "";
+  const ruaMobileToolbarNotas = ruaMobileUsuarioAdmin()
+    ? `<div class="rua-mobile-nota-toolbar"><button type="button" class="btn-outline btn-mini" data-rua-nota-nova>+ Nota</button></div>`
+    : "";
 
-  listaEl.innerHTML = ruaMobileHeaderCarroSelecionado + rotasRender.map(({ rota, idx, carroGrupo, inicioGrupo, posicaoGrupo, totalGrupo }) => {
+  listaEl.innerHTML = ruaMobileToolbarNotas + ruaMobileHeaderCarroSelecionado + rotasRender.map(({ rota, idx, carroGrupo, inicioGrupo, posicaoGrupo, totalGrupo }) => {
     const index = idx;
     const carro = ruaMobileCarroDaRota(rota);
     const tel = ruaMobileTelefoneLimpo(rota.telefone);
@@ -698,6 +859,8 @@ function renderizarRuaMobile() {
       ${notasDepois}
     `;
   }).join("");
+
+  ruaMobileConfigurarAcoesNotas(listaEl);
 
   listaEl.querySelectorAll("[data-rua-carro-rota-id]").forEach(select => {
     select.addEventListener("click", ev => ev.stopPropagation());

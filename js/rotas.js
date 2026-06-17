@@ -2530,22 +2530,58 @@ function rtAbrirGoogleMapsRotas(listaRotas) {
   window.open(url, "_blank");
 }
 
-// v19-dev: notas simples na rota por carro/dia
+// v19-dev: notas da rota por carro/dia, com sincronização multiusuário via Supabase.
+// Requer tabela Supabase: notas_rota(id, data_rota, carro, texto, endereco, ordem, criado_por, criado_em, atualizado_em)
 const RT_ROTAS_NOTAS_KEY = "rt_notas_rota_v1";
+
+function rtNotaNormalizarRegistro(nota) {
+  if (!nota || typeof nota !== "object") return null;
+  const id = String(nota.id || nota.uuid || "").trim();
+  if (!id) return null;
+  const data = String(nota.data || nota.data_rota || nota.dataRota || "").slice(0, 10);
+  const carro = String(nota.carro || "Sem carro").trim() || "Sem carro";
+  const texto = String(nota.texto || nota.nota || "").trim();
+  const endereco = String(nota.endereco || "").trim();
+  const posicao = Number(nota.posicao ?? nota.ordem ?? 0) || 0;
+  const criadoEm = nota.criadoEm || nota.criado_em || new Date().toISOString();
+  const atualizadoEm = nota.atualizadoEm || nota.atualizado_em || criadoEm;
+  return { id, data, carro, texto: texto || endereco || "Nota", endereco, posicao, criadoEm, atualizadoEm };
+}
+
+function rtNotaParaSupabase(nota) {
+  const n = rtNotaNormalizarRegistro(nota);
+  if (!n) return null;
+  return {
+    id: n.id,
+    data_rota: n.data,
+    carro: n.carro,
+    texto: n.texto,
+    endereco: n.endereco || null,
+    ordem: Number(n.posicao || 0),
+    criado_por: (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "") || null,
+    criado_em: n.criadoEm || new Date().toISOString(),
+    atualizado_em: n.atualizadoEm || new Date().toISOString()
+  };
+}
 
 function rtNotasCarregar() {
   try {
     const raw = localStorage.getItem(RT_ROTAS_NOTAS_KEY);
     const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr : [];
+    return Array.isArray(arr) ? arr.map(rtNotaNormalizarRegistro).filter(Boolean) : [];
   } catch {
     return [];
   }
 }
 
-function rtNotasSalvar(notas) {
-  const lista = Array.isArray(notas) ? notas : [];
+function rtNotasSalvarLocal(notas) {
+  const lista = (Array.isArray(notas) ? notas : []).map(rtNotaNormalizarRegistro).filter(Boolean);
   try { localStorage.setItem(RT_ROTAS_NOTAS_KEY, JSON.stringify(lista)); } catch {}
+  return lista;
+}
+
+function rtNotasSalvar(notas) {
+  const lista = rtNotasSalvarLocal(notas);
   rtNotasSalvarNuvem(lista).catch(() => {});
 }
 
@@ -2553,18 +2589,29 @@ async function rtNotasCarregarNuvem() {
   if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
   try {
     const { data, error } = await supabaseClient
+      .from("notas_rota")
+      .select("*")
+      .order("data_rota", { ascending: true })
+      .order("carro", { ascending: true })
+      .order("ordem", { ascending: true });
+    if (!error) {
+      return (data || []).map(rtNotaNormalizarRegistro).filter(Boolean);
+    }
+    console.warn("Tabela notas_rota indisponível; tentando fallback app_config:", error);
+  } catch (erro) {
+    console.warn("Erro ao carregar notas_rota; tentando fallback app_config:", erro);
+  }
+
+  try {
+    const { data, error } = await supabaseClient
       .from("app_config")
       .select("valor")
       .eq("chave", "rotas_notas")
       .maybeSingle();
-    if (error) {
-      console.warn("Não foi possível carregar notas da rota na nuvem:", error);
-      return null;
-    }
+    if (error) return null;
     const valor = data?.valor;
-    return Array.isArray(valor) ? valor : [];
-  } catch (erro) {
-    console.warn("Erro ao carregar notas da rota na nuvem:", erro);
+    return Array.isArray(valor) ? valor.map(rtNotaNormalizarRegistro).filter(Boolean) : [];
+  } catch {
     return null;
   }
 }
@@ -2572,17 +2619,16 @@ async function rtNotasCarregarNuvem() {
 function rtNotasMesclar(local = [], nuvem = []) {
   const mapa = new Map();
   const incluir = nota => {
-    if (!nota || typeof nota !== "object") return;
-    const id = String(nota.id || "").trim();
-    if (!id) return;
-    const atual = mapa.get(id);
+    const n = rtNotaNormalizarRegistro(nota);
+    if (!n) return;
+    const atual = mapa.get(n.id);
     if (!atual) {
-      mapa.set(id, nota);
+      mapa.set(n.id, n);
       return;
     }
     const tAtual = new Date(atual.atualizadoEm || atual.criadoEm || 0).getTime() || 0;
-    const tNota = new Date(nota.atualizadoEm || nota.criadoEm || 0).getTime() || 0;
-    if (tNota >= tAtual) mapa.set(id, nota);
+    const tNota = new Date(n.atualizadoEm || n.criadoEm || 0).getTime() || 0;
+    if (tNota >= tAtual) mapa.set(n.id, n);
   };
   (Array.isArray(local) ? local : []).forEach(incluir);
   (Array.isArray(nuvem) ? nuvem : []).forEach(incluir);
@@ -2590,24 +2636,48 @@ function rtNotasMesclar(local = [], nuvem = []) {
 }
 
 async function rtNotasSalvarNuvem(notas) {
+  const lista = (Array.isArray(notas) ? notas : []).map(rtNotaNormalizarRegistro).filter(Boolean);
   if (typeof supabaseClient === "undefined" || !supabaseClient) return false;
+
+  // Fonte principal multiusuário: tabela notas_rota.
+  try {
+    const registros = lista.map(rtNotaParaSupabase).filter(Boolean);
+    if (registros.length) {
+      const { error } = await supabaseClient
+        .from("notas_rota")
+        .upsert(registros, { onConflict: "id" });
+      if (!error) return true;
+      console.warn("Não foi possível salvar em notas_rota; fallback app_config:", error);
+    }
+  } catch (erro) {
+    console.warn("Erro ao salvar em notas_rota; fallback app_config:", erro);
+  }
+
+  // Fallback para bases antigas.
   try {
     const { error } = await supabaseClient
       .from("app_config")
       .upsert({
         chave: "rotas_notas",
-        valor: Array.isArray(notas) ? notas : [],
+        valor: lista,
         atualizado_em: new Date().toISOString()
       }, { onConflict: "chave" });
-    if (error) {
-      console.warn("Não foi possível salvar notas da rota na nuvem:", error);
-      return false;
-    }
-    return true;
-  } catch (erro) {
-    console.warn("Erro ao salvar notas da rota na nuvem:", erro);
+    return !error;
+  } catch {
     return false;
   }
+}
+
+async function rtNotaExcluirNuvem(notaId) {
+  if (typeof supabaseClient === "undefined" || !supabaseClient || !notaId) return false;
+  try {
+    const { error } = await supabaseClient.from("notas_rota").delete().eq("id", notaId);
+    if (!error) return true;
+    console.warn("Não foi possível excluir nota em notas_rota:", error);
+  } catch (erro) {
+    console.warn("Erro ao excluir nota em notas_rota:", erro);
+  }
+  return false;
 }
 
 async function rtNotasSincronizarNuvem(renderizar = true) {
@@ -2616,9 +2686,8 @@ async function rtNotasSincronizarNuvem(renderizar = true) {
   if (!Array.isArray(nuvem)) return local;
   const mesclado = rtNotasMesclar(local, nuvem);
   const mudou = JSON.stringify(mesclado) !== JSON.stringify(local);
-  try { localStorage.setItem(RT_ROTAS_NOTAS_KEY, JSON.stringify(mesclado)); } catch {}
+  rtNotasSalvarLocal(mesclado);
   if (mudou) {
-    await rtNotasSalvarNuvem(mesclado);
     if (renderizar && typeof renderizarRotas === "function") renderizarRotas();
     if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
   }
@@ -2790,7 +2859,9 @@ function rtExcluirNotaRota(notaId) {
   if (!nota) return;
   if (!confirm(`Excluir a nota "${nota.texto || nota.endereco || "sem texto"}"?`)) return;
   rtNotasSalvar(notas.filter(n => n.id !== notaId));
+  rtNotaExcluirNuvem(notaId).catch(() => {});
   renderizarRotas();
+  if (typeof renderizarRuaMobile === 'function') renderizarRuaMobile();
 }
 
 function rtGoogleMapsUrlRotasComExtras(listaRotas, extras = []) {
@@ -3076,7 +3147,7 @@ function rtNotaOrganizadorHtml(nota) {
   const texto = rtNotaTextoHtml(nota?.texto || nota?.endereco || "Nota");
   const endereco = String(nota?.endereco || "").trim();
   const enderecoMini = endereco ? ` <span class="rotas-organizador-nota-endereco">📍 ${rtEscapeHtmlOrganizador(endereco)}</span>` : "";
-  return `<div class="rotas-organizador-nota" data-org-nota-id="${rtEscapeHtmlOrganizador(nota?.id || "")}" title="Nota da rota">📝 ${texto}${enderecoMini}</div>`;
+  return `<div class="rotas-organizador-nota" draggable="true" data-org-nota-id="${rtEscapeHtmlOrganizador(nota?.id || "")}" data-org-data="${rtEscapeHtmlOrganizador(nota?.data || "")}" data-org-carro="${rtEscapeHtmlOrganizador(nota?.carro || "")}" title="Arrastar nota para reposicionar">📝 ${texto}${enderecoMini}</div>`;
 }
 
 function rtRenderizarOrganizadorListaComNotas(ordenadas, data, carro) {
@@ -3223,6 +3294,24 @@ function rtFocarRotaNaListaEsquerda(rotaId) {
   setTimeout(() => card.classList.remove("rota-card-localizado"), 1800);
 }
 
+function rtOrganizadorPosicaoPorAlvo(alvoEl, inserirDepois = false) {
+  const zone = alvoEl?.closest?.(".rotas-organizador-dropzone[data-org-drop-carro]");
+  if (!zone) return 0;
+  const itens = Array.from(zone.querySelectorAll(".rotas-organizador-item[data-org-rota-id]"));
+  const item = alvoEl.closest?.(".rotas-organizador-item[data-org-rota-id]");
+  if (!item) return itens.length;
+  const idx = itens.findIndex(el => el === item);
+  if (idx < 0) return itens.length;
+  return Math.max(0, idx + (inserirDepois ? 1 : 0));
+}
+
+function rtSalvarMovimentoNotaOrganizador({ notaId, data, carro, posicao }) {
+  const ok = rtMoverNotaRotaParaPosicao(notaId, data, carro, posicao);
+  if (!ok) return;
+  renderizarRotas();
+  if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
+}
+
 function rtConfigurarPainelOrganizarEventos(listaEl) {
   let drag = null;
 
@@ -3233,7 +3322,7 @@ function rtConfigurarPainelOrganizarEventos(listaEl) {
     });
     item.addEventListener("dragstart", ev => {
       window.__rtUsuarioArrastandoRota = true;
-      drag = { id: item.dataset.orgRotaId, data: item.dataset.orgData, carro: item.dataset.orgCarro };
+      drag = { tipo: "rota", id: item.dataset.orgRotaId, data: item.dataset.orgData, carro: item.dataset.orgCarro };
       item.classList.add("arrastando");
       ev.dataTransfer.effectAllowed = "move";
       ev.dataTransfer.setData("text/plain", drag.id);
@@ -3261,9 +3350,18 @@ function rtConfigurarPainelOrganizarEventos(listaEl) {
       if (!drag || item.dataset.orgData !== drag.data) return;
       const destinoId = item.dataset.orgRotaId;
       const carroDestino = item.dataset.orgCarro || "Sem carro";
-      if (!destinoId || String(destinoId) === String(drag.id)) return;
       const rect = item.getBoundingClientRect();
       const inserirDepois = ev.clientY > (rect.top + rect.height / 2);
+      if (drag.tipo === "nota") {
+        rtSalvarMovimentoNotaOrganizador({
+          notaId: drag.id,
+          data: drag.data,
+          carro: carroDestino,
+          posicao: rtOrganizadorPosicaoPorAlvo(item, inserirDepois)
+        });
+        return;
+      }
+      if (!destinoId || String(destinoId) === String(drag.id)) return;
       const antesDeId = rtIdAntesDepoisOrganizador(item, inserirDepois, drag.id);
       rtSalvarMovimentoOrganizador({
         rotaId: drag.id,
@@ -3272,6 +3370,35 @@ function rtConfigurarPainelOrganizarEventos(listaEl) {
         carroDestino,
         antesDeId
       });
+    });
+  });
+
+
+  listaEl.querySelectorAll(".rotas-organizador-nota[data-org-nota-id]").forEach(nota => {
+    nota.addEventListener("dragstart", ev => {
+      window.__rtUsuarioArrastandoRota = true;
+      drag = { tipo: "nota", id: nota.dataset.orgNotaId, data: nota.dataset.orgData, carro: nota.dataset.orgCarro };
+      nota.classList.add("arrastando");
+      ev.dataTransfer.effectAllowed = "move";
+      ev.dataTransfer.setData("text/plain", drag.id);
+    });
+    nota.addEventListener("dragend", () => {
+      window.__rtUsuarioArrastandoRota = false;
+      nota.classList.remove("arrastando");
+      rtLimparIndicadoresOrganizador(listaEl);
+      drag = null;
+    });
+    nota.addEventListener("dragover", ev => {
+      if (!drag || drag.tipo !== "nota" || nota.dataset.orgData !== drag.data) return;
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = "move";
+    });
+    nota.addEventListener("drop", ev => {
+      ev.preventDefault();
+      if (!drag || drag.tipo !== "nota" || nota.dataset.orgData !== drag.data) return;
+      const carroDestino = nota.dataset.orgCarro || drag.carro || "Sem carro";
+      const posicao = Math.max(0, Number((rtNotasCarregar().find(n => String(n.id) === String(nota.dataset.orgNotaId)) || {}).posicao || 0));
+      rtSalvarMovimentoNotaOrganizador({ notaId: drag.id, data: drag.data, carro: carroDestino, posicao });
     });
   });
 
@@ -3291,6 +3418,15 @@ function rtConfigurarPainelOrganizarEventos(listaEl) {
       if (!drag || zone.dataset.orgDropData !== drag.data) return;
       if (ev.target.closest?.(".rotas-organizador-item")) return;
       const carroDestino = zone.dataset.orgDropCarro || "Sem carro";
+      if (drag.tipo === "nota") {
+        rtSalvarMovimentoNotaOrganizador({
+          notaId: drag.id,
+          data: drag.data,
+          carro: carroDestino,
+          posicao: zone.querySelectorAll(".rotas-organizador-item[data-org-rota-id]").length
+        });
+        return;
+      }
       rtSalvarMovimentoOrganizador({
         rotaId: drag.id,
         data: drag.data,

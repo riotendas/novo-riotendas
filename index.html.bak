@@ -255,13 +255,6 @@
         <label class="eventos-data-filtro">Data
           <input id="filtroEventoData" type="date">
         </label>
-        <div class="eventos-nav-data" aria-label="Navegação da data dos eventos">
-          <button type="button" id="eventosNavMesAnterior" class="btn-outline btn-nav-eventos" title="Mês anterior">≪</button>
-          <button type="button" id="eventosNavDiaAnterior" class="btn-outline btn-nav-eventos" title="Dia anterior">‹</button>
-          <button type="button" id="eventosNavHoje" class="btn-outline btn-nav-eventos hoje" title="Hoje">Hoje</button>
-          <button type="button" id="eventosNavDiaPosterior" class="btn-outline btn-nav-eventos" title="Próximo dia">›</button>
-          <button type="button" id="eventosNavMesPosterior" class="btn-outline btn-nav-eventos" title="Próximo mês">≫</button>
-        </div>
         <label class="eventos-pagamento-filtro">Pagamento
           <select id="filtroEventoPagamento">
             <option value="">Todos</option>
@@ -473,7 +466,7 @@
         </div>
         <div class="panel">
           <h3>Resumo da fase 1</h3>
-          <p class="hint">Os valores são calculados automaticamente pelos eventos do mês/ano selecionado e pelo campo Forma de Pagamento. Pagamentos com data preenchida são considerados recebidos; Pix/Transf./Dep./Boleto conferido no banco fica validado na aba Conferência Bancária.</p>
+          <p class="hint">Os valores são calculados automaticamente pelos eventos do mês/ano selecionado e pelo campo Forma de Pagamento. Pagamentos com data preenchida são considerados recebidos; Pix/Transferência conferido no banco fica validado na aba Conferência Bancária.</p>
         </div>
       </div>
 
@@ -515,7 +508,7 @@
 
       <div id="financeiroTabBanco" class="financeiro-tab-panel" data-fin-panel="banco">
         <div class="cards-grid financeiro-cards">
-          <div class="dash-card"><span>Total Pix/Transf./Dep./Boleto</span><strong id="finTotalPrevisto">R$ 0,00</strong></div>
+          <div class="dash-card"><span>Total Pix/Transferência</span><strong id="finTotalPrevisto">R$ 0,00</strong></div>
           <div class="dash-card success"><span>Conferido</span><strong id="finSinalPrevisto">R$ 0,00</strong></div>
           <div class="dash-card"><span>A conferir</span><strong id="finRestantePrevisto">R$ 0,00</strong></div>
           <div class="dash-card danger"><span>Divergências</span><strong id="finEmAberto">0</strong></div>
@@ -550,7 +543,7 @@
                 <h3>⚠ Pagamentos do sistema não localizados no extrato</h3>
                 <p class="hint">Mostra pagamentos lançados nos eventos por Pix, transferência, depósito, boleto ou cartão/rede que ainda não foram associados a uma linha do extrato salvo.</p>
               </div>
-              <div class="financeiro-auditoria-head-actions"><div id="financeiroPagamentosNaoLocalizadosResumo" class="financeiro-auditoria-resumo">Carregando...</div><div class="financeiro-extrato-filtros" id="financeiroAuditoriaFiltroBtns"></div></div>
+              <div id="financeiroPagamentosNaoLocalizadosResumo" class="financeiro-auditoria-resumo">Carregando...</div>
             </div>
             <div class="table-wrapper financeiro-table-wrapper financeiro-auditoria-table-wrap">
               <table class="financeiro-table financeiro-auditoria-table">
@@ -561,12 +554,11 @@
                     <th>Tipo</th>
                     <th>Forma</th>
                     <th>Cliente / Evento</th>
-                    <th>Status / Obs.</th>
-                    <th>Ações</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody id="financeiroPagamentosNaoLocalizadosTbody">
-                  <tr><td colspan="7" class="empty">Carregando pagamentos não localizados...</td></tr>
+                  <tr><td colspan="6" class="empty">Carregando pagamentos não localizados...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -579,7 +571,6 @@
                 <p class="hint">Cada linha importada fica salva. Na coluna Associação, vincule a entrada ao evento/pagamento correto ou marque como rendimento.</p>
               </div>
               <div class="financeiro-extrato-filtros" id="financeiroExtratoFiltroBtns"></div>
-              <input id="financeiroExtratoBuscaSalvos" class="financeiro-extrato-busca" type="search" placeholder="Buscar extrato salvo...">
               <button type="button" id="financeiroRecarregarExtratoSalvoBtn" class="btn-outline">Recarregar salvos</button>
             </div>
             <div class="table-wrapper financeiro-table-wrapper">
@@ -604,9 +595,9 @@
           </div>
         </div>
 
-        <div class="panel financeiro-legado-pix" style="display:none">
-          <h3>Conferência de Pix/Transf./Dep./Boleto (legado)</h3>
-          <p class="hint">Esta lista é gerada automaticamente a partir do campo Forma de Pagamento dos eventos. Ex.: Sinal - Pix/Transf./Dep./Boleto - 04/06/2026.</p>
+        <div class="panel">
+          <h3>Conferência de Pix/Transferência</h3>
+          <p class="hint">Esta lista é gerada automaticamente a partir do campo Forma de Pagamento dos eventos. Ex.: Sinal - Pix/Transferência - 04/06/2026.</p>
           <div class="filters-bar financeiro-filtros">
             <label>Busca
               <input id="financeiroBusca" type="search" placeholder="Cliente, tipo, data, valor...">
@@ -1618,34 +1609,34 @@
           <label>Valor total
             <input id="eventoValorTotal" class="money-input" type="text" inputmode="decimal" value="R$ 0,00">
             <span class="pagamento-icones" data-pagamento-tipo="Pg Total">
-              <button type="button" class="pagamento-icone" data-pagamento-forma="Pix/Transf./Dep./Boleto" title="Pg Total - Pix/Transf./Dep./Boleto">📱</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Pix/Transferência" title="Pg Total - Pix/Transferência">📱</button>
               <button type="button" class="pagamento-icone" data-pagamento-forma="Dinheiro" title="Pg Total - Dinheiro">💵</button>
-              <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão/Rede" title="Pg Total - Cartão/Rede">💳</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão" title="Pg Total - Cartão">💳</button>
             </span>
           </label>
           <label>Sinal
             <input id="eventoValorSinal" class="money-input" type="text" inputmode="decimal" value="R$ 0,00">
             <span class="pagamento-icones" data-pagamento-tipo="Sinal">
-              <button type="button" class="pagamento-icone" data-pagamento-forma="Pix/Transf./Dep./Boleto" title="Sinal - Pix/Transf./Dep./Boleto">📱</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Pix/Transferência" title="Sinal - Pix/Transferência">📱</button>
               <button type="button" class="pagamento-icone" data-pagamento-forma="Dinheiro" title="Sinal - Dinheiro">💵</button>
-              <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão/Rede" title="Sinal - Cartão/Rede">💳</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão" title="Sinal - Cartão">💳</button>
             </span>
           </label>
           <button type="button" id="adicionarSinal2Evento" class="btn-outline btn-sinal2-evento hidden" aria-hidden="true" tabindex="-1">+ outro sinal</button>
           <label id="eventoSinal2Box" class="evento-sinal2-box hidden">Sinal 2
             <input id="eventoValorSinal2" class="money-input" type="text" inputmode="decimal" value="R$ 0,00">
             <span class="pagamento-icones" data-pagamento-tipo="Sinal 2">
-              <button type="button" class="pagamento-icone" data-pagamento-forma="Pix/Transf./Dep./Boleto" title="Sinal 2 - Pix/Transf./Dep./Boleto">📱</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Pix/Transferência" title="Sinal 2 - Pix/Transferência">📱</button>
               <button type="button" class="pagamento-icone" data-pagamento-forma="Dinheiro" title="Sinal 2 - Dinheiro">💵</button>
-              <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão/Rede" title="Sinal 2 - Cartão/Rede">💳</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão" title="Sinal 2 - Cartão">💳</button>
             </span>
           </label>
           <label>Restante
             <input id="eventoValorRestante" class="money-input" type="text" readonly value="R$ 0,00">
             <span class="pagamento-icones" data-pagamento-tipo="Restante">
-              <button type="button" class="pagamento-icone" data-pagamento-forma="Pix/Transf./Dep./Boleto" title="Restante - Pix/Transf./Dep./Boleto">📱</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Pix/Transferência" title="Restante - Pix/Transferência">📱</button>
               <button type="button" class="pagamento-icone" data-pagamento-forma="Dinheiro" title="Restante - Dinheiro">💵</button>
-              <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão/Rede" title="Restante - Cartão/Rede">💳</button>
+              <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão" title="Restante - Cartão">💳</button>
             </span>
           </label>
           <label class="finance-payment-field">Forma de pagamento

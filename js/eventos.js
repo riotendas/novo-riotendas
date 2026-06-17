@@ -457,6 +457,10 @@ async function salvarEventoBanco(evento) {
     });
   }
 
+  if (typeof rtVincularOrcamentoEventoSePendente === "function") {
+    try { await rtVincularOrcamentoEventoSePendente(data.id); } catch (e) { console.warn("Não foi possível vincular orçamento ao evento.", e); }
+  }
+
   return data;
 }
 
@@ -5449,7 +5453,7 @@ document.addEventListener('DOMContentLoaded', () => {
   onEventoSeguro('gerarGuiaServicoEvento', 'click', () => rtDocEventoAbrir('guia'));
   onEventoSeguro('gerarContratoEvento', 'click', () => rtDocEventoAbrir('contrato'));
   onEventoSeguro('gerarReciboEvento', 'click', () => rtDocEventoAbrir('recibo'));
-  onEventoSeguro('gerarOrcamentoEvento', 'click', () => rtDocEventoAbrir('orcamento'));
+  onEventoSeguro('gerarOrcamentoEvento', 'click', () => { if (typeof rtAbrirOrcamentoPdfDeEventoAtual === 'function') rtAbrirOrcamentoPdfDeEventoAtual(); else rtDocEventoAbrir('orcamento'); });
   onEventoSeguro('abrirWhatsappEvento', 'click', rtEventoWhatsappAbrir);
   onEventoSeguro('fecharEventoWhatsappDialog', 'click', rtEventoWhatsappFechar);
 });

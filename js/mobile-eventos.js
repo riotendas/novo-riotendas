@@ -316,7 +316,7 @@ function eventosMobileParseValores(texto) {
     const temTipo = janela.includes(eventosMobileNormalizar(tipo));
     for (const f of palavras) {
       if (janela.includes(eventosMobileNormalizar(f))) {
-        formas.push(`${tipo} - ${f === 'cartao' ? 'Cartão' : f === 'pix' ? 'Pix/Transferência' : f.charAt(0).toUpperCase()+f.slice(1)}`);
+        formas.push(`${tipo} - ${f === 'cartao' ? 'Cartão/Rede' : f === 'pix' ? 'Pix/Transf./Dep./Boleto' : f.charAt(0).toUpperCase()+f.slice(1)}`);
         return;
       }
     }
@@ -325,9 +325,9 @@ function eventosMobileParseValores(texto) {
   addForma('Sinal', ['pix', 'dinheiro', 'cartao', 'cartão', 'transferencia', 'transferência']);
   addForma('Restante', ['pix', 'dinheiro', 'cartao', 'cartão', 'transferencia', 'transferência']);
   if (normal.includes('pagamento') && !formas.length) {
-    if (normal.includes('pix')) formas.push('Pagamento - Pix/Transferência');
+    if (normal.includes('pix')) formas.push('Pagamento - Pix/Transf./Dep./Boleto');
     else if (normal.includes('dinheiro')) formas.push('Pagamento - Dinheiro');
-    else if (normal.includes('cartao') || normal.includes('cartão')) formas.push('Pagamento - Cartão');
+    else if (normal.includes('cartao') || normal.includes('cartão')) formas.push('Pagamento - Cartão/Rede');
   }
   return { total, sinal, restante, formaPagamento: formas.join('\n') };
 }
