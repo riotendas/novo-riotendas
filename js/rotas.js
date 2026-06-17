@@ -937,6 +937,7 @@ function iniciarRotas() {
   sincronizarRotasCarrosNuvem();
   sincronizarRotasOrdemNuvem();
   rtNotasSincronizarNuvem(true).catch(() => {});
+  rtNotasIniciarRealtime();
   sincronizarRotasOperacaoNuvem(true).catch(() => {});
   // Não zerar Entregue/Recolhido automaticamente em ambiente multiusuário.
   // A limpeza deve acontecer apenas pelo botão administrativo.
@@ -987,7 +988,6 @@ function iniciarRotas() {
     if (!rotasAtiva && !ruaAtiva) return;
     atualizarCarrosRotasDaNuvemSeNecessario().catch(() => {});
     atualizarOrdemRotasDaNuvemSeNecessario().catch(() => {});
-    rtNotasSincronizarNuvem(true).catch(() => {});
     sincronizarRotasOperacaoNuvem(true).then(() => {
       if (rotasAtiva && typeof renderizarRotas === "function") renderizarRotas();
       if (ruaAtiva && typeof renderizarRuaMobile === "function") renderizarRuaMobile();
@@ -1000,7 +1000,6 @@ function iniciarRotas() {
       const ruaAtiva = document.getElementById("ruaMobileSection")?.classList.contains("active-section");
       const produtosAtiva = document.getElementById("produtosSection")?.classList.contains("active-section");
       if ((rotasAtiva || ruaAtiva || produtosAtiva) && !(typeof rtUsuarioEditandoOperacional === "function" && rtUsuarioEditandoOperacional())) {
-        rtNotasSincronizarNuvem(true).catch(() => {});
         sincronizarRotasOperacaoNuvem(true).catch(() => {});
       }
     }, 120000);
@@ -2729,6 +2728,64 @@ function rtNotasSalvar(notas) {
   rtNotasSalvarNuvem(lista).catch(() => {});
 }
 
+// Realtime isolado das notas da rota: atualiza somente o cache/listas de notas, sem recarregar página.
+let rtNotasRealtimeCanal = null;
+let rtNotasRealtimeTimer = null;
+let rtNotasRealtimeAtualizando = false;
+
+function rtNotasSecaoAtiva(id) {
+  const el = document.getElementById(id);
+  return !!(el && (el.classList.contains("active") || el.classList.contains("active-section")));
+}
+
+function rtNotasUsuarioEditandoNota() {
+  return !!document.querySelector("#rotaNotaDialog[open]");
+}
+
+async function rtNotasAtualizarPorRealtime() {
+  if (rtNotasRealtimeAtualizando) return;
+  rtNotasRealtimeAtualizando = true;
+  try {
+    const lista = await rtNotasSincronizarNuvem(false);
+    if (!Array.isArray(lista)) return;
+
+    // Não fecha nem sobrescreve o modal de nota aberto. A atualização entra no cache
+    // e a tela redesenha assim que o usuário terminar.
+    if (rtNotasUsuarioEditandoNota()) return;
+
+    if (rtNotasSecaoAtiva("rotasSection") && typeof renderizarRotas === "function") renderizarRotas();
+    if (rtNotasSecaoAtiva("ruaMobileSection") && typeof renderizarRuaMobile === "function") renderizarRuaMobile();
+  } catch (erro) {
+    console.warn("Erro ao atualizar notas por Realtime:", erro);
+  } finally {
+    rtNotasRealtimeAtualizando = false;
+  }
+}
+
+function rtNotasAgendarAtualizacaoRealtime() {
+  clearTimeout(rtNotasRealtimeTimer);
+  rtNotasRealtimeTimer = setTimeout(rtNotasAtualizarPorRealtime, 250);
+}
+
+function rtNotasIniciarRealtime() {
+  if (rtNotasRealtimeCanal) return;
+  if (typeof supabaseClient === "undefined" || !supabaseClient || typeof supabaseClient.channel !== "function") return;
+  try {
+    rtNotasRealtimeCanal = supabaseClient
+      .channel("riotendas-notas-rota-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "notas_rota" }, rtNotasAgendarAtualizacaoRealtime)
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") console.log("RioTendas realtime notas_rota ativo");
+      });
+  } catch (erro) {
+    console.warn("Não foi possível iniciar realtime das notas:", erro);
+    rtNotasRealtimeCanal = null;
+  }
+}
+
+window.rtNotasIniciarRealtime = rtNotasIniciarRealtime;
+window.rtNotasAtualizarPorRealtime = rtNotasAtualizarPorRealtime;
+
 function rtHtml(valor) {
   return String(valor ?? "")
     .replace(/&/g, "&amp;")
@@ -3734,7 +3791,6 @@ async function atualizarHorarioRotaEvento(rotaId, novoValor) {
       const ruaAtiva = document.getElementById("ruaMobileSection")?.classList.contains("active-section");
       const produtosAtiva = document.getElementById("produtosSection")?.classList.contains("active-section");
       if ((rotasAtiva || ruaAtiva || produtosAtiva) && !(typeof rtUsuarioEditandoOperacional === "function" && rtUsuarioEditandoOperacional())) {
-        rtNotasSincronizarNuvem(true).catch(() => {});
         sincronizarRotasOperacaoNuvem(true).catch(() => {});
       }
     }, 120000);
