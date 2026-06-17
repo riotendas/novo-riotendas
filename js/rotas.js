@@ -2582,7 +2582,14 @@ function rtNotasSalvarLocal(notas) {
 
 function rtNotasSalvar(notas) {
   const lista = rtNotasSalvarLocal(notas);
-  rtNotasSalvarNuvem(lista).catch(() => {});
+  rtNotasSalvarNuvem(lista).then(ok => {
+    window.rtNotasRotaNuvemOk = !!ok;
+    if (!ok) console.warn("Notas da rota foram salvas localmente, mas não subiram para a nuvem.");
+  }).catch((erro) => {
+    window.rtNotasRotaNuvemOk = false;
+    console.warn("Notas da rota foram salvas localmente, mas não subiram para a nuvem:", erro);
+  });
+  return lista;
 }
 
 async function rtNotasCarregarNuvem() {
@@ -2817,7 +2824,7 @@ function rtAbrirNotaRota(data, carro, listaRotas = [], notaId = "") {
 
   const fechar = () => { if (dialog.open) dialog.close(); };
   dialog.querySelectorAll("[data-rota-nota-fechar]").forEach(btn => btn.addEventListener("click", fechar));
-  dialog.querySelector("[data-rota-nota-salvar]")?.addEventListener("click", () => {
+  dialog.querySelector("[data-rota-nota-salvar]")?.addEventListener("click", async () => {
     const texto = dialog.querySelector("#rotaNotaTexto")?.value?.trim() || "";
     const endereco = dialog.querySelector("#rotaNotaEndereco")?.value?.trim() || "";
     const posicao = Number(dialog.querySelector("#rotaNotaPosicao")?.value || 0);
@@ -2843,9 +2850,15 @@ function rtAbrirNotaRota(data, carro, listaRotas = [], notaId = "") {
       });
     }
 
-    rtNotasSalvar(notas);
+    const listaAtualizada = rtNotasSalvarLocal(notas);
+    const okNuvem = await rtNotasSalvarNuvem(listaAtualizada);
+    window.rtNotasRotaNuvemOk = !!okNuvem;
+    if (!okNuvem) {
+      alert("Nota salva neste aparelho, mas não foi possível sincronizar na nuvem. Confira a tabela notas_rota/RLS no Supabase.");
+    }
     fechar();
     renderizarRotas();
+    if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
   });
 
   if (typeof dialog.showModal === "function") dialog.showModal();
