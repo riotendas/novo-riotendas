@@ -316,13 +316,101 @@ function rtFinExtratoLocalSalvar(lista) {
 
 const RT_FIN_AUDITORIA_KEY = "novoRioTendasAuditoriaPagamentosV1";
 let rtFinanceiroAuditoriaFiltro = localStorage.getItem("rtFinanceiroAuditoriaFiltro") || "pendentes";
+let rtFinanceiroAuditoriaCache = {};
+let rtFinanceiroAuditoriaNuvemOk = false;
 
-function rtFinAuditoriaCarregar() {
+function rtFinAuditoriaLocalCarregar() {
   try { return JSON.parse(localStorage.getItem(RT_FIN_AUDITORIA_KEY) || "{}"); } catch (e) { return {}; }
 }
 
-function rtFinAuditoriaSalvar(obj) {
+function rtFinAuditoriaLocalSalvar(obj) {
   try { localStorage.setItem(RT_FIN_AUDITORIA_KEY, JSON.stringify(obj || {})); } catch (e) {}
+}
+
+function rtFinAuditoriaCarregar() {
+  return rtFinanceiroAuditoriaNuvemOk ? (rtFinanceiroAuditoriaCache || {}) : rtFinAuditoriaLocalCarregar();
+}
+
+function rtFinAuditoriaSalvar(obj) {
+  rtFinanceiroAuditoriaCache = obj || {};
+  rtFinAuditoriaLocalSalvar(rtFinanceiroAuditoriaCache);
+}
+
+async function rtFinAuditoriaCarregarNuvem() {
+  if (!rtFinSupabaseDisponivel()) {
+    rtFinanceiroAuditoriaNuvemOk = false;
+    rtFinanceiroAuditoriaCache = rtFinAuditoriaLocalCarregar();
+    return rtFinanceiroAuditoriaCache;
+  }
+  try {
+    const { data, error } = await supabaseClient
+      .from("financeiro_auditoria_pagamentos")
+      .select("pagamento_id,status,observacao,colaborador,atualizado_em");
+    if (error) throw error;
+    const mapa = {};
+    (data || []).forEach(r => {
+      if (!r.pagamento_id) return;
+      mapa[String(r.pagamento_id)] = {
+        status: r.status || "",
+        observacao: r.observacao || "",
+        colaborador: r.colaborador || "",
+        atualizado_em: r.atualizado_em || ""
+      };
+    });
+    rtFinanceiroAuditoriaCache = mapa;
+    rtFinanceiroAuditoriaNuvemOk = true;
+    rtFinAuditoriaLocalSalvar(mapa);
+    return mapa;
+  } catch (err) {
+    console.warn("Auditoria financeira: usando cache local porque não foi possível carregar Supabase", err);
+    rtFinanceiroAuditoriaNuvemOk = false;
+    rtFinanceiroAuditoriaCache = rtFinAuditoriaLocalCarregar();
+    return rtFinanceiroAuditoriaCache;
+  }
+}
+
+async function rtFinAuditoriaSalvarStatusNuvem(id, registro) {
+  if (!id) return;
+  const dados = rtFinAuditoriaCarregar();
+  dados[id] = registro;
+  rtFinAuditoriaSalvar(dados);
+  if (!rtFinSupabaseDisponivel()) return;
+  try {
+    const payload = {
+      pagamento_id: String(id),
+      status: registro.status || "",
+      observacao: registro.observacao || "",
+      colaborador: registro.colaborador || rtFinColaboradorAtual(),
+      atualizado_em: new Date().toISOString()
+    };
+    const { error } = await supabaseClient
+      .from("financeiro_auditoria_pagamentos")
+      .upsert(payload, { onConflict: "pagamento_id" });
+    if (error) throw error;
+    rtFinanceiroAuditoriaNuvemOk = true;
+  } catch (err) {
+    console.error("Não foi possível salvar a auditoria no Supabase", err);
+    alert(`Não foi possível salvar esta marcação da auditoria no Supabase.\n\n${err.message || err}`);
+  }
+}
+
+async function rtFinAuditoriaRemoverStatusNuvem(id) {
+  if (!id) return;
+  const dados = rtFinAuditoriaCarregar();
+  delete dados[id];
+  rtFinAuditoriaSalvar(dados);
+  if (!rtFinSupabaseDisponivel()) return;
+  try {
+    const { error } = await supabaseClient
+      .from("financeiro_auditoria_pagamentos")
+      .delete()
+      .eq("pagamento_id", String(id));
+    if (error) throw error;
+    rtFinanceiroAuditoriaNuvemOk = true;
+  } catch (err) {
+    console.error("Não foi possível remover a auditoria no Supabase", err);
+    alert(`Não foi possível remover esta marcação da auditoria no Supabase.\n\n${err.message || err}`);
+  }
 }
 
 function rtFinAuditoriaStatus(id) {
@@ -349,24 +437,24 @@ function rtFinAuditoriaTextoBusca(registro) {
   ].join(" "));
 }
 
-function rtFinMarcarAuditoriaPagamento(id, status) {
+async function rtFinMarcarAuditoriaPagamento(id, status) {
   const obsEl = document.querySelector(`[data-audit-obs="${CSS.escape(id)}"]`);
   const dados = rtFinAuditoriaCarregar();
-  dados[id] = {
+  const registro = {
     status,
     observacao: obsEl ? obsEl.value : (dados[id]?.observacao || ""),
     atualizado_em: new Date().toISOString(),
     colaborador: rtFinColaboradorAtual()
   };
-  rtFinAuditoriaSalvar(dados);
+  await rtFinAuditoriaSalvarStatusNuvem(id, registro);
   rtFinRenderPagamentosNaoLocalizados();
+  rtFinRenderExtratoSalvo();
 }
 
-function rtFinLimparAuditoriaPagamento(id) {
-  const dados = rtFinAuditoriaCarregar();
-  delete dados[id];
-  rtFinAuditoriaSalvar(dados);
+async function rtFinLimparAuditoriaPagamento(id) {
+  await rtFinAuditoriaRemoverStatusNuvem(id);
   rtFinRenderPagamentosNaoLocalizados();
+  rtFinRenderExtratoSalvo();
 }
 
 function rtFinStatusLinhaExtrato(linha) {
@@ -456,6 +544,7 @@ async function rtFinSalvarExtratoProcessado() {
 }
 
 async function rtFinCarregarExtratoSalvo() {
+  await rtFinAuditoriaCarregarNuvem();
   try {
     if (rtFinSupabaseDisponivel()) {
       const { data, error } = await supabaseClient
@@ -1741,7 +1830,11 @@ function iniciarFinanceiro() {
   rtFinConfigurarResumoCompetencia();
   document.getElementById("financeiroReceberFiltro")?.addEventListener("change", rtFinRenderContasAReceber);
   setTimeout(rtFinRenderTudoFase1, 300);
-  setTimeout(rtFinCarregarExtratoSalvo, 500);
+  setTimeout(async () => {
+    await rtFinAuditoriaCarregarNuvem();
+    await rtFinCarregarExtratoSalvo();
+    rtFinRenderPagamentosNaoLocalizados();
+  }, 500);
   setTimeout(rtFinRenderTudoFase1, 1200);
   setTimeout(rtFinRenderTudoFase1, 2500);
 }
