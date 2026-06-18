@@ -5,6 +5,7 @@
 let eventosMobilePreviewAtual = null;
 let eventosMobileRecognition = null;
 let eventosMobileDataSelecionada = null;
+let eventosMobileModoSeteDias = false;
 
 function eventosMobileHojeISO() {
   if (typeof dataLocalISO === "function") return dataLocalISO(new Date());
@@ -23,6 +24,7 @@ function eventosMobileMoverDia(delta) {
   const d = new Date(ano, (mes || 1) - 1, dia || 1, 12, 0, 0, 0);
   d.setDate(d.getDate() + delta);
   eventosMobileDataSelecionada = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  eventosMobileModoSeteDias = false;
   renderizarEventosMobile();
 }
 
@@ -33,6 +35,28 @@ function eventosMobileTituloData(dataISO) {
   if (dataISO === hoje) return `📅 Eventos de hoje · ${texto}`;
   return `📅 Eventos de ${texto}`;
 }
+
+function eventosMobileSomarDiasISO(dataISO, delta) {
+  const [ano, mes, dia] = String(dataISO || eventosMobileHojeISO()).split("-").map(Number);
+  const d = new Date(ano, (mes || 1) - 1, dia || 1, 12, 0, 0, 0);
+  d.setDate(d.getDate() + Number(delta || 0));
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function eventosMobileAtualizarBotaoSeteDias() {
+  const btn = document.getElementById("eventosMobileSeteDiasBtn");
+  if (!btn) return;
+  btn.classList.toggle("active", !!eventosMobileModoSeteDias);
+  btn.classList.toggle("btn-primary", !!eventosMobileModoSeteDias);
+  btn.classList.toggle("btn-outline", !eventosMobileModoSeteDias);
+}
+
+function eventosMobileTituloSeteDias(dataISO) {
+  const ini = eventosMobileFormatarData(dataISO);
+  const fim = eventosMobileFormatarData(eventosMobileSomarDiasISO(dataISO, 6));
+  return `📅 Próximos 7 dias · ${ini} a ${fim}`;
+}
+
 
 function eventosMobileEscape(txt) {
   return String(txt || "")
@@ -116,7 +140,10 @@ function renderizarEventosMobile() {
   const busca = eventosMobileNormalizar(document.getElementById("eventosMobileBusca")?.value || "");
   const dataSelecionada = eventosMobileDataAtual();
   const tituloData = document.getElementById("eventosMobileTituloData");
-  if (tituloData) tituloData.textContent = busca ? "🔍 Resultado da busca" : eventosMobileTituloData(dataSelecionada);
+  if (tituloData) tituloData.textContent = busca
+    ? "🔍 Resultado da busca"
+    : (eventosMobileModoSeteDias ? eventosMobileTituloSeteDias(dataSelecionada) : eventosMobileTituloData(dataSelecionada));
+  eventosMobileAtualizarBotaoSeteDias();
   let lista = eventosMobileListaBase();
 
   if (busca) {
@@ -127,6 +154,12 @@ function renderizarEventosMobile() {
       ].join(" "));
       return texto.includes(busca);
     });
+  } else if (eventosMobileModoSeteDias) {
+    const dataFinal = eventosMobileSomarDiasISO(dataSelecionada, 6);
+    lista = lista.filter(ev => {
+      const dataEvento = String(ev.data_evento || "").slice(0, 10);
+      return dataEvento >= dataSelecionada && dataEvento <= dataFinal;
+    });
   } else {
     lista = lista.filter(ev => String(ev.data_evento || "").slice(0, 10) === dataSelecionada);
   }
@@ -134,7 +167,7 @@ function renderizarEventosMobile() {
   lista = eventosMobileOrdenar(lista).slice(0, 80);
 
   if (!lista.length) {
-    listaEl.innerHTML = `<p class="empty">${busca ? "Nenhum evento encontrado." : "Nenhum evento nesta data."}</p>`;
+    listaEl.innerHTML = `<p class="empty">${busca ? "Nenhum evento encontrado." : (eventosMobileModoSeteDias ? "Nenhum evento nos próximos 7 dias." : "Nenhum evento nesta data.")}</p>`;
     return;
   }
 
@@ -155,8 +188,7 @@ function renderizarEventosMobile() {
         <div class="eventos-mobile-item-produtos">${produtos}</div>
         ${endereco ? `<div class="eventos-mobile-item-endereco">📍 ${endereco}</div>` : ""}
         <div class="eventos-mobile-item-actions">
-          <button type="button" class="btn-outline eventos-mobile-editar" data-evento-id="${id}">Editar</button>
-          <button type="button" class="btn-outline eventos-mobile-voz-editar" data-evento-id="${id}">🎙️ Voz</button>
+          <button type="button" class="btn-outline eventos-mobile-editar" data-evento-id="${id}" title="Editar evento">Editar</button>
         </div>
       </article>
     `;
@@ -164,9 +196,6 @@ function renderizarEventosMobile() {
 
   listaEl.querySelectorAll(".eventos-mobile-editar").forEach(btn => {
     btn.addEventListener("click", () => eventosMobileAbrirEdicao(btn.dataset.eventoId));
-  });
-  listaEl.querySelectorAll(".eventos-mobile-voz-editar").forEach(btn => {
-    btn.addEventListener("click", () => eventosMobileEditarPorVoz(btn.dataset.eventoId));
   });
 }
 
@@ -598,11 +627,19 @@ function iniciarEventosMobile() {
   document.getElementById("eventosMobileDiaAnteriorBtn")?.addEventListener("click", () => eventosMobileMoverDia(-1));
   document.getElementById("eventosMobileHojeBtn")?.addEventListener("click", () => {
     eventosMobileDataSelecionada = eventosMobileHojeISO();
+    eventosMobileModoSeteDias = false;
     const busca = document.getElementById("eventosMobileBusca");
     if (busca) busca.value = "";
     renderizarEventosMobile();
   });
   document.getElementById("eventosMobileDiaProximoBtn")?.addEventListener("click", () => eventosMobileMoverDia(1));
+  document.getElementById("eventosMobileSeteDiasBtn")?.addEventListener("click", () => {
+    eventosMobileDataSelecionada = eventosMobileHojeISO();
+    eventosMobileModoSeteDias = true;
+    const busca = document.getElementById("eventosMobileBusca");
+    if (busca) busca.value = "";
+    renderizarEventosMobile();
+  });
 
   document.getElementById("eventosMobileInterpretarBtn")?.addEventListener("click", () => {
     const txt = document.getElementById("eventosMobileTextoVoz")?.value || "";

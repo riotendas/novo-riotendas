@@ -1076,6 +1076,36 @@ async function manutencaoReprocessarTudo() {
   manutencaoRegistrarLog("Reprocessar tudo", msg);
 }
 
+
+async function manutencaoZerarChecklistDeposito() {
+  if (!confirm("Zerar o checklist do depósito de todos os produtos?")) return;
+
+  try {
+    if (typeof produtos !== "undefined" && Array.isArray(produtos)) {
+      produtos.forEach(p => { p.deposito_check = false; p.atualizado_em = new Date().toISOString(); });
+    }
+
+    if (typeof supabaseClient !== "undefined" && supabaseClient) {
+      const { error } = await supabaseClient
+        .from("produtos")
+        .update({ deposito_check: false, atualizado_em: new Date().toISOString() })
+        .not("id", "is", null);
+      if (error) throw error;
+    } else if (typeof storageProdutosKey !== "undefined" && typeof produtos !== "undefined") {
+      localStorage.setItem(storageProdutosKey, JSON.stringify(produtos));
+    }
+
+    if (typeof invalidarCacheProdutosGlobal === "function") invalidarCacheProdutosGlobal();
+    if (typeof carregarProdutos === "function") await carregarProdutos(true);
+    if (typeof renderizarProdutos === "function") renderizarProdutos();
+    if (typeof manutencaoResultado === "function") manutencaoResultado("Checklist do depósito zerado.", "ok");
+    else alert("Checklist do depósito zerado.");
+  } catch (erro) {
+    console.error("Erro ao zerar checklist do depósito:", erro);
+    alert("Erro ao zerar checklist do depósito. Verifique o console.");
+  }
+}
+
 function iniciarManutencaoAdminConfig() {
   const bind = (id, fn) => {
     const el = document.getElementById(id);
@@ -1093,6 +1123,7 @@ function iniciarManutencaoAdminConfig() {
   bind("manutLimparCancelados", () => manutencaoLimparVinculosCancelados(false));
   bind("manutReprocessarProximosUsos", () => manutencaoReprocessarProximosUsos(false));
   bind("manutReprocessarTudo", manutencaoReprocessarTudo);
+  bind("manutZerarChecklistDeposito", manutencaoZerarChecklistDeposito);
   const tipo = document.getElementById("manutTipoPendencia");
   if (tipo && !tipo.dataset.manutListener) {
     tipo.dataset.manutListener = "1";

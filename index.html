@@ -119,6 +119,72 @@
           </div>
         </div>
       </div>
+
+      <div class="panel dashboard-alertas-config-card">
+        <div class="panel-title-row">
+          <h3>Alertas personalizados</h3>
+          <span class="dash-mini-badge">Dashboard</span>
+        </div>
+        <div class="dashboard-alertas-config-grid">
+          <label>Montagens no dia
+            <input type="number" min="1" id="dashAlertaMontagensQtd" value="6">
+          </label>
+          <label>Desmontagens no dia
+            <input type="number" min="1" id="dashAlertaDesmontagensQtd" value="6">
+          </label>
+          <label>Tendas no evento
+            <input type="number" min="1" id="dashAlertaTendasEventoQtd" value="5">
+          </label>
+          <label>Materiais no evento
+            <input type="number" min="1" id="dashAlertaMateriaisQtd" value="50">
+          </label>
+          <label>Valor alto R$
+            <input type="number" min="0" step="50" id="dashAlertaValorAlto" value="1500">
+          </label>
+          <button type="button" class="btn-outline" id="dashSalvarAlertasBtn">Salvar alertas</button>
+        </div>
+      </div>
+
+      <div class="dashboard-grid-3 dashboard-alertas-grid">
+        <div class="panel dashboard-scroll-card">
+          <div class="panel-title-row">
+            <h3>⚠ Alertas de operação</h3>
+            <span class="dash-mini-badge" id="dashAlertasOperacaoQtd">0</span>
+          </div>
+          <div id="dashboardAlertasOperacao" class="dashboard-alert-list empty">Nenhum alerta operacional.</div>
+        </div>
+        <div class="panel dashboard-scroll-card">
+          <div class="panel-title-row">
+            <h3>✅ Entrega/retirada pendente</h3>
+            <span class="dash-mini-badge" id="dashPendenciasEntregaQtd">0</span>
+          </div>
+          <div id="dashboardPendenciasEntrega" class="dashboard-alert-list empty">Nenhuma pendência operacional.</div>
+        </div>
+        <div class="panel dashboard-scroll-card">
+          <div class="panel-title-row">
+            <h3>⏰ Fora do horário</h3>
+            <span class="dash-mini-badge" id="dashForaHorarioQtd">0</span>
+          </div>
+          <div id="dashboardForaHorario" class="dashboard-alert-list empty">Nenhuma operação fora do horário.</div>
+        </div>
+      </div>
+
+      <div class="dashboard-grid-2 dashboard-alertas-grid">
+        <div class="panel dashboard-scroll-card dashboard-stock-card">
+          <div class="panel-title-row">
+            <h3>📦 Estoque futuro</h3>
+            <span class="dash-mini-badge" id="dashEstoqueFuturoQtd">0</span>
+          </div>
+          <div id="dashboardEstoqueFuturo" class="dashboard-alert-list empty">Nenhum uso futuro encontrado.</div>
+        </div>
+        <div class="panel dashboard-scroll-card">
+          <div class="panel-title-row">
+            <h3>⛺ Tendas alugadas</h3>
+            <span class="dash-mini-badge" id="dashTendasAlugadasQtd">0</span>
+          </div>
+          <div id="dashboardTendasAlugadas" class="dashboard-alert-list empty">Nenhuma tenda alugada encontrada.</div>
+        </div>
+      </div>
     </section>
 
     <section id="produtosSection" class="section">
@@ -164,6 +230,7 @@
         <span>Total: <strong id="prodTotal">0</strong></span>
         <span>Livres: <strong id="prodLivres">0</strong></span>
         <span>Manutenção/Bloqueados: <strong id="prodProblema">0</strong></span>
+        <span>Checklist depósito: <strong id="prodConferidos">0 / 0</strong></span>
       </div>
 
       <div class="table-wrapper">
@@ -954,6 +1021,7 @@
           <button id="eventosMobileDiaAnteriorBtn" class="btn-outline" type="button" title="Dia anterior">←</button>
           <button id="eventosMobileHojeBtn" class="btn-primary" type="button">Hoje</button>
           <button id="eventosMobileDiaProximoBtn" class="btn-outline" type="button" title="Próximo dia">→</button>
+          <button id="eventosMobileSeteDiasBtn" class="btn-outline eventos-mobile-7dias" type="button" title="Mostrar próximos 7 dias">7 dias</button>
         </div>
         <div class="eventos-mobile-card-title eventos-mobile-lista-title">
           <strong id="eventosMobileTituloData">📅 Eventos do dia</strong>
@@ -1415,6 +1483,7 @@
               <button id="manutLimparCancelados" type="button" class="btn-outline">Limpar vínculos de cancelados</button>
               <button id="manutReprocessarProximosUsos" type="button" class="btn-outline">Reprocessar próximos usos</button>
               <button id="manutReprocessarTudo" type="button" class="danger-soft">Reprocessar tudo</button>
+              <button id="manutZerarChecklistDeposito" type="button" class="danger-soft">Zerar checklist do depósito</button>
             </div>
             <small>Use quando algum produto ficar como alugado indevidamente, quando um cancelamento deixar resíduo, ou quando a tela de produtos não refletir a rota atual.</small>
           </div>

@@ -454,3 +454,264 @@ function aplicarScrollListaCombinadaCalendario() {
 }
 
 document.addEventListener('DOMContentLoaded', aplicarScrollListaCombinadaCalendario);
+
+// v19-dev-dashboard-alertas
+const RT_DASH_ALERTAS_CONFIG_KEY = "dashboard_alertas_config";
+const RT_DASH_ALERTAS_DEFAULT = {
+  montagensDia: 6,
+  desmontagensDia: 6,
+  tendasEvento: 5,
+  materiaisEvento: 50,
+  valorAlto: 1500
+};
+let rtDashboardAlertasConfig = { ...RT_DASH_ALERTAS_DEFAULT };
+
+function rtDashEscape(texto) {
+  return String(texto ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c]));
+}
+
+function rtDashNumero(valor) {
+  const n = Number(String(valor ?? "").replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function rtDashMoeda(valor) {
+  return rtDashNumero(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function rtDashSomarMateriaisEvento(evento) {
+  let total = 0;
+  if (Array.isArray(evento?.tendas)) total += evento.tendas.length;
+  if (Array.isArray(evento?.itens_apoio)) {
+    evento.itens_apoio.forEach(i => total += Number(i.quantidade || i.qtd || 0) || 0);
+  }
+  if (Array.isArray(evento?.produtos_extras)) {
+    evento.produtos_extras.forEach(i => total += Number(i.quantidade || i.qtd || 1) || 1);
+  }
+  return total;
+}
+
+function rtDashQtdTendasEvento(evento) {
+  return Array.isArray(evento?.tendas) ? evento.tendas.length : 0;
+}
+
+function rtDashValorEvento(evento) {
+  return rtDashNumero(evento?.valor_total ?? evento?.total ?? evento?.valor ?? 0);
+}
+
+function rtDashDataHoraEvento(evento, tipo) {
+  const bruto = tipo === "montagem" ? montagemEventoDashboard(evento) : desmontagemEventoDashboard(evento);
+  return { data: normalizarDataDashboard(bruto), hora: horaDashboard(bruto) };
+}
+
+function rtDashOperacaoForaHorario(tipoHorario, hora) {
+  try {
+    if (typeof horarioForaComercialRota === "function") return horarioForaComercialRota(tipoHorario, hora);
+  } catch(e) {}
+  const h = String(hora || "").slice(0,5);
+  if (!/^\d{2}:\d{2}$/.test(h)) return false;
+  return h < "08:00" || h > "18:00";
+}
+
+function rtDashOperacaoConfirmada(evento, tipo) {
+  try {
+    const id = `${evento.id}-${tipo}`;
+    const op = (typeof rotasOperacao !== "undefined" && rotasOperacao) ? rotasOperacao[id] : null;
+    if (!op) return false;
+    const status = String(op.status || "").toLowerCase();
+    if (tipo === "montagem") return status === "entregue";
+    if (tipo === "desmontagem") return status === "recolhido";
+  } catch(e) {}
+  return false;
+}
+
+function rtDashAbrirRotaData(data) {
+  try {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".section").forEach(s => s.classList.remove("active-section"));
+    document.querySelector("[data-section='rotasSection']")?.classList.add("active");
+    document.getElementById("rotasSection")?.classList.add("active-section");
+    const input = document.getElementById("rotaData");
+    if (input) {
+      input.value = data;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    if (typeof renderizarRotas === "function") setTimeout(renderizarRotas, 80);
+  } catch (erro) {
+    console.warn("Não foi possível abrir a rota pelo Dashboard:", erro);
+  }
+}
+
+function rtDashItem({ tipo = "info", titulo, meta = "", detalhe = "", data = "" }) {
+  return `<div class="dash-alert-item dash-alert-${tipo}">
+    <div class="dash-alert-main">
+      <strong>${rtDashEscape(titulo)}</strong>
+      ${meta ? `<span>${rtDashEscape(meta)}</span>` : ""}
+      ${detalhe ? `<small>${rtDashEscape(detalhe)}</small>` : ""}
+    </div>
+    ${data ? `<button type="button" class="btn-outline dash-alert-rota-btn" data-dash-rota-data="${rtDashEscape(data)}">Rota</button>` : ""}
+  </div>`;
+}
+
+async function rtDashCarregarConfigAlertas() {
+  let cfg = null;
+  try {
+    if (typeof supabaseClient !== "undefined" && supabaseClient) {
+      const { data, error } = await supabaseClient.from("app_config").select("valor").eq("chave", RT_DASH_ALERTAS_CONFIG_KEY).maybeSingle();
+      if (!error && data?.valor) cfg = data.valor;
+    }
+  } catch(e) { console.warn("Dashboard: não carregou config nuvem", e); }
+  if (!cfg) {
+    try { cfg = JSON.parse(localStorage.getItem("riotendas_dashboard_alertas_config") || "null"); } catch(e) {}
+  }
+  rtDashboardAlertasConfig = { ...RT_DASH_ALERTAS_DEFAULT, ...(cfg || {}) };
+  rtDashPreencherInputsConfig();
+  return rtDashboardAlertasConfig;
+}
+
+function rtDashPreencherInputsConfig() {
+  const cfg = rtDashboardAlertasConfig;
+  const mapa = {
+    dashAlertaMontagensQtd: "montagensDia",
+    dashAlertaDesmontagensQtd: "desmontagensDia",
+    dashAlertaTendasEventoQtd: "tendasEvento",
+    dashAlertaMateriaisQtd: "materiaisEvento",
+    dashAlertaValorAlto: "valorAlto"
+  };
+  Object.entries(mapa).forEach(([id, chave]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = cfg[chave];
+  });
+}
+
+async function rtDashSalvarConfigAlertas() {
+  const cfg = {
+    montagensDia: Number(document.getElementById("dashAlertaMontagensQtd")?.value || 6),
+    desmontagensDia: Number(document.getElementById("dashAlertaDesmontagensQtd")?.value || 6),
+    tendasEvento: Number(document.getElementById("dashAlertaTendasEventoQtd")?.value || 5),
+    materiaisEvento: Number(document.getElementById("dashAlertaMateriaisQtd")?.value || 50),
+    valorAlto: Number(document.getElementById("dashAlertaValorAlto")?.value || 1500)
+  };
+  rtDashboardAlertasConfig = { ...RT_DASH_ALERTAS_DEFAULT, ...cfg };
+  localStorage.setItem("riotendas_dashboard_alertas_config", JSON.stringify(rtDashboardAlertasConfig));
+  try {
+    if (typeof supabaseClient !== "undefined" && supabaseClient) {
+      const { error } = await supabaseClient.from("app_config").upsert({
+        chave: RT_DASH_ALERTAS_CONFIG_KEY,
+        valor: rtDashboardAlertasConfig,
+        atualizado_em: new Date().toISOString()
+      }, { onConflict: "chave" });
+      if (error) throw error;
+    }
+    alert("Alertas do dashboard salvos.");
+  } catch (erro) {
+    console.warn("Não foi possível salvar alertas no Supabase:", erro);
+    alert("Alertas salvos neste navegador. Verifique o Supabase/app_config para salvar multiusuário.");
+  }
+  await renderizarDashboardAlertas();
+}
+
+async function renderizarDashboardAlertas() {
+  const eventosLista = await garantirEventosDashboard();
+  const hoje = dataISOHojeDashboard();
+  const cfg = rtDashboardAlertasConfig || RT_DASH_ALERTAS_DEFAULT;
+
+  const montagensPorDia = new Map();
+  const desmontagensPorDia = new Map();
+  const foraHorario = [];
+  const pendentes = [];
+  const alertas = [];
+  const tendasAlugadas = [];
+  const estoquePorDia = new Map();
+
+  eventosLista.forEach(evento => {
+    if (!evento || (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento))) return;
+    const nome = nomeClienteDashboard(evento);
+    const qtdTendas = rtDashQtdTendasEvento(evento);
+    const qtdMateriais = rtDashSomarMateriaisEvento(evento);
+    const valor = rtDashValorEvento(evento);
+    const dataEvento = dataEventoDashboard(evento);
+
+    if (qtdTendas) tendasAlugadas.push({ evento, qtdTendas, data: dataEvento || rtDashDataHoraEvento(evento, "montagem").data || "" });
+    if (qtdTendas >= Number(cfg.tendasEvento || 5)) alertas.push(rtDashItem({ tipo: "warning", titulo: `${nome} · ${qtdTendas} tendas`, meta: `Evento ${formatarDataDashboard(dataEvento)}`, detalhe: "Quantidade alta de tendas no mesmo evento", data: rtDashDataHoraEvento(evento, "montagem").data || dataEvento }));
+    if (qtdMateriais >= Number(cfg.materiaisEvento || 50)) alertas.push(rtDashItem({ tipo: "warning", titulo: `${nome} · ${qtdMateriais} materiais`, meta: `Evento ${formatarDataDashboard(dataEvento)}`, detalhe: "Quantidade grande de material", data: rtDashDataHoraEvento(evento, "montagem").data || dataEvento }));
+    if (valor >= Number(cfg.valorAlto || 1500)) alertas.push(rtDashItem({ tipo: "money", titulo: `${nome} · ${rtDashMoeda(valor)}`, meta: `Evento ${formatarDataDashboard(dataEvento)}`, detalhe: "Valor alto requer atenção", data: rtDashDataHoraEvento(evento, "montagem").data || dataEvento }));
+
+    ["montagem", "desmontagem"].forEach(tipo => {
+      const { data, hora } = rtDashDataHoraEvento(evento, tipo);
+      if (!data) return;
+      const mapa = tipo === "montagem" ? montagensPorDia : desmontagensPorDia;
+      mapa.set(data, (mapa.get(data) || 0) + 1);
+      if (tipo === "montagem") {
+        const atual = estoquePorDia.get(data) || { data, tendas: 0, materiais: 0, eventos: 0 };
+        atual.tendas += qtdTendas;
+        atual.materiais += qtdMateriais;
+        atual.eventos += 1;
+        estoquePorDia.set(data, atual);
+      }
+      const tipoHorario = tipo === "montagem" ? (evento.montagem_tipo || evento.tipo_horario_montagem || "") : (evento.desmontagem_tipo || evento.tipo_horario_desmontagem || "");
+      if (data >= hoje && rtDashOperacaoForaHorario(tipoHorario, hora)) {
+        foraHorario.push(rtDashItem({ tipo: "time", titulo: `${tipo === "montagem" ? "Montagem" : "Desmontagem"} · ${nome}`, meta: `${formatarDataDashboard(data)} ${hora || ""}`, detalhe: enderecoDashboard(evento), data }));
+      }
+      if (data <= hoje && !rtDashOperacaoConfirmada(evento, tipo)) {
+        pendentes.push(rtDashItem({ tipo: "danger", titulo: `${tipo === "montagem" ? "Entrega" : "Retirada"} não confirmada · ${nome}`, meta: `${formatarDataDashboard(data)} ${hora || ""}`, detalhe: enderecoDashboard(evento), data }));
+      }
+    });
+  });
+
+  [...montagensPorDia.entries()].sort().forEach(([data, qtd]) => {
+    if (qtd >= Number(cfg.montagensDia || 6)) alertas.unshift(rtDashItem({ tipo: "warning", titulo: `${qtd} montagens no dia`, meta: formatarDataDashboard(data), detalhe: "Carga operacional alta", data }));
+  });
+  [...desmontagensPorDia.entries()].sort().forEach(([data, qtd]) => {
+    if (qtd >= Number(cfg.desmontagensDia || 6)) alertas.unshift(rtDashItem({ tipo: "warning", titulo: `${qtd} desmontagens no dia`, meta: formatarDataDashboard(data), detalhe: "Carga operacional alta", data }));
+  });
+
+  const estoqueItens = [...estoquePorDia.values()]
+    .filter(i => i.data >= hoje)
+    .sort((a,b) => a.data.localeCompare(b.data))
+    .slice(0, 21)
+    .map(i => rtDashItem({ tipo: i.tendas >= Number(cfg.tendasEvento || 5) || i.materiais >= Number(cfg.materiaisEvento || 50) ? "warning" : "ok", titulo: `${formatarDataDashboard(i.data)} · ${i.eventos} evento(s)`, meta: `${i.tendas} tendas · ${i.materiais} materiais`, detalhe: "Uso previsto de estoque", data: i.data }));
+
+  const tendasItens = tendasAlugadas
+    .sort((a,b) => String(a.data).localeCompare(String(b.data)) || b.qtdTendas - a.qtdTendas)
+    .slice(0, 80)
+    .map(i => rtDashItem({ tipo: i.qtdTendas >= Number(cfg.tendasEvento || 5) ? "warning" : "info", titulo: `${nomeClienteDashboard(i.evento)} · ${i.qtdTendas} tendas`, meta: `Evento ${formatarDataDashboard(i.data)}`, detalhe: enderecoDashboard(i.evento), data: rtDashDataHoraEvento(i.evento, "montagem").data || i.data }));
+
+  rtDashPreencherLista("dashboardAlertasOperacao", "dashAlertasOperacaoQtd", alertas);
+  rtDashPreencherLista("dashboardPendenciasEntrega", "dashPendenciasEntregaQtd", pendentes);
+  rtDashPreencherLista("dashboardForaHorario", "dashForaHorarioQtd", foraHorario);
+  rtDashPreencherLista("dashboardEstoqueFuturo", "dashEstoqueFuturoQtd", estoqueItens);
+  rtDashPreencherLista("dashboardTendasAlugadas", "dashTendasAlugadasQtd", tendasItens);
+
+  document.querySelectorAll("[data-dash-rota-data]").forEach(btn => {
+    btn.onclick = () => rtDashAbrirRotaData(btn.dataset.dashRotaData);
+  });
+}
+
+function rtDashPreencherLista(idLista, idQtd, itens) {
+  const lista = document.getElementById(idLista);
+  const qtd = document.getElementById(idQtd);
+  if (qtd) qtd.textContent = itens.length;
+  if (!lista) return;
+  if (!itens.length) {
+    lista.classList.add("empty");
+    lista.textContent = "Nenhum alerta encontrado.";
+    return;
+  }
+  lista.classList.remove("empty");
+  lista.innerHTML = itens.join("");
+}
+
+async function iniciarDashboardAlertasPersonalizados() {
+  await rtDashCarregarConfigAlertas();
+  document.getElementById("dashSalvarAlertasBtn")?.addEventListener("click", rtDashSalvarConfigAlertas);
+  await renderizarDashboardAlertas();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  setTimeout(iniciarDashboardAlertasPersonalizados, 1200);
+  document.querySelectorAll("[data-section='dashboardSection']").forEach(btn => {
+    btn.addEventListener("click", () => setTimeout(renderizarDashboardAlertas, 350));
+  });
+  window.addEventListener("riotendas:eventos-atualizados", () => setTimeout(renderizarDashboardAlertas, 300));
+});

@@ -10497,9 +10497,9 @@ dialog {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  border: 1px solid #16a34a;
-  background: #ecfdf5;
-  color: #15803d;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
   font-weight: 700;
   cursor: pointer;
   padding: 0;
@@ -10507,6 +10507,16 @@ dialog {
 }
 
 .btn-check-produto:hover {
+  background: #f1f5f9;
+}
+
+.btn-check-produto.checked {
+  border-color: #16a34a;
+  background: #ecfdf5;
+  color: #15803d;
+}
+
+.btn-check-produto.checked:hover {
   background: #bbf7d0;
 }
 
@@ -19519,6 +19529,31 @@ tr.evento-cancelado .product-list-button {
   font-weight: 700;
 }
 
+
+.financeiro-extrato-match.ja-associada {
+  background: #dcfce7;
+  color: #166534;
+  font-weight: 700;
+}
+
+.financeiro-extrato-match.ja-pendente {
+  background: #fff7d6;
+  color: #8a5a00;
+  font-weight: 700;
+}
+
+.financeiro-extrato-match.outro {
+  background: #eef2ff;
+  color: #3730a3;
+  font-weight: 700;
+}
+
+.financeiro-extrato-match.ignorado {
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 700;
+}
+
 @media (max-width: 900px) {
   .financeiro-extrato-line-v2 {
     grid-template-columns: 1fr;
@@ -20090,4 +20125,172 @@ tr.evento-cancelado .product-list-button {
 }
 .financeiro-extrato-salvo-table select.fin-ext-assoc{
   max-width:100% !important;
+}
+
+
+/* Eventos Mobile - ajuste visual de cards e comando 7 dias */
+.eventos-mobile-dia-nav {
+  grid-template-columns: 42px 1fr 42px 74px !important;
+}
+.eventos-mobile-dia-nav .eventos-mobile-7dias {
+  white-space: nowrap;
+  font-size: 0.86rem;
+}
+.eventos-mobile-item {
+  position: relative;
+  padding-bottom: 44px;
+}
+.eventos-mobile-item-actions {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  margin-top: 0 !important;
+  justify-content: flex-end;
+}
+.eventos-mobile-item-actions button {
+  flex: 0 0 auto !important;
+  min-height: 28px !important;
+  padding: 4px 10px !important;
+  font-size: 0.78rem !important;
+  border-radius: 999px;
+}
+
+/* v19-dev-dashboard-alertas */
+#dashboardSection .panel{
+  overflow:hidden;
+}
+#dashboardSection .dashboard-scroll-card{
+  max-height:360px;
+  display:flex;
+  flex-direction:column;
+}
+#dashboardSection .dashboard-scroll-card .dashboard-alert-list,
+#dashboardSection #dashboardProdutosProblema,
+#dashboardSection #dashboardEventosHoje,
+#dashboardSection #dashboardProximosEventos{
+  max-height:285px;
+  overflow-y:auto;
+  padding-right:4px;
+}
+#dashboardSection #dashboardProdutosProblema{
+  max-height:220px;
+}
+.dashboard-grid-3{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+  margin-top:14px;
+}
+.dashboard-alertas-grid{
+  align-items:start;
+}
+.dashboard-alertas-config-card{
+  margin-top:14px;
+}
+.dashboard-alertas-config-grid{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:10px;
+  align-items:end;
+}
+.dashboard-alertas-config-grid label{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  font-size:11px;
+  font-weight:800;
+  color:#475569;
+}
+.dashboard-alertas-config-grid input{
+  width:100%;
+  min-width:0;
+  border:1px solid #d7e0ea;
+  border-radius:10px;
+  padding:7px 8px;
+  font-weight:800;
+  background:#fff;
+}
+.dashboard-alertas-config-grid button{
+  min-height:34px;
+  white-space:nowrap;
+}
+.dashboard-alert-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.dashboard-alert-list.empty{
+  color:#64748b;
+  font-size:13px;
+  padding:8px 0;
+}
+.dash-alert-item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:8px 9px;
+  border:1px solid #dbe6f2;
+  border-left:4px solid #94a3b8;
+  border-radius:12px;
+  background:#fff;
+  min-width:0;
+}
+.dash-alert-main{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.dash-alert-main strong{
+  font-size:12px;
+  line-height:1.15;
+  color:#0f172a;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.dash-alert-main span{
+  font-size:11px;
+  font-weight:800;
+  color:#334155;
+}
+.dash-alert-main small{
+  font-size:10.5px;
+  color:#64748b;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:100%;
+}
+.dash-alert-rota-btn{
+  flex:0 0 auto;
+  padding:5px 8px !important;
+  font-size:11px !important;
+  border-radius:9px !important;
+}
+.dash-alert-warning{border-left-color:#d97706;background:#fffaf0;}
+.dash-alert-danger{border-left-color:#dc2626;background:#fff5f5;}
+.dash-alert-money{border-left-color:#16a34a;background:#f0fdf4;}
+.dash-alert-time{border-left-color:#f59e0b;background:#fffbeb;}
+.dash-alert-ok{border-left-color:#059669;background:#f0fdf4;}
+.dash-alert-info{border-left-color:#0f5aa0;background:#f8fbff;}
+.dashboard-stock-card .dash-alert-item{
+  padding-top:7px;
+  padding-bottom:7px;
+}
+@media(max-width:1000px){
+  .dashboard-grid-3,
+  .dashboard-grid-2.dashboard-alertas-grid{
+    grid-template-columns:1fr;
+  }
+  .dashboard-alertas-config-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  #dashboardSection .dashboard-scroll-card .dashboard-alert-list,
+  #dashboardSection #dashboardProdutosProblema,
+  #dashboardSection #dashboardEventosHoje,
+  #dashboardSection #dashboardProximosEventos{
+    max-height:240px;
+  }
 }

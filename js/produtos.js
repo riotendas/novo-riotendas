@@ -161,6 +161,7 @@ async function salvarProdutoBanco(produto) {
     observacao: produto.observacao || null,
     foto: produto.foto || null,
     grau_usabilidade: produto.grau_usabilidade || "Bom",
+    deposito_check: !!produto.deposito_check,
     colaborador: produto.colaborador || getColaboradorLogado(),
     historico: produto.historico || [],
     locacoes: produto.locacoes || [],
@@ -1402,13 +1403,13 @@ function obterUltimaChecagemProduto(produto, inicio = null, fim = null) {
 }
 
 function htmlCheckDepositoProduto(produto) {
-  const ultimo = obterUltimaChecagemProduto(produto);
-  const titulo = ultimo
-    ? `Última checagem: ${formatarData(ultimo.data)} por ${ultimo.colaborador || "-"}`
-    : "Marcar produto como checado no depósito";
+  const marcado = !!produto.deposito_check;
+  const titulo = marcado
+    ? "Conferido no depósito. Clique para desmarcar."
+    : "Ainda não conferido no depósito. Clique para marcar.";
 
   return `
-    <button type="button" class="btn-check-produto" data-action="check-deposito" data-id="${produto.id}" title="${titulo.replaceAll('"', '&quot;')}">✓</button>
+    <button type="button" class="btn-check-produto ${marcado ? "checked" : ""}" data-action="check-deposito" data-id="${produto.id}" title="${titulo.replaceAll('"', '&quot;')}" aria-pressed="${marcado ? "true" : "false"}">${marcado ? "☑" : "☐"}</button>
   `;
 }
 
@@ -1419,6 +1420,8 @@ function renderizarProdutos() {
   document.getElementById("prodTotal").textContent = filtrados.length;
   document.getElementById("prodLivres").textContent = filtrados.filter(p => p.status === "Livre").length;
   document.getElementById("prodProblema").textContent = filtrados.filter(p => p.status !== "Livre").length;
+  const prodConferidosEl = document.getElementById("prodConferidos");
+  if (prodConferidosEl) prodConferidosEl.textContent = `${filtrados.filter(p => !!p.deposito_check).length} / ${filtrados.length}`;
 
   if (!filtrados.length) {
     tbody.innerHTML = `<tr><td colspan="11" class="empty">Nenhum produto com código cadastrado.</td></tr>${renderizarLinhasApoio()}`;
@@ -1673,36 +1676,29 @@ async function lidarAcaoProduto(event) {
   if (action === "check-deposito") {
     const agora = new Date().toISOString();
     const colaborador = getColaboradorLogado();
+    const antes = !!produto.deposito_check;
+    produto.deposito_check = !antes;
     produto.atualizado_em = agora;
     produto.colaborador = colaborador;
-    produto.historico = produto.historico || [];
-    produto.historico.push({
-      data: agora,
-      colaborador,
-      alteracao: "Checagem de depósito",
-      observacao: "Produto conferido no depósito"
-    });
 
     const salvo = await salvarProdutoBanco(produto);
     if (salvo) {
       const index = produtos.findIndex(p => p.id === id);
       if (index >= 0) produtos[index] = salvo;
-      alertarReservasFuturasProduto(salvo, novoStatus);
 
       if (typeof registrarLogSistema === "function") {
         registrarLogSistema({
           modulo: "Produtos",
-          acao: "Produto checado no depósito",
+          acao: salvo.deposito_check ? "Produto marcado no checklist do depósito" : "Produto desmarcado no checklist do depósito",
           registro_id: salvo.id,
           registro_nome: salvo.codigo || "Produto",
-          antes: null,
-          depois: { codigo: salvo.codigo || "-", data: agora, colaborador }
+          antes: { deposito_check: antes },
+          depois: { deposito_check: !!salvo.deposito_check, codigo: salvo.codigo || "-", data: agora, colaborador }
         });
       }
     }
 
     renderizarProdutos();
-    if (typeof renderizarRelatorioChecagem === "function") renderizarRelatorioChecagem();
     return;
   }
 

@@ -187,35 +187,13 @@ function rtFinLinhaId(evento, tipo, dataInformada, valor) {
 }
 
 function rtFinExtrairPagamentosBanco() {
-  const registros = [];
-  rtFinEventosLista().forEach(evento => {
-    const forma = String(evento.forma_pagamento || "");
-    if (!forma.toLowerCase().includes("pix/transfer")) return;
-    forma.split(/\r?\n|;/).map(l => l.trim()).filter(Boolean).forEach(linha => {
-      const m = linha.match(/^(Pg\s*Total|Sinal|Restante)\s*-\s*Pix\s*\/\s*Transfer[eê]ncia\s*-\s*(.*)$/i);
-      if (!m) return;
-      const tipoRaw = m[1].replace(/\s+/g, " ").trim();
-      const tipo = /^pg/i.test(tipoRaw) ? "Pg Total" : tipoRaw.charAt(0).toUpperCase() + tipoRaw.slice(1).toLowerCase();
-      const dataTexto = String(m[2] || "").trim();
-      const dataISO = rtFinNormalizarData(dataTexto);
-      const valor = rtFinTipoValor(evento, tipo);
-      registros.push({
-        id: rtFinLinhaId(evento, tipo, dataTexto || dataISO, valor),
-        evento_id: evento.id,
-        data_evento: evento.data_evento || "",
-        cliente: evento.nome || evento.cliente || "-",
-        telefone: evento.telefone || "-",
-        tipo,
-        forma: "Pix/Transf./Dep./Boleto",
-        data_informada: dataISO || dataTexto || "",
-        data_texto: dataTexto,
-        valor,
-        evento_descricao: evento.tipo_evento || evento.observacao || evento.endereco || "",
-        linha_original: linha
-      });
-    });
-  });
-  return registros.sort((a, b) => String(a.data_informada || "9999").localeCompare(String(b.data_informada || "9999")) || String(a.cliente).localeCompare(String(b.cliente)));
+  // Opções que devem ser conciliadas com extrato bancário.
+  // Compatível com o texto antigo "Pix/Transferência" e com o novo
+  // "Pix/Transf./Dep./Boleto". Cartão/Rede e Dinheiro ficam fora da lista
+  // de associação direta, pois são tratados nos blocos separados da auditoria.
+  return rtFinExtrairPagamentosAuditaveis()
+    .filter(r => rtFinAuditoriaGrupo(r) === "pendentes")
+    .sort((a, b) => String(a.data_informada || "9999").localeCompare(String(b.data_informada || "9999")) || String(a.cliente).localeCompare(String(b.cliente)));
 }
 
 function rtFinStatusTexto(status) {
@@ -507,12 +485,13 @@ async function rtFinSalvarExtratoProcessado() {
       if (fingerprints.length) {
         const { data: existentes, error: erroBusca } = await supabaseClient
           .from("extrato_bancario_linhas")
-          .select("fingerprint")
-          .in("fingerprint", fingerprints);
+          .select("fingerprint,data_lancamento,descricao,linha_original,valor,valor_assinado,status,criado_em,atualizado_em")
+          .limit(5000);
         if (erroBusca) throw erroBusca;
-        const jaExiste = new Set((existentes || []).map(x => x.fingerprint));
-        repetidas = payloads.filter(p => jaExiste.has(p.fingerprint)).length;
-        novas = payloads.filter(p => !jaExiste.has(p.fingerprint));
+        const jaExisteFingerprint = new Set((existentes || []).map(x => x.fingerprint).filter(Boolean));
+        const jaExisteRobusto = new Set((existentes || []).map(x => rtFinAssinaturaExtratoRobusta(x)).filter(Boolean));
+        repetidas = payloads.filter(p => jaExisteFingerprint.has(p.fingerprint) || jaExisteRobusto.has(rtFinAssinaturaExtratoRobusta(p))).length;
+        novas = payloads.filter(p => !jaExisteFingerprint.has(p.fingerprint) && !jaExisteRobusto.has(rtFinAssinaturaExtratoRobusta(p)));
       }
       if (novas.length) {
         const { error } = await supabaseClient
@@ -554,13 +533,13 @@ async function rtFinCarregarExtratoSalvo() {
         .order("criado_em", { ascending: true })
         .limit(300);
       if (error) throw error;
-      rtFinanceiroExtratoSalvo = Array.isArray(data) ? data : [];
+      rtFinanceiroExtratoSalvo = rtFinDeduplicarExtratoSalvo(Array.isArray(data) ? data : []);
     } else {
-      rtFinanceiroExtratoSalvo = rtFinExtratoLocalCarregar().sort((a,b) => String(a.data_lancamento || "9999").localeCompare(String(b.data_lancamento || "9999")) || String(a.criado_em || "").localeCompare(String(b.criado_em || "")));
+      rtFinanceiroExtratoSalvo = rtFinDeduplicarExtratoSalvo(rtFinExtratoLocalCarregar()).sort((a,b) => String(a.data_lancamento || "9999").localeCompare(String(b.data_lancamento || "9999")) || String(a.criado_em || "").localeCompare(String(b.criado_em || "")));
     }
   } catch (err) {
     console.error(err);
-    rtFinanceiroExtratoSalvo = rtFinExtratoLocalCarregar();
+    rtFinanceiroExtratoSalvo = rtFinDeduplicarExtratoSalvo(rtFinExtratoLocalCarregar());
   }
   rtFinRenderExtratoSalvo();
 }
@@ -1157,8 +1136,55 @@ function rtFinTipoExtratoTexto(tipo) {
   return mapa[tipo] || "Outro";
 }
 
+
+function rtFinNormalizarDescricaoExtratoParaChave(texto) {
+  return rtFinNormalizarTextoBusca(texto || "")
+    .replace(/\b\d{1,2}\s*\/\s*(?:jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\b/g, " ")
+    .replace(/\b\d{1,2}\s*\/\s*\d{1,2}\s*\/\s*\d{2,4}\b/g, " ")
+    .replace(/\b\d{1,2}\s*\/\s*\d{1,2}\b/g, " ")
+    .replace(/[-+]?\s*(?:r\$\s*)?\d{1,3}(?:\.\d{3})*,\d{2}\b/g, " ")
+    .replace(/[-+]?\s*(?:r\$\s*)?\d+,\d{2}\b/g, " ")
+    .replace(/\bexibir\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function rtFinAssinaturaExtratoRobusta(linha) {
+  if (!linha) return "";
+  const data = linha.data_lancamento || linha.data || rtFinNormalizarData(linha.descricao || linha.linha_original || linha.linha || "") || "sem-data";
+  const valor = Math.abs(Number(linha.valor_assinado ?? linha.valor ?? 0)).toFixed(2);
+  const desc = rtFinNormalizarDescricaoExtratoParaChave(linha.descricao || linha.linha_original || linha.linha || "").slice(0, 120);
+  return [data, valor, desc].join("|");
+}
+
+function rtFinPrioridadeLinhaExtrato(linha) {
+  const st = String(linha?.status || "pendente");
+  if (st === "associado") return 60;
+  if (st === "rendimento") return 50;
+  if (st === "outro") return 45;
+  if (st === "ignorado") return 40;
+  if (linha?.tipo === "saida" || linha?.tipo === "saldo") return 35;
+  return 10;
+}
+
+function rtFinDeduplicarExtratoSalvo(lista) {
+  const mapa = new Map();
+  (Array.isArray(lista) ? lista : []).forEach(l => {
+    const key = rtFinAssinaturaExtratoRobusta(l) || l.fingerprint || l.id;
+    if (!key) return;
+    const atual = mapa.get(key);
+    if (!atual) { mapa.set(key, l); return; }
+    const pa = rtFinPrioridadeLinhaExtrato(atual);
+    const pn = rtFinPrioridadeLinhaExtrato(l);
+    if (pn > pa || (pn === pa && String(l.atualizado_em || l.criado_em || "") > String(atual.atualizado_em || atual.criado_em || ""))) {
+      mapa.set(key, l);
+    }
+  });
+  return Array.from(mapa.values());
+}
+
 function rtFinLinhaExtratoFingerprint(item) {
-  return [item.data || "sem-data", Math.abs(Number(item.valor || 0)).toFixed(2), rtFinNormalizarTextoBusca(item.linha).slice(0, 80)].join("|");
+  return rtFinAssinaturaExtratoRobusta(item);
 }
 
 function rtFinTokensNome(texto) {
@@ -1258,6 +1284,45 @@ function rtFinSugerirEventoParaExtrato(item) {
   return candidatos[0] || null;
 }
 
+
+function rtFinEncontrarLinhaSalvaParaPreview(item) {
+  if (!item) return null;
+  const fp = item.fingerprint || rtFinLinhaExtratoFingerprint(item);
+  const robusta = rtFinAssinaturaExtratoRobusta(item);
+  const lista = Array.isArray(rtFinanceiroExtratoSalvo) ? rtFinanceiroExtratoSalvo : [];
+  let melhor = null;
+  lista.forEach(l => {
+    const lfp = l.fingerprint || "";
+    const lrobusta = rtFinAssinaturaExtratoRobusta(l);
+    if ((fp && lfp && fp === lfp) || (robusta && lrobusta && robusta === lrobusta)) {
+      if (!melhor || rtFinPrioridadeLinhaExtrato(l) > rtFinPrioridadeLinhaExtrato(melhor)) melhor = l;
+    }
+  });
+  return melhor;
+}
+
+function rtFinStatusPreviewLinhaSalva(linhaSalva) {
+  if (!linhaSalva) return "";
+  const st = String(linhaSalva.status || "pendente").toLowerCase();
+  const cliente = linhaSalva.cliente_nome || linhaSalva.cliente || "";
+  const tipoPg = linhaSalva.tipo_pagamento || "";
+  const dataEv = linhaSalva.evento_data ? rtFinDataBR(linhaSalva.evento_data) : "";
+  const detalhes = [cliente, dataEv, tipoPg].filter(Boolean).join(" · ");
+  if (st === "associado") {
+    return `<div class="financeiro-extrato-match ja-associada">🟢 Já importada e associada${detalhes ? `<span>${rtFinEscapeHtml(detalhes)}</span>` : ""}</div>`;
+  }
+  if (st === "rendimento") {
+    return `<div class="financeiro-extrato-match rendimento">🏦 Já importada como rendimento</div>`;
+  }
+  if (st === "outro") {
+    return `<div class="financeiro-extrato-match outro">📌 Já importada como outro/rede</div>`;
+  }
+  if (st === "ignorado") {
+    return `<div class="financeiro-extrato-match ignorado">🚫 Já importada e ignorada</div>`;
+  }
+  return `<div class="financeiro-extrato-match ja-pendente">🟡 Já importada, mas ainda pendente</div>`;
+}
+
 function rtFinLerExtrato() {
   const texto = rtFinNormalizarTextoCapturadoParaLinhas(document.getElementById("financeiroExtratoTexto")?.value || "", rtFinanceiroExtratoClipboard.html || "");
   rtFinanceiroExtratoSeq += 1;
@@ -1320,19 +1385,20 @@ function rtFinRenderExtrato() {
   box.className = "financeiro-extrato-resultado financeiro-extrato-resultado-v2";
   box.innerHTML = rtFinanceiroExtratoLinhas.map(l => {
     const sug = l.sugestao_evento;
-    let statusHtml = "";
-    if (l.tipo === "rendimento") {
+    const salva = rtFinEncontrarLinhaSalvaParaPreview(l);
+    let statusHtml = rtFinStatusPreviewLinhaSalva(salva);
+    if (!statusHtml && l.tipo === "rendimento") {
       statusHtml = `<div class="financeiro-extrato-match rendimento">🏦 Rendimento bancário</div>`;
-    } else if (l.tipo === "cartao" || l.tipo === "outro") {
-      statusHtml = `<div class="financeiro-extrato-match rendimento">📌 ${l.tipo === "cartao" ? "Cartão/Rede ou outro crédito" : "Outro crédito"}</div>`;
-    } else if (l.tipo === "entrada" && sug) {
+    } else if (!statusHtml && (l.tipo === "cartao" || l.tipo === "outro")) {
+      statusHtml = `<div class="financeiro-extrato-match outro">📌 ${l.tipo === "cartao" ? "Cartão/Rede ou outro crédito" : "Outro crédito"}</div>`;
+    } else if (!statusHtml && l.tipo === "entrada" && sug) {
       const diff = Math.abs(Number(sug.diferenca || 0));
       statusHtml = `<div class="financeiro-extrato-match ${sug.confianca >= 75 ? "alta" : "media"}">
         <strong>${sug.confianca >= 75 ? "✅" : "⚠"} ${rtFinEscapeHtml(sug.cliente)} · ${rtFinDataBR(sug.data_evento)} · ${rtFinEscapeHtml(sug.tipo_pagamento)}</strong>
         <span>${rtFinEscapeHtml(sug.motivo || "Sugestão por nome/valor/data")}${diff >= 0.01 ? ` · Diferença: ${rtFinMoeda(sug.diferenca)}` : ""}</span>
       </div>`;
-    } else if (l.tipo === "entrada") {
-      statusHtml = `<div class="financeiro-extrato-match nao">❌ Entrada não identificada</div>`;
+    } else if (!statusHtml && l.tipo === "entrada") {
+      statusHtml = `<div class="financeiro-extrato-match nao">🔴 Entrada nova não identificada</div>`;
     }
 
     return `
