@@ -523,10 +523,10 @@ function ruaMobileNotaListaRotas(data, carro){
   return todas.filter(r => String(ruaMobileCarroDaRota(r) || "Sem carro").trim() === c && String(r.data || "") === String(data || ""));
 }
 
-function ruaMobileCriarNota(){
+function ruaMobileCriarNota(carroPredefinido){
   if (!ruaMobileUsuarioAdmin()) return;
   const data = document.getElementById("ruaMobileData")?.value || ruaMobileHojeISO();
-  let carro = String(document.getElementById("ruaMobileCarro")?.value || "").trim();
+  let carro = String(carroPredefinido || document.getElementById("ruaMobileCarro")?.value || "").trim();
   if (!carro) {
     const carros = ruaMobileCarrosParaEdicao();
     carro = prompt("Carro da nota:", carros[0] || "Sem carro") || "";
@@ -725,6 +725,13 @@ function ruaMobileConfigurarAcoesNotas(container){
       ruaMobileCriarNota();
     });
   });
+  container.querySelectorAll("[data-rua-nota-carro]").forEach(btn => {
+    btn.addEventListener("click", ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      ruaMobileCriarNota(btn.dataset.ruaNotaCarro || "");
+    });
+  });
   container.querySelectorAll("[data-rua-nota-editar]").forEach(btn => {
     btn.addEventListener("click", ev => {
       ev.preventDefault();
@@ -779,9 +786,7 @@ function renderizarRuaMobile() {
 
   if (!rotas.length) {
     const notasHtml = ruaMobileNotasFiltradasHtml(dataInput?.value || ruaMobileHojeISO(), document.getElementById("ruaMobileCarro")?.value || "");
-    const toolbarNotas = ruaMobileUsuarioAdmin()
-      ? `<div class="rua-mobile-nota-toolbar"><button type="button" class="btn-outline btn-mini" data-rua-nota-nova>+ Nota</button></div>`
-      : "";
+    const toolbarNotas = "";
     listaEl.innerHTML = toolbarNotas + (notasHtml || `<p class="empty">Nenhuma rota encontrada para esta data/filtro.</p>`);
     ruaMobileConfigurarAcoesNotas(listaEl);
     return;
@@ -804,11 +809,10 @@ function renderizarRuaMobile() {
 
   const ruaMobileCarroSelecionado = document.getElementById("ruaMobileCarro")?.value || "";
   const ruaMobileHeaderCarroSelecionado = ruaMobileCarroSelecionado
-    ? `<div class="rua-mobile-carro-selecionado"><span>🚚 ${ruaMobileCarroSelecionado}</span><div class="rua-mobile-carro-actions"><button type="button" class="rua-mobile-carro-contador-btn" data-rua-contador-carro="${String(ruaMobileCarroSelecionado).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Ver materiais do carro">📦</button><button type="button" class="rua-mobile-carro-maps-btn" data-rua-maps-carro="${String(ruaMobileCarroSelecionado).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Abrir rota pendente do carro no Google Maps">🗺️</button></div></div>`
+    ? `<div class="rua-mobile-carro-selecionado"><span>🚚 ${ruaMobileCarroSelecionado}</span><div class="rua-mobile-carro-actions"><button type="button" class="rua-mobile-carro-nota-btn" data-rua-nota-carro="${String(ruaMobileCarroSelecionado).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Criar nota neste carro">+Nota</button><button type="button" class="rua-mobile-carro-contador-btn" data-rua-contador-carro="${String(ruaMobileCarroSelecionado).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Ver materiais do carro">📦</button><button type="button" class="rua-mobile-carro-maps-btn" data-rua-maps-carro="${String(ruaMobileCarroSelecionado).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Abrir rota pendente do carro no Google Maps">🗺️</button></div></div>`
     : "";
-  const ruaMobileToolbarNotas = ruaMobileUsuarioAdmin()
-    ? `<div class="rua-mobile-nota-toolbar"><button type="button" class="btn-outline btn-mini" data-rua-nota-nova>+ Nota</button></div>`
-    : "";
+  // Botão global removido: agora a nota é criada diretamente na linha do carro.
+  const ruaMobileToolbarNotas = "";
 
   listaEl.innerHTML = ruaMobileToolbarNotas + ruaMobileHeaderCarroSelecionado + rotasRender.map(({ rota, idx, carroGrupo, inicioGrupo, posicaoGrupo, totalGrupo }) => {
     const index = idx;
@@ -825,7 +829,7 @@ function renderizarRuaMobile() {
     const expandido = concluida && ruaMobileCardExpandido(rota);
     const classeConclusao = concluida ? (expandido ? "rua-mobile-card-concluido rua-mobile-card-expandido" : "rua-mobile-card-concluido") : "";
     const ruaMobileGrupoCarro = ruaMobileAgruparPorCarro && inicioGrupo
-      ? `<div class="rua-mobile-carro-grupo"><span>🚚 ${carroGrupo}</span><div class="rua-mobile-carro-actions"><button type="button" class="rua-mobile-carro-contador-btn" data-rua-contador-carro="${String(carroGrupo).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Ver materiais do carro">📦</button><button type="button" class="rua-mobile-carro-maps-btn" data-rua-maps-carro="${String(carroGrupo).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Abrir rota pendente do carro no Google Maps">🗺️</button></div></div>`
+      ? `<div class="rua-mobile-carro-grupo"><span>🚚 ${carroGrupo}</span><div class="rua-mobile-carro-actions"><button type="button" class="rua-mobile-carro-nota-btn" data-rua-nota-carro="${String(carroGrupo).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Criar nota neste carro">+Nota</button><button type="button" class="rua-mobile-carro-contador-btn" data-rua-contador-carro="${String(carroGrupo).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Ver materiais do carro">📦</button><button type="button" class="rua-mobile-carro-maps-btn" data-rua-maps-carro="${String(carroGrupo).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" title="Abrir rota pendente do carro no Google Maps">🗺️</button></div></div>`
       : "";
 
     const notasAntes = ruaMobileNotasHtml(rota.data, carro, posicaoGrupo);

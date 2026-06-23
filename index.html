@@ -10,6 +10,7 @@
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#f5d21e" />
   <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
 <style id="force-recurring-actions">
 .eventos-tabela-recorrentes th:nth-child(3), .eventos-tabela-recorrentes td:nth-child(3){width:90px;max-width:90px;}
@@ -74,6 +75,7 @@
       <button class="tab-btn" data-section="eventosSection">Eventos</button>
       <button class="tab-btn" data-section="calendarioSection">Calendário</button>
       <button class="tab-btn" data-section="rotasSection">Rotas</button>
+      <button class="tab-btn" data-section="mapaSection">Mapa</button>
       <button class="tab-btn" data-section="orcamentosSection">Orçamentos</button>
       <button class="tab-btn" data-section="financeiroSection">Financeiro</button>
       <button class="tab-btn" data-section="relatoriosSection">Relatórios</button>
@@ -84,75 +86,53 @@
     <section id="dashboardSection" class="section active-section">
       <div class="section-header">
         <h2>Dashboard</h2>
-        <p>Resumo rápido do sistema.</p>
+        <p>Alertas e acompanhamento operacional.</p>
       </div>
-      <div class="cards-grid">
-        <div class="dash-card"><span>Total de produtos</span><strong id="dashTotalProdutos">0</strong></div>
-        <div class="dash-card"><span>Livres</span><strong id="dashLivres">0</strong></div>
-        <div class="dash-card warning"><span>Manutenção/Bloqueados</span><strong id="dashManutencao">0</strong></div>
-        <div class="dash-card danger"><span>Pagamentos em aberto</span><strong id="dashPagamentos">0</strong></div>
-      </div>
-
-      <div class="panel">
-        <h3>Produtos em manutenção ou bloqueados</h3>
-        <div id="dashboardProdutosProblema" class="compact-list empty">Nenhum produto encontrado.</div>
-      </div>
-
-      <div class="dashboard-grid-2">
-        <div class="panel">
+      <div class="dashboard-grid-3 dashboard-main-grid">
+        <div class="panel dashboard-scroll-card">
           <div class="panel-title-row">
-            <h3>Eventos de Hoje</h3>
+            <h3>Eventos hoje e futuros</h3>
             <span class="dash-mini-badge" id="dashEventosHojeQtd">0</span>
           </div>
           <div id="dashboardEventosHoje" class="dashboard-events-list empty">
-            Nenhum evento hoje.
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-title-row">
-            <h3>Próximos Eventos</h3>
-            <span class="dash-mini-badge" id="dashEventosFuturosQtd">0</span>
-          </div>
-          <div id="dashboardProximosEventos" class="dashboard-events-list empty">
             Nenhum evento futuro encontrado.
           </div>
         </div>
-      </div>
 
-      <div class="panel dashboard-alertas-config-card">
-        <div class="panel-title-row">
-          <h3>Alertas personalizados</h3>
-          <span class="dash-mini-badge">Dashboard</span>
+        <div class="panel dashboard-scroll-card">
+          <div class="panel-title-row">
+            <h3>Valores vencidos</h3>
+            <span class="dash-mini-badge" id="dashEventosFuturosQtd">0</span>
+          </div>
+          <div id="dashboardValoresPendentes" class="dashboard-alert-list empty">
+            Nenhum valor vencido encontrado.
+          </div>
         </div>
-        <div class="dashboard-alertas-config-grid">
-          <label>Montagens no dia
-            <input type="number" min="1" id="dashAlertaMontagensQtd" value="6">
-          </label>
-          <label>Desmontagens no dia
-            <input type="number" min="1" id="dashAlertaDesmontagensQtd" value="6">
-          </label>
-          <label>Tendas no evento
-            <input type="number" min="1" id="dashAlertaTendasEventoQtd" value="5">
-          </label>
-          <label>Materiais no evento
-            <input type="number" min="1" id="dashAlertaMateriaisQtd" value="50">
-          </label>
-          <label>Valor alto R$
-            <input type="number" min="0" step="50" id="dashAlertaValorAlto" value="1500">
-          </label>
-          <button type="button" class="btn-outline" id="dashSalvarAlertasBtn">Salvar alertas</button>
-        </div>
-      </div>
 
-      <div class="dashboard-grid-3 dashboard-alertas-grid">
+        <div class="panel dashboard-scroll-card dashboard-manutencao-card">
+          <div class="panel-title-row">
+            <h3>Produtos em manutenção ou bloqueados</h3>
+            <span class="dash-card-gear" title="Resumo de manutenção">⚙</span>
+          </div>
+          <div class="dash-manutencao-resumo">
+            <span>Total <strong id="dashTotalProdutos">0</strong></span>
+            <span>Livres <strong id="dashLivres">0</strong></span>
+            <span>Manutenção <strong id="dashManutencaoProdutos">0</strong></span>
+            <span>Bloqueados <strong id="dashBloqueadosProdutos">0</strong></span>
+            <span>Problemas <strong id="dashManutencao">0</strong></span>
+            <span class="dash-hidden-counter">Pagamentos <strong id="dashPagamentos">0</strong></span>
+          </div>
+          <div id="dashboardProdutosProblema" class="compact-list empty">Nenhum produto encontrado.</div>
+        </div>
+
         <div class="panel dashboard-scroll-card">
           <div class="panel-title-row">
             <h3>⚠ Alertas de operação</h3>
-            <span class="dash-mini-badge" id="dashAlertasOperacaoQtd">0</span>
+            <span class="dash-title-actions"><button type="button" class="dash-card-config-btn" data-dash-open-alert-config title="Configurar alertas">⚙</button><span class="dash-mini-badge" id="dashAlertasOperacaoQtd">0</span></span>
           </div>
           <div id="dashboardAlertasOperacao" class="dashboard-alert-list empty">Nenhum alerta operacional.</div>
         </div>
+
         <div class="panel dashboard-scroll-card">
           <div class="panel-title-row">
             <h3>✅ Entrega/retirada pendente</h3>
@@ -160,6 +140,7 @@
           </div>
           <div id="dashboardPendenciasEntrega" class="dashboard-alert-list empty">Nenhuma pendência operacional.</div>
         </div>
+
         <div class="panel dashboard-scroll-card">
           <div class="panel-title-row">
             <h3>⏰ Fora do horário</h3>
@@ -167,9 +148,7 @@
           </div>
           <div id="dashboardForaHorario" class="dashboard-alert-list empty">Nenhuma operação fora do horário.</div>
         </div>
-      </div>
 
-      <div class="dashboard-grid-2 dashboard-alertas-grid">
         <div class="panel dashboard-scroll-card dashboard-stock-card">
           <div class="panel-title-row">
             <h3>📦 Estoque futuro</h3>
@@ -177,12 +156,32 @@
           </div>
           <div id="dashboardEstoqueFuturo" class="dashboard-alert-list empty">Nenhum uso futuro encontrado.</div>
         </div>
-        <div class="panel dashboard-scroll-card">
+      </div>
+
+      <div class="dashboard-alertas-config-card dashboard-config-modal" hidden>
+        <div class="dashboard-config-modal-box">
           <div class="panel-title-row">
-            <h3>⛺ Tendas alugadas</h3>
-            <span class="dash-mini-badge" id="dashTendasAlugadasQtd">0</span>
+            <h3>Alertas personalizados</h3>
+            <button type="button" class="dash-card-config-btn" data-dash-close-alert-config title="Fechar">×</button>
           </div>
-          <div id="dashboardTendasAlugadas" class="dashboard-alert-list empty">Nenhuma tenda alugada encontrada.</div>
+          <div class="dashboard-alertas-config-grid">
+            <label>Montagens no dia
+              <input type="number" min="1" id="dashAlertaMontagensQtd" value="6">
+            </label>
+            <label>Desmontagens no dia
+              <input type="number" min="1" id="dashAlertaDesmontagensQtd" value="6">
+            </label>
+            <label>Tendas no evento
+              <input type="number" min="1" id="dashAlertaTendasEventoQtd" value="5">
+            </label>
+            <label>Materiais no evento
+              <input type="number" min="1" id="dashAlertaMateriaisQtd" value="50">
+            </label>
+            <label>Valor alto R$
+              <input type="number" min="0" step="50" id="dashAlertaValorAlto" value="1500">
+            </label>
+            <button type="button" class="btn-outline" id="dashSalvarAlertasBtn">Salvar alertas</button>
+          </div>
         </div>
       </div>
     </section>
@@ -428,6 +427,52 @@
     </section>
 
     
+
+    <section id="mapaSection" class="section">
+      <div class="section-header">
+        <h2>Mapa Operacional</h2>
+        <p>Localização dos eventos, materiais na rua e pontos de montagem/desmontagem.</p>
+      </div>
+      <div class="mapa-toolbar panel">
+        <input id="mapaDataBase" type="date" title="Data base do mapa" />
+        <select id="mapaPeriodo" title="Período do mapa">
+          <option value="1">Dia</option>
+          <option value="7" selected>7 dias</option>
+          <option value="15">15 dias</option>
+          <option value="30">30 dias</option>
+        </select>
+        <input id="mapaBusca" type="search" placeholder="Buscar cliente, endereço, bairro, material ou carro..." />
+        <select id="mapaFiltroStatus">
+          <option value="na_rua" selected>Na rua</option>
+          <option value="montagem">Montagens futuras</option>
+          <option value="recolher">A recolher</option>
+          <option value="atrasado">Atrasados</option>
+          <option value="todos">Todos do período</option>
+        </select>
+        <select id="mapaFiltroMaterial">
+          <option value="todos">Todos materiais</option>
+          <option value="tenda">Tendas</option>
+          <option value="mesa">Mesas</option>
+          <option value="cadeira">Cadeiras</option>
+          <option value="ombrelone">Ombrelones</option>
+        </select>
+        <button type="button" class="btn-outline" id="mapaHoje">Hoje</button>
+        <button type="button" class="btn-outline" id="mapaRecarregar">Recarregar</button>
+      </div>
+      <div class="mapa-operacional-layout">
+        <aside class="panel mapa-lista-panel">
+          <div class="panel-title-row">
+            <h3>Pontos no mapa</h3>
+            <span class="dash-mini-badge">Operação</span>
+          </div>
+          <div id="mapaListaEventos" class="mapa-lista-eventos empty">Carregando pontos...</div>
+        </aside>
+        <div class="panel mapa-canvas-panel">
+          <div id="mapaOperacionalCanvas" class="mapa-operacional-canvas"></div>
+        </div>
+      </div>
+      <div id="mapaResumoOperacao" class="mapa-resumo panel mapa-resumo-abaixo"></div>
+    </section>
 
     <section id="orcamentosSection" class="section">
       <div class="section-header split">
@@ -832,6 +877,17 @@
             <option value="Sem carro">Sem carro</option>
           </select>
         </label>
+        <label>Status
+          <select id="rotaStatusFiltro">
+            <option value="">Todos</option>
+            <option value="nao_entregues">Não entregues</option>
+            <option value="nao_retirados">Não retirados</option>
+            <option value="pendentes_operacao">Pendentes entrega/retirada</option>
+          </select>
+        </label>
+        <label>Buscar
+          <input id="rotaBuscaFiltro" type="search" placeholder="Cliente, endereço, material...">
+        </label>
       </div>
 
       <div class="summary-line">
@@ -888,7 +944,6 @@
       <div class="section-header split">
         <div>
           <h2>Rua Mobile</h2>
-          <p>Tela simplificada para equipe de rua acompanhar rotas, abrir mapa e marcar entrega/recolhimento pelo celular.</p>
         </div>
         <button id="ruaMobileAtualizarBtn" class="btn-outline mobile-refresh-btn" type="button" title="Atualizar rotas">↻</button>
       </div>
@@ -1180,6 +1235,11 @@
           <strong>Manutenção</strong>
           <span>Ferramentas administrativas para regularizar rotas, disponibilidade e produtos.</span>
         </button>
+        <button type="button" id="configAtualizarCoordenadasEventos" class="config-link-item admin-only">
+          <strong>📍 Atualizar coordenadas</strong>
+          <span>Preencher latitude/longitude dos eventos antigos sem coordenadas.</span>
+        </button>
+        <div id="configAtualizarCoordenadasStatus" class="config-geocode-status" style="display:none;"></div>
       </div>
 
       <div id="configCategoriaProdutosRemovida" class="hidden">
@@ -1519,8 +1579,8 @@
         <label>Endereço <input id="clienteEndereco" type="text" tabindex="160"></label>
         <label>Bairro <input id="clienteBairro" type="text" tabindex="161" placeholder="Ex: Copacabana"></label>
         <label>Cidade <input id="clienteCidade" type="text" tabindex="162" value="Rio de Janeiro" placeholder="Ex: Rio de Janeiro"></label>
-        <label>Complemento <input id="clienteComplemento" type="text" tabindex="163" placeholder="Ex: Quiosque 15, apto, salão..."></label>
-        <label class="span-2">Observação do cliente <textarea id="clienteObservacao" rows="2" tabindex="164" placeholder="Indicação, referência, preferência de contato..."></textarea></label>
+        <label>Comp./Referência <input id="clienteComplemento" type="text" tabindex="163" placeholder="Ex: Quiosque 15, apto, salão..."></label>
+        <label class="span-2">Observações Operacionais <textarea id="clienteObservacao" rows="2" tabindex="164" placeholder="Indicação, referência, preferência de contato..."></textarea></label>
         <label class="span-2">Observação interna <textarea id="clienteObservacaoInterna" rows="2" placeholder="Visível apenas no sistema. Não aparece em rota."></textarea></label>
       </div>
       <div class="modal-actions">
@@ -1580,10 +1640,10 @@
           <label>Cidade
             <input id="eventoCidade" type="text" tabindex="62" value="Rio de Janeiro" placeholder="Ex: Rio de Janeiro">
           </label>
-          <label>Complemento
+          <label>Comp./Referência
             <input id="eventoComplemento" type="text" tabindex="63" placeholder="Ex: Quiosque 15, apto, salão...">
           </label>
-          <label class="evento-observacao-wide">Referência do local
+          <label class="evento-observacao-wide">Observações Operacionais
             <textarea id="eventoClienteObservacao" rows="3" tabindex="64" placeholder="Ex: portão lateral, quiosque, salão, referência de acesso..."></textarea>
           </label>
           <label class="evento-colaborador-admin-field">Colaborador do evento
@@ -2013,14 +2073,8 @@
               <option value="Tenda Sanfonada 6x3 Cristal" data-label="Tenda Sanfonada 6x3 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="6x3" data-detalhes="sanfonada cristal">Tenda Sanfonada 6x3 Cristal</option>
             </optgroup>
             <optgroup label="Tendas piramidais">
-              <option value="Tenda Piramidal 3x3 Branca" data-label="Tenda Piramidal 3x3 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="3x3" data-detalhes="piramidal branca">Tenda Piramidal 3x3 Branca</option>
-              <option value="Tenda Piramidal 3x3 Cristal" data-label="Tenda Piramidal 3x3 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="3x3" data-detalhes="piramidal cristal">Tenda Piramidal 3x3 Cristal</option>
-              <option value="Tenda Piramidal 4x4 Branca" data-label="Tenda Piramidal 4x4 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="4x4" data-detalhes="piramidal branca">Tenda Piramidal 4x4 Branca</option>
-              <option value="Tenda Piramidal 4x4 Cristal" data-label="Tenda Piramidal 4x4 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="4x4" data-detalhes="piramidal cristal">Tenda Piramidal 4x4 Cristal</option>
-              <option value="Tenda Piramidal 4.5x3 Branca" data-label="Tenda Piramidal 4.5x3 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="4.5x3" data-detalhes="piramidal branca">Tenda Piramidal 4.5x3 Branca</option>
-              <option value="Tenda Piramidal 4.5x3 Cristal" data-label="Tenda Piramidal 4.5x3 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="4.5x3" data-detalhes="piramidal cristal">Tenda Piramidal 4.5x3 Cristal</option>
-              <option value="Tenda Piramidal 6x3 Branca" data-label="Tenda Piramidal 6x3 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="6x3" data-detalhes="piramidal branca">Tenda Piramidal 6x3 Branca</option>
-              <option value="Tenda Piramidal 6x3 Cristal" data-label="Tenda Piramidal 6x3 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="6x3" data-detalhes="piramidal cristal">Tenda Piramidal 6x3 Cristal</option>
+              <option value="Tenda Piramidal 5x5 Branca" data-label="Tenda Piramidal 5x5 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="5x5" data-detalhes="piramidal branca">Tenda Piramidal 5x5 Branca</option>
+              <option value="Tenda Piramidal 5x5 Cristal" data-label="Tenda Piramidal 5x5 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="5x5" data-detalhes="piramidal cristal">Tenda Piramidal 5x5 Cristal</option>
               <option value="Tenda Piramidal 6x6 Branca" data-label="Tenda Piramidal 6x6 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="6x6" data-detalhes="piramidal branca">Tenda Piramidal 6x6 Branca</option>
               <option value="Tenda Piramidal 6x6 Cristal" data-label="Tenda Piramidal 6x6 Cristal" data-tipo="produto" data-categoria="Tenda" data-tamanho="6x6" data-detalhes="piramidal cristal">Tenda Piramidal 6x6 Cristal</option>
               <option value="Tenda Piramidal 8x8 Branca" data-label="Tenda Piramidal 8x8 Branca" data-tipo="produto" data-categoria="Tenda" data-tamanho="8x8" data-detalhes="piramidal branca">Tenda Piramidal 8x8 Branca</option>
@@ -2178,6 +2232,8 @@
   <script src="js/orcamentos.js"></script>
   <script src="js/financeiro.js"></script>
   <script src="js/rotas.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/mapa.js"></script>
   <script src="js/rua-mobile.js"></script>
   <script src="js/mobile-manutencao.js"></script>
   <script src="js/mobile-eventos.js"></script>

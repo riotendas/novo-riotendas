@@ -67,8 +67,12 @@ function iniciarClientes() {
   document.getElementById("novoClienteBtn").addEventListener("click", abrirNovoCliente);
   document.getElementById("fecharClienteModal").addEventListener("click", fecharClienteModal);
   document.getElementById("cancelarCliente").addEventListener("click", fecharClienteModal);
-  ["clienteNome", "clienteTelefone"].forEach(id => document.getElementById(id)?.addEventListener("input", () => atualizarWhatsappClienteForm()));
+  ["clienteNome", "clienteTelefone"].forEach(id => document.getElementById(id)?.addEventListener("input", () => { if (typeof atualizarWhatsappClienteForm === "function") atualizarWhatsappClienteForm(); }));
   document.getElementById("clienteForm").addEventListener("submit", salvarClienteForm);
+  // Evita quebrar o clique de editar se a rotina de WhatsApp não estiver carregada nesta versão.
+  if (typeof window.atualizarWhatsappClienteForm !== "function" && typeof atualizarWhatsappClienteForm !== "function") {
+    window.atualizarWhatsappClienteForm = function(){};
+  }
   const clienteDialogEnter = document.getElementById("clienteDialog");
   if (clienteDialogEnter && !clienteDialogEnter.dataset.enterSalvarFechar) {
     clienteDialogEnter.dataset.enterSalvarFechar = "1";
@@ -95,7 +99,7 @@ function abrirNovoCliente() {
   document.getElementById("clienteForm").reset();
   document.getElementById("clienteId").value = "";
   document.getElementById("clienteModalTitulo").textContent = "Novo cliente";
-  setTimeout(() => atualizarWhatsappClienteForm({ nome: "", telefone: "" }), 0);
+  setTimeout(() => { if (typeof atualizarWhatsappClienteForm === "function") atualizarWhatsappClienteForm({ nome: "", telefone: "" }); }, 0);
   const cidadePadrao = (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro");
   const campoCidade = document.getElementById("clienteCidade");
   if (campoCidade) campoCidade.value = cidadePadrao;
@@ -119,7 +123,7 @@ function abrirEditarCliente(id) {
   document.getElementById("clienteObservacao").value = c.observacao_cliente || "";
   document.getElementById("clienteObservacaoInterna").value = c.observacao_interna || "";
   document.getElementById("clienteModalTitulo").textContent = "Editar cliente";
-  atualizarWhatsappClienteForm(c);
+  if (typeof atualizarWhatsappClienteForm === "function") atualizarWhatsappClienteForm(c);
   document.getElementById("clienteDialog").showModal();
 }
 
@@ -221,8 +225,8 @@ function renderizarClientes() {
       <td><span class="cliente-perfil-badge perfil-${normalizarPerfilCliente(c.perfil_cliente)}">${c.perfil_cliente || "Normal"}</span></td>
       <td>${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(c) : c.endereco) || "-"}</td>
       <td>${c.colaborador || "-"}</td>
-      <td class="actions clientes-actions"><div class="clientes-actions-row clientes-actions-row-wrap"><button data-action="editar" data-id="${c.id}">✏️</button>
-        <button class="btn-outline cliente-whatsapp-lista-btn" title="Abrir dados e WhatsApp" data-action="whatsapp" data-id="${c.id}">💬 WhatsApp</button>
+      <td class="actions clientes-actions"><div class="clientes-actions-row clientes-actions-row-wrap"><button type="button" class="btn-outline cliente-editar-btn" data-action="editar" data-id="${c.id}">✏️</button>
+        <button class="btn-outline cliente-whatsapp-lista-btn" title="Abrir dados e WhatsApp" data-action="whatsapp" data-id="${c.id}">💬 Zap</button>
         <button class="btn-outline" title="Excluir" data-action="excluir" data-id="${c.id}">🗑️</button></div></td>
     </tr>
   `).join("");
@@ -554,3 +558,28 @@ document.addEventListener("click", event => {
     alert("Abra o setor de Eventos para visualizar este evento.");
   }
 });
+
+window.abrirEditarCliente = abrirEditarCliente;
+
+
+/* RT fix: edição de cliente robusta sem quebrar a listagem */
+window.abrirEditarCliente = abrirEditarCliente;
+window.rtEditarClienteSeguro = function(id){
+  try {
+    abrirEditarCliente(id);
+  } catch (err) {
+    console.error("Erro ao abrir edição de cliente:", err);
+    alert("Erro ao abrir edição do cliente: " + (err && err.message ? err.message : err));
+  }
+};
+(function(){
+  if (window.__rtClienteEditarDelegadoFinal) return;
+  window.__rtClienteEditarDelegadoFinal = true;
+  document.addEventListener("click", function(ev){
+    const btn = ev.target.closest && ev.target.closest("#clientesSection button[data-action='editar'][data-id]");
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    window.rtEditarClienteSeguro(btn.dataset.id);
+  }, true);
+})();

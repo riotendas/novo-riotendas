@@ -58,15 +58,51 @@ function coresProdutosAtivas() {
 }
 
 
-function rtProdutoObsEventoCurta(valor) {
+function rtProdutoObsEventoJaPassou(produto = {}, nomeCliente = "") {
+  try {
+    const normalizar = v => String(v || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    const alvo = normalizar(nomeCliente).slice(0, 40);
+    const listaEventos = (typeof getEventosDisponibilidadeProduto === "function") ? getEventosDisponibilidadeProduto() : (Array.isArray(eventos) ? eventos : []);
+    const candidatos = (listaEventos || [])
+      .filter(ev => {
+        if (typeof eventoUsaProdutoParaDisponibilidade === "function" && !eventoUsaProdutoParaDisponibilidade(ev, produto)) return false;
+        const nome = normalizar(ev.nome || ev.cliente || ev.cliente_nome || "");
+        return alvo && (nome.includes(alvo) || alvo.includes(nome));
+      })
+      .map(ev => {
+        const intervalo = (typeof intervaloEventoDisponibilidade === "function") ? intervaloEventoDisponibilidade(ev) : { fim: ev.desmontagem || ev.data_evento };
+        const fim = intervalo?.fim || ev.desmontagem || ev.data_evento || ev.data;
+        const dataFim = fim ? new Date(String(fim).includes("T") ? fim : `${fim}T23:59:59`) : null;
+        return { ev, dataFim };
+      })
+      .filter(item => item.dataFim && !Number.isNaN(item.dataFim.getTime()))
+      .sort((a, b) => b.dataFim - a.dataFim);
+    if (!candidatos.length) return false;
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    return candidatos[0].dataFim.getTime() < hoje.getTime();
+  } catch {
+    return false;
+  }
+}
+
+function rtProdutoObsEventoCurta(valor, produto = {}) {
   const texto = String(valor || '').trim();
   if (!texto) return '';
-  const m = texto.match(/^(?:entregue\s*\/?\s*montado\s+no\s+evento|entregue\s+no\s+evento|montado\s+no\s+evento|alugad[oa]\s+para|evento)\s*:?\s*(.+)$/i);
+  const m = texto.match(/^(?:ult\.?\s*evento|últ\.?\s*evento|ultimo\s+evento|último\s+evento|entregue\s*\/?\s*montado\s+no\s+evento|entregue\s+no\s+evento|montado\s+no\s+evento|alugad[oa]\s+para|evento)\s*:?\s*(.+)$/i);
   if (m && m[1]) {
-    return `Evento: ${m[1].replace(/\.\s*Aguardando revisão\.?$/i, '').trim()}`;
+    const nome = m[1].replace(/\.\s*Aguardando revisão\.?$/i, '').trim();
+    const prefixo = rtProdutoObsEventoJaPassou(produto, nome) ? "Últ. Evento" : "Evento";
+    return `${prefixo}: ${nome}`;
   }
   return texto;
 }
+window.rtProdutoObsEventoCurta = rtProdutoObsEventoCurta;
 
 async function buscarProdutosBanco() {
   if (!supabaseClient) {
@@ -1073,7 +1109,7 @@ function htmlDisponibilidadePeriodoProduto(produto) {
   const proximo = proximoUsoProduto(produto);
   const limpeza = ultimaLimpezaProduto(produto);
   const proxLinha = proximo
-    ? `Próx: ${primeiroNomeProdutoDisp(proximo.evento?.nome)} ${formatarDataCurtaProdutoDisp(proximo.inicioComparacao || proximo.intervalo?.inicio)}`
+    ? `${d.classe==="ocupado"||d.texto==="Alugado"?"Atual":"Próx"}: ${primeiroNomeProdutoDisp(proximo.evento?.nome)} ${formatarDataCurtaProdutoDisp(proximo.inicioComparacao || proximo.intervalo?.inicio)}`
     : (d.texto === "Sem locação" ? "Próx: —" : `${d.texto}`);
   const limpezaLinha = `Limp: ${limpeza ? formatarDataCurtaProdutoDisp(limpeza.dataObj) : "—"}`;
 
@@ -1453,7 +1489,7 @@ function renderizarProdutos() {
           ${statusProdutos.map(s => `<option value="${s}" ${statusParaSelect === s ? "selected" : ""}>${s}</option>`).join("")}
         </select>
       </td>
-      <td><input data-action="obs" data-id="${p.id}" value="${rtProdutoObsEventoCurta(p.observacao).replaceAll('"', '&quot;')}" /></td>
+      <td><input data-action="obs" data-id="${p.id}" value="${rtProdutoObsEventoCurta(p.observacao, p).replaceAll('"', '&quot;')}" /></td>
       <td class="check-cell">${htmlCheckDepositoProduto(p)}</td>
       <td class="availability-cell">${htmlDisponibilidadePeriodoProduto(p)}</td>
       <td class="actions">
@@ -2049,7 +2085,7 @@ async function abrirDetalheProduto(id) {
             <div><span>Cadastro</span><strong>${formatarData(p.criado_em || p.data_cadastro || p.data_compra)}</strong></div>
           </div>
           <div class="produto-dados-linha produto-dados-linha-2">
-            <div><span>Observação</span><strong>${rtProdutoObsEventoCurta(p.observacao) || "-"}</strong></div>
+            <div><span>Observação</span><strong>${rtProdutoObsEventoCurta(p.observacao, p) || "-"}</strong></div>
             <div><span>Atualizado</span><strong>${formatarData(p.atualizado_em)}</strong></div>
           </div>
         </div>

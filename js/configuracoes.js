@@ -4117,3 +4117,142 @@ if (document.readyState === "loading") {
     }
   }, true);
 })();
+
+
+// v19-dev-mapa-geocode-lote: botão em Configurações para preencher coordenadas antigas
+(function(){
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  function rtGeoStatusEl(){
+    return document.getElementById('configAtualizarCoordenadasStatus');
+  }
+
+  function rtGeoSetStatus(html){
+    const el = rtGeoStatusEl();
+    if (!el) return;
+    el.style.display = 'block';
+    el.innerHTML = html;
+  }
+
+  function rtGeoFmtNome(ev){
+    return String(ev?.nome || ev?.cliente || 'Evento').trim() || 'Evento';
+  }
+
+  async function rtAtualizarCoordenadasEventosAntigos(){
+    const btn = document.getElementById('configAtualizarCoordenadasEventos');
+    if (!btn) return;
+    if (typeof supabaseClient === 'undefined' || !supabaseClient) {
+      alert('Supabase não está conectado.');
+      return;
+    }
+    if (typeof rtGeocodificarEventoAutomatico !== 'function') {
+      alert('Rotina de geocodificação não encontrada. Atualize a página e tente novamente.');
+      return;
+    }
+
+    const ok = confirm('Atualizar latitude/longitude dos eventos sem coordenadas?\n\nO processo roda em lotes e pode levar alguns minutos. Eventos já localizados não serão alterados.');
+    if (!ok) return;
+
+    const textoOriginal = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<strong>📍 Atualizando...</strong><span>Aguarde, processando eventos antigos.</span>';
+
+    let total = 0, localizados = 0, pendentes = 0, erros = 0, ignorados = 0;
+    const detalhesPendentes = [];
+
+    try {
+      const { data, error } = await supabaseClient
+        .from('eventos')
+        .select('*')
+        .or('latitude.is.null,longitude.is.null,geocode_status.neq.LOCALIZADO')
+        .order('data_evento', { ascending: false })
+        .limit(500);
+
+      if (error) throw error;
+      const lista = Array.isArray(data) ? data.filter(ev => {
+        const lat = Number(ev.latitude), lng = Number(ev.longitude);
+        const temCoord = Number.isFinite(lat) && Number.isFinite(lng) && !(Math.abs(lat) < 0.000001 && Math.abs(lng) < 0.000001);
+        return !temCoord;
+      }) : [];
+
+      total = lista.length;
+      if (!total) {
+        rtGeoSetStatus('<strong>📍 Coordenadas</strong><br>Todos os eventos encontrados já possuem latitude/longitude.');
+        return;
+      }
+
+      for (let i = 0; i < lista.length; i++) {
+        const original = lista[i];
+        rtGeoSetStatus(`<strong>📍 Atualizando coordenadas</strong><br>Processando ${i+1}/${total}: ${rtGeoFmtNome(original)}<br>Localizados: ${localizados} · Pendentes: ${pendentes} · Erros: ${erros}`);
+
+        try {
+          const ev = { ...original };
+          await rtGeocodificarEventoAutomatico(ev, null);
+
+          const payload = {
+            latitude: ev.latitude ?? null,
+            longitude: ev.longitude ?? null,
+            geocode_status: ev.geocode_status || 'PENDENTE',
+            geocode_at: ev.geocode_at || new Date().toISOString(),
+            atualizado_em: new Date().toISOString()
+          };
+
+          const { error: updErr } = await supabaseClient
+            .from('eventos')
+            .update(payload)
+            .eq('id', original.id);
+          if (updErr) throw updErr;
+
+          if (payload.latitude != null && payload.longitude != null && payload.geocode_status === 'LOCALIZADO') {
+            localizados++;
+          } else {
+            pendentes++;
+            if (detalhesPendentes.length < 8) detalhesPendentes.push(rtGeoFmtNome(original));
+          }
+
+          // Atualiza cache local da sessão para o mapa/listas já abertas.
+          try {
+            if (Array.isArray(window.eventos)) {
+              const idx = window.eventos.findIndex(e => String(e.id) === String(original.id));
+              if (idx >= 0) window.eventos[idx] = { ...window.eventos[idx], ...payload };
+            }
+          } catch (_) {}
+        } catch (e) {
+          console.warn('[Geocode lote] Falha em evento:', original?.id, e);
+          erros++;
+          if (detalhesPendentes.length < 8) detalhesPendentes.push(rtGeoFmtNome(original));
+        }
+
+        // Respeita o serviço público de geocodificação e evita travar a tela.
+        await sleep(1100);
+      }
+
+      const pendentesTxt = detalhesPendentes.length
+        ? `<br><small>Para revisar: ${detalhesPendentes.map(x => String(x).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))).join(', ')}${(pendentes+erros)>detalhesPendentes.length ? '...' : ''}</small>`
+        : '';
+      rtGeoSetStatus(`<strong>📍 Coordenadas atualizadas</strong><br>Processados: ${total}<br>Localizados: ${localizados}<br>Pendentes/Revisar: ${pendentes}<br>Erros: ${erros}${pendentesTxt}`);
+
+      try {
+        if (typeof carregarEventos === 'function') await carregarEventos();
+        if (typeof renderizarMapaOperacional === 'function') renderizarMapaOperacional();
+      } catch (_) {}
+    } catch (e) {
+      console.error('[Geocode lote] Erro geral:', e);
+      rtGeoSetStatus(`<strong>Erro ao atualizar coordenadas.</strong><br>${String(e.message || e)}`);
+      alert('Erro ao atualizar coordenadas: ' + (e.message || e));
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = textoOriginal;
+    }
+  }
+
+  document.addEventListener('click', function(ev){
+    const btn = ev.target.closest && ev.target.closest('#configAtualizarCoordenadasEventos');
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    rtAtualizarCoordenadasEventosAntigos();
+  }, true);
+
+  window.rtAtualizarCoordenadasEventosAntigos = rtAtualizarCoordenadasEventosAntigos;
+})();

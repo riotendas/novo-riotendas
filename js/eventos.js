@@ -306,6 +306,30 @@ function montarDataHoraEvento(data, hora) {
   return `${data}T${hora || "00:00"}`;
 }
 
+function rtNormalizarHoraEventoParaSalvar(valor) {
+  const texto = String(valor || "").trim();
+  if (!texto) return null;
+  const base = texto.includes("T") ? texto.slice(11, 16) : texto;
+  const m = base.match(/(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const h = Math.max(0, Math.min(23, Number(m[1])));
+  const min = Math.max(0, Math.min(59, Number(m[2])));
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
+function rtSelecionarHoraEventoNoSelect(id, valor) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const hora = rtNormalizarHoraEventoParaSalvar(valor) || "";
+  if (hora && !Array.from(el.options || []).some(opt => opt.value === hora)) {
+    const opt = document.createElement("option");
+    opt.value = hora;
+    opt.textContent = hora;
+    el.appendChild(opt);
+  }
+  el.value = hora;
+}
+
 function atualizarCampoHoraFinalOperacao(prefixo) {
   const select = document.getElementById(`evento${prefixo}Tipo`);
   const box = document.getElementById(`evento${prefixo}FimBox`);
@@ -359,6 +383,233 @@ async function buscarEventosBanco() {
   return data || [];
 }
 
+
+
+// Geocodificação automática de eventos (Mapa Operacional)
+// Regra: usa SOMENTE Endereço + Bairro + Cidade + RJ + Brasil, limpando textos operacionais.
+// Complemento/referência/nome do local não entram na busca automática.
+function rtNormalizarTextoGeocode(valor) {
+  return String(valor || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function rtLimparEnderecoParaGeocode(valor) {
+  let txt = String(valor || "")
+    .replace(/\r?\n+/g, " ")
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\bCEP\s*:?\s*\d{5}\s*-?\s*\d{3}\b/gi, " ")
+    .replace(/\b\d{5}\s*-\s*\d{3}\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Muitos endereços operacionais vêm como:
+  // "Av. Pasteur, 404 - CEP... - Urca - Rio de Janeiro, Museu...".
+  // Para geocodificar, usamos apenas o logradouro/número antes dos separadores.
+  const partes = txt.split(/\s+-\s+/).map(p => p.trim()).filter(Boolean);
+  if (partes.length) {
+    const parteComRua = partes.find(p => /\d|\b(R\.?|Rua|Av\.?|Avenida|Estr\.?|Estrada|Rod\.?|Rodovia|Praia|Largo|Trav\.?|Travessa|Alameda|Al\.?|Rua)\b/i.test(p));
+    txt = parteComRua || partes[0];
+  }
+
+  txt = txt
+    .replace(/^R\.\s+/i, "Rua ")
+    .replace(/^Av\.\s+/i, "Avenida ")
+    .replace(/^Estr\.\s+/i, "Estrada ")
+    .replace(/^Rod\.\s+/i, "Rodovia ")
+    .replace(/^Trav\.\s+/i, "Travessa ")
+    .replace(/^Al\.\s+/i, "Alameda ")
+    .replace(/\bS\/N\b/gi, "sem número")
+    .replace(/\s*,\s*/g, ", ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return txt;
+}
+
+function rtLimparParteGeocode(valor) {
+  return String(valor || "")
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\bCEP\s*:?\s*\d{5}\s*-?\s*\d{3}\b/gi, " ")
+    .replace(/\b\d{5}\s*-\s*\d{3}\b/g, " ")
+    .split(/\s+-\s+/)[0]
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function rtCidadePadraoGeocode() {
+  try {
+    return (typeof carregarConfiguracoes === "function" && carregarConfiguracoes().cidadePadrao) || "Rio de Janeiro";
+  } catch (_) {
+    return "Rio de Janeiro";
+  }
+}
+
+function rtPartesEnderecoGeocodeEvento(evento) {
+  const logradouro = rtLimparEnderecoParaGeocode(evento?.endereco || "");
+  const bairro = rtLimparParteGeocode(evento?.bairro || "");
+  const cidade = rtLimparParteGeocode(evento?.cidade || rtCidadePadraoGeocode() || "Rio de Janeiro") || "Rio de Janeiro";
+  return { logradouro, bairro, cidade };
+}
+
+function rtEnderecoGeocodeEvento(evento) {
+  const { logradouro, bairro, cidade } = rtPartesEnderecoGeocodeEvento(evento);
+  return [logradouro, bairro, cidade, "RJ", "Brasil"]
+    .map(v => String(v || "").trim())
+    .filter(Boolean)
+    .filter((v, i, arr) => arr.findIndex(x => rtNormalizarTextoGeocode(x) === rtNormalizarTextoGeocode(v)) === i)
+    .join(", ");
+}
+
+function rtVariantesEnderecoGeocodeEvento(evento) {
+  const { logradouro, bairro, cidade } = rtPartesEnderecoGeocodeEvento(evento);
+  const brutoLimpo = rtLimparParteGeocode(evento?.endereco || "");
+  const vars = [
+    [logradouro, bairro, cidade, "RJ", "Brasil"],
+    [logradouro, cidade, "RJ", "Brasil"],
+    [logradouro, bairro, cidade, "Brasil"],
+    [brutoLimpo, bairro, cidade, "RJ", "Brasil"],
+    [bairro, cidade, "RJ", "Brasil"]
+  ].map(partes => partes.map(v => String(v || "").trim()).filter(Boolean).join(", "));
+
+  const vistos = new Set();
+  return vars
+    .map(v => v.replace(/,{2,}/g, ",").replace(/\s+,/g, ",").replace(/,\s*,/g, ",").trim())
+    .filter(v => v.length >= 8)
+    .filter(v => { const k = rtNormalizarTextoGeocode(v); if (vistos.has(k)) return false; vistos.add(k); return true; })
+    .slice(0, 5);
+}
+
+function rtCamposEnderecoMudaramEvento(evento, anterior) {
+  if (!anterior) return true;
+  return ["endereco", "bairro", "cidade"].some(campo =>
+    rtNormalizarTextoGeocode(evento?.[campo]) !== rtNormalizarTextoGeocode(anterior?.[campo])
+  );
+}
+
+function rtCoordenadaEventoValida(lat, lng) {
+  const la = Number(lat);
+  const lo = Number(lng);
+  if (!Number.isFinite(la) || !Number.isFinite(lo)) return false;
+  if (Math.abs(la) < 0.000001 && Math.abs(lo) < 0.000001) return false;
+  // Limites amplos do Brasil para evitar resultados absurdos de geocoder.
+  if (la < -35 || la > 6 || lo < -75 || lo > -30) return false;
+  return true;
+}
+
+function rtResultadoGeocodePareceRJ(item) {
+  const texto = rtNormalizarTextoGeocode([item?.display_name, item?.address?.state, item?.address?.city, item?.address?.county].filter(Boolean).join(" "));
+  return texto.includes("rio de janeiro") || texto.includes("rj");
+}
+
+function rtResultadoGeocodeConfiavelParaEvento(item, evento) {
+  if (!item || !rtResultadoGeocodePareceRJ(item)) return false;
+
+  const display = rtNormalizarTextoGeocode(item.display_name || "");
+  const addr = item.address || {};
+  const bairroEsperado = rtNormalizarTextoGeocode(evento?.bairro || "");
+  const cidadeEsperada = rtNormalizarTextoGeocode(evento?.cidade || "rio de janeiro");
+  const logradouroEsperado = rtNormalizarTextoGeocode(rtPartesEnderecoGeocodeEvento(evento).logradouro || "");
+
+  // Evita aceitar resultado genérico de cidade/bairro quando o evento tem rua ou número.
+  const tipo = String(item.type || "").toLowerCase();
+  const classe = String(item.class || "").toLowerCase();
+  const ehGenerico = ["city", "town", "village", "suburb", "neighbourhood", "county", "state"].includes(tipo) || classe === "boundary";
+  if (logradouroEsperado && ehGenerico) return false;
+
+  if (cidadeEsperada && !display.includes(cidadeEsperada) && !display.includes("rio de janeiro")) return false;
+
+  // Se há bairro informado, exige que o bairro apareça no retorno. Isso reduz casos como Diogo/Petrobras caindo em local homônimo.
+  if (bairroEsperado && !display.includes(bairroEsperado)) return false;
+
+  return true;
+}
+
+async function rtBuscarCoordenadaNominatim(q, controller, evento = null) {
+  // Restringe ao estado do RJ para evitar resultado em outro estado quando o endereço é ambíguo.
+  // viewbox: esquerda, topo, direita, baixo (aprox. Estado do RJ).
+  const params = new URLSearchParams({
+    format: "jsonv2",
+    q,
+    limit: "5",
+    addressdetails: "1",
+    countrycodes: "br",
+    bounded: "1",
+    viewbox: "-44.95,-20.60,-40.90,-23.40",
+    "accept-language": "pt-BR"
+  });
+  const resp = await fetch("https://nominatim.openstreetmap.org/search?" + params.toString(), { signal: controller.signal });
+  if (!resp.ok) throw new Error("HTTP " + resp.status);
+  const data = await resp.json();
+  if (!Array.isArray(data)) return null;
+  for (const item of data) {
+    const lat = Number(item.lat);
+    const lng = Number(item.lon);
+    if (rtCoordenadaEventoValida(lat, lng) && rtResultadoGeocodeConfiavelParaEvento(item, evento)) {
+      return { lat, lng, item };
+    }
+  }
+  return null;
+}
+
+async function rtGeocodificarEventoAutomatico(evento, anterior = null) {
+  try {
+    if (!evento) return evento;
+
+    const variantes = rtVariantesEnderecoGeocodeEvento(evento);
+    const temEnderecoMinimo = String(rtLimparEnderecoParaGeocode(evento.endereco || "")).trim().length >= 4;
+    const temCoordValida = rtCoordenadaEventoValida(evento.latitude, evento.longitude);
+    const mudouEndereco = rtCamposEnderecoMudaramEvento(evento, anterior);
+
+    // Se já tem coordenada válida e o endereço não mudou, preserva.
+    if (temCoordValida && !mudouEndereco) {
+      evento.geocode_status = evento.geocode_status || "LOCALIZADO";
+      return evento;
+    }
+
+    if (!temEnderecoMinimo || !variantes.length) {
+      evento.latitude = null;
+      evento.longitude = null;
+      evento.geocode_status = "PENDENTE";
+      evento.geocode_at = new Date().toISOString();
+      return evento;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8500);
+    let encontrado = null;
+
+    try {
+      for (const q of variantes) {
+        encontrado = await rtBuscarCoordenadaNominatim(q, controller, evento);
+        if (encontrado) break;
+        await new Promise(r => setTimeout(r, 250));
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    evento.geocode_at = new Date().toISOString();
+
+    if (encontrado && rtCoordenadaEventoValida(encontrado.lat, encontrado.lng)) {
+      evento.latitude = encontrado.lat;
+      evento.longitude = encontrado.lng;
+      evento.geocode_status = "LOCALIZADO";
+    } else {
+      evento.latitude = null;
+      evento.longitude = null;
+      evento.geocode_status = "REVISAR";
+    }
+  } catch (err) {
+    console.warn("Geocodificação automática do evento falhou:", err);
+    evento.geocode_status = "ERRO";
+    evento.geocode_at = new Date().toISOString();
+  }
+  return evento;
+}
+
 async function salvarEventoBanco(evento) {
   const eventoAntesLog = Array.isArray(eventos)
     ? eventos.find(e => String(e.id) === String(evento.id))
@@ -389,6 +640,9 @@ async function salvarEventoBanco(evento) {
     return evento;
   }
 
+  // Localiza automaticamente ao salvar, sem exigir clique no botão Verificar Maps.
+  await rtGeocodificarEventoAutomatico(evento, eventoAntesLog);
+
   const eventoSupabase = {
     id: evento.id,
     nome: evento.nome || "",
@@ -399,11 +653,15 @@ async function salvarEventoBanco(evento) {
     bairro: evento.bairro || null,
     cidade: evento.cidade || (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro"),
     complemento: evento.complemento || null,
+    latitude: evento.latitude ?? null,
+    longitude: evento.longitude ?? null,
+    geocode_status: evento.geocode_status || null,
+    geocode_at: evento.geocode_at || null,
     cliente_observacao: evento.cliente_observacao || null,
     data_evento: evento.data_evento || null,
-    hora_evento: evento.hora_inicio || evento.hora_evento || null,
-    hora_inicio: evento.hora_inicio || evento.hora_evento || null,
-    hora_termino: evento.hora_termino || null,
+    hora_evento: rtNormalizarHoraEventoParaSalvar(evento.hora_inicio || evento.hora_evento) || null,
+    hora_inicio: rtNormalizarHoraEventoParaSalvar(evento.hora_inicio || evento.hora_evento) || null,
+    hora_termino: rtNormalizarHoraEventoParaSalvar(evento.hora_termino) || null,
     montagem_tipo: evento.montagem_tipo || "A partir de",
     montagem: evento.montagem || null,
     desmontagem_tipo: evento.desmontagem_tipo || "A partir de",
@@ -1297,8 +1555,9 @@ function valorOperacaoParaSalvar(campoId, tipoSelectId) {
   const hora = horaId ? (document.getElementById(horaId)?.value || "") : "";
 
   if (valor.includes("T")) return valor;
-  if (tipo === "Horário comercial" || tipo === "Livre / combinar") return `${valor}T00:00`;
-  return montarDataHoraEvento(valor, hora || "09:00");
+  const horaNormalizada = rtNormalizarHoraEventoParaSalvar(hora);
+  if (tipo === "Horário comercial" || tipo === "Livre / combinar") return `${valor}T${horaNormalizada || "00:00"}`;
+  return montarDataHoraEvento(valor, horaNormalizada || "09:00");
 }
 
 function montarEventoRecorrenteBase(id, existente) {
@@ -1314,9 +1573,9 @@ function montarEventoRecorrenteBase(id, existente) {
     complemento: document.getElementById("eventoComplemento")?.value.trim() || "",
     cliente_observacao: document.getElementById("eventoClienteObservacao")?.value.trim() || "",
     data_evento: document.getElementById("eventoData").value || null,
-    hora_inicio: document.getElementById("eventoHoraInicio").value || null,
-    hora_termino: document.getElementById("eventoHoraTermino").value || null,
-    hora_evento: document.getElementById("eventoHoraInicio").value || null,
+    hora_inicio: rtNormalizarHoraEventoParaSalvar(document.getElementById("eventoHoraInicio")?.value) || null,
+    hora_termino: rtNormalizarHoraEventoParaSalvar(document.getElementById("eventoHoraTermino")?.value) || null,
+    hora_evento: rtNormalizarHoraEventoParaSalvar(document.getElementById("eventoHoraInicio")?.value) || null,
     montagem_tipo: montarTipoHorarioParaSalvar("eventoMontagemTipo", "eventoMontagemFim"),
     montagem: valorOperacaoParaSalvar("eventoMontagem", "eventoMontagemTipo"),
     desmontagem_tipo: montarTipoHorarioParaSalvar("eventoDesmontagemTipo", "eventoDesmontagemFim"),
@@ -1467,8 +1726,8 @@ function abrirEditarEvento(id) {
   rtEventoSetEnderecoStatus("", "neutro");
   document.getElementById("eventoClienteObservacao").value = e.cliente_observacao || "";
   document.getElementById("eventoData").value = e.data_evento || "";
-  document.getElementById("eventoHoraInicio").value = e.hora_inicio || e.hora_evento || "";
-  document.getElementById("eventoHoraTermino").value = e.hora_termino || "";
+  rtSelecionarHoraEventoNoSelect("eventoHoraInicio", e.hora_inicio || e.hora_evento || "");
+  rtSelecionarHoraEventoNoSelect("eventoHoraTermino", e.hora_termino || "");
   aplicarTipoHorarioNoFormulario("Montagem", e.montagem_tipo || "A partir de");
   const campoMontagem = document.getElementById("eventoMontagem");
   const partesMontagem = separarDataHoraEvento(e.montagem || "");
@@ -1701,6 +1960,72 @@ function eventoUsaProdutoPorIdOuCodigo(evento, produto) {
     return (id && String(item.id || "") === id)
       || (codigo && String(item.codigo || "").trim() === codigo);
   });
+}
+
+
+function rtDataComparavelEvento(valor) {
+  const s = dataISOEventoSeguro(valor);
+  return s || "";
+}
+
+function rtDataBaseDestinoUsoTransito(eventoOuAtual) {
+  // Para decidir uso em trânsito, a data mais importante é a montagem/entrega.
+  // Se não houver montagem, usa a data do evento.
+  if (eventoOuAtual && typeof eventoOuAtual === "object" && !("nodeType" in eventoOuAtual)) {
+    return rtDataComparavelEvento(eventoOuAtual.montagem || eventoOuAtual.data_evento || eventoOuAtual.data || "");
+  }
+  const montagem = document.getElementById("eventoMontagem")?.value || "";
+  const data = document.getElementById("eventoData")?.value || "";
+  return rtDataComparavelEvento(montagem || data);
+}
+
+function rtDataLiberacaoOrigemUsoTransito(conflito) {
+  if (!conflito) return "";
+
+  // Regra segura: para "uso em trânsito" o que manda é a DESMONTAGEM/RETIRADA
+  // do evento de origem, nunca a data do evento. Isso evita liberar material ainda
+  // montado em outro cliente (ex.: evento em 13/06 com desmontagem só em 29/06).
+  const desmontagem = rtDataComparavelEvento(conflito.desmontagem || conflito.data_desmontagem || conflito.retirada || "");
+  if (desmontagem) return desmontagem;
+
+  const intervalo = intervaloDeEventoParaDisponibilidade(conflito);
+  const fimIntervalo = rtDataComparavelEvento(intervalo?.fim || "");
+  if (fimIntervalo) return fimIntervalo;
+
+  return "";
+}
+
+function rtConflitoPermiteUsoEmTransito(conflito, destino = null) {
+  if (!conflito) return false;
+
+  // Eventos recorrentes não devem virar "uso em trânsito" automaticamente,
+  // porque a próxima ocorrência pode continuar usando o mesmo material.
+  if (typeof isEventoRecorrente === "function" && isEventoRecorrente(conflito)) {
+    return false;
+  }
+
+  const dataLiberacaoOrigem = rtDataLiberacaoOrigemUsoTransito(conflito);
+  const dataDestino = rtDataBaseDestinoUsoTransito(destino);
+  if (!dataLiberacaoOrigem || !dataDestino) return false;
+
+  // Só é trânsito se a retirada/desmontagem da origem acontece até a data
+  // de montagem/entrega do destino. Se a origem desmonta depois, continua bloqueado.
+  return dataLiberacaoOrigem <= dataDestino;
+}
+
+function rtTextoConflitoProdutoEvento(conflito, permitirTransito = false) {
+  const nome = conflito?.nome || conflito?.cliente || "Cliente";
+  const dataEvento = conflito?.data_evento ? dataBR(conflito.data_evento) : "data não informada";
+  const dataLiberacao = rtDataLiberacaoOrigemUsoTransito(conflito);
+  const dataLiberacaoBR = dataLiberacao ? dataBR(dataLiberacao) : dataEvento;
+
+  if (permitirTransito) {
+    return `Em uso - ${nome} - ${dataLiberacaoBR} | ⚠ Uso em trânsito`;
+  }
+
+  // Quando não pode trânsito, mostrar claramente que o material continua preso
+  // em outro evento até a desmontagem/retirada.
+  return `⚠ Em uso até ${dataLiberacaoBR} - ${nome}`;
 }
 
 function produtoJaSelecionadoNoEvento(lista, produto, ignorarIndex = -1) {
@@ -2005,12 +2330,13 @@ function produtoEstaDisponivelNoEvento(produto, evento, ignorarIndex = -1) {
   });
 
   if (conflito) {
+    const permiteUsoTransito = rtConflitoPermiteUsoEmTransito(conflito, evento);
     return {
       livre: false,
-      texto: `Em uso: ${conflito.nome || "cliente"} em ${dataBR(conflito.data_evento)}`,
-      classe: "busy",
+      texto: rtTextoConflitoProdutoEvento(conflito, permiteUsoTransito),
+      classe: permiteUsoTransito ? "transit" : "busy",
       conflito,
-      permiteUsoTransito: true
+      permiteUsoTransito
     };
   }
 
@@ -2067,12 +2393,13 @@ function disponibilidadeProdutoParaEvento(produtoId) {
   });
 
   if (conflito) {
+    const permiteUsoTransito = rtConflitoPermiteUsoEmTransito(conflito, null);
     return {
       livre: false,
-      texto: `Em uso: ${conflito.nome || "cliente"} em ${dataBR(conflito.data_evento)}`,
-      classe: "busy",
+      texto: rtTextoConflitoProdutoEvento(conflito, permiteUsoTransito),
+      classe: permiteUsoTransito ? "transit" : "busy",
       conflito,
-      permiteUsoTransito: true
+      permiteUsoTransito
     };
   }
 
@@ -2121,9 +2448,7 @@ function rtLinhaDisponibilidadeProdutoEvento(produto, disponibilidade, opcoes = 
   const disp = disponibilidade || {};
   const permitirTransito = !!opcoes.transito || !!disp.permiteUsoTransito;
   if (disp.conflito) {
-    const nome = disp.conflito.nome || disp.conflito.cliente || "Cliente";
-    const data = disp.conflito.data_evento ? dataBR(disp.conflito.data_evento) : "data não informada";
-    return `Em uso - ${nome} - ${data}${permitirTransito ? " | ⚠ Uso em trânsito" : ""}`;
+    return rtTextoConflitoProdutoEvento(disp.conflito, permitirTransito);
   }
   return disp.texto || "Disponível";
 }
@@ -2143,8 +2468,8 @@ function popularSelectProdutosEvento() {
   select.innerHTML = `<option value="">Selecione um produto para adicionar</option>` + disponiveis.map(p => {
     const disp = disponibilidadeProdutoParaEvento(p.id);
     return `
-      <option value="${p.id}" ${disp.livre || disp.permiteUsoTransito ? "" : "disabled"}>
-        ${p.codigo || "Sem código"} — ${p.categoria || p.tipo || "-"} ${p.tamanho || ""} ${p.cor || ""} | ${disp.livre ? disp.texto : (disp.permiteUsoTransito ? rtLinhaDisponibilidadeProdutoEvento(p, disp, { transito: true }) : disp.texto)}
+      <option value="${p.id}" ${(disp.livre || disp.permiteUsoTransito) ? "" : "disabled"}>
+        ${p.codigo || "Sem código"} — ${p.categoria || p.tipo || "-"} ${p.tamanho || ""} ${p.cor || ""} | ${disp.livre ? disp.texto : rtLinhaDisponibilidadeProdutoEvento(p, disp, { transito: !!disp.permiteUsoTransito })}
       </option>
     `;
   }).join("");
@@ -2697,48 +3022,233 @@ function obterApoioSelecionadoEvento() {
 }
 
 
-function quantidadeApoioReservadaNoPeriodo(itemId, eventoAtualId = "") {
-  const intervaloAtual = intervaloEventoAtual();
-  if (!intervaloAtual.inicio || !intervaloAtual.fim) return 0;
 
-  return eventos.reduce((total, evento) => {
-    if (String(evento.id) === String(eventoAtualId)) return total;
+function rtQuantidadeApoioOriginalDoEventoAtual(itemId, eventoAtualId = "") {
+  if (!eventoAtualId) return 0;
+  const eventoOriginal = (Array.isArray(eventos) ? eventos : []).find(e => String(e.id) === String(eventoAtualId));
+  if (!eventoOriginal || !Array.isArray(eventoOriginal.itens_apoio)) return 0;
+  const itemOriginal = eventoOriginal.itens_apoio.find(i => String(i.id) === String(itemId));
+  return Number(itemOriginal?.quantidade || 0) || 0;
+}
+
+function rtQuantidadeApoioPicoNoPeriodo(itemId, intervaloBase, eventoIgnorarId = "") {
+  if (!intervaloBase?.inicio || !intervaloBase?.fim) return 0;
+
+  const baseInicio = rtTimestampLocalOperacionalEvento(intervaloBase.inicio);
+  const baseFim = rtTimestampLocalOperacionalEvento(intervaloBase.fim);
+  if ([baseInicio, baseFim].some(Number.isNaN)) return 0;
+
+  const movimentos = [];
+
+  (Array.isArray(eventos) ? eventos : []).forEach(evento => {
+    if (!evento || (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento))) return;
+    if (String(evento.id || "") === String(eventoIgnorarId || "")) return;
 
     const itemEvento = Array.isArray(evento.itens_apoio)
       ? evento.itens_apoio.find(i => String(i.id) === String(itemId))
       : null;
+    const qtd = Number(itemEvento?.quantidade || 0) || 0;
+    if (!qtd) return;
 
-    if (!itemEvento) return total;
+    const intervaloOutro = intervaloDeEventoParaDisponibilidade(evento);
+    if (!periodosConflitam(intervaloBase.inicio, intervaloBase.fim, intervaloOutro.inicio, intervaloOutro.fim)) return;
 
-    const intervaloEvento = intervaloDeEventoParaDisponibilidade(evento);
-    const inicioEvento = intervaloEvento.inicio;
-    const fimEvento = intervaloEvento.fim;
+    const ini = Math.max(baseInicio, rtTimestampLocalOperacionalEvento(intervaloOutro.inicio));
+    const fim = Math.min(baseFim, rtTimestampLocalOperacionalEvento(intervaloOutro.fim));
+    if ([ini, fim].some(Number.isNaN) || ini > fim) return;
 
-    if (periodosConflitam(intervaloAtual.inicio, intervaloAtual.fim, inicioEvento, fimEvento)) {
-      return total + Number(itemEvento.quantidade || 0);
-    }
+    movimentos.push([ini, qtd]);
+    movimentos.push([fim + 1, -qtd]);
+  });
 
-    return total;
-  }, 0);
+  movimentos.sort((a, b) => (a[0] - b[0]) || (b[1] - a[1]));
+  let atual = 0;
+  let pico = 0;
+  movimentos.forEach(([, delta]) => {
+    atual += delta;
+    if (atual > pico) pico = atual;
+  });
+  return Math.max(0, pico);
+}
+
+function quantidadeApoioReservadaNoPeriodo(itemId, eventoAtualId = "") {
+  const intervaloAtual = intervaloEventoAtual();
+  return rtQuantidadeApoioPicoNoPeriodo(itemId, intervaloAtual, eventoAtualId);
 }
 
 function disponibilidadeApoioParaEvento(item, quantidadeDesejada = 0) {
   const eventoAtualId = document.getElementById("eventoId")?.value || "";
-  const total = Number(item.quantidade_total || 0);
+  const total = Number(item.quantidade_total || 0) || 0;
   const reservadoNoPeriodo = quantidadeApoioReservadaNoPeriodo(item.id, eventoAtualId);
-  const disponivel = Math.max(total - reservadoNoPeriodo, 0);
-  const quantidade = Number(quantidadeDesejada || 0);
+  const quantidadeOriginalEvento = rtQuantidadeApoioOriginalDoEventoAtual(item.id, eventoAtualId);
+  const disponivelReal = Math.max(total - reservadoNoPeriodo, 0);
+  // Ao editar um evento existente, não bloqueia salvar/editar por causa do próprio material já lançado.
+  // Se a agenda já está sobrecarregada por outros eventos, permite manter a quantidade original,
+  // mas não permite aumentar acima do que realmente sobra para o período.
+  const limiteParaCampo = Math.max(disponivelReal, quantidadeOriginalEvento);
+  const quantidade = Number(quantidadeDesejada || 0) || 0;
 
   return {
     total,
     reservadoNoPeriodo,
-    disponivel,
-    ok: quantidade <= disponivel,
-    texto: `Disponível na data: ${disponivel} de ${total}`
+    disponivel: limiteParaCampo,
+    disponivelReal,
+    quantidadeOriginalEvento,
+    ok: quantidade <= limiteParaCampo,
+    texto: `Disponível na data: ${limiteParaCampo} de ${total}`
   };
 }
 
-function validarProdutosDoEvento() {
+function rtDescricaoEventoCurta(evento) {
+  if (!evento) return "outro evento";
+  return `${evento.nome || evento.cliente || "Evento"}${evento.data_evento ? " em " + dataBR(evento.data_evento) : ""}`;
+}
+
+function rtItemProdutoEventoBase(produto) {
+  return {
+    id: produto.id,
+    codigo: produto.codigo || "",
+    categoria: produto.categoria || produto.tipo || "",
+    tipo: produto.tipo || produto.categoria || "",
+    tamanho: produto.tamanho || "",
+    cor: produto.cor || ""
+  };
+}
+
+function rtIndiceProdutoNoEvento(evento, produto) {
+  const lista = Array.isArray(evento?.tendas) ? evento.tendas : [];
+  const id = String(produto?.id || "");
+  const codigo = String(produto?.codigo || "").trim();
+  return lista.findIndex(item => {
+    return (id && String(item?.id || "") === id)
+      || (codigo && String(item?.codigo || "").trim() === codigo);
+  });
+}
+
+function rtProdutoEquivalenteParaTroca(produto, referencia) {
+  if (!produto || !referencia) return false;
+  if (typeof produtoMesmoModelo === "function") return produtoMesmoModelo(produto, referencia);
+  const aCategoria = rtNormalizarEventoTexto(produto.categoria || produto.tipo || "");
+  const bCategoria = rtNormalizarEventoTexto(referencia.categoria || referencia.tipo || "");
+  const aTamanho = rtNormalizarEventoTexto(produto.tamanho || "");
+  const bTamanho = rtNormalizarEventoTexto(referencia.tamanho || "");
+  const aCor = rtNormalizarEventoTexto(produto.cor || "");
+  const bCor = rtNormalizarEventoTexto(referencia.cor || "");
+  return aCategoria === bCategoria && aTamanho === bTamanho && (!aCor || !bCor || aCor === bCor);
+}
+
+function rtEncontrarSubstitutoAutomatico(conflito, produtoAtual, eventoDestinoAtual) {
+  const idxConflito = rtIndiceProdutoNoEvento(conflito, produtoAtual);
+  if (idxConflito < 0) return null;
+  const produtoReferencia = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(produtoAtual.id)) || produtoAtual;
+  const usadosEventoAtual = new Set([...(produtosSelecionadosEventoAtual || []), ...(produtosReservaEventoAtual || [])].map(p => String(p.id || p.codigo || "")));
+
+  const opcoes = (Array.isArray(produtos) ? produtos : [])
+    .filter(p => String(p.id || "") !== String(produtoAtual.id || ""))
+    .filter(p => String(p.codigo || "").trim() !== String(produtoAtual.codigo || "").trim())
+    .filter(p => !usadosEventoAtual.has(String(p.id || p.codigo || "")))
+    .filter(p => rtProdutoEquivalenteParaTroca(p, produtoReferencia))
+    .filter(p => !produtoEventoEstaBloqueado(p))
+    .filter(p => !rtProdutoEventoExigeConfirmacao(p))
+    .map(p => ({ produto: p, disponibilidade: produtoEstaDisponivelNoEvento(p, conflito, idxConflito) }))
+    .filter(item => item.disponibilidade?.livre);
+
+  opcoes.sort((a, b) => {
+    const ca = String(a.produto.codigo || "").localeCompare(String(b.produto.codigo || ""), "pt-BR", { numeric: true });
+    return ca;
+  });
+  return opcoes[0] || null;
+}
+
+function rtMostrarDialogConflitoMaterial(produto, conflito) {
+  return new Promise(resolve => {
+    let dialog = document.getElementById("rtConflitoMaterialDialog");
+    if (!dialog) {
+      dialog = document.createElement("dialog");
+      dialog.id = "rtConflitoMaterialDialog";
+      dialog.className = "troca-rapida-dialog rt-produto-revisar-dialog";
+      document.body.appendChild(dialog);
+    }
+
+    const codigo = rtEventoEscape(produto?.codigo || "Produto");
+    const destino = rtEventoEscape(rtDescricaoEventoCurta(conflito));
+    dialog.innerHTML = `
+      <div class="troca-rapida-header">
+        <h3>Conflito de material</h3>
+        <button type="button" class="troca-rapida-fechar" aria-label="Fechar">×</button>
+      </div>
+      <div class="rt-produto-revisar-body">
+        <div class="rt-produto-revisar-alerta">⚠ ${codigo} já está reservada para ${destino}.</div>
+        <div class="rt-produto-revisar-actions">
+          <button type="button" class="btn-primary" data-rt-conflito-acao="substituir">Substituir no próximo evento</button>
+          <button type="button" class="btn-outline" data-rt-conflito-acao="outra">Escolher outra agora</button>
+          <button type="button" class="btn-outline" data-rt-conflito-acao="manter">Manter mesmo assim</button>
+          <button type="button" class="btn-outline" data-rt-conflito-acao="cancelar">Cancelar</button>
+        </div>
+      </div>
+    `;
+
+    const fechar = valor => {
+      try { dialog.close(); } catch {}
+      resolve(valor);
+    };
+    dialog.querySelector(".troca-rapida-fechar")?.addEventListener("click", () => fechar("cancelar"), { once: true });
+    dialog.querySelector('[data-rt-conflito-acao="substituir"]')?.addEventListener("click", () => fechar("substituir"), { once: true });
+    dialog.querySelector('[data-rt-conflito-acao="outra"]')?.addEventListener("click", () => fechar("outra"), { once: true });
+    dialog.querySelector('[data-rt-conflito-acao="manter"]')?.addEventListener("click", () => fechar("manter"), { once: true });
+    dialog.querySelector('[data-rt-conflito-acao="cancelar"]')?.addEventListener("click", () => fechar("cancelar"), { once: true });
+    dialog.addEventListener("cancel", ev => { ev.preventDefault(); fechar("cancelar"); }, { once: true });
+    dialog.showModal();
+  });
+}
+
+async function rtSubstituirProdutoNoEventoConflitante(produtoAtual, conflito, eventoAtual) {
+  const idx = rtIndiceProdutoNoEvento(conflito, produtoAtual);
+  if (idx < 0) {
+    alert("Não consegui localizar este produto no evento conflitante.");
+    return false;
+  }
+
+  const substituto = rtEncontrarSubstitutoAutomatico(conflito, produtoAtual, eventoAtual);
+  if (!substituto?.produto) {
+    alert("Não encontrei automaticamente outro produto compatível livre para o próximo evento. Escolha outra opção manualmente.");
+    return false;
+  }
+
+  const antes = Array.isArray(conflito.tendas) ? [...conflito.tendas] : [];
+  const atualizado = { ...conflito, tendas: [...antes] };
+  atualizado.tendas[idx] = rtItemProdutoEventoBase(substituto.produto);
+  atualizado.atualizado_em = new Date().toISOString();
+
+  const obsTroca = `Substituição automática: ${produtoAtual.codigo || "produto"} removida porque foi usada em ${eventoAtual?.nome || "outro evento"}. Entrou ${substituto.produto.codigo || "produto substituto"}.`;
+  atualizado.observacao_interna = [atualizado.observacao_interna, obsTroca].filter(Boolean).join("\n");
+
+  const salvo = await salvarEventoBanco(atualizado);
+  if (!salvo) return false;
+
+  const i = eventos.findIndex(e => String(e.id) === String(salvo.id));
+  if (i >= 0) eventos[i] = salvo;
+  else eventos.push(salvo);
+
+  if (typeof registrarLogSistema === "function") {
+    try {
+      registrarLogSistema({
+        modulo: "Eventos",
+        acao: "Substituição automática de material",
+        registro_id: salvo.id,
+        registro_nome: salvo.nome || "Evento",
+        antes: { tendas: antes },
+        depois: { tendas: salvo.tendas },
+        observacao: obsTroca
+      });
+    } catch (e) { console.warn("Falha ao registrar log de substituição automática:", e); }
+  }
+
+  alert(`Troca automática realizada.\n\n${produtoAtual.codigo || "Produto"} saiu de ${rtDescricaoEventoCurta(salvo)}.\nEntrou ${substituto.produto.codigo || "produto substituto"}.`);
+  return true;
+}
+
+async function validarProdutosDoEvento() {
   const bloqueados = [...produtosSelecionadosEventoAtual, ...produtosReservaEventoAtual]
     .filter(p => !p.pendente_codigo)
     .map(p => (Array.isArray(produtos) ? produtos : []).find(prod => String(prod.id) === String(p.id)) || p)
@@ -2749,15 +3259,38 @@ function validarProdutosDoEvento() {
     return false;
   }
 
-  const indisponiveis = [...produtosSelecionadosEventoAtual, ...produtosReservaEventoAtual]
-    .filter(p => !p.pendente_codigo)
-    .map(p => ({ produto: p, disponibilidade: disponibilidadeProdutoParaEvento(p.id) }))
-    .filter(item => !(item.produto.uso_transito || item.produto.usoEmTransito) && !item.disponibilidade.livre);
+  for (const produto of [...produtosSelecionadosEventoAtual, ...produtosReservaEventoAtual].filter(p => !p.pendente_codigo)) {
+    if (produto.uso_transito || produto.usoEmTransito || produto.rt_conflito_autorizado) continue;
+    const disponibilidade = disponibilidadeProdutoParaEvento(produto.id);
+    if (disponibilidade?.livre) continue;
 
-  if (indisponiveis.length) {
+    if (disponibilidade?.conflito) {
+      const acao = await rtMostrarDialogConflitoMaterial(produto, disponibilidade.conflito);
+      if (acao === "manter") {
+        produto.rt_conflito_autorizado = true;
+        continue;
+      }
+      if (acao === "substituir") {
+        const ok = await rtSubstituirProdutoNoEventoConflitante(produto, disponibilidade.conflito, {
+          id: document.getElementById("eventoId")?.value || "",
+          nome: document.getElementById("eventoNome")?.value || document.getElementById("eventoCliente")?.value || "Evento"
+        });
+        if (ok) {
+          produto.rt_conflito_autorizado = true;
+          continue;
+        }
+        return false;
+      }
+      if (acao === "outra") {
+        alert("Escolha outro produto na lista do evento e salve novamente.");
+        return false;
+      }
+      return false;
+    }
+
     alert(
       "Não é possível salvar este evento. Existem produtos indisponíveis para a data/período:\n\n" +
-      indisponiveis.map(item => `${item.produto.codigo || "Sem código"} — ${item.disponibilidade.texto}`).join("\n")
+      `${produto.codigo || "Sem código"} — ${disponibilidade?.texto || "Indisponível"}`
     );
     return false;
   }
@@ -2795,7 +3328,7 @@ async function salvarEventoForm(event) {
 
   calcularRestanteEvento();
 
-  if (!validarProdutosDoEvento()) return;
+  if (!(await validarProdutosDoEvento())) return;
   if (!validarApoioDoEvento()) return;
 
   const id = document.getElementById("eventoId").value || gerarId();
@@ -3201,14 +3734,14 @@ function rtValidarProdutosSerieRecorrente(eventoOrigem, alvos, novasTendas, novo
       const itemEstoque = (estoqueApoio || []).find(item => String(item.id) === String(itemSelecionado.id));
       if (!itemEstoque) return;
       const total = Number(itemEstoque.quantidade_total || 0);
-      const intervaloBase = intervaloDoEvento(eventoTeste);
+      const intervaloBase = intervaloDeEventoParaDisponibilidade(eventoTeste);
       let reservado = 0;
       (eventos || []).forEach(outro => {
         if (String(outro.id) === String(alvo.id)) return;
         if ((alvos || []).some(a => String(a.id) === String(outro.id))) return;
         const itemOutro = Array.isArray(outro.itens_apoio) ? outro.itens_apoio.find(i => String(i.id) === String(itemEstoque.id)) : null;
         if (!itemOutro) return;
-        const intervaloOutro = intervaloDoEvento(outro);
+        const intervaloOutro = intervaloDeEventoParaDisponibilidade(outro);
         if (periodosConflitam(intervaloBase.inicio, intervaloBase.fim, intervaloOutro.inicio, intervaloOutro.fim)) {
           reservado += Number(itemOutro.quantidade || 0);
         }
@@ -3347,9 +3880,8 @@ function renderizarEventos() {
   } else {
     tbody.innerHTML = lista.map(e => `
       <tr class="${rtLinhaPagamentoClasse(e)} evento-status-${rtStatusDataEvento(e.data_evento)} ${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? "evento-cancelado" : ""}">
-        <td class="clientes-actions"><div class="clientes-actions-row">${dataEventoCompactaVisual(e.data_evento)}
-          <small class="weekday-badge">${typeof diaSemanaTexto === "function" ? diaSemanaTexto(e.data_evento) : diaSemana(e.data_evento)}</small>
-          <small class="event-hour-under">${horarioEventoAbaixoData(e) || "-"}</small>
+        <td class="evento-data-cell"><div class="evento-data-stack">${dataEventoCompactaVisual(e.data_evento)}
+          <small class="event-hour-under">${horarioEventoAbaixoData(e) || ""}</small></div>
         </td>
         <td class="mont-desm-cell">${montagemDesmontagemCompacta(e)}</td>
         <td><button class="code-link" data-action="editar" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '<span class="evento-cancelado-badge">Cancelado</span> ' : ''}${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
@@ -3969,8 +4501,8 @@ function popularSelectProdutosRapido() {
   select.innerHTML = `<option value="">Selecione um produto para adicionar</option>` + disponiveis.map(p => {
     const disp = disponibilidadeProdutoRapido(p.id);
     return `
-      <option value="${p.id}" ${disp.livre || disp.permiteUsoTransito ? "" : "disabled"}>
-        ${p.codigo || "Sem código"} — ${p.categoria || p.tipo || "-"} ${p.tamanho || ""} ${p.cor || ""} | ${disp.livre ? disp.texto : (disp.permiteUsoTransito ? rtLinhaDisponibilidadeProdutoEvento(p, disp, { transito: true }) : disp.texto)}
+      <option value="${p.id}" ${(disp.livre || disp.permiteUsoTransito) ? "" : "disabled"}>
+        ${p.codigo || "Sem código"} — ${p.categoria || p.tipo || "-"} ${p.tamanho || ""} ${p.cor || ""} | ${disp.livre ? disp.texto : rtLinhaDisponibilidadeProdutoEvento(p, disp, { transito: !!disp.permiteUsoTransito })}
       </option>
     `;
   }).join("");
@@ -4083,26 +4615,28 @@ function intervaloDoEvento(evento) {
 }
 
 function quantidadeApoioReservadaNoPeriodoDoEvento(itemId, eventoBase) {
-  const intervaloBase = intervaloDoEvento(eventoBase);
-  if (!intervaloBase.inicio || !intervaloBase.fim) return 0;
+  const intervaloBase = intervaloDeEventoParaDisponibilidade(eventoBase);
+  return rtQuantidadeApoioPicoNoPeriodo(itemId, intervaloBase, eventoBase?.id || "");
+}
 
-  return eventos.reduce((total, evento) => {
-    if (String(evento.id) === String(eventoBase.id)) return total;
+function rtQuantidadeApoioOriginalDoEvento(itemId, eventoBase) {
+  if (!eventoBase || !Array.isArray(eventoBase.itens_apoio)) return 0;
+  const itemOriginal = eventoBase.itens_apoio.find(i => String(i.id) === String(itemId));
+  return Number(itemOriginal?.quantidade || 0) || 0;
+}
 
-    const itemEvento = Array.isArray(evento.itens_apoio)
-      ? evento.itens_apoio.find(i => String(i.id) === String(itemId))
-      : null;
-
-    if (!itemEvento) return total;
-
-    const intervaloOutro = intervaloDoEvento(evento);
-
-    if (periodosConflitam(intervaloBase.inicio, intervaloBase.fim, intervaloOutro.inicio, intervaloOutro.fim)) {
-      return total + Number(itemEvento.quantidade || 0);
-    }
-
-    return total;
-  }, 0);
+function rtLimiteApoioParaEventoBase(itemEstoque, eventoBase) {
+  const total = Number(itemEstoque?.quantidade_total || 0) || 0;
+  const reservadoNoPeriodo = quantidadeApoioReservadaNoPeriodoDoEvento(itemEstoque?.id, eventoBase);
+  const quantidadeOriginalEvento = rtQuantidadeApoioOriginalDoEvento(itemEstoque?.id, eventoBase);
+  const disponivelReal = Math.max(total - reservadoNoPeriodo, 0);
+  return {
+    total,
+    reservadoNoPeriodo,
+    disponivelReal,
+    quantidadeOriginalEvento,
+    limite: Math.max(disponivelReal, quantidadeOriginalEvento)
+  };
 }
 
 function renderizarApoioRapido() {
@@ -4169,11 +4703,11 @@ function renderizarApoioRapido() {
         <div class="apoio-evento-grupo-lista">
           ${itensGrupo.map(item => {
             const selecionado = apoioRapidoAtual.find(s => String(s.id) === String(item.id) || s.nome === item.nome);
-            const total = Number(item.quantidade_total || 0);
-            const reservadoNoPeriodo = evento ? quantidadeApoioReservadaNoPeriodoDoEvento(item.id, evento) : 0;
-            const disponivelNaData = Math.max(total - reservadoNoPeriodo, 0);
+            const total = Number(item.quantidade_total || 0) || 0;
+            const infoLimite = evento ? rtLimiteApoioParaEventoBase(item, evento) : { reservadoNoPeriodo: 0, limite: total };
+            const reservadoNoPeriodo = infoLimite.reservadoNoPeriodo || 0;
             const valorOriginal = selecionado ? Number(selecionado.quantidade || 0) : 0;
-            const maxPermitido = disponivelNaData;
+            const maxPermitido = Number(infoLimite.limite || 0);
             const valor = Math.min(valorOriginal, maxPermitido);
 
             return `
@@ -4239,9 +4773,8 @@ async function salvarProdutosRapido() {
     const itemEstoque = estoqueApoio.find(item => String(item.id) === String(itemSelecionado.id));
     if (!itemEstoque) return;
 
-    const total = Number(itemEstoque.quantidade_total || 0);
-    const reservadoNoPeriodo = quantidadeApoioReservadaNoPeriodoDoEvento(itemEstoque.id, evento);
-    const disponivelParaEsteEvento = Math.max(total - reservadoNoPeriodo, 0);
+    const infoLimite = rtLimiteApoioParaEventoBase(itemEstoque, evento);
+    const disponivelParaEsteEvento = Number(infoLimite.limite || 0);
 
     if (Number(itemSelecionado.quantidade || 0) > disponivelParaEsteEvento) {
       problemas.push(`${itemSelecionado.nome}: solicitado ${itemSelecionado.quantidade}, disponível ${disponivelParaEsteEvento}`);
@@ -5457,3 +5990,46 @@ document.addEventListener('DOMContentLoaded', () => {
   onEventoSeguro('abrirWhatsappEvento', 'click', rtEventoWhatsappAbrir);
   onEventoSeguro('fecharEventoWhatsappDialog', 'click', rtEventoWhatsappFechar);
 });
+
+
+/* v19-dev-fix: recorrentes usam a mesma quantidade selecionada nos eventos pontuais */
+(function(){
+  function rtQtdEventosSelecionadaCompartilhada(){
+    const sel = document.getElementById("eventosItensPorPagina");
+    return (sel && sel.value) || localStorage.getItem("novoRioTendasEventosItensPorPaginaV19") || "10";
+  }
+  window.rtAplicarQuantidadeRecorrentesPorAltura = function(){
+    const tbody = document.getElementById("eventosRecorrentesTbody");
+    const wrapper = tbody?.closest(".recurring-table-wrapper") || tbody?.closest(".table-wrapper");
+    if (!tbody || !wrapper) return;
+    const valor = rtQtdEventosSelecionadaCompartilhada();
+    Array.from(tbody.querySelectorAll("tr")).forEach(tr => { tr.style.display = ""; });
+    if (valor === "todos") {
+      wrapper.style.maxHeight = "";
+      wrapper.style.overflowY = "auto";
+      return;
+    }
+    const quantidade = Math.max(1, Number(valor) || 10);
+    const primeira = tbody.querySelector("tr:not(.empty)") || tbody.querySelector("tr");
+    const altura = primeira ? Math.max(38, primeira.getBoundingClientRect().height || 58) : 58;
+    const cab = wrapper.querySelector("thead")?.getBoundingClientRect().height || 42;
+    wrapper.style.maxHeight = `${Math.ceil((altura * quantidade) + cab + 18)}px`;
+    wrapper.style.overflowY = "auto";
+  };
+  window.rtInstalarQuantidadeRecorrentes = function(){
+    const selectPrincipal = document.getElementById("eventosItensPorPagina");
+    const tbody = document.getElementById("eventosRecorrentesTbody");
+    if (selectPrincipal && selectPrincipal.dataset.rtRecorrentesQtdCompartilhada !== "1") {
+      selectPrincipal.addEventListener("change", () => setTimeout(window.rtAplicarQuantidadeRecorrentesPorAltura, 60));
+      selectPrincipal.dataset.rtRecorrentesQtdCompartilhada = "1";
+    }
+    if (tbody && tbody.dataset.rtRecorrentesObserverCompartilhada !== "1") {
+      new MutationObserver(() => setTimeout(window.rtAplicarQuantidadeRecorrentesPorAltura, 60)).observe(tbody, { childList: true, subtree: false });
+      tbody.dataset.rtRecorrentesObserverCompartilhada = "1";
+    }
+    setTimeout(window.rtAplicarQuantidadeRecorrentesPorAltura, 80);
+  };
+  document.addEventListener("DOMContentLoaded", () => setTimeout(window.rtInstalarQuantidadeRecorrentes, 400));
+  document.addEventListener("click", () => setTimeout(window.rtInstalarQuantidadeRecorrentes, 200));
+  setInterval(() => { try { window.rtInstalarQuantidadeRecorrentes(); } catch(e){} }, 1800);
+})();

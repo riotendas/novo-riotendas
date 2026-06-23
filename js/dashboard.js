@@ -7,11 +7,16 @@ function atualizarDashboard(produtos = []) {
   const listaProdutos = Array.isArray(produtos) ? produtos : [];
   const total = listaProdutos.length;
   let livres = 0;
+  let manutencaoQtd = 0;
+  let bloqueadosQtd = 0;
   const produtosProblema = [];
 
   listaProdutos.forEach(p => {
+    const status = String(p.status || "").toLowerCase();
     if (p.status === "Livre") livres++;
     else produtosProblema.push(p);
+    if (status.includes("bloque")) bloqueadosQtd++;
+    else if (p.status !== "Livre") manutencaoQtd++;
   });
 
   const problema = produtosProblema.length;
@@ -20,12 +25,16 @@ function atualizarDashboard(produtos = []) {
   const totalEl = document.getElementById("dashTotalProdutos");
   const livresEl = document.getElementById("dashLivres");
   const manutEl = document.getElementById("dashManutencao");
+  const manutProdutosEl = document.getElementById("dashManutencaoProdutos");
+  const bloqueadosEl = document.getElementById("dashBloqueadosProdutos");
   const pagEl = document.getElementById("dashPagamentos");
   const lista = document.getElementById("dashboardProdutosProblema");
 
   if (totalEl) totalEl.textContent = total;
   if (livresEl) livresEl.textContent = livres;
   if (manutEl) manutEl.textContent = problema;
+  if (manutProdutosEl) manutProdutosEl.textContent = manutencaoQtd;
+  if (bloqueadosEl) bloqueadosEl.textContent = bloqueadosQtd;
   if (pagEl) pagEl.textContent = "0";
 
   if (!lista) return;
@@ -201,9 +210,15 @@ function formatarDataDashboard(dataISO) {
 
 function horaDashboard(valor) {
   if (!valor) return "";
-  const texto = String(valor);
-  if (texto.includes("T")) return texto.slice(11,16);
-  return texto.slice(0,5);
+  const texto = String(valor).trim();
+  let hora = "";
+  if (texto.includes("T")) hora = texto.slice(11,16);
+  else {
+    const m = texto.match(/(?:^|\s)(\d{1,2}:\d{2})(?:\b|$)/);
+    hora = m ? m[1].padStart(5, "0") : "";
+  }
+  if (hora === "00:00") return "";
+  return hora;
 }
 
 function statusPagamentoDashboard(evento) {
@@ -326,25 +341,45 @@ function cardEventoDashboardAgrupado(evento, tipos = ["evento"]) {
   `;
 }
 
-async function renderizarDashboardEventos() {
-  const hojeBox = document.getElementById("dashboardEventosHoje");
-  const futurosBox = document.getElementById("dashboardProximosEventos");
 
-  if (!hojeBox || !futurosBox) return;
+function rtDashDataPrincipalEvento(item) {
+  return `${item.primeiraData || ""} ${item.primeiraHora || ""}`;
+}
+
+function rtDashPagamentoPendenteEvento(evento) {
+  const status = String(evento?.status_pagamento || evento?.pagamento || "").toLowerCase();
+  if (evento?.pagamento_quitado || status.includes("quit") || status.includes("pago")) return false;
+  const total = rtDashValorEvento(evento);
+  const sinal = rtDashNumero(evento?.sinal ?? evento?.valor_sinal ?? 0);
+  const restante = rtDashNumero(evento?.restante ?? evento?.valor_restante ?? (total ? Math.max(total - sinal, 0) : 0));
+  return total > 0 && restante > 0;
+}
+
+function rtDashResumoValorPendente(evento) {
+  const total = rtDashValorEvento(evento);
+  const sinal = rtDashNumero(evento?.sinal ?? evento?.valor_sinal ?? 0);
+  const restante = rtDashNumero(evento?.restante ?? evento?.valor_restante ?? (total ? Math.max(total - sinal, 0) : 0));
+  return `Total ${rtDashMoeda(total)} · Sinal ${rtDashMoeda(sinal)} · Restante ${rtDashMoeda(restante)}`;
+}
+
+async function renderizarDashboardEventos() {
+  const eventosBox = document.getElementById("dashboardEventosHoje");
+  const valoresBox = document.getElementById("dashboardValoresPendentes") || document.getElementById("dashboardProximosEventos");
+
+  if (!eventosBox || !valoresBox) return;
 
   await garantirCarrosRotasDashboard();
 
   const eventosLista = await garantirEventosDashboard();
   const hojeISO = dataISOHojeDashboard();
 
-  console.log("[Dashboard] renderizando eventos. Hoje:", hojeISO, "Quantidade:", eventosLista.length);
-
-  const hojePorEvento = new Map();
-  const futurosPorEvento = new Map();
+  const eventosPorEvento = new Map();
+  const valoresPendentes = [];
 
   const adicionarOperacao = (mapa, evento, tipo, data, hora = "") => {
     data = normalizarDataDashboard(data);
-    if (!evento || !data) return;
+    if (!evento || !data || data < hojeISO) return;
+    if ((tipo === "montagem" || tipo === "desmontagem") && rtDashOperacaoConfirmada(evento, tipo)) return;
 
     const chave = evento.id || evento.evento_id || `${nomeClienteDashboard(evento)}-${data}`;
 
@@ -365,6 +400,8 @@ async function renderizarDashboardEventos() {
   };
 
   eventosLista.forEach(evento => {
+    if (!evento || (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento))) return;
+
     const dataEvento = dataEventoDashboard(evento);
     const montagemValor = montagemEventoDashboard(evento);
     const desmontagemValor = desmontagemEventoDashboard(evento);
@@ -376,37 +413,42 @@ async function renderizarDashboardEventos() {
     const horaMontagem = horaDashboard(montagemValor);
     const horaDesmontagem = horaDashboard(desmontagemValor);
 
-    if (dataEvento === hojeISO) adicionarOperacao(hojePorEvento, evento, "evento", dataEvento, horaEvento);
-    if (montagemData === hojeISO) adicionarOperacao(hojePorEvento, evento, "montagem", montagemData, horaMontagem);
-    if (desmontagemData === hojeISO) adicionarOperacao(hojePorEvento, evento, "desmontagem", desmontagemData, horaDesmontagem);
+    adicionarOperacao(eventosPorEvento, evento, "evento", dataEvento, horaEvento);
+    adicionarOperacao(eventosPorEvento, evento, "montagem", montagemData, horaMontagem);
+    adicionarOperacao(eventosPorEvento, evento, "desmontagem", desmontagemData, horaDesmontagem);
 
-    if (dataEvento && dataEvento > hojeISO) adicionarOperacao(futurosPorEvento, evento, "evento", dataEvento, horaEvento);
-    if (montagemData && montagemData > hojeISO) adicionarOperacao(futurosPorEvento, evento, "montagem", montagemData, horaMontagem);
-    if (desmontagemData && desmontagemData > hojeISO) adicionarOperacao(futurosPorEvento, evento, "desmontagem", desmontagemData, horaDesmontagem);
-
-    if (!dataEvento && !montagemData && !desmontagemData) console.warn("[Dashboard] evento sem data reconhecida:", evento);
+    const dataBaseValor = dataEvento || montagemData || desmontagemData;
+    if (dataBaseValor && dataBaseValor < hojeISO && rtDashPagamentoPendenteEvento(evento)) {
+      valoresPendentes.push({ evento, data: dataBaseValor });
+    }
   });
 
-  const ordenar = (a, b) => `${a.primeiraData} ${a.primeiraHora || ""}`.localeCompare(`${b.primeiraData} ${b.primeiraHora || ""}`);
+  const eventosItens = [...eventosPorEvento.values()].sort((a, b) => rtDashDataPrincipalEvento(a).localeCompare(rtDashDataPrincipalEvento(b)));
+  valoresPendentes.sort((a, b) => String(a.data).localeCompare(String(b.data)) || nomeClienteDashboard(a.evento).localeCompare(nomeClienteDashboard(b.evento)));
 
-  const hojeItens = [...hojePorEvento.values()].sort(ordenar);
-  const futurosItens = [...futurosPorEvento.values()].sort(ordenar);
+  const qtdEventos = document.getElementById("dashEventosHojeQtd");
+  if (qtdEventos) qtdEventos.textContent = eventosItens.length;
+  const qtdValores = document.getElementById("dashEventosFuturosQtd");
+  if (qtdValores) qtdValores.textContent = valoresPendentes.length;
 
-  console.log("[Dashboard] hoje:", hojeItens.length, "futuros:", futurosItens.length);
+  eventosBox.classList.remove("empty");
+  valoresBox.classList.remove("empty");
 
-  document.getElementById("dashEventosHojeQtd").textContent = hojeItens.length;
-  document.getElementById("dashEventosFuturosQtd").textContent = futurosItens.length;
+  eventosBox.innerHTML = eventosItens.length
+    ? eventosItens.slice(0, 18).map(item => cardEventoDashboardAgrupado(item.evento, item.tipos)).join("")
+    : `<div class="empty">Nenhum evento futuro encontrado.</div>`;
 
-  hojeBox.classList.remove("empty");
-  futurosBox.classList.remove("empty");
-
-  hojeBox.innerHTML = hojeItens.length
-    ? hojeItens.slice(0, 8).map(item => cardEventoDashboardAgrupado(item.evento, item.tipos)).join("")
-    : `<div class="empty">Nenhum evento hoje.</div>`;
-
-  futurosBox.innerHTML = futurosItens.length
-    ? futurosItens.slice(0, 10).map(item => cardEventoDashboardAgrupado(item.evento, item.tipos)).join("")
-    : `<div class="empty">Nenhum próximo evento. Verifique no console se os eventos estão sendo carregados.</div>`;
+  valoresBox.innerHTML = valoresPendentes.length
+    ? valoresPendentes.slice(0, 30).map(item => rtDashItem({
+        tipo: "money",
+        titulo: `${nomeClienteDashboard(item.evento)} · ${rtDashMoeda(rtDashNumero(item.evento?.restante ?? item.evento?.valor_restante ?? Math.max(rtDashValorEvento(item.evento) - rtDashNumero(item.evento?.sinal ?? item.evento?.valor_sinal ?? 0), 0)))}`,
+        meta: `Evento ${formatarDataDashboard(item.data)}`,
+        detalhe: rtDashResumoValorPendente(item.evento),
+        data: item.data,
+        eventoId: item.evento?.id || "",
+        botao: "Evento"
+      })).join("")
+    : `<div class="empty">Nenhum valor vencido encontrado.</div>`;
 
   document.querySelectorAll("[data-dashboard-evento]").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -414,6 +456,16 @@ async function renderizarDashboardEventos() {
       if (typeof abrirDetalheEvento === "function") abrirDetalheEvento(id);
       else alert("Abra o setor Eventos para visualizar este evento.");
     });
+  });
+  document.querySelectorAll("[data-dash-rota-data]").forEach(btn => {
+    btn.onclick = () => rtDashAbrirRotaData(btn.dataset.dashRotaData, btn.dataset.dashRotaId || "");
+  });
+  document.querySelectorAll("[data-dashboard-evento]").forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.dashboardEvento;
+      if (typeof abrirDetalheEvento === "function") abrirDetalheEvento(id);
+      else alert("Abra o setor Eventos para visualizar este evento.");
+    };
   });
 }
 
@@ -525,31 +577,58 @@ function rtDashOperacaoConfirmada(evento, tipo) {
   return false;
 }
 
-function rtDashAbrirRotaData(data) {
+function rtDashAbrirRotaData(data, rotaId = "") {
   try {
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
     document.querySelectorAll(".section").forEach(s => s.classList.remove("active-section"));
     document.querySelector("[data-section='rotasSection']")?.classList.add("active");
     document.getElementById("rotasSection")?.classList.add("active-section");
+
+    const periodo = document.getElementById("rotaPeriodo");
+    if (periodo) {
+      periodo.value = "data";
+      periodo.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+
     const input = document.getElementById("rotaData");
     if (input) {
       input.value = data;
       input.dispatchEvent(new Event("change", { bubbles: true }));
     }
+
     if (typeof renderizarRotas === "function") setTimeout(renderizarRotas, 80);
+
+    if (rotaId) {
+      const tentarLocalizar = () => {
+        try {
+          const idSafe = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(rotaId) : String(rotaId).replace(/"/g, '\"');
+          const card = document.querySelector(`.rota-card[data-rota-card="${idSafe}"]`);
+          if (card) {
+            card.scrollIntoView({ behavior: "smooth", block: "center" });
+            card.classList.add("rota-card-localizado");
+            setTimeout(() => card.classList.remove("rota-card-localizado"), 2200);
+          }
+        } catch(e) {}
+      };
+      setTimeout(tentarLocalizar, 350);
+      setTimeout(tentarLocalizar, 900);
+    }
   } catch (erro) {
     console.warn("Não foi possível abrir a rota pelo Dashboard:", erro);
   }
 }
 
-function rtDashItem({ tipo = "info", titulo, meta = "", detalhe = "", data = "" }) {
-  return `<div class="dash-alert-item dash-alert-${tipo}">
+function rtDashItem({ tipo = "info", titulo, meta = "", detalhe = "", data = "", rotaId = "", eventoId = "", botao = "Rota" }) {
+  const botaoHtml = eventoId
+    ? rtDashBotaoEvento(eventoId, botao || "Evento")
+    : (data ? `<button type="button" class="btn-outline dash-alert-rota-btn" data-dash-rota-data="${rtDashEscape(data)}" data-dash-rota-id="${rtDashEscape(rotaId || "")}">${rtDashEscape(botao || "Rota")}</button>` : "");
+  return `<div class="dash-alert-item dash-alert-${tipo}" data-dash-alert-date="${rtDashEscape(data || "")}" data-dash-alert-rota-id="${rtDashEscape(rotaId || "")}">
     <div class="dash-alert-main">
       <strong>${rtDashEscape(titulo)}</strong>
       ${meta ? `<span>${rtDashEscape(meta)}</span>` : ""}
       ${detalhe ? `<small>${rtDashEscape(detalhe)}</small>` : ""}
     </div>
-    ${data ? `<button type="button" class="btn-outline dash-alert-rota-btn" data-dash-rota-data="${rtDashEscape(data)}">Rota</button>` : ""}
+    ${botaoHtml}
   </div>`;
 }
 
@@ -608,7 +687,104 @@ async function rtDashSalvarConfigAlertas() {
     console.warn("Não foi possível salvar alertas no Supabase:", erro);
     alert("Alertas salvos neste navegador. Verifique o Supabase/app_config para salvar multiusuário.");
   }
+  const modal = document.querySelector(".dashboard-config-modal");
+  if (modal) modal.hidden = true;
   await renderizarDashboardAlertas();
+}
+
+
+function rtDashDataDoHtml(itemHtml) {
+  const m = String(itemHtml || "").match(/data-dash-alert-date="([^"]*)"/);
+  return m ? m[1] : "";
+}
+
+function rtDashOrdenarPorDataAsc(lista) {
+  return [...(lista || [])].sort((a, b) => rtDashDataDoHtml(a).localeCompare(rtDashDataDoHtml(b)));
+}
+
+function rtDashSomenteHojeEmDiante(lista, hoje) {
+  return (lista || []).filter(item => {
+    const data = rtDashDataDoHtml(item);
+    return data && data >= hoje;
+  });
+}
+
+
+function rtDashAbreviarMaterial(nome) {
+  const n = String(nome || "").toLowerCase();
+  if (n.includes("cadeira")) return "cad";
+  if (n.includes("mesa")) return "mesas";
+  if (n.includes("conj")) return "conj";
+  if (n.includes("caixa") && n.includes("term")) return "Cx Term";
+  if (n.includes("lateral")) return "Lat";
+  if (n.includes("tenda")) return "tendas";
+  return String(nome || "mat").replace(/\s+/g, " ").trim().slice(0, 14);
+}
+
+function rtDashResumoMateriaisTexto(evento) {
+  const partes = [];
+  const qtdTendas = rtDashQtdTendasEvento(evento);
+  if (qtdTendas) partes.push(`${String(qtdTendas).padStart(2, "0")} ${qtdTendas === 1 ? "tenda" : "tendas"}`);
+
+  const acumulado = new Map();
+  const coletar = (arr) => {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(item => {
+      const qtd = Number(item?.quantidade ?? item?.qtd ?? item?.qtde ?? 1) || 1;
+      const nome = rtDashAbreviarMaterial(item?.nome ?? item?.produto ?? item?.tipo ?? item?.descricao ?? item?.label ?? "material");
+      acumulado.set(nome, (acumulado.get(nome) || 0) + qtd);
+    });
+  };
+  coletar(evento?.itens_apoio);
+  coletar(evento?.produtos_extras);
+  coletar(evento?.materiais_extra);
+  coletar(evento?.apoio);
+
+  acumulado.forEach((qtd, nome) => partes.push(`${qtd} ${nome}`));
+  return partes.length ? partes.join(" + ") : "Sem material informado";
+}
+
+function rtDashAcumularMateriaisDia(destino, evento) {
+  if (!destino.mapaMateriais) destino.mapaMateriais = new Map();
+  const add = (nome, qtd) => {
+    qtd = Number(qtd || 0) || 0;
+    if (!qtd) return;
+    destino.mapaMateriais.set(nome, (destino.mapaMateriais.get(nome) || 0) + qtd);
+  };
+  const qtdTendas = rtDashQtdTendasEvento(evento);
+  if (qtdTendas) add(qtdTendas === 1 ? "tenda" : "tendas", qtdTendas);
+  const coletar = (arr) => {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(item => {
+      const qtd = Number(item?.quantidade ?? item?.qtd ?? item?.qtde ?? 1) || 1;
+      const nome = rtDashAbreviarMaterial(item?.nome ?? item?.produto ?? item?.tipo ?? item?.descricao ?? item?.label ?? "material");
+      add(nome, qtd);
+    });
+  };
+  coletar(evento?.itens_apoio);
+  coletar(evento?.produtos_extras);
+  coletar(evento?.materiais_extra);
+  coletar(evento?.apoio);
+}
+
+function rtDashResumoMateriaisMap(mapa) {
+  const partes = [];
+  if (mapa && typeof mapa.forEach === "function") {
+    mapa.forEach((qtd, nome) => partes.push(`${qtd} ${nome}`));
+  }
+  return partes.length ? partes.join(" + ") : "Sem material informado";
+}
+
+function rtDashBotaoEvento(id, label = "Evento") {
+  return id ? `<button type="button" class="btn-outline dash-alert-rota-btn" data-dashboard-evento="${rtDashEscape(id)}">${rtDashEscape(label)}</button>` : "";
+}
+
+function rtDashMetaOperacaoEvento(evento) {
+  const montagem = rtDashDataHoraEvento(evento, "montagem");
+  const desmontagem = rtDashDataHoraEvento(evento, "desmontagem");
+  const m = montagem.data ? `Mont. ${formatarDataDashboard(montagem.data)}${montagem.hora ? " " + montagem.hora : ""}` : "";
+  const d = desmontagem.data ? `Desm. ${formatarDataDashboard(desmontagem.data)}${desmontagem.hora ? " " + desmontagem.hora : ""}` : "";
+  return [m, d].filter(Boolean).join(" · ");
 }
 
 async function renderizarDashboardAlertas() {
@@ -633,9 +809,13 @@ async function renderizarDashboardAlertas() {
     const dataEvento = dataEventoDashboard(evento);
 
     if (qtdTendas) tendasAlugadas.push({ evento, qtdTendas, data: dataEvento || rtDashDataHoraEvento(evento, "montagem").data || "" });
-    if (qtdTendas >= Number(cfg.tendasEvento || 5)) alertas.push(rtDashItem({ tipo: "warning", titulo: `${nome} · ${qtdTendas} tendas`, meta: `Evento ${formatarDataDashboard(dataEvento)}`, detalhe: "Quantidade alta de tendas no mesmo evento", data: rtDashDataHoraEvento(evento, "montagem").data || dataEvento }));
-    if (qtdMateriais >= Number(cfg.materiaisEvento || 50)) alertas.push(rtDashItem({ tipo: "warning", titulo: `${nome} · ${qtdMateriais} materiais`, meta: `Evento ${formatarDataDashboard(dataEvento)}`, detalhe: "Quantidade grande de material", data: rtDashDataHoraEvento(evento, "montagem").data || dataEvento }));
-    if (valor >= Number(cfg.valorAlto || 1500)) alertas.push(rtDashItem({ tipo: "money", titulo: `${nome} · ${rtDashMoeda(valor)}`, meta: `Evento ${formatarDataDashboard(dataEvento)}`, detalhe: "Valor alto requer atenção", data: rtDashDataHoraEvento(evento, "montagem").data || dataEvento }));
+    const dataRotaEvento = rtDashDataHoraEvento(evento, "montagem").data || dataEvento || rtDashDataHoraEvento(evento, "desmontagem").data;
+    const rotaIdEvento = evento?.id ? `${evento.id}-montagem` : "";
+    const metaOperacao = rtDashMetaOperacaoEvento(evento) || `Evento ${formatarDataDashboard(dataEvento)}`;
+    const resumoMateriais = rtDashResumoMateriaisTexto(evento);
+    if (qtdTendas >= Number(cfg.tendasEvento || 5)) alertas.push(rtDashItem({ tipo: "warning", titulo: `${nome} · ${qtdTendas} tendas`, meta: metaOperacao, detalhe: resumoMateriais, data: dataRotaEvento, eventoId: evento?.id || "", botao: "Evento" }));
+    if (qtdMateriais >= Number(cfg.materiaisEvento || 50)) alertas.push(rtDashItem({ tipo: "warning", titulo: `${nome} · material grande`, meta: metaOperacao, detalhe: resumoMateriais, data: dataRotaEvento, eventoId: evento?.id || "", botao: "Evento" }));
+    if (valor >= Number(cfg.valorAlto || 1500)) alertas.push(rtDashItem({ tipo: "money", titulo: `${nome} · ${rtDashMoeda(valor)}`, meta: metaOperacao, detalhe: resumoMateriais, data: dataRotaEvento, eventoId: evento?.id || "", botao: "Evento" }));
 
     ["montagem", "desmontagem"].forEach(tipo => {
       const { data, hora } = rtDashDataHoraEvento(evento, tipo);
@@ -647,44 +827,57 @@ async function renderizarDashboardAlertas() {
         atual.tendas += qtdTendas;
         atual.materiais += qtdMateriais;
         atual.eventos += 1;
+        rtDashAcumularMateriaisDia(atual, evento);
         estoquePorDia.set(data, atual);
       }
       const tipoHorario = tipo === "montagem" ? (evento.montagem_tipo || evento.tipo_horario_montagem || "") : (evento.desmontagem_tipo || evento.tipo_horario_desmontagem || "");
-      if (data >= hoje && rtDashOperacaoForaHorario(tipoHorario, hora)) {
-        foraHorario.push(rtDashItem({ tipo: "time", titulo: `${tipo === "montagem" ? "Montagem" : "Desmontagem"} · ${nome}`, meta: `${formatarDataDashboard(data)} ${hora || ""}`, detalhe: enderecoDashboard(evento), data }));
+      if (data >= hoje && !rtDashOperacaoConfirmada(evento, tipo) && rtDashOperacaoForaHorario(tipoHorario, hora)) {
+        const metaFora = [formatarDataDashboard(data), hora].filter(Boolean).join(" ");
+        foraHorario.push(rtDashItem({ tipo: "time", titulo: `${tipo === "montagem" ? "Montagem" : "Desmontagem"} · ${nome}`, meta: metaFora, detalhe: enderecoDashboard(evento), data, eventoId: evento?.id || "", botao: "Evento" }));
       }
       if (data <= hoje && !rtDashOperacaoConfirmada(evento, tipo)) {
-        pendentes.push(rtDashItem({ tipo: "danger", titulo: `${tipo === "montagem" ? "Entrega" : "Retirada"} não confirmada · ${nome}`, meta: `${formatarDataDashboard(data)} ${hora || ""}`, detalhe: enderecoDashboard(evento), data }));
+        pendentes.push(rtDashItem({ tipo: "danger", titulo: `${tipo === "montagem" ? "Entrega" : "Retirada"} não confirmada · ${nome}`, meta: `${formatarDataDashboard(data)} ${hora || ""}`, detalhe: enderecoDashboard(evento), data, rotaId: `${evento.id}-${tipo}` }));
       }
     });
   });
 
   [...montagensPorDia.entries()].sort().forEach(([data, qtd]) => {
-    if (qtd >= Number(cfg.montagensDia || 6)) alertas.unshift(rtDashItem({ tipo: "warning", titulo: `${qtd} montagens no dia`, meta: formatarDataDashboard(data), detalhe: "Carga operacional alta", data }));
+    if (data >= hoje && qtd >= Number(cfg.montagensDia || 6)) alertas.push(rtDashItem({ tipo: "warning", titulo: `${qtd} montagens no dia`, meta: formatarDataDashboard(data), detalhe: "Carga operacional alta", data }));
   });
   [...desmontagensPorDia.entries()].sort().forEach(([data, qtd]) => {
-    if (qtd >= Number(cfg.desmontagensDia || 6)) alertas.unshift(rtDashItem({ tipo: "warning", titulo: `${qtd} desmontagens no dia`, meta: formatarDataDashboard(data), detalhe: "Carga operacional alta", data }));
+    if (data >= hoje && qtd >= Number(cfg.desmontagensDia || 6)) alertas.push(rtDashItem({ tipo: "warning", titulo: `${qtd} desmontagens no dia`, meta: formatarDataDashboard(data), detalhe: "Carga operacional alta", data }));
   });
 
   const estoqueItens = [...estoquePorDia.values()]
     .filter(i => i.data >= hoje)
     .sort((a,b) => a.data.localeCompare(b.data))
     .slice(0, 21)
-    .map(i => rtDashItem({ tipo: i.tendas >= Number(cfg.tendasEvento || 5) || i.materiais >= Number(cfg.materiaisEvento || 50) ? "warning" : "ok", titulo: `${formatarDataDashboard(i.data)} · ${i.eventos} evento(s)`, meta: `${i.tendas} tendas · ${i.materiais} materiais`, detalhe: "Uso previsto de estoque", data: i.data }));
+    .map(i => rtDashItem({ tipo: i.tendas >= Number(cfg.tendasEvento || 5) || i.materiais >= Number(cfg.materiaisEvento || 50) ? "warning" : "ok", titulo: `${formatarDataDashboard(i.data)} · ${i.eventos} evento(s)`, meta: rtDashResumoMateriaisMap(i.mapaMateriais), detalhe: "Uso previsto de estoque", data: i.data }));
 
   const tendasItens = tendasAlugadas
     .sort((a,b) => String(a.data).localeCompare(String(b.data)) || b.qtdTendas - a.qtdTendas)
     .slice(0, 80)
     .map(i => rtDashItem({ tipo: i.qtdTendas >= Number(cfg.tendasEvento || 5) ? "warning" : "info", titulo: `${nomeClienteDashboard(i.evento)} · ${i.qtdTendas} tendas`, meta: `Evento ${formatarDataDashboard(i.data)}`, detalhe: enderecoDashboard(i.evento), data: rtDashDataHoraEvento(i.evento, "montagem").data || i.data }));
 
-  rtDashPreencherLista("dashboardAlertasOperacao", "dashAlertasOperacaoQtd", alertas);
-  rtDashPreencherLista("dashboardPendenciasEntrega", "dashPendenciasEntregaQtd", pendentes);
-  rtDashPreencherLista("dashboardForaHorario", "dashForaHorarioQtd", foraHorario);
+  const alertasOperacaoOrdenados = rtDashOrdenarPorDataAsc(rtDashSomenteHojeEmDiante(alertas, hoje));
+  const pendentesOrdenados = rtDashOrdenarPorDataAsc(pendentes);
+  const foraHorarioOrdenados = rtDashOrdenarPorDataAsc(foraHorario);
+
+  rtDashPreencherLista("dashboardAlertasOperacao", "dashAlertasOperacaoQtd", alertasOperacaoOrdenados);
+  rtDashPreencherLista("dashboardPendenciasEntrega", "dashPendenciasEntregaQtd", pendentesOrdenados);
+  rtDashPreencherLista("dashboardForaHorario", "dashForaHorarioQtd", foraHorarioOrdenados);
   rtDashPreencherLista("dashboardEstoqueFuturo", "dashEstoqueFuturoQtd", estoqueItens);
-  rtDashPreencherLista("dashboardTendasAlugadas", "dashTendasAlugadasQtd", tendasItens);
+  // Card de tendas alugadas removido do Dashboard. Mantido cálculo interno sem renderização.
 
   document.querySelectorAll("[data-dash-rota-data]").forEach(btn => {
-    btn.onclick = () => rtDashAbrirRotaData(btn.dataset.dashRotaData);
+    btn.onclick = () => rtDashAbrirRotaData(btn.dataset.dashRotaData, btn.dataset.dashRotaId || "");
+  });
+  document.querySelectorAll("[data-dashboard-evento]").forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.dashboardEvento;
+      if (typeof abrirDetalheEvento === "function") abrirDetalheEvento(id);
+      else alert("Abra o setor Eventos para visualizar este evento.");
+    };
   });
 }
 
@@ -705,6 +898,23 @@ function rtDashPreencherLista(idLista, idQtd, itens) {
 async function iniciarDashboardAlertasPersonalizados() {
   await rtDashCarregarConfigAlertas();
   document.getElementById("dashSalvarAlertasBtn")?.addEventListener("click", rtDashSalvarConfigAlertas);
+  document.querySelectorAll("[data-dash-open-alert-config]").forEach(btn => {
+    btn.onclick = () => {
+      const modal = document.querySelector(".dashboard-config-modal");
+      if (modal) modal.hidden = false;
+    };
+  });
+  document.querySelectorAll("[data-dash-close-alert-config]").forEach(btn => {
+    btn.onclick = () => {
+      const modal = document.querySelector(".dashboard-config-modal");
+      if (modal) modal.hidden = true;
+    };
+  });
+  document.querySelectorAll(".dashboard-config-modal").forEach(modal => {
+    modal.addEventListener("click", (ev) => {
+      if (ev.target === modal) modal.hidden = true;
+    });
+  });
   await renderizarDashboardAlertas();
 }
 

@@ -489,19 +489,89 @@ function manutMobileUltimaLimpezaProduto(produto = {}) {
 
 function manutMobileLimpezaResumo(produto = {}) {
   const limpeza = manutMobileUltimaLimpezaProduto(produto);
-  return `Limp: ${limpeza ? manutMobileFormatarDataCurta(limpeza.dataObj || limpeza.data || limpeza.criado_em || limpeza.atualizado_em) : "—"}`;
+  return `Ult. Limp.: ${limpeza ? manutMobileFormatarDataCurta(limpeza.dataObj || limpeza.data || limpeza.criado_em || limpeza.atualizado_em) : "—"}`;
 }
 
-function manutMobileProximoUsoLinha(produto = {}) {
+function manutMobileObsCardResumo(produto = {}) {
+  const brutoObs = String(produto.observacao || produto.obs || produto.reparo || produto.descricao_reparo || "").trim();
+  const obsTratada = typeof rtProdutoObsEventoCurta === "function" ? rtProdutoObsEventoCurta(brutoObs, produto) : brutoObs;
+  const obs = manutMobileRemoverMarcacoesAuto(String(obsTratada || "").trim());
+  if (obs) return obs.replace(/^Últ\.\s*Evento:/i, "Ult. Evento:");
+  const servico = manutMobileHistoricoServicos(produto)[0];
+  if (servico && servico.texto) {
+    const texto = manutMobileLimparPrefixoHistorico(servico.texto);
+    const tratado = typeof rtProdutoObsEventoCurta === "function" ? rtProdutoObsEventoCurta(texto, produto) : texto;
+    return String(tratado || "").replace(/^Últ\.\s*Evento:/i, "Ult. Evento:");
+  }
+  return "";
+}
+
+function manutMobileEventoUsaProduto(evento = {}, produto = {}) {
+  if (typeof eventoUsaProdutoParaDisponibilidade === "function") {
+    try { return eventoUsaProdutoParaDisponibilidade(evento, produto); } catch {}
+  }
+  const itens = [
+    ...(Array.isArray(evento.tendas) ? evento.tendas : []),
+    ...(Array.isArray(evento.produtos) ? evento.produtos : []),
+    ...(Array.isArray(evento.materiais) ? evento.materiais : []),
+    ...(typeof rtProdutosReservaEvento === "function" ? (rtProdutosReservaEvento(evento) || []) : [])
+  ];
+  const prodId = String(produto.id || "");
+  const prodCodigo = String(produto.codigo || produto.numero || "").trim();
+  const norm = typeof normalizarCodigoProdutoDisponibilidade === "function"
+    ? normalizarCodigoProdutoDisponibilidade
+    : (v => String(v || "").replace(/\D+/g, ""));
+  return itens.some(item => {
+    const itemId = String(item.id || item.produto_id || "");
+    const itemCodigo = String(item.codigo || item.numero || "").trim();
+    return (prodId && itemId && prodId === itemId) || (prodCodigo && itemCodigo && norm(prodCodigo) === norm(itemCodigo));
+  });
+}
+
+function manutMobileInicioEventoUso(evento = {}) {
+  try {
+    if (typeof intervaloEventoDisponibilidade === "function") {
+      const intervalo = intervaloEventoDisponibilidade(evento) || {};
+      if (intervalo.inicio) return intervalo.inicio;
+    }
+  } catch {}
+  return evento.montagem || evento.data_evento || evento.data || evento.inicio || null;
+}
+
+function manutMobileBuscarProximoUsoProduto(produto = {}) {
   try {
     if (typeof proximoUsoProduto === "function") {
       const proximo = proximoUsoProduto(produto);
-      if (proximo) {
-        return `Próx: ${manutMobilePrimeiroNome(proximo.evento?.nome)} ${manutMobileFormatarDataCurta(proximo.inicioComparacao || proximo.intervalo?.inicio)}`;
-      }
+      if (proximo) return proximo;
     }
-  } catch {}
-  return "Próx: —";
+  } catch (erro) {
+    console.warn("Falha ao usar proximoUsoProduto no mobile manutenção", erro);
+  }
+
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const listaEventos = (typeof getEventosDisponibilidadeProduto === "function" ? getEventosDisponibilidadeProduto() : (Array.isArray(window.eventos) ? window.eventos : [])) || [];
+  return listaEventos
+    .filter(evento => !(typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)))
+    .filter(evento => manutMobileEventoUsaProduto(evento, produto))
+    .map(evento => {
+      let inicio = manutMobileInicioEventoUso(evento);
+      let intervalo = null;
+      try { if (typeof intervaloEventoDisponibilidade === "function") intervalo = intervaloEventoDisponibilidade(evento); } catch {}
+      const dataObj = inicio instanceof Date ? inicio : new Date(String(inicio || "").includes("T") ? inicio : `${String(inicio || "").slice(0, 10)}T12:00:00`);
+      return { evento, intervalo: intervalo || { inicio }, inicioComparacao: dataObj };
+    })
+    .filter(item => item.inicioComparacao && !Number.isNaN(item.inicioComparacao.getTime()) && item.inicioComparacao.getTime() >= hoje.getTime())
+    .sort((a, b) => a.inicioComparacao.getTime() - b.inicioComparacao.getTime())[0] || null;
+}
+
+function manutMobileProximoUsoLinha(produto = {}) {
+  const proximo = manutMobileBuscarProximoUsoProduto(produto);
+  if (proximo) {
+    const dataUso = proximo.inicioComparacao || proximo.intervalo?.inicio || manutMobileInicioEventoUso(proximo.evento);
+    return `Próx.: ${manutMobileFormatarDataCurta(dataUso)} - ${manutMobilePrimeiroNome(proximo.evento?.nome)}`;
+  }
+  return "Próx.: —";
 }
 
 function manutMobileUsabilidadeClasse(valor) {
@@ -629,17 +699,25 @@ function renderizarManutencaoMobile() {
     return;
   }
 
-  listaEl.innerHTML = lista.map(produto => `
+  listaEl.innerHTML = lista.map(produto => {
+    const obsResumo = manutMobileObsCardResumo(produto);
+    return `
     <article class="manut-mobile-card status-${manutMobileNormalizar(produto.status)}" data-manut-produto-id="${manutMobileEscape(produto.id)}">
-      <div>
+      <div class="manut-mobile-card-main">
         <h3 class="manut-mobile-produto-titulo-inline">${manutMobileTituloInline(produto)}</h3>
-        <small>Status: ${manutMobileStatusBadge(produto.status)}</small>
-        <small class="manut-mobile-card-disp">${manutMobileEscape(manutMobileProximoUsoLinha(produto))}</small>
-        <small class="manut-mobile-card-disp">${manutMobileEscape(manutMobileLimpezaResumo(produto))}</small>
+        <div class="manut-mobile-card-meta">
+          <small><strong>Status:</strong> ${manutMobileStatusBadge(produto.status)}</small>
+          <small><strong>Próx.:</strong> ${manutMobileEscape(manutMobileProximoUsoLinha(produto).replace(/^Próx\.:\s*/,""))}</small>
+          <small><strong>Ult. Limp.:</strong> ${manutMobileEscape(manutMobileLimpezaResumo(produto).replace(/^Ult\. Limp\.:\s*/,""))}</small>
+        </div>
+        <div class="manut-mobile-card-bottom">
+          ${obsResumo ? `<small class="manut-mobile-card-obs"><strong>Obs.:</strong> ${manutMobileEscape(obsResumo)}</small>` : `<small class="manut-mobile-card-obs vazio"></small>`}
+          <button type="button" class="btn-outline manut-mobile-card-abrir" data-manut-abrir="${manutMobileEscape(produto.id)}">Abrir</button>
+        </div>
       </div>
-      <button type="button" class="btn-outline" data-manut-abrir="${manutMobileEscape(produto.id)}">Abrir</button>
     </article>
-  `).join("");
+  `;
+  }).join("");
 
   listaEl.querySelectorAll("[data-manut-abrir]").forEach(btn => {
     btn.addEventListener("click", () => abrirManutencaoMobileProduto(btn.dataset.manutAbrir, { anchorEl: btn.closest(".manut-mobile-card") }));
@@ -889,7 +967,7 @@ function abrirManutencaoMobileProduto(id, opcoes = {}) {
       </div>
 
       <label class="manut-mobile-observacao manut-mobile-info-card">Observação / Reparo realizado
-        <textarea id="manutencaoMobileObs" rows="1" placeholder="Ex.: Lavagem, troca de lona, costura, reparo...">${manutMobileEscape(produto.observacao || "")}</textarea>
+        <textarea id="manutencaoMobileObs" rows="1" placeholder="Ex.: Lavagem, troca de lona, costura, reparo...">${manutMobileEscape((typeof rtProdutoObsEventoCurta === "function" ? rtProdutoObsEventoCurta(produto.observacao, produto) : produto.observacao) || "")}</textarea>
       </label>
 
       <div class="manut-mobile-status-grupo">
@@ -1243,7 +1321,12 @@ function iniciarManutencaoMobile() {
   manutMobileAtualizarBotaoUsabilidadeFiltro();
   manutMobileAtualizarBotaoTamanhoFiltro();
 
-  setTimeout(renderizarManutencaoMobile, 900);
+  setTimeout(() => {
+    renderizarManutencaoMobile();
+    if (typeof carregarEventosDisponibilidadeProduto === "function") {
+      carregarEventosDisponibilidadeProduto().then(() => renderizarManutencaoMobile()).catch(() => {});
+    }
+  }, 900);
   manutMobileIniciarSincronizacaoAutomatica();
 }
 

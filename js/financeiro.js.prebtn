@@ -756,25 +756,12 @@ function rtFinRenderSelectAssociacao(id, opcoes, selecionado = "", indice = 0) {
 function rtFinResumoAssociacaoMultipla(linha) {
   const assocs = rtFinAssociacoesLinhaExtrato(linha);
   if (!assocs.length) return "";
-  const partes = assocs.map(a => {
-    const cliente = String(a.cliente || "Cliente").trim();
-    const data = rtFinDataBR(a.data_evento || a.data_aviso || "");
-    const tipo = String(a.tipo_pagamento || "").trim();
-    const valor = rtFinMoeda(Number(a.valor || 0));
-    return `${cliente}${data ? " " + data : ""}${tipo ? " · " + tipo : ""} · ${valor}`;
-  });
-  const titulo = rtFinEscapeHtml(partes.join("\n"));
   if (assocs.length === 1) {
     const a = assocs[0];
-    const cliente = rtFinEscapeHtml(String(a.cliente || "Cliente").trim());
-    const data = rtFinDataBR(a.data_evento || a.data_aviso || "");
-    const tipo = rtFinEscapeHtml(String(a.tipo_pagamento || "").trim());
-    const valor = rtFinMoeda(Number(a.valor || 0));
-    return `<div class="financeiro-registro fin-ext-assoc-resumo" title="${titulo}"><span>✅ ${cliente}${data ? ` | Evento ${data}` : ""}${tipo ? ` | ${tipo}` : ""} | ${valor}</span></div>`;
+    return `<div class="financeiro-registro fin-ext-assoc-resumo" title="${rtFinEscapeHtml(a.cliente)} · ${rtFinDataBR(a.data_evento)} · ${rtFinEscapeHtml(a.tipo_pagamento || "")}"><span>${rtFinDataBR(a.data_evento)} | ${rtFinEscapeHtml(a.tipo_pagamento || "")} | ${rtFinEscapeHtml(a.cliente)}</span></div>`;
   }
   const total = assocs.reduce((s,a) => s + Number(a.valor || 0), 0);
-  const curto = partes.join(" + ");
-  return `<div class="financeiro-registro fin-ext-assoc-resumo" title="${titulo}"><span>✅ ${assocs.length} eventos | ${rtFinEscapeHtml(curto)} | Total ${rtFinMoeda(total)}</span></div>`;
+  return `<div class="financeiro-registro fin-ext-assoc-resumo" title="${rtFinEscapeHtml(assocs.map(a => `${a.cliente} ${rtFinDataBR(a.data_evento)} ${rtFinMoeda(a.valor)}`).join(" · "))}"><span>${assocs.length} eventos associados · ${rtFinMoeda(total)}</span></div>`;
 }
 
 function rtFinAtualizarResumoAssociacaoLinha(id) {
@@ -1023,11 +1010,6 @@ function rtFinRenderExtratoSalvo() {
     const associacoesSalvas = rtFinAssociacoesLinhaExtrato(l);
     let selecionados = associacoesSalvas.map(a => a.key || a.legacy_key).filter(Boolean);
     const sugestaoCombo = tipo === "entrada" && String(l.status || "pendente") === "pendente" ? rtFinSugerirCombinacaoExtrato(itemSugestao, opcoes) : null;
-    let comboAutoSelecionado = false;
-    if (!selecionados.length && sugestaoCombo && Number(sugestaoCombo.confianca || 0) >= 90 && Array.isArray(sugestaoCombo.keys) && sugestaoCombo.keys.length) {
-      selecionados = sugestaoCombo.keys.slice();
-      comboAutoSelecionado = true;
-    }
     // Auto-seleção mais rígida e estável: se a sugestão simples tem confiança alta,
     // procura a opção real pelo evento/tipo/valor antes de cair no primeiro item da lista.
     if (!selecionados.length && sugestao && sugestao.evento_id && Number(sugestao.confianca || 0) >= 60) {
@@ -1057,25 +1039,25 @@ function rtFinRenderExtratoSalvo() {
           </div>
           <button type="button" class="btn-mini btn-outline fin-ext-add-compact" title="Adicionar outro evento" data-ext-add-assoc="${rtFinEscapeHtml(id)}">+</button>
           <input class="fin-ext-obs" data-ext-obs="${rtFinEscapeHtml(id)}" value="${rtFinEscapeHtml(l.observacao || "")}" placeholder="observação">
+          <button type="button" class="btn-mini btn-outline fin-ext-save-inline" data-ext-salvar-assoc="${rtFinEscapeHtml(id)}">Salvar associação</button>
         </div>
         <div class="financeiro-registro fin-ext-assoc-total" data-ext-assoc-total="${rtFinEscapeHtml(id)}"><span>Calculando...</span></div>
-        ${sugestaoCombo ? `<div class="financeiro-registro fin-ext-combo-sug"><span>💡 ${comboAutoSelecionado ? "Autoassociado: " : "Sugestão: "}${sugestaoCombo.associacoes.length} eventos · ${rtFinMoeda(sugestaoCombo.total)} (${sugestaoCombo.confianca}%)</span></div>` : (sugestao && sugestao.evento_id ? `<div class="financeiro-registro fin-ext-combo-sug"><span>💡 ${rtFinEscapeHtml(sugestao.cliente || "")} · ${rtFinEscapeHtml(sugestao.tipo_pagamento || "")} · ${rtFinMoeda(sugestao.valor_esperado || 0)} (${sugestao.confianca || 0}%)</span></div>` : "")}
+        ${sugestaoCombo ? `<div class="financeiro-registro fin-ext-combo-sug"><span>💡 ${sugestaoCombo.associacoes.length} eventos · ${rtFinMoeda(sugestaoCombo.total)} (${sugestaoCombo.confianca}%)</span><button type="button" class="btn-mini" data-ext-aplicar-combo="${rtFinEscapeHtml(id)}" data-ext-combo-keys="${rtFinEscapeHtml(sugestaoCombo.keys.join(";;;"))}">Aplicar</button></div>` : (sugestao && sugestao.evento_id ? `<div class="financeiro-registro fin-ext-combo-sug"><span>💡 ${rtFinEscapeHtml(sugestao.cliente || "")} · ${rtFinEscapeHtml(sugestao.tipo_pagamento || "")} · ${rtFinMoeda(sugestao.valor_esperado || 0)} (${sugestao.confianca || 0}%)</span></div>` : "")}
       </div>
-    ` : (String(l.status || "") === "associado" ? (rtFinResumoAssociacaoMultipla(l) || `<span class="muted">Associado</span>`) : `<span class="muted">${tipo === "rendimento" ? "Rendimento bancário" : (tipo === "cartao" ? "Cartão/Rede ou outro crédito" : (tipo === "outro" ? "Outro crédito" : "Não vincular"))}</span>`);
+    ` : `<span class="muted">${tipo === "rendimento" ? "Rendimento bancário" : (tipo === "cartao" ? "Cartão/Rede ou outro crédito" : (tipo === "outro" ? "Outro crédito" : "Não vincular"))}</span>`;
     return `<tr class="financeiro-status-${l.status || "pendente"}">
       <td>${rtFinDataBR(l.data_lancamento)}</td>
       <td><strong>${rtFinEscapeHtml(l.descricao || l.linha_original || "")}</strong></td>
       <td>${valor < 0 ? "-" : "+"}${rtFinMoeda(Math.abs(valor))}</td>
       <td>${rtFinTipoExtratoTexto(tipo)}</td>
-      <td><span class="financeiro-status-badge">${rtFinStatusLinhaExtrato(l)}</span></td>
+      <td><span class="financeiro-status-badge">${rtFinStatusLinhaExtrato(l)}</span>${rtFinResumoAssociacaoMultipla(l)}</td>
       <td>${assoc}</td>
       <td class="fin-ext-obs-td"></td>
-      <td class="financeiro-acoes fin-ext-acoes-grid ${podeVincular ? "fin-ext-acoes-pendentes" : "fin-ext-acoes-compacta"}">
-        ${podeVincular ? `<button type="button" class="btn-mini btn-outline fin-ext-save-action" data-ext-salvar-assoc="${rtFinEscapeHtml(id)}">Salvar associação</button>` : ""}
-        <button type="button" class="btn-mini btn-outline fin-ext-action-pendente" data-ext-marcar="pendente" data-ext-id="${rtFinEscapeHtml(id)}">${podeVincular ? "Pendente" : "Pend."}</button>
-        <button type="button" class="btn-mini btn-outline" data-ext-marcar="rendimento" data-ext-id="${rtFinEscapeHtml(id)}">${podeVincular ? "Rendimento" : "Rend."}</button>
+      <td class="financeiro-acoes">
+        <button type="button" class="btn-mini btn-outline" data-ext-marcar="rendimento" data-ext-id="${rtFinEscapeHtml(id)}">Rendimento</button>
         <button type="button" class="btn-mini btn-outline" data-ext-marcar="outro" data-ext-id="${rtFinEscapeHtml(id)}">Outro</button>
-        <button type="button" class="btn-mini btn-outline" data-ext-marcar="ignorado" data-ext-id="${rtFinEscapeHtml(id)}">${podeVincular ? "Ignorar" : "Ign."}</button>
+        <button type="button" class="btn-mini btn-outline" data-ext-marcar="pendente" data-ext-id="${rtFinEscapeHtml(id)}">Pendente</button>
+        <button type="button" class="btn-mini btn-outline" data-ext-marcar="ignorado" data-ext-id="${rtFinEscapeHtml(id)}">Ignorar</button>
       </td>
     </tr>`;
   }).join("");
@@ -1094,6 +1076,18 @@ function rtFinRenderExtratoSalvo() {
     rtFinAtualizarResumoAssociacaoLinha(id);
   }));
   tbody.querySelectorAll("[data-ext-remover-assoc]").forEach(btn => btn.addEventListener("click", () => { const id = btn.dataset.extRemoverAssoc; btn.closest("[data-ext-assoc-row]")?.remove(); rtFinAtualizarResumoAssociacaoLinha(id); }));
+  tbody.querySelectorAll("[data-ext-aplicar-combo]").forEach(btn => btn.addEventListener("click", () => {
+    const id = btn.dataset.extAplicarCombo;
+    const linha = rtFinanceiroExtratoSalvo.find(l => String(l.id || l.fingerprint) === String(id));
+    const lista = document.querySelector(`[data-ext-assoc-list="${CSS.escape(id)}"]`);
+    if (!linha || !lista) return;
+    const opcoes = rtFinOpcoesPagamentoEventos(rtFinItemExtratoDeLinhaSalva(linha));
+    const keys = String(btn.dataset.extComboKeys || "").split(";;;").filter(Boolean);
+    lista.innerHTML = keys.map((k, idx) => rtFinRenderSelectAssociacao(id, opcoes, k, idx)).join("");
+    lista.querySelectorAll("select[data-ext-assoc]").forEach(sel => sel.onchange = () => rtFinAtualizarResumoAssociacaoLinha(id));
+    lista.querySelectorAll("[data-ext-remover-assoc]").forEach(b => b.onclick = () => { b.closest("[data-ext-assoc-row]")?.remove(); rtFinAtualizarResumoAssociacaoLinha(id); });
+    rtFinAtualizarResumoAssociacaoLinha(id);
+  }));
   tbody.querySelectorAll("[data-ext-assoc-total]").forEach(el => rtFinAtualizarResumoAssociacaoLinha(el.dataset.extAssocTotal));
   tbody.querySelectorAll("[data-ext-marcar]").forEach(btn => btn.addEventListener("click", () => rtFinMarcarStatusExtrato(btn.dataset.extId, btn.dataset.extMarcar)));
 }

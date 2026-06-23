@@ -6,6 +6,7 @@ const rtOrcLogoUrlPadrao = "https://riotendas.smartwebinfo.com.br/webapp/public/
 
 function rtOrcGerarId(){ return (typeof gerarId === "function") ? gerarId() : String(Date.now()) + Math.random().toString(16).slice(2); }
 function rtOrcEhUuid(v){ return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||'').trim()); }
+function rtOrcUuidOuNull(v){ const t = String(v || '').trim(); return rtOrcEhUuid(t) ? t : null; }
 function rtOrcMoeda(n){ return (typeof numeroParaMoeda === "function") ? numeroParaMoeda(Number(n||0)) : Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
 function rtOrcNumero(v){ return (typeof moedaParaNumero === "function") ? moedaParaNumero(v) : Number(String(v||'').replace(/[^\d,.-]/g,'').replace('.','').replace(',','.')) || 0; }
 function rtOrcDataBR(d){ return d ? (typeof dataBR === "function" ? dataBR(d) : d.split('-').reverse().join('/')) : ''; }
@@ -138,6 +139,10 @@ async function salvarOrcamentoBanco(orcamento){
     // Compatibilidade Supabase: a tabela orcamentos não possui a coluna evento_vinculado_id.
     // O vínculo oficial com o evento fica em evento_id.
     delete registro.evento_vinculado_id;
+
+    // Campos UUID do Supabase não aceitam string vazia.
+    // Orçamento novo sem evento vinculado deve gravar NULL, nunca "".
+    registro.evento_id = rtOrcUuidOuNull(registro.evento_id);
 
     // A coluna id da tabela orcamentos é UUID. Nunca gravar números de orçamento
     // como id (ex.: orc_06062026-001). O Supabase deve gerar o UUID automaticamente.
@@ -788,7 +793,7 @@ function obterOrcamentoDoForm(temporario=false){
     valor_restante: rtOrcNumero(document.getElementById('orcamentoValorRestante').value),
     forma_pagamento: document.getElementById('orcamentoFormaPagamento').value,
     observacoes: document.getElementById('orcamentoObservacoes').value.trim(),
-    evento_id: existente?.evento_id || window.__rtOrcamentoEventoOrigemId || '',
+    evento_id: rtOrcUuidOuNull(existente?.evento_id || window.__rtOrcamentoEventoOrigemId || ''),
     criado_em: existente?.criado_em || new Date().toISOString(),
     atualizado_em: new Date().toISOString()
   };

@@ -947,7 +947,7 @@ function iniciarRotas() {
   document.getElementById("rotaMes").value = mesAtual;
   aplicarParametrosRotaLinkSeExistirem();
 
-  ["rotaPeriodo", "rotaMes", "rotaData", "rotaTipoFiltro", "rotaCarroFiltro"].forEach(id => {
+  ["rotaPeriodo", "rotaMes", "rotaData", "rotaTipoFiltro", "rotaCarroFiltro", "rotaStatusFiltro", "rotaBuscaFiltro"].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener("input", renderizarRotas);
@@ -1187,19 +1187,87 @@ function produtoDescricaoRota(produto) {
 }
 
 
+function dataISORotaSeguro(valor) {
+  return valor ? String(valor).slice(0, 10) : "";
+}
+
+function rtTimestampLocalRota(valor) {
+  if (!valor) return NaN;
+  const texto = String(valor);
+  const dataMatch = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!dataMatch) return NaN;
+  const horaMatch = texto.match(/T(\d{2}):(\d{2})/);
+  const ano = Number(dataMatch[1]);
+  const mes = Number(dataMatch[2]) - 1;
+  const dia = Number(dataMatch[3]);
+  const hora = horaMatch ? Number(horaMatch[1]) : 0;
+  const minuto = horaMatch ? Number(horaMatch[2]) : 0;
+  return new Date(ano, mes, dia, hora, minuto, 0, 0).getTime();
+}
+
+function rtFimOperacaoRotaDisponibilidade(valor, tipoSalvo, fallbackData = "") {
+  if (!valor && !fallbackData) return null;
+
+  const tipo = tipoHorarioBase(tipoSalvo);
+  const data = dataISORotaSeguro(valor || fallbackData);
+  if (!data) return valor || null;
+
+  const tipoNormalizado = String(tipo || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  // Regra segura: quando a desmontagem/retirada não tem horário exato,
+  // o material fica preso até o fim do dia informado.
+  const segurarAteFimDoDia = [
+    "horario comercial",
+    "livre / combinar",
+    "livre",
+    "comercial",
+    "ate",
+    "a partir de",
+    "a partir"
+  ].includes(tipoNormalizado);
+
+  if (segurarAteFimDoDia) return `${data}T23:59`;
+  if (String(valor || "").includes("T")) return valor;
+  return `${data}T23:59`;
+}
+
 function intervaloEventoRotaDisponibilidade(evento) {
   if (!evento) return { inicio: null, fim: null };
 
-  let inicio = evento.montagem || null;
-  let fim = evento.desmontagem || null;
+  // Regra central de disponibilidade operacional:
+  // usar montagem/entrega como início e desmontagem/retirada como liberação real.
+  // Antes, quando `desmontagem` não vinha preenchida no objeto resumido da rota,
+  // o sistema caía em `data_evento` e liberava material ainda montado em outro cliente
+  // como “Uso em trânsito”.
+  let inicio = evento.montagem
+    || evento.data_montagem
+    || evento.montagem_data
+    || evento.entrega
+    || evento.data_entrega
+    || null;
 
-  if (!inicio || !fim) {
-    const data = String(evento.data_evento || "").slice(0, 10);
-    if (!data) return { inicio: null, fim: null };
+  let fim = evento.desmontagem
+    || evento.data_desmontagem
+    || evento.desmontagem_data
+    || evento.retirada
+    || evento.data_retirada
+    || null;
 
-    inicio = `${data}T${String(evento.hora_inicio || evento.hora_evento || "00:00").slice(0, 5)}`;
-    fim = `${data}T${String(evento.hora_termino || "23:59").slice(0, 5)}`;
+  const dataBase = String(evento.data_evento || evento.data || inicio || fim || "").slice(0, 10);
+  if (!inicio && dataBase) {
+    inicio = `${dataBase}T${String(evento.hora_inicio || evento.hora_evento || "00:00").slice(0, 5)}`;
   }
+  if (!fim && dataBase) {
+    fim = `${dataBase}T${String(evento.hora_termino || "23:59").slice(0, 5)}`;
+  }
+
+  if (!inicio || !fim) return { inicio: null, fim: null };
+
+  fim = rtFimOperacaoRotaDisponibilidade(fim, evento.desmontagem_tipo || evento.tipo_desmontagem, dataBase || evento.data_evento);
 
   return { inicio, fim };
 }
@@ -1218,8 +1286,42 @@ function eventoUsaProdutoRotaPorIdOuCodigo(evento, produto) {
 
 function rtIntervalosEventosConflitamRota(a, b) {
   if (!a?.inicio || !a?.fim || !b?.inicio || !b?.fim) return false;
-  return new Date(a.inicio).getTime() < new Date(b.fim).getTime()
-    && new Date(a.fim).getTime() > new Date(b.inicio).getTime();
+  const ai = rtTimestampLocalRota(a.inicio);
+  const af = rtTimestampLocalRota(a.fim);
+  const bi = rtTimestampLocalRota(b.inicio);
+  const bf = rtTimestampLocalRota(b.fim);
+  if ([ai, af, bi, bf].some(Number.isNaN)) return false;
+  return ai < bf && af > bi;
+}
+
+function rtDataLiberacaoEventoRota(evento) {
+  if (!evento) return "";
+  const intervalo = intervaloEventoRotaDisponibilidade(evento);
+  return dataISORotaSeguro(intervalo?.fim || evento.desmontagem || evento.data_desmontagem || evento.retirada || evento.data_evento || "");
+}
+
+function rtTextoEmUsoAteRota(evento) {
+  const nome = evento?.nome || evento?.cliente || "Cliente";
+  const dataLiberacao = rtDataLiberacaoEventoRota(evento);
+  const dataTxt = dataLiberacao ? formatarDataRota(dataLiberacao) : (evento?.data_evento ? formatarDataRota(evento.data_evento) : "data não informada");
+  return `⚠ Em uso até ${dataTxt} - ${nome}`;
+}
+
+function rtInicioDoDiaMsRota(valor) {
+  const data = dataISORotaSeguro(valor);
+  if (!data) return NaN;
+  const partes = data.split("-").map(Number);
+  if (partes.length < 3 || partes.some(Number.isNaN)) return NaN;
+  return new Date(partes[0], partes[1] - 1, partes[2], 0, 0, 0, 0).getTime();
+}
+
+function rtMesmoDiaRotaMs(a, b) {
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+  const da = new Date(a);
+  const db = new Date(b);
+  return da.getFullYear() === db.getFullYear()
+    && da.getMonth() === db.getMonth()
+    && da.getDate() === db.getDate();
 }
 
 function produtoDisponivelParaTrocaRota(produto, evento, ignorarEventosIds = []) {
@@ -1228,23 +1330,122 @@ function produtoDisponivelParaTrocaRota(produto, evento, ignorarEventosIds = [])
   const intervaloAtual = intervaloEventoRotaDisponibilidade(evento);
   if (!intervaloAtual.inicio || !intervaloAtual.fim) return { livre: true, texto: "Sem data definida" };
 
-  const ignorar = new Set((Array.isArray(ignorarEventosIds) ? ignorarEventosIds : [ignorarEventosIds]).map(x => String(x || "")).filter(Boolean));
-  ignorar.add(String(evento.id));
+  const inicioAtualMs = rtTimestampLocalRota(intervaloAtual.inicio);
+  const fimAtualMs = rtTimestampLocalRota(intervaloAtual.fim);
+  if (!Number.isFinite(inicioAtualMs) || !Number.isFinite(fimAtualMs)) return { livre: true, texto: "Sem data definida" };
 
-  const conflito = (Array.isArray(eventos) ? eventos : []).find(outro => {
-    if (!outro || ignorar.has(String(outro.id))) return false;
-    if (typeof rtEventoCancelado === "function" && rtEventoCancelado(outro)) return false;
-    if (!eventoUsaProdutoRotaPorIdOuCodigo(outro, produto)) return false;
+  const ignorar = new Set((Array.isArray(ignorarEventosIds) ? ignorarEventosIds : [ignorarEventosIds]).map(x => String(x || "")).filter(Boolean));
+  ignorar.add(String(evento.id || ""));
+
+  let bloqueio = null;
+  let transito = null;
+
+  (Array.isArray(eventos) ? eventos : []).forEach(outro => {
+    if (!outro || ignorar.has(String(outro.id || ""))) return;
+    if (typeof rtEventoCancelado === "function" && rtEventoCancelado(outro)) return;
+    if (!eventoUsaProdutoRotaPorIdOuCodigo(outro, produto)) return;
 
     const intervaloOutro = intervaloEventoRotaDisponibilidade(outro);
-    return rtIntervalosEventosConflitamRota(intervaloAtual, intervaloOutro);
+    const inicioOutroMs = rtTimestampLocalRota(intervaloOutro.inicio);
+    const fimOutroMs = rtTimestampLocalRota(intervaloOutro.fim);
+    if (!Number.isFinite(inicioOutroMs) || !Number.isFinite(fimOutroMs)) return;
+
+    // Uso em trânsito seguro:
+    // quando a retirada/liberação da origem é no MESMO DIA da montagem do destino,
+    // permitir a escolha com confirmação mesmo que os horários genéricos
+    // ("horário comercial", "livre/combinar") façam os intervalos parecerem sobrepostos.
+    // Ex.: retirar da ANGELA em 21/06 e montar VERÔNICA em 21/06.
+    const dataLiberacaoOrigem = dataISORotaSeguro(intervaloOutro.fim || outro.desmontagem || outro.data_desmontagem || outro.retirada || "");
+    const dataMontagemDestino = dataISORotaSeguro(intervaloAtual.inicio || evento.montagem || evento.data_montagem || evento.data_evento || "");
+    const mesmoDiaOperacional = !!dataLiberacaoOrigem && !!dataMontagemDestino && dataLiberacaoOrigem === dataMontagemDestino;
+    const recorrenteOutro = typeof isEventoRecorrente === "function" && isEventoRecorrente(outro);
+
+    if (mesmoDiaOperacional && !recorrenteOutro) {
+      if (!transito || fimOutroMs > rtTimestampLocalRota(intervaloEventoRotaDisponibilidade(transito).fim)) {
+        transito = outro;
+      }
+      return;
+    }
+
+    // Regra central: se os períodos se cruzam e NÃO é trânsito seguro no mesmo dia,
+    // o produto NÃO está disponível.
+    // Isso cobre material ainda montado, reserva próxima e recorrência com conflito.
+    if (rtIntervalosEventosConflitamRota(intervaloAtual, intervaloOutro)) {
+      bloqueio = bloqueio || outro;
+      return;
+    }
+
+    // Evento antigo já recolhido vira disponível; evento futuro distante não bloqueia.
+    // Mantemos a regra anterior apenas para horário exato realmente anterior no mesmo dia.
+    const mesmoDiaDaMontagem = rtMesmoDiaRotaMs(fimOutroMs, inicioAtualMs);
+    if (fimOutroMs <= inicioAtualMs && mesmoDiaDaMontagem && !recorrenteOutro) {
+      if (!transito || fimOutroMs > rtTimestampLocalRota(intervaloEventoRotaDisponibilidade(transito).fim)) {
+        transito = outro;
+      }
+    }
   });
 
-  if (conflito) {
-    return { livre: false, texto: `Em uso - ${conflito.nome || conflito.cliente || "Cliente"} - ${conflito.data_evento ? formatarDataRota(conflito.data_evento) : "data não informada"}`, conflito, permiteUsoTransito: true };
+  if (bloqueio) {
+    return {
+      livre: false,
+      texto: rtTextoEmUsoAteRota(bloqueio),
+      conflito: bloqueio,
+      permiteUsoTransito: false
+    };
+  }
+
+  if (transito) {
+    return {
+      livre: false,
+      texto: `Em uso - ${transito.nome || transito.cliente || "Cliente"} - ${rtDataLiberacaoEventoRota(transito) ? formatarDataRota(rtDataLiberacaoEventoRota(transito)) : "data não informada"}`,
+      conflito: transito,
+      permiteUsoTransito: true
+    };
   }
 
   return { livre: true, texto: "Disponível" };
+}
+
+
+function rtEventoInicioMsParaReservaFuturaRota(evento) {
+  const intervalo = intervaloEventoRotaDisponibilidade(evento);
+  const raw = intervalo?.inicio || evento?.montagem || evento?.data_evento || "";
+  const ms = raw ? new Date(raw).getTime() : NaN;
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function rtDescricaoReservaFuturaRota(conflito) {
+  if (!conflito) return "Reservada para evento futuro";
+  const nome = conflito.nome || conflito.cliente || "Cliente";
+  const data = conflito.data_evento ? formatarDataRota(conflito.data_evento) : "data não informada";
+  return `⚠ Reservada para ${nome} - ${data}`;
+}
+
+function produtoReservaFuturaTrocaRota(produto, eventoAtual, ignorarEventosIds = []) {
+  if (!produto || !eventoAtual || !Array.isArray(eventos)) return null;
+
+  const ignorar = new Set((Array.isArray(ignorarEventosIds) ? ignorarEventosIds : [ignorarEventosIds]).map(x => String(x || "")).filter(Boolean));
+  ignorar.add(String(eventoAtual.id || ""));
+
+  const intervaloAtual = intervaloEventoRotaDisponibilidade(eventoAtual);
+  const inicioAtualMs = rtTimestampLocalRota(intervaloAtual.inicio);
+  if (!Number.isFinite(inicioAtualMs)) return null;
+
+  return eventos
+    .filter(outro => {
+      if (!outro || ignorar.has(String(outro.id || ""))) return false;
+      if (typeof rtEventoCancelado === "function" && rtEventoCancelado(outro)) return false;
+      if (!eventoUsaProdutoRotaPorIdOuCodigo(outro, produto)) return false;
+
+      const intervaloOutro = intervaloEventoRotaDisponibilidade(outro);
+      const inicioOutroMs = rtTimestampLocalRota(intervaloOutro.inicio);
+      if (!Number.isFinite(inicioOutroMs) || inicioOutroMs < inicioAtualMs) return false;
+
+      // Só é reserva futura relevante quando o período realmente conflita.
+      // Reserva distante, como evento dia 26 para um evento que termina dia 22, não deve bloquear nem aparecer como problema.
+      return rtIntervalosEventosConflitamRota(intervaloAtual, intervaloOutro);
+    })
+    .sort((a, b) => rtEventoInicioMsParaReservaFuturaRota(a) - rtEventoInicioMsParaReservaFuturaRota(b))[0] || null;
 }
 
 function rtEventoMontagemEntregueRota(evento) {
@@ -1264,7 +1465,7 @@ function rtProdutoMesmoTipoTrocaRota(a, b) {
 
 function rtPermutaPossivelTrocaRota(produtoNovo, eventoAtual, produtoAntigo) {
   const disponibilidade = produtoDisponivelParaTrocaRota(produtoNovo, eventoAtual);
-  const conflito = disponibilidade?.conflito || null;
+  const conflito = disponibilidade?.conflito || produtoReservaFuturaTrocaRota(produtoNovo, eventoAtual) || null;
   if (!conflito || !produtoAntigo) return null;
   if (typeof rtEventoCancelado === "function" && rtEventoCancelado(conflito)) return null;
   if (rtEventoMontagemEntregueRota(conflito)) return null;
@@ -1317,35 +1518,25 @@ function produtosDisponiveisParaTrocaRota(produtoAtual, evento) {
 
 function statusTrocaRotaProduto(p, evento, produtoAtual = null) {
   const status = String(p?.status || "").trim();
-  const statusLower = status.toLowerCase();
-  const disponibilidade = produtoDisponivelParaTrocaRota(p, evento);
+  const statusLower = status.toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 
-  const statusLivre = ["livre", "livre para locação", "livre para locacao", "disponível", "disponivel"];
+  const disponibilidade = produtoDisponivelParaTrocaRota(p, evento);
+  const reservaFutura = produtoReservaFuturaTrocaRota(p, evento);
+
   const statusRevisar = (typeof rtProdutoEventoEstaRevisar === "function" && rtProdutoEventoEstaRevisar(p)) || statusLower.includes("revis");
   const statusConsertar = (typeof rtProdutoEventoEstaConsertar === "function" && rtProdutoEventoEstaConsertar(p)) || statusLower.includes("consert");
-  const statusAlugadoReservado = statusLower.includes("alug") || statusLower.includes("reserv");
+  const statusBloqueado = statusLower.includes("bloque");
+  const statusLimpar = statusLower.includes("limp");
 
-  if (!disponibilidade.livre && disponibilidade.permiteUsoTransito && !statusRevisar && !statusConsertar) {
-    return {
-      livre: false,
-      transito: true,
-      conflito: disponibilidade.conflito,
-      texto: `${disponibilidade.texto || "Em uso"} | ⚠ Uso em trânsito`
-    };
+  // Status operacionais reais continuam bloqueando/avisando, independentemente da agenda.
+  if (statusBloqueado) {
+    return { livre: false, permuta: false, texto: "Bloqueada" };
   }
 
   if (statusRevisar || statusConsertar) {
     if (!disponibilidade.livre) {
-      const permutaInfo = produtoAtual ? rtPermutaPossivelTrocaRota(p, evento, produtoAtual) : null;
-      if (permutaInfo) {
-        return {
-          livre: false,
-          permuta: true,
-          conflito: permutaInfo.conflito,
-          idxProdutoConflito: permutaInfo.idxProdutoConflito,
-          texto: "Reservada para evento futuro"
-        };
-      }
       return { livre: false, permuta: false, texto: disponibilidade.texto || "Ocupada no período" };
     }
     return {
@@ -1355,23 +1546,42 @@ function statusTrocaRotaProduto(p, evento, produtoAtual = null) {
     };
   }
 
-  if (!statusLivre.includes(statusLower)) {
-    const statusPermutavel = statusLower.includes("alug") || statusLower.includes("reserv");
-    const permutaInfo = statusPermutavel && produtoAtual ? rtPermutaPossivelTrocaRota(p, evento, produtoAtual) : null;
+  // Correção importante:
+  // "Alugado" ou "Reservado" no cadastro do produto pode estar atrasado por evento antigo
+  // já recolhido. Na troca rápida, o que manda é a agenda/período, não o texto antigo do status.
+  // Se não existe conflito no período e não existe reserva futura relevante, o produto pode entrar.
+  if (disponibilidade.livre && !reservaFutura) {
+    if (statusLimpar) return { livre: true, permuta: false, texto: "⚠ Limpar" };
+    return { livre: true, permuta: false, texto: "Disponível" };
+  }
+
+  // Reserva futura próxima/relevante: permite permuta somente se houver substituta segura.
+  if (reservaFutura && produtoAtual) {
+    const permutaInfo = rtPermutaPossivelTrocaRota(p, evento, produtoAtual);
     if (permutaInfo) {
       return {
         livre: false,
         permuta: true,
         conflito: permutaInfo.conflito,
         idxProdutoConflito: permutaInfo.idxProdutoConflito,
-        texto: "Reservada para evento futuro"
+        texto: rtDescricaoReservaFuturaRota(permutaInfo.conflito)
       };
     }
-
     return {
       livre: false,
       permuta: false,
-      texto: status || "Indisponível"
+      conflito: reservaFutura,
+      texto: rtDescricaoReservaFuturaRota(reservaFutura)
+    };
+  }
+
+  // Uso em trânsito só é permitido quando a liberação real acontece antes da montagem destino.
+  if (!disponibilidade.livre && disponibilidade.permiteUsoTransito && !statusRevisar && !statusConsertar && !statusBloqueado) {
+    return {
+      livre: false,
+      transito: true,
+      conflito: disponibilidade.conflito,
+      texto: `${disponibilidade.texto || "Em uso"} | ⚠ Uso em trânsito`
     };
   }
 
@@ -1383,22 +1593,13 @@ function statusTrocaRotaProduto(p, evento, produtoAtual = null) {
         permuta: true,
         conflito: permutaInfo.conflito,
         idxProdutoConflito: permutaInfo.idxProdutoConflito,
-        texto: "Reservada para evento futuro"
+        texto: rtDescricaoReservaFuturaRota(permutaInfo.conflito)
       };
     }
-
-    return {
-      livre: false,
-      permuta: false,
-      texto: disponibilidade.texto || "Ocupada no período"
-    };
+    return { livre: false, permuta: false, texto: disponibilidade.texto || status || "Indisponível" };
   }
 
-  return {
-    livre: true,
-    permuta: false,
-    texto: "Disponível"
-  };
+  return { livre: true, permuta: false, texto: "Disponível" };
 }
 
 function garantirModalTrocaProdutoRota() {
@@ -1475,8 +1676,16 @@ function garantirModalPermutaProdutoRota() {
   return modal;
 }
 
-function confirmarPermutaProdutoRota() {
+function confirmarPermutaProdutoRota(permutaInfo = null, produtoNovo = null) {
   const modal = garantirModalPermutaProdutoRota();
+  const alerta = modal.querySelector(".rota-permuta-alerta");
+  if (alerta) {
+    const conflito = permutaInfo?.conflito || null;
+    const nome = conflito?.nome || conflito?.cliente || "outro evento";
+    const data = conflito?.data_evento ? formatarDataRota(conflito.data_evento) : "data não informada";
+    const cod = produtoNovo?.codigo || "Produto";
+    alerta.innerHTML = `⚠ ${cod} está reservada para ${nome} - ${data}.<br>Você pode substituir no próximo evento, escolher outra agora ou cancelar.`;
+  }
   return new Promise(resolve => {
     const limpar = () => {
       modal.querySelectorAll("[data-permuta-acao]").forEach(btn => btn.removeEventListener("click", onClick));
@@ -1780,7 +1989,34 @@ async function confirmarTrocaProdutoRota() {
   let aplicarPermuta = false;
   let aplicarUsoTransito = false;
 
-  if (!validacaoTroca.livre) {
+  // Correção crítica: se o produto escolhido aparece como reservado para um evento próximo/futuro
+  // (ex.: Elisa amanhã), abrir o modal de permuta mesmo quando a disponibilidade do período atual
+  // vier como livre. Antes ele mostrava "Reservada para Elisa" na lista, mas confirmava sem aviso.
+  const reservaFuturaRelevante = produtoReservaFuturaTrocaRota(novoProduto, evento);
+  if (validacaoTroca.livre && reservaFuturaRelevante) {
+    permutaInfo = rtPermutaPossivelTrocaRota(novoProduto, evento, produtoAntigo);
+    if (permutaInfo) {
+      const acaoPermuta = await confirmarPermutaProdutoRota(permutaInfo, novoProduto);
+      if (acaoPermuta === "outra") {
+        const select = document.getElementById("trocaRotaProdutoSelect");
+        if (select) {
+          select.value = "";
+          select.focus();
+        }
+        return;
+      }
+      if (acaoPermuta !== "permutar") {
+        document.getElementById("rotaTrocaProdutoDialog")?.close();
+        return;
+      }
+      aplicarPermuta = true;
+    } else {
+      alert(`${produtoDescricaoRota(novoProduto)} está reservado para ${reservaFuturaRelevante.nome || reservaFuturaRelevante.cliente || "outro evento"}. Escolha outro produto ou revise o evento futuro antes de confirmar.`);
+      return;
+    }
+  }
+
+  if (!validacaoTroca.livre && !aplicarPermuta) {
     const statusNovoLower = String(novoProduto.status || "").toLowerCase();
     const podeTransito = validacaoTroca.permiteUsoTransito && (statusNovoLower.includes("alug") || statusNovoLower.includes("reserv") || validacaoTroca.conflito);
     if (podeTransito && typeof rtConfirmarUsoEmTransito === "function" && rtConfirmarUsoEmTransito(novoProduto, validacaoTroca, evento)) {
@@ -1793,15 +2029,15 @@ async function confirmarTrocaProdutoRota() {
         return;
       }
 
-    const acaoPermuta = await confirmarPermutaProdutoRota();
-    if (acaoPermuta === "outra") {
-      const select = document.getElementById("trocaRotaProdutoSelect");
-      if (select) {
-        select.value = "";
-        select.focus();
+      const acaoPermuta = await confirmarPermutaProdutoRota(permutaInfo, novoProduto);
+      if (acaoPermuta === "outra") {
+        const select = document.getElementById("trocaRotaProdutoSelect");
+        if (select) {
+          select.value = "";
+          select.focus();
+        }
+        return;
       }
-      return;
-    }
       if (acaoPermuta !== "permutar") {
         document.getElementById("rotaTrocaProdutoDialog")?.close();
         return;
@@ -1961,12 +2197,63 @@ function criarRotasDosEventos() {
   return rotas;
 }
 
+function rtTextoBuscaRota(rota) {
+  const evento = rota?.evento || {};
+  const partes = [
+    rota?.cliente,
+    rota?.telefone,
+    rota?.endereco,
+    rota?.tipo,
+    rota?.horario,
+    rota?.tipoHorario,
+    Array.isArray(rota?.materiais) ? rota.materiais.join(" ") : rota?.materiais,
+    evento.nome,
+    evento.telefone,
+    evento.endereco,
+    evento.bairro,
+    evento.cidade,
+    evento.complemento,
+    evento.observacoes,
+    evento.observacao,
+    evento.material,
+    evento.materiais
+  ];
+  return partes
+    .filter(v => v !== undefined && v !== null)
+    .join(" ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function rtPassaStatusOperacionalRota(rota, filtroStatus) {
+  if (!filtroStatus) return true;
+  const tipo = String(rota?.tipo || "");
+  const op = obterOperacaoRota(rota.id);
+  const status = String(op?.status || "").toLowerCase();
+  const ehMontagem = tipo === "Montagem";
+  const ehDesmontagem = tipo === "Desmontagem";
+  const entregue = status === "entregue";
+  const recolhido = status === "recolhido";
+
+  if (filtroStatus === "nao_entregues") return ehMontagem && !entregue;
+  if (filtroStatus === "nao_retirados") return ehDesmontagem && !recolhido;
+  if (filtroStatus === "pendentes_operacao") return (ehMontagem && !entregue) || (ehDesmontagem && !recolhido);
+  return true;
+}
+
 function filtrarRotas(rotas) {
   const periodo = document.getElementById("rotaPeriodo")?.value || "30";
   const mes = document.getElementById("rotaMes").value;
   const data = document.getElementById("rotaData").value;
   const tipo = document.getElementById("rotaTipoFiltro").value;
   const carro = document.getElementById("rotaCarroFiltro").value;
+  const statusFiltro = document.getElementById("rotaStatusFiltro")?.value || "";
+  const busca = (document.getElementById("rotaBuscaFiltro")?.value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 
   const hoje = dataLocalISO(new Date());
   const limite7 = somarDiasDataISO(7);
@@ -1992,7 +2279,9 @@ function filtrarRotas(rotas) {
 
     return passaPeriodo
       && (!tipo || rota.tipo === tipo)
-      && (!carro || carroRota === carro);
+      && (!carro || carroRota === carro)
+      && rtPassaStatusOperacionalRota(rota, statusFiltro)
+      && (!busca || rtTextoBuscaRota(rota).includes(busca));
   });
 }
 
@@ -2048,6 +2337,7 @@ function rtTamanhoProduto(item) {
 function rtTipoApoioResumo(item) {
   const texto = rtNormalizarTexto([item?.nome, item?.descricao, item?.categoria, item?.tipo].filter(Boolean).join(" "));
   if (texto.includes("ombrel") || texto.includes("omb")) return "omb";
+  if (texto.includes("caixa") || texto.includes("termica") || texto.includes("térmica")) return "caixa";
   if (texto.includes("lateral") || texto.includes("laterais")) return "lat";
   if (texto.includes("cadeira") || texto.includes(" banco") || texto.startsWith("banco")) return "cad";
   if (texto.includes("mesa")) return "mes";
@@ -2105,6 +2395,30 @@ function rtLateralResumo(item, textoExtra = "") {
     || texto.match(/\b(10|8|6|5|4[,.]?5|4|3)\s*m\b/i);
   if (m && m[1]) return `Lat ${String(m[1]).replace(".", ",")}m`;
   return "Lat";
+}
+
+function rtCaixaTermicaResumo(item, textoExtra = "") {
+  const texto = rtNormalizarTexto([
+    item?.nome,
+    item?.descricao,
+    item?.categoria,
+    item?.tipo,
+    item?.material,
+    item?.tamanho,
+    textoExtra
+  ].filter(Boolean).join(" "));
+
+  if (texto.includes("360") || texto.includes("grande") || texto.includes("gde")) return "Cx Grande";
+  if (texto.includes("190") || texto.includes("pequena") || texto.includes("peq")) return "Cx Pequena";
+  return "Cx Térmica";
+}
+
+function rtCorOmbreloneResumo(item, textoExtra = "") {
+  const cor = rtCorMaterialResumo(item, textoExtra);
+  if (/preta|preto|pt/i.test(String(cor))) return "PT";
+  if (/branca|branco|br\b/i.test(String(cor))) return "BR";
+  if (/crist/i.test(String(cor))) return "Crist";
+  return cor ? String(cor).toUpperCase() : "";
 }
 
 function rtAdicionarContagemMapa(mapa, chave, qtd) {
@@ -2168,6 +2482,11 @@ function rtChaveApoioCarga(tipoApoio, subtipo = "", texto = "") {
   }
 
   if (tipoApoio === "omb") return "ombrelone";
+  if (tipoApoio === "caixa") {
+    if (n.includes("190") || n.includes("pequena") || n.includes("peq")) return "caixa_190";
+    if (n.includes("360") || n.includes("grande") || n.includes("gde")) return "caixa_360";
+    return "caixa_360";
+  }
   if (n.includes("190")) return "caixa_190";
   if (n.includes("360")) return "caixa_360";
   if (n.includes("lateral")) return "lateral";
@@ -2243,8 +2562,16 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
       return;
     }
 
+    if (tipoApoio === "caixa") {
+      const caixa = rtCaixaTermicaResumo(item, textoExtra);
+      rtAdicionarContagemMapa(outros, caixa, qtd);
+      cargaPts += rtPontosOperacionaisPorChave(rtChaveApoioCarga("caixa", caixa, [item?.nome, item?.descricao, textoExtra].filter(Boolean).join(" ")), qtd);
+      return;
+    }
+
     if (tipoApoio === "omb") {
-      rtAdicionarContagemMapa(outros, "Omb", qtd);
+      const corOmb = rtCorOmbreloneResumo(item, textoExtra);
+      rtAdicionarContagemMapa(outros, `Omb${corOmb ? " " + corOmb : ""}`, qtd);
       totalOmbrelones += qtd;
       cargaPts += rtPontosOperacionaisPorChave("ombrelone", qtd);
     }
