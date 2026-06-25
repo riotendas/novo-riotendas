@@ -1386,9 +1386,12 @@ function produtoDisponivelParaTrocaRota(produto, evento, ignorarEventosIds = [])
   });
 
   if (bloqueio) {
+    const textoBloqueio = rtEventoAindaNaoComecouRota(bloqueio)
+      ? rtDescricaoReservaFuturaRota(bloqueio)
+      : rtTextoEmUsoAteRota(bloqueio);
     return {
       livre: false,
-      texto: rtTextoEmUsoAteRota(bloqueio),
+      texto: textoBloqueio,
       conflito: bloqueio,
       permiteUsoTransito: false
     };
@@ -1419,6 +1422,40 @@ function rtDescricaoReservaFuturaRota(conflito) {
   const nome = conflito.nome || conflito.cliente || "Cliente";
   const data = conflito.data_evento ? formatarDataRota(conflito.data_evento) : "data não informada";
   return `⚠ Reservada para ${nome} - ${data}`;
+}
+
+
+function rtEventoAindaNaoComecouRota(evento) {
+  const intervalo = intervaloEventoRotaDisponibilidade(evento);
+  const inicioMs = rtTimestampLocalRota(intervalo?.inicio || evento?.montagem || evento?.data_evento || "");
+  if (!Number.isFinite(inicioMs)) return false;
+  return inicioMs > Date.now();
+}
+
+function rtProximaReservaFuturaRota(produto, eventoAtual, ignorarEventosIds = []) {
+  if (!produto || !eventoAtual || !Array.isArray(eventos)) return null;
+
+  const ignorar = new Set((Array.isArray(ignorarEventosIds) ? ignorarEventosIds : [ignorarEventosIds]).map(x => String(x || "")).filter(Boolean));
+  ignorar.add(String(eventoAtual.id || ""));
+
+  const intervaloAtual = intervaloEventoRotaDisponibilidade(eventoAtual);
+  const inicioAtualMs = rtTimestampLocalRota(intervaloAtual.inicio);
+  if (!Number.isFinite(inicioAtualMs)) return null;
+
+  return eventos
+    .filter(outro => {
+      if (!outro || ignorar.has(String(outro.id || ""))) return false;
+      if (typeof rtEventoCancelado === "function" && rtEventoCancelado(outro)) return false;
+      if (!eventoUsaProdutoRotaPorIdOuCodigo(outro, produto)) return false;
+
+      const intervaloOutro = intervaloEventoRotaDisponibilidade(outro);
+      const inicioOutroMs = rtTimestampLocalRota(intervaloOutro.inicio);
+      if (!Number.isFinite(inicioOutroMs)) return false;
+
+      // Reserva futura é apenas evento que ainda vai começar em relação ao evento destino.
+      return inicioOutroMs >= inicioAtualMs;
+    })
+    .sort((a, b) => rtEventoInicioMsParaReservaFuturaRota(a) - rtEventoInicioMsParaReservaFuturaRota(b))[0] || null;
 }
 
 function produtoReservaFuturaTrocaRota(produto, eventoAtual, ignorarEventosIds = []) {
@@ -1524,6 +1561,7 @@ function statusTrocaRotaProduto(p, evento, produtoAtual = null) {
 
   const disponibilidade = produtoDisponivelParaTrocaRota(p, evento);
   const reservaFutura = produtoReservaFuturaTrocaRota(p, evento);
+  const proximaReservaFutura = rtProximaReservaFuturaRota(p, evento);
 
   const statusRevisar = (typeof rtProdutoEventoEstaRevisar === "function" && rtProdutoEventoEstaRevisar(p)) || statusLower.includes("revis");
   const statusConsertar = (typeof rtProdutoEventoEstaConsertar === "function" && rtProdutoEventoEstaConsertar(p)) || statusLower.includes("consert");
@@ -1548,30 +1586,33 @@ function statusTrocaRotaProduto(p, evento, produtoAtual = null) {
 
   // Correção importante:
   // "Alugado" ou "Reservado" no cadastro do produto pode estar atrasado por evento antigo
-  // já recolhido. Na troca rápida, o que manda é a agenda/período, não o texto antigo do status.
-  // Se não existe conflito no período e não existe reserva futura relevante, o produto pode entrar.
-  if (disponibilidade.livre && !reservaFutura) {
+  // já recolhido. Na troca rápida, o que manda é a agenda/período.
+  // Se não existe conflito no período, o produto pode entrar. Se houver reserva futura
+  // depois do evento atual, exibimos o aviso, mas NÃO bloqueamos a troca.
+  if (disponibilidade.livre) {
+    if (proximaReservaFutura) {
+      return { livre: true, permuta: false, texto: rtDescricaoReservaFuturaRota(proximaReservaFutura) };
+    }
     if (statusLimpar) return { livre: true, permuta: false, texto: "⚠ Limpar" };
     return { livre: true, permuta: false, texto: "Disponível" };
   }
 
-  // Reserva futura próxima/relevante: permite permuta somente se houver substituta segura.
-  if (reservaFutura && produtoAtual) {
+  // Reserva futura próxima/relevante: não esconder nem bloquear silenciosamente.
+  // Se o produto ainda não foi entregue para o outro cliente, a operação precisa poder
+  // selecionar o item e abrir o fluxo de permuta/aviso. Antes, algumas reservas futuras
+  // ficavam desabilitadas quando não achava substituta automaticamente, gerando diferença
+  // entre tendas do mesmo cliente (ex.: Freire/Roseluci).
+  if ((reservaFutura || (disponibilidade?.conflito && rtEventoAindaNaoComecouRota(disponibilidade.conflito))) && produtoAtual) {
+    const conflitoReserva = reservaFutura || disponibilidade.conflito;
     const permutaInfo = rtPermutaPossivelTrocaRota(p, evento, produtoAtual);
-    if (permutaInfo) {
-      return {
-        livre: false,
-        permuta: true,
-        conflito: permutaInfo.conflito,
-        idxProdutoConflito: permutaInfo.idxProdutoConflito,
-        texto: rtDescricaoReservaFuturaRota(permutaInfo.conflito)
-      };
-    }
     return {
       livre: false,
-      permuta: false,
-      conflito: reservaFutura,
-      texto: rtDescricaoReservaFuturaRota(reservaFutura)
+      // Deixar selecionável. A confirmação valida e abre permuta; se não houver substituta segura,
+      // mostra aviso claro, mas não deixa a lista inconsistente.
+      permuta: true,
+      conflito: permutaInfo?.conflito || conflitoReserva,
+      idxProdutoConflito: Number.isFinite(permutaInfo?.idxProdutoConflito) ? permutaInfo.idxProdutoConflito : -1,
+      texto: rtDescricaoReservaFuturaRota(permutaInfo?.conflito || conflitoReserva)
     };
   }
 
@@ -1785,18 +1826,20 @@ async function abrirTrocaProdutoAtendimentoExtraRota(eventoId, produtoIndex) {
     document.getElementById("confirmarTrocaProdutoRota").disabled = true;
   } else {
     const opcoesComStatus = opcoes.map(p => {
-      const st = statusTrocaRotaProduto(p, evento);
-      return { produto: p, livre: st.livre, transito: !!st.transito, texto: st.texto, statusAviso: st.texto && st.texto !== "Disponível" && (st.livre || st.permuta || st.transito) };
+      const st = statusTrocaRotaProduto(p, evento, produtoAtual);
+      const textoReservaFutura = /reservada para/i.test(String(st.texto || ""));
+      if (textoReservaFutura) st.permuta = true;
+      return { produto: p, livre: st.livre, permuta: !!st.permuta, transito: !!st.transito, texto: st.texto, statusAviso: st.texto && st.texto !== "Disponível" && (st.livre || st.permuta || st.transito || textoReservaFutura) };
     });
     select.innerHTML = `
       <option value="">Selecione o produto substituto</option>
       ${opcoesComStatus.map(item => `
-        <option value="${item.produto.id}" ${(item.livre || item.transito) ? "" : "disabled"}>
+        <option value="${item.produto.id}" ${(item.livre || item.permuta || item.transito) ? "" : "disabled"} data-permuta="${item.permuta ? "1" : "0"}" data-transito="${item.transito ? "1" : "0"}">
           ${produtoDescricaoRota(item.produto)} | ${item.statusAviso ? item.texto : (item.livre ? "Disponível" : item.texto)}
         </option>
       `).join("")}
     `;
-    document.getElementById("confirmarTrocaProdutoRota").disabled = !opcoesComStatus.some(item => item.livre || item.transito);
+    document.getElementById("confirmarTrocaProdutoRota").disabled = !opcoesComStatus.some(item => item.livre || item.permuta || item.transito);
   }
 
   modal.showModal();
@@ -1917,7 +1960,9 @@ async function abrirTrocaProdutoRota(eventoId, produtoIndex) {
   } else {
     const opcoesComStatus = opcoes.map(p => {
       const st = statusTrocaRotaProduto(p, evento, produtoAtual);
-      return { produto: p, livre: st.livre, permuta: !!st.permuta, transito: !!st.transito, texto: st.texto, statusAviso: st.texto && st.texto !== "Disponível" && (st.livre || st.permuta || st.transito) };
+      const textoReservaFutura = /reservada para/i.test(String(st.texto || ""));
+      if (textoReservaFutura) st.permuta = true;
+      return { produto: p, livre: st.livre, permuta: !!st.permuta, transito: !!st.transito, texto: st.texto, statusAviso: st.texto && st.texto !== "Disponível" && (st.livre || st.permuta || st.transito || textoReservaFutura) };
     });
 
     select.innerHTML = `
