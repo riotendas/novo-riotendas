@@ -1075,15 +1075,44 @@ function classePagamentoRota(evento) {
   return evento.pagamento_quitado ? "pagamento-ok" : "pagamento-aberto";
 }
 
+
+function rtProdutoUsoTransitoAindaPendenteRota(produto) {
+  if (!produto || !(produto.uso_transito || produto.usoEmTransito)) return false;
+  const origemId = String(produto.origem_evento_id || "");
+  if (!origemId) return true;
+  const opDesmontagem = obterOperacaoRota(`${origemId}-desmontagem`);
+  // Se a origem já foi recolhida, a rota de destino não deve mais exibir "Retirar de...".
+  return String(opDesmontagem?.status || "") !== "recolhido";
+}
+function rtEventoOrigemJaRecolhidoRota(eventoOuId) {
+  const id = typeof eventoOuId === "object" ? String(eventoOuId?.id || "") : String(eventoOuId || "");
+  if (!id) return false;
+  try {
+    const opDesmontagem = obterOperacaoRota(`${id}-desmontagem`);
+    const opRetirada = obterOperacaoRota(`${id}-retirada`);
+    const st = String(opDesmontagem?.status || opRetirada?.status || "").toLowerCase();
+    if (st === "recolhido") return true;
+  } catch {}
+  try {
+    const ev = typeof eventoOuId === "object" ? eventoOuId : (Array.isArray(eventos) ? eventos.find(e => String(e.id || "") === id) : null);
+    const stEv = String(ev?.status_operacao || ev?.status_rota || ev?.situacao_rota || "").toLowerCase();
+    if (stEv.includes("recolh")) return true;
+  } catch {}
+  return false;
+}
+
+function rtProdutoUsoTransitoTextoRota(produto, nomeBase) {
+  const base = nomeBase || "Produto com código";
+  if (!rtProdutoUsoTransitoAindaPendenteRota(produto)) return base;
+  const origem = produto.origem_transito_texto || (produto.origem_evento_nome ? `Retirar de ${produto.origem_evento_nome}` : "Retirar no caminho");
+  return `⚠ Uso em trânsito: ${base} — ${origem}`;
+}
+
 function montarListaMateriais(evento) {
   const tendas = (evento.tendas || []).map((p, index) => {
     const nome = [p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - ");
     const base = nome || "Produto com código";
-    if (p.uso_transito || p.usoEmTransito) {
-      const origem = p.origem_transito_texto || (p.origem_evento_nome ? `Retirar de ${p.origem_evento_nome}` : "Retirar no caminho");
-      return `⚠ Uso em trânsito: ${base} — ${origem}`;
-    }
-    return base;
+    return rtProdutoUsoTransitoTextoRota(p, base);
   });
 
   const reservas = (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).map(i => typeof rtProdutoReservaParaTexto === "function" ? rtProdutoReservaParaTexto(i) : `🔄 R${i.codigo || ""}`);
@@ -1107,7 +1136,7 @@ function montarMateriaisRotaDetalhados(evento) {
       id: p.id,
       categoria: p.categoria || p.tipo || "",
       tamanho: p.tamanho || "",
-      texto: (p.uso_transito || p.usoEmTransito) ? `⚠ Uso em trânsito: ${nome || "Produto com código"} — ${p.origem_transito_texto || (p.origem_evento_nome ? "Retirar de " + p.origem_evento_nome : "Retirar no caminho")}` : (nome || "Produto com código")
+      texto: rtProdutoUsoTransitoTextoRota(p, nome || "Produto com código")
     });
   });
 
@@ -1344,6 +1373,7 @@ function produtoDisponivelParaTrocaRota(produto, evento, ignorarEventosIds = [])
     if (!outro || ignorar.has(String(outro.id || ""))) return;
     if (typeof rtEventoCancelado === "function" && rtEventoCancelado(outro)) return;
     if (!eventoUsaProdutoRotaPorIdOuCodigo(outro, produto)) return;
+    if (rtEventoOrigemJaRecolhidoRota(outro)) return;
 
     const intervaloOutro = intervaloEventoRotaDisponibilidade(outro);
     const inicioOutroMs = rtTimestampLocalRota(intervaloOutro.inicio);
@@ -1447,6 +1477,7 @@ function rtProximaReservaFuturaRota(produto, eventoAtual, ignorarEventosIds = []
       if (!outro || ignorar.has(String(outro.id || ""))) return false;
       if (typeof rtEventoCancelado === "function" && rtEventoCancelado(outro)) return false;
       if (!eventoUsaProdutoRotaPorIdOuCodigo(outro, produto)) return false;
+    if (rtEventoOrigemJaRecolhidoRota(outro)) return false;
 
       const intervaloOutro = intervaloEventoRotaDisponibilidade(outro);
       const inicioOutroMs = rtTimestampLocalRota(intervaloOutro.inicio);
@@ -1473,6 +1504,7 @@ function produtoReservaFuturaTrocaRota(produto, eventoAtual, ignorarEventosIds =
       if (!outro || ignorar.has(String(outro.id || ""))) return false;
       if (typeof rtEventoCancelado === "function" && rtEventoCancelado(outro)) return false;
       if (!eventoUsaProdutoRotaPorIdOuCodigo(outro, produto)) return false;
+    if (rtEventoOrigemJaRecolhidoRota(outro)) return false;
 
       const intervaloOutro = intervaloEventoRotaDisponibilidade(outro);
       const inicioOutroMs = rtTimestampLocalRota(intervaloOutro.inicio);
@@ -1888,7 +1920,7 @@ async function confirmarTrocaProdutoAtendimentoExtraRota(eventoId, produtoIndex,
   atendimento.tenda_entrar = tendas.join("; ");
 
   evento.atualizado_em = new Date().toISOString();
-  evento.colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : evento.colaborador;
+  // Preserva o colaborador original do evento. A troca rápida não altera o criador.
 
   const salvo = typeof salvarEventoBanco === "function" ? await salvarEventoBanco(evento) : null;
   if (!salvo) {
@@ -2119,11 +2151,11 @@ async function confirmarTrocaProdutoRota() {
   if (aplicarPermuta && permutaInfo?.conflito && Number.isFinite(permutaInfo.idxProdutoConflito)) {
     permutaInfo.conflito.tendas[permutaInfo.idxProdutoConflito] = produtoAntigoEvento;
     permutaInfo.conflito.atualizado_em = new Date().toISOString();
-    permutaInfo.conflito.colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : permutaInfo.conflito.colaborador;
+    // Preserva o colaborador original do evento conflitante.
   }
 
   evento.atualizado_em = new Date().toISOString();
-  evento.colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : evento.colaborador;
+  // Preserva o colaborador original do evento. A troca rápida não altera o criador.
 
   const salvo = typeof salvarEventoBanco === "function"
     ? await salvarEventoBanco(evento)
@@ -2384,6 +2416,7 @@ function rtTipoApoioResumo(item) {
   if (texto.includes("ombrel") || texto.includes("omb")) return "omb";
   if (texto.includes("caixa") || texto.includes("termica") || texto.includes("térmica")) return "caixa";
   if (texto.includes("lateral") || texto.includes("laterais")) return "lat";
+  if (texto.includes("toalha")) return "toalha";
   if (texto.includes("cadeira") || texto.includes(" banco") || texto.startsWith("banco")) return "cad";
   if (texto.includes("mesa")) return "mes";
   return "";
@@ -2567,6 +2600,7 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
   let totalCadeiras = 0;
   let totalOmbrelones = 0;
   let totalLaterais = 0;
+  let totalToalhas = 0;
   let cargaPts = 0;
 
   function processarItem(item, textoExtra = "") {
@@ -2604,6 +2638,14 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
       rtAdicionarContagemMapa(laterais, lateral, qtd);
       totalLaterais += qtd;
       cargaPts += rtPontosOperacionaisPorChave("lateral", qtd);
+      return;
+    }
+
+    if (tipoApoio === "toalha") {
+      const subtipo = rtCorMaterialResumo(item, textoExtra);
+      rtAdicionarContagemMapa(outros, `Toalha${subtipo ? " " + subtipo : ""}`, qtd);
+      totalToalhas += qtd;
+      cargaPts += rtPontosOperacionaisPorChave("outros", qtd);
       return;
     }
 
@@ -2652,6 +2694,7 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
   if (totalMesas) resumoOperacional.push(`M${rtNumeroCurto(totalMesas)}`);
   if (totalCadeiras) resumoOperacional.push(`C${rtNumeroCurto(totalCadeiras)}`);
   if (totalLaterais) resumoOperacional.push(`L${rtNumeroCurto(totalLaterais)}`);
+  if (totalToalhas) resumoOperacional.push(`Toalha ${rtNumeroCurto(totalToalhas)}`);
   if (totalOmbrelones) resumoOperacional.push(`O${rtNumeroCurto(totalOmbrelones)}`);
 
   const linhas = [];

@@ -494,13 +494,17 @@ function iniciarPopupsConfiguracoes() {
     preferencias: "configModalPreferencias",
     carga: "configModalCarga",
     logs: "configModalLogs",
-    manutencao: "configModalManutencao"
+    manutencao: "configModalManutencao",
+    cancelados: "configModalCancelados"
   };
 
   document.querySelectorAll("[data-config-modal]").forEach(btn => {
     btn.addEventListener("click", () => {
       const modal = document.getElementById(mapa[btn.dataset.configModal]);
       if (!modal) return;
+      if (btn.dataset.configModal === "cancelados") {
+        setTimeout(() => { if (typeof renderizarConfigEventosCancelados === "function") renderizarConfigEventosCancelados(); }, 50);
+      }
       if (btn.dataset.configModal === "usuarios") {
         if (typeof garantirUsuariosDentroConfiguracoes === "function") garantirUsuariosDentroConfiguracoes();
         setTimeout(() => { if (typeof renderizarUsuariosSistemaConfig === "function") renderizarUsuariosSistemaConfig(); }, 50);
@@ -4255,4 +4259,171 @@ if (document.readyState === "loading") {
   }, true);
 
   window.rtAtualizarCoordenadasEventosAntigos = rtAtualizarCoordenadasEventosAntigos;
+})();
+
+
+
+function renderizarConfigEventosCancelados() {
+  const box = document.getElementById("configEventosCanceladosLista");
+  if (!box) return;
+  const lista = (Array.isArray(eventos) ? eventos : []).filter(e => typeof rtEventoCancelado === "function" ? rtEventoCancelado(e) : String(e.status || "").toLowerCase().includes("cancel"));
+  if (!lista.length) {
+    box.innerHTML = '<p class="empty">Nenhum evento cancelado encontrado.</p>';
+    return;
+  }
+  box.innerHTML = `<table class="data-table"><thead><tr><th></th><th>Data</th><th>Cliente</th><th>Endereço</th><th>Total</th></tr></thead><tbody>${lista.map(e => `
+    <tr>
+      <td><input type="checkbox" data-cancelado-delete-id="${String(e.id || "").replace(/"/g,'&quot;')}"></td>
+      <td>${typeof dataBR === "function" ? dataBR(e.data_evento) : (e.data_evento || "-")}</td>
+      <td>${String(e.nome || "-").replace(/</g,'&lt;')}</td>
+      <td>${String(e.endereco || "-").replace(/</g,'&lt;')}</td>
+      <td>${Number(e.valor_total || 0).toLocaleString("pt-BR", { style:"currency", currency:"BRL" })}</td>
+    </tr>`).join("")}</tbody></table>`;
+}
+
+async function apagarEventosCanceladosSelecionadosConfig() {
+  if (!(typeof usuarioAtual !== "undefined" && (usuarioAtual?.perfil === "admin" || usuarioAtual?.perfil === "administrador"))) {
+    alert("Apenas administrador pode apagar eventos definitivamente.");
+    return;
+  }
+  const ids = Array.from(document.querySelectorAll('[data-cancelado-delete-id]:checked')).map(i => i.dataset.canceladoDeleteId).filter(Boolean);
+  if (!ids.length) return alert("Selecione ao menos um evento cancelado.");
+  if (!confirm(`Apagar definitivamente ${ids.length} evento(s) cancelado(s)?\n\nEsta ação não poderá ser desfeita.`)) return;
+  for (const id of ids) {
+    if (typeof excluirEventoBanco === "function") await excluirEventoBanco(id);
+  }
+  if (typeof carregarEventosBanco === "function") await carregarEventosBanco();
+  if (typeof renderizarEventos === "function") renderizarEventos();
+  if (typeof renderizarRotas === "function") renderizarRotas();
+  renderizarConfigEventosCancelados();
+}
+
+(function iniciarConfigCanceladosPatch(){
+  document.addEventListener("click", ev => {
+    if (ev.target?.id === "btnListarEventosCancelados") renderizarConfigEventosCancelados();
+    if (ev.target?.id === "btnApagarEventosCancelados") apagarEventosCanceladosSelecionadosConfig();
+  });
+})();
+
+// v19-dev: abertura robusta do setor Eventos cancelados em Configurações
+(function rtFixEventosCanceladosConfig(){
+  function abrirEventosCanceladosConfig(){
+    if (typeof usuarioEhAdministrador === "function" && !usuarioEhAdministrador()) {
+      alert("Acesso restrito ao administrador.");
+      return;
+    }
+    const modal = document.getElementById("configModalCancelados");
+    if (!modal) {
+      alert("Tela de eventos cancelados não encontrada.");
+      return;
+    }
+    try {
+      if (typeof renderizarConfigEventosCancelados === "function") renderizarConfigEventosCancelados();
+    } catch (e) {
+      console.error("Erro ao listar eventos cancelados:", e);
+    }
+    if (typeof modal.showModal === "function") {
+      if (!modal.open) modal.showModal();
+    } else {
+      modal.setAttribute("open", "open");
+    }
+  }
+  window.abrirEventosCanceladosConfig = abrirEventosCanceladosConfig;
+  document.addEventListener("click", function(ev){
+    const btn = ev.target && ev.target.closest && ev.target.closest('[data-config-modal="cancelados"], #abrirEventosCanceladosConfig');
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    abrirEventosCanceladosConfig();
+  }, true);
+})();
+
+
+// v19-dev: Configurações > Eventos cancelados - abertura e exclusão definitiva
+(function(){
+  if (window.__RT_CONFIG_CANCELADOS_FIX__) return;
+  window.__RT_CONFIG_CANCELADOS_FIX__ = true;
+
+  function esc(v){
+    if (typeof escapeHtml === "function") return escapeHtml(v);
+    return String(v ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function dataBR(v){
+    const s = String(v || "").slice(0,10);
+    if (!s) return "";
+    const p = s.split("-");
+    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0].slice(-2)}` : s;
+  }
+
+  function listaEventosCanceladosConfig(){
+    const base = Array.isArray(window.eventos) ? window.eventos : (typeof eventos !== "undefined" && Array.isArray(eventos) ? eventos : []);
+    return (base || []).filter(ev => typeof rtEventoCancelado === "function" ? rtEventoCancelado(ev) : String(ev?.status_evento || ev?.status || "").toLowerCase() === "cancelado");
+  }
+
+  window.renderizarConfigEventosCancelados = function(){
+    const box = document.getElementById("configEventosCanceladosLista");
+    if (!box) return;
+    const lista = listaEventosCanceladosConfig().sort((a,b)=>String(a.data_evento||"").localeCompare(String(b.data_evento||"")) || String(a.nome||"").localeCompare(String(b.nome||"")));
+    if (!lista.length) {
+      box.innerHTML = '<p class="empty">Nenhum evento cancelado encontrado.</p>';
+      return;
+    }
+    box.innerHTML = `
+      <table class="compact-table config-cancelados-table">
+        <thead><tr><th></th><th>Data</th><th>Cliente</th><th>Endereço</th><th>Materiais</th></tr></thead>
+        <tbody>
+          ${lista.map(ev => {
+            const materiais = typeof resumoMateriaisEvento === "function" ? resumoMateriaisEvento(ev) : ((ev.tendas || []).map(t=>[t.codigo,t.categoria,t.tamanho,t.cor].filter(Boolean).join(" ")).join(", ") || "-");
+            return `<tr>
+              <td><input type="checkbox" class="config-cancelado-check" value="${esc(ev.id)}"></td>
+              <td>${esc(dataBR(ev.data_evento))}</td>
+              <td><strong>${esc(ev.nome || "-")}</strong></td>
+              <td>${esc(ev.endereco || "-")}</td>
+              <td>${esc(materiais)}</td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>`;
+  };
+
+  async function apagarSelecionados(){
+    const ids = Array.from(document.querySelectorAll(".config-cancelado-check:checked")).map(i => i.value).filter(Boolean);
+    if (!ids.length) return alert("Selecione pelo menos um evento cancelado.");
+    if (!confirm(`Apagar definitivamente ${ids.length} evento(s) cancelado(s)?\n\nEssa ação não poderá ser desfeita.`)) return;
+
+    for (const id of ids) {
+      if (typeof excluirEventoBanco === "function") {
+        await excluirEventoBanco(id);
+      } else if (window.supabaseClient) {
+        await window.supabaseClient.from("eventos").delete().eq("id", id);
+      }
+      if (Array.isArray(window.eventos)) window.eventos = window.eventos.filter(e => String(e.id) !== String(id));
+      try { if (typeof eventos !== "undefined" && Array.isArray(eventos)) eventos = eventos.filter(e => String(e.id) !== String(id)); } catch {}
+    }
+    try {
+      localStorage.setItem("novoRioTendasEventosV2", JSON.stringify(Array.isArray(window.eventos) ? window.eventos : (typeof eventos !== "undefined" ? eventos : [])));
+    } catch {}
+    window.renderizarConfigEventosCancelados();
+    if (typeof renderizarEventos === "function") renderizarEventos();
+    if (typeof atualizarDashboard === "function") atualizarDashboard();
+  }
+
+  function abrirCancelados(ev){
+    const btn = ev.target.closest('[data-config-modal="cancelados"]');
+    if (!btn) return;
+    const modal = document.getElementById("configModalCancelados");
+    if (!modal) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (typeof usuarioEhAdministrador === "function" && !usuarioEhAdministrador()) return alert("Acesso restrito ao administrador.");
+    try { if (!modal.open) modal.showModal(); } catch { modal.setAttribute("open",""); }
+    setTimeout(() => window.renderizarConfigEventosCancelados(), 30);
+  }
+
+  document.addEventListener("click", abrirCancelados, true);
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("btnListarEventosCancelados")?.addEventListener("click", () => window.renderizarConfigEventosCancelados());
+    document.getElementById("btnApagarEventosCancelados")?.addEventListener("click", apagarSelecionados);
+  });
 })();

@@ -1235,6 +1235,10 @@
           <strong>Manutenção</strong>
           <span>Ferramentas administrativas para regularizar rotas, disponibilidade e produtos.</span>
         </button>
+        <button type="button" id="abrirEventosCanceladosConfig" class="config-link-item admin-only">
+          <strong>Eventos cancelados</strong>
+          <span>Selecionar eventos cancelados para apagar definitivamente.</span>
+        </button>
         <button type="button" id="configAtualizarCoordenadasEventos" class="config-link-item admin-only">
           <strong>📍 Atualizar coordenadas</strong>
           <span>Preencher latitude/longitude dos eventos antigos sem coordenadas.</span>
@@ -1472,6 +1476,21 @@
             <button id="salvarCargaOperacionalConfig" type="button">Salvar carga operacional</button>
             <button id="restaurarCargaOperacionalConfig" type="button" class="btn-outline">Restaurar padrão</button>
           </div>
+        </div>
+      </dialog>
+
+
+      <dialog id="configModalCancelados" class="modal large-modal config-popup">
+        <div class="modal-header">
+          <div><h2>Eventos cancelados</h2><p>Selecione eventos cancelados para apagar definitivamente do sistema.</p></div>
+          <button type="button" class="modal-close" data-close-config="configModalCancelados">×</button>
+        </div>
+        <div class="config-popup-body">
+          <div class="config-actions">
+            <button type="button" id="btnListarEventosCancelados">Atualizar lista</button>
+            <button type="button" id="btnApagarEventosCancelados" class="danger-soft">Apagar selecionados definitivamente</button>
+          </div>
+          <div id="configEventosCanceladosLista" class="table-wrapper"></div>
         </div>
       </dialog>
 
@@ -2339,6 +2358,87 @@
       <button type="button" class="btn-primary" id="confirmarImportarProdutosVisual">Adicionar selecionados</button>
     </div>
   </dialog>
+
+
+<script>
+// v19-dev: abertura direta e isolada de Configurações > Eventos cancelados
+(function(){
+  if (window.__RT_CANCELADOS_DIRETO_FINAL__) return;
+  window.__RT_CANCELADOS_DIRETO_FINAL__ = true;
+  function rtEscCancelados(v){
+    return String(v ?? '').replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; });
+  }
+  function rtDataCancelados(v){
+    var s = String(v || '').slice(0,10);
+    var p = s.split('-');
+    return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0].slice(-2)) : s;
+  }
+  function rtEventoCanceladoFinal(ev){
+    if (typeof window.rtEventoCancelado === 'function') return window.rtEventoCancelado(ev);
+    var st = String((ev && (ev.status_evento || ev.status || ev.pagamento_status)) || '').toLowerCase();
+    return st.includes('cancel');
+  }
+  window.renderizarConfigEventosCanceladosFinal = function(){
+    var box = document.getElementById('configEventosCanceladosLista');
+    if (!box) return;
+    var base = [];
+    try { if (Array.isArray(window.eventos)) base = window.eventos; } catch(e) {}
+    try { if (!base.length && typeof eventos !== 'undefined' && Array.isArray(eventos)) base = eventos; } catch(e) {}
+    try { if (!base.length) base = JSON.parse(localStorage.getItem('novoRioTendasEventosV2') || '[]'); } catch(e) {}
+    var lista = (base || []).filter(rtEventoCanceladoFinal).sort(function(a,b){
+      return String(a.data_evento||'').localeCompare(String(b.data_evento||'')) || String(a.nome||'').localeCompare(String(b.nome||''));
+    });
+    if (!lista.length) {
+      box.innerHTML = '<p class="empty">Nenhum evento cancelado encontrado.</p>';
+      return;
+    }
+    box.innerHTML = '<table class="compact-table config-cancelados-table"><thead><tr><th></th><th>Data</th><th>Cliente</th><th>Endereço</th><th>Materiais</th></tr></thead><tbody>' + lista.map(function(ev){
+      var materiais = '-';
+      try {
+        if (typeof resumoMateriaisEvento === 'function') materiais = resumoMateriaisEvento(ev);
+        else if (Array.isArray(ev.tendas)) materiais = ev.tendas.map(function(t){ return typeof t === 'string' ? t : [t.codigo,t.categoria||t.tipo,t.tamanho,t.cor].filter(Boolean).join(' '); }).join(', ') || '-';
+      } catch(e) {}
+      return '<tr><td><input type="checkbox" class="config-cancelado-check" value="' + rtEscCancelados(ev.id || '') + '"></td><td>' + rtEscCancelados(rtDataCancelados(ev.data_evento)) + '</td><td><strong>' + rtEscCancelados(ev.nome || ev.cliente || '-') + '</strong></td><td>' + rtEscCancelados(ev.endereco || '-') + '</td><td>' + rtEscCancelados(materiais) + '</td></tr>';
+    }).join('') + '</tbody></table>';
+  };
+  window.abrirEventosCanceladosConfigFinal = function(){
+    if (typeof window.usuarioEhAdministrador === 'function' && !window.usuarioEhAdministrador()) {
+      alert('Acesso restrito ao administrador.');
+      return;
+    }
+    var modal = document.getElementById('configModalCancelados');
+    if (!modal) { alert('Tela de eventos cancelados não encontrada.'); return; }
+    try { window.renderizarConfigEventosCanceladosFinal(); } catch(e) { console.error(e); }
+    try { if (typeof modal.showModal === 'function') { if (!modal.open) modal.showModal(); } else { modal.setAttribute('open','open'); } }
+    catch(e) { modal.setAttribute('open','open'); }
+  };
+  window.apagarEventosCanceladosSelecionadosFinal = async function(){
+    var ids = Array.from(document.querySelectorAll('.config-cancelado-check:checked')).map(function(i){ return i.value; }).filter(Boolean);
+    if (!ids.length) return alert('Selecione pelo menos um evento cancelado.');
+    if (!confirm('Apagar definitivamente ' + ids.length + ' evento(s) cancelado(s)?
+
+Essa ação não poderá ser desfeita.')) return;
+    for (var i=0;i<ids.length;i++) {
+      var id = ids[i];
+      if (typeof window.excluirEventoBanco === 'function') await window.excluirEventoBanco(id);
+      else if (window.supabaseClient) await window.supabaseClient.from('eventos').delete().eq('id', id);
+      try { if (Array.isArray(window.eventos)) window.eventos = window.eventos.filter(function(e){ return String(e.id) !== String(id); }); } catch(e) {}
+      try { if (typeof eventos !== 'undefined' && Array.isArray(eventos)) eventos = eventos.filter(function(e){ return String(e.id) !== String(id); }); } catch(e) {}
+    }
+    try { localStorage.setItem('novoRioTendasEventosV2', JSON.stringify(Array.isArray(window.eventos) ? window.eventos : (typeof eventos !== 'undefined' ? eventos : []))); } catch(e) {}
+    window.renderizarConfigEventosCanceladosFinal();
+    if (typeof window.renderizarEventos === 'function') window.renderizarEventos();
+    if (typeof window.renderizarEventosMobile === 'function') window.renderizarEventosMobile();
+    if (typeof window.renderizarRotas === 'function') window.renderizarRotas();
+  };
+  document.addEventListener('click', function(ev){
+    var btn = ev.target && ev.target.closest && ev.target.closest('#abrirEventosCanceladosConfig');
+    if (btn) { ev.preventDefault(); ev.stopPropagation(); window.abrirEventosCanceladosConfigFinal(); return; }
+    if (ev.target && ev.target.id === 'btnListarEventosCancelados') { ev.preventDefault(); window.renderizarConfigEventosCanceladosFinal(); }
+    if (ev.target && ev.target.id === 'btnApagarEventosCancelados') { ev.preventDefault(); window.apagarEventosCanceladosSelecionadosFinal(); }
+  }, true);
+})();
+</script>
 
 </body>
 </html>

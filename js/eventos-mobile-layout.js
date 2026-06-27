@@ -175,7 +175,7 @@
     const docActions = dialog.querySelector('.evento-doc-actions');
     if (docActions) {
       imp(docActions, 'display', 'grid');
-      imp(docActions, 'grid-template-columns', 'repeat(3, minmax(0, 1fr))');
+      imp(docActions, 'grid-template-columns', 'repeat(4, minmax(0, 1fr))');
       imp(docActions, 'gap', '6px');
       imp(docActions, 'width', '100%');
       imp(docActions, 'max-width', '100%');

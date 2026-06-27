@@ -85,6 +85,45 @@ function eventosMobilePrimeiroNome(nome) {
   return String(nome || "-").trim().split(/\s+/)[0] || "-";
 }
 
+function eventosMobileCorAbrev(cor) {
+  const t = eventosMobileNormalizar(cor || "");
+  if (t.includes("branca") || t.includes("branco")) return "Br";
+  if (t.includes("preta") || t.includes("preto")) return "Pt";
+  if (t.includes("cristal")) return "Crist";
+  return String(cor || "").trim();
+}
+
+function eventosMobileProdutoCodigoTipo(item) {
+  if (typeof item === "string") {
+    let texto = String(item || "").trim().replace(/\s+/g, " ");
+    texto = texto.replace(/^tenda\s+/i, "");
+    texto = texto.replace(/\s+-\s+Tenda\s+/i, " - ");
+    return texto || "Produto";
+  }
+  const codigo = item?.codigo || item?.produto_codigo || item?.id || "";
+  const tamanho = item?.tamanho || item?.medida || "";
+  const cor = eventosMobileCorAbrev(item?.cor || item?.cor_nome || "");
+  let tipo = String(item?.categoria || item?.tipo || item?.descricao || item?.nome || "").trim();
+  tipo = tipo.replace(/^tenda\s+/i, "").replace(/^ombrelone\s+/i, "Omb ");
+  tipo = tipo.replace(/sanfonada/i, "Sanf.").replace(/piramidal/i, "Piram.");
+  const desc = [tipo, tamanho, cor].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  return [codigo, desc].filter(Boolean).join(" - ") || "Produto";
+}
+
+function eventosMobileApoioResumo(item) {
+  const qtd = Number(item?.quantidade || item?.qtd || item?.quantidade_total || 0) || "";
+  const nomeOriginal = String(item?.nome || item?.descricao || item?.tipo || "Apoio").trim();
+  const n = eventosMobileNormalizar(nomeOriginal);
+  let nome = nomeOriginal;
+  if (n.includes("cadeira")) nome = n.includes("madeira") ? "Cad. Mad." : (n.includes("bistro") || n.includes("bistro")) ? "Cad. Bistrô" : "Cad.";
+  else if (n.includes("mesa")) nome = n.includes("madeira") ? "Mesa Mad." : (n.includes("bistro") || n.includes("bistro")) ? "Mesa Bistrô" : "Mesa";
+  else if (n.includes("toalha")) nome = "Toalha";
+  else if (n.includes("lateral")) nome = "Lat.";
+  else if (n.includes("caixa") && n.includes("term")) nome = n.includes("grande") || n.includes("360") ? "Cx Grande" : n.includes("peq") || n.includes("190") ? "Cx Pequena" : "Cx Térm.";
+  else if (n.includes("ombrelone")) nome = "Omb.";
+  return `${qtd ? qtd + " " : ""}${nome}`.trim();
+}
+
 function eventosMobileResumoProdutos(evento = {}) {
   const itens = [];
   const tendas = Array.isArray(evento.tendas) ? evento.tendas : [];
@@ -92,25 +131,18 @@ function eventosMobileResumoProdutos(evento = {}) {
   const apoio = Array.isArray(evento.itens_apoio) ? evento.itens_apoio : [];
   const extras = typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (Array.isArray(evento.produtos_extras) ? evento.produtos_extras : []);
 
-  tendas.slice(0, 4).forEach(t => {
-    if (typeof t === "string") itens.push(t);
-    else itens.push(t?.codigo || t?.descricao || t?.nome || t?.tamanho || "Produto");
-  });
-  reservas.slice(0, 2).forEach(r => {
-    itens.push(typeof rtProdutoReservaParaTexto === "function" ? rtProdutoReservaParaTexto(r) : `🔄 R${r?.codigo || ""}`);
-  });
-  apoio.slice(0, 4).forEach(a => {
-    const qtd = a?.quantidade || a?.qtd || "";
-    const nome = a?.nome || a?.descricao || a?.tipo || "Apoio";
-    itens.push(`${qtd ? qtd + " " : ""}${nome}`);
-  });
+  tendas.slice(0, 6).forEach(t => itens.push(eventosMobileProdutoCodigoTipo(t)));
+  reservas.slice(0, 3).forEach(r => itens.push(eventosMobileProdutoCodigoTipo(r)));
+  apoio.slice(0, 6).forEach(a => itens.push(eventosMobileApoioResumo(a)));
   extras.slice(0, 3).forEach(e => {
     if (typeof e === "string") itens.push(e);
-    else itens.push(e?.descricao || e?.nome || "Extra");
+    else itens.push(eventosMobileApoioResumo(e));
   });
 
-  return itens.filter(Boolean).slice(0, 6).join(" • ") || "Sem materiais informados";
+  const texto = itens.filter(Boolean).join(" • ");
+  return texto || "Sem materiais informados";
 }
+
 
 function eventosMobileListaBase() {
   try {
@@ -133,6 +165,30 @@ function eventosMobileOrdenar(lista) {
   });
 }
 
+
+function eventosMobileDataCurta(dataISO) {
+  const valor = String(dataISO || "").slice(0, 10);
+  if (!valor) return "";
+  const partes = valor.split("-");
+  if (partes.length !== 3) return valor;
+  return `${partes[2]}/${partes[1]}`;
+}
+
+function eventosMobilePrimeiraDataOperacao(ev, campoData, campoFallback) {
+  const bruto = ev?.[campoData] || ev?.[campoFallback] || "";
+  return String(bruto || "").slice(0, 10);
+}
+
+function eventosMobileRotuloOperacao(ev) {
+  const montagem = eventosMobilePrimeiraDataOperacao(ev, "montagem", "data_montagem");
+  const desmontagem = eventosMobilePrimeiraDataOperacao(ev, "desmontagem", "data_desmontagem");
+  const partes = [];
+  if (montagem) partes.push(`Ent. ${eventosMobileDataCurta(montagem)}`);
+  if (desmontagem) partes.push(`Ret. ${eventosMobileDataCurta(desmontagem)}`);
+  return partes.join(" · ") || eventosMobileDataCurta(ev?.data_evento || "");
+}
+
+
 function renderizarEventosMobile() {
   const listaEl = document.getElementById("eventosMobileLista");
   if (!listaEl) return;
@@ -144,7 +200,7 @@ function renderizarEventosMobile() {
     ? "🔍 Resultado da busca"
     : (eventosMobileModoSeteDias ? eventosMobileTituloSeteDias(dataSelecionada) : eventosMobileTituloData(dataSelecionada));
   eventosMobileAtualizarBotaoSeteDias();
-  let lista = eventosMobileListaBase();
+  let lista = eventosMobileListaBase().filter(ev => !(typeof rtEventoCancelado === "function" && rtEventoCancelado(ev)));
 
   if (busca) {
     lista = lista.filter(ev => {
@@ -172,23 +228,24 @@ function renderizarEventosMobile() {
   }
 
   listaEl.innerHTML = lista.map(ev => {
-    const hora = String(ev.hora_inicio || ev.hora_evento || "").slice(0,5) || "--:--";
     const nome = eventosMobileEscape(eventosMobilePrimeiroNome(ev.nome || ev.cliente));
     const alerta = typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(ev) : "";
     const data = eventosMobileFormatarData(ev.data_evento);
+    const operacao = eventosMobileEscape(eventosMobileRotuloOperacao(ev));
     const endereco = eventosMobileEscape(ev.endereco || "");
     const produtos = eventosMobileEscape(eventosMobileResumoProdutos(ev));
     const id = eventosMobileEscape(ev.id || "");
     return `
       <article class="eventos-mobile-item">
         <div class="eventos-mobile-item-top">
-          <strong>${hora} · ${alerta}${nome}</strong>
+          <strong>${alerta}${nome}${operacao ? " - " + operacao : ""}</strong>
           <span>${data}</span>
         </div>
         <div class="eventos-mobile-item-produtos">${produtos}</div>
         ${endereco ? `<div class="eventos-mobile-item-endereco">📍 ${endereco}</div>` : ""}
         <div class="eventos-mobile-item-actions">
           <button type="button" class="btn-outline eventos-mobile-editar" data-evento-id="${id}" title="Editar evento">Editar</button>
+          ${typeof ruaMobileUsuarioAdmin === "function" && ruaMobileUsuarioAdmin() ? `<button type="button" class="btn-outline danger-soft eventos-mobile-cancelar" data-evento-id="${id}" title="Cancelar evento">Cancelar</button>` : ""}
         </div>
       </article>
     `;
@@ -197,6 +254,31 @@ function renderizarEventosMobile() {
   listaEl.querySelectorAll(".eventos-mobile-editar").forEach(btn => {
     btn.addEventListener("click", () => eventosMobileAbrirEdicao(btn.dataset.eventoId));
   });
+
+  listaEl.querySelectorAll(".eventos-mobile-cancelar").forEach(btn => {
+    btn.addEventListener("click", () => eventosMobileCancelarEvento(btn.dataset.eventoId));
+  });
+
+}
+
+
+async function eventosMobileCancelarEvento(id) {
+  if (!id) return;
+  if (!(typeof ruaMobileUsuarioAdmin === "function" && ruaMobileUsuarioAdmin())) {
+    alert("Apenas administrador pode cancelar eventos pelo mobile.");
+    return;
+  }
+  const ev = eventosMobileListaBase().find(e => String(e.id) === String(id));
+  if (!confirm(`Cancelar o evento de ${ev?.nome || "cliente"}?\n\nEle ficará salvo como cancelado e não contará em rotas/disponibilidade.`)) return;
+  if (typeof atualizarStatusEventoBanco !== "function") return alert("Cancelamento indisponível nesta versão.");
+  const ok = await atualizarStatusEventoBanco(id, "cancelado");
+  if (!ok) return;
+  if (typeof rtLiberarProdutosEventoCancelado === "function") await rtLiberarProdutosEventoCancelado(ev);
+  if (typeof rtLimparOperacoesRotasEventoCancelado === "function") rtLimparOperacoesRotasEventoCancelado(id);
+  if (typeof carregarEventosBanco === "function") await carregarEventosBanco();
+  if (typeof renderizarEventos === "function") renderizarEventos();
+  if (typeof renderizarRotas === "function") renderizarRotas();
+  renderizarEventosMobile();
 }
 
 function eventosMobileAbrirEdicao(id) {

@@ -850,7 +850,7 @@ function renderizarRuaMobile() {
               </span>` : `<span class="rua-mobile-ordem">#${index + 1} · ${carro}</span>`}
             <h3>${rota.tipo} · <span class="rua-mobile-horario-destaque${horarioEspecialClasse}">${horario}</span></h3>
           </div>
-          <div class="rua-mobile-badge-wrap">${badge}</div>
+          <div class="rua-mobile-badge-wrap">${badge}${ruaMobileUsuarioAdmin() && operacao?.status ? `<button type="button" class="rua-mobile-reverter-top-btn" data-rua-reverter-rota="${ruaMobileEscAttr(rota.id)}" title="Reverter operação" aria-label="Reverter operação">↺</button>` : ""}</div>
         </div>
         <div class="rua-mobile-cliente">${ruaMobileHtmlClienteEvento(rota)}</div>
         ${concluida && !expandido ? `<div class="rua-mobile-endereco-resumo">📍 ${(endereco || "Endereço não informado").slice(0, 72)}${String(endereco || "").length > 72 ? "..." : ""}</div>` : ""}
@@ -935,6 +935,17 @@ function renderizarRuaMobile() {
       if (!id) return;
       if (ruaMobileCardsExpandidos.has(id)) ruaMobileCardsExpandidos.delete(id);
       else ruaMobileCardsExpandidos.add(id);
+      renderizarRuaMobile();
+    });
+  });
+
+
+  listaEl.querySelectorAll("[data-rua-reverter-rota]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!ruaMobileUsuarioAdmin()) return alert("Apenas administrador pode reverter operação.");
+      if (typeof reverterOperacaoRota !== "function") return alert("Reversão indisponível nesta versão.");
+      await reverterOperacaoRota(btn.dataset.ruaReverterRota);
+      ruaMobileCardsExpandidos.delete(String(btn.dataset.ruaReverterRota || ""));
       renderizarRuaMobile();
     });
   });

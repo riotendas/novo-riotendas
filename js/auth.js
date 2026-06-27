@@ -5,6 +5,33 @@ let usuariosSistema = [];
 const storageSessaoUsuarioKey = "novoRioTendasUsuarioSessaoV1";
 const storageUsuariosLocalKey = "novoRioTendasUsuariosSistemaV1";
 
+const storagePermissoesUsuariosOverrideKey = "novoRioTendasPermissoesUsuariosOverrideV1";
+
+function rtPermissoesUsuarioOverrideLocal() {
+  try { return JSON.parse(localStorage.getItem(storagePermissoesUsuariosOverrideKey) || "{}"); }
+  catch { return {}; }
+}
+
+function rtSalvarPermissoesUsuarioOverrideLocal(usuario) {
+  if (!usuario || !(usuario.id || usuario.usuario)) return;
+  const mapa = rtPermissoesUsuarioOverrideLocal();
+  const chaveId = usuario.id ? `id:${usuario.id}` : null;
+  const chaveLogin = usuario.usuario ? `login:${String(usuario.usuario).toLowerCase()}` : null;
+  const perms = usuario.permissoes || null;
+  if (chaveId) mapa[chaveId] = perms;
+  if (chaveLogin) mapa[chaveLogin] = perms;
+  localStorage.setItem(storagePermissoesUsuariosOverrideKey, JSON.stringify(mapa));
+}
+
+function rtAplicarPermissoesUsuarioOverrideLocal(usuario) {
+  if (!usuario) return usuario;
+  const mapa = rtPermissoesUsuarioOverrideLocal();
+  const porId = usuario.id ? mapa[`id:${usuario.id}`] : null;
+  const porLogin = usuario.usuario ? mapa[`login:${String(usuario.usuario).toLowerCase()}`] : null;
+  const override = porId || porLogin;
+  return override ? { ...usuario, permissoes: override } : usuario;
+}
+
 function perfilUsuarioLabel(perfil) {
   if (perfil === "administrador") return "Administrador";
   if (perfil === "operacional") return "Operacional";
@@ -26,11 +53,14 @@ function normalizarPerfilSistemaApp(perfil) {
 function normalizarUsuarioSistemaApp(usuario) {
   if (!usuario) return usuario;
   const perfil = normalizarPerfilSistemaApp(usuario.perfil);
-  return {
+  const normalizador = (typeof window !== "undefined" && typeof window.normalizarPermissoesUsuarioMobileV19 === "function")
+    ? window.normalizarPermissoesUsuarioMobileV19
+    : normalizarPermissoesUsuario;
+  return rtAplicarPermissoesUsuarioOverrideLocal({
     ...usuario,
     perfil,
-    permissoes: usuario.permissoes || normalizarPermissoesUsuario(perfil, null)
-  };
+    permissoes: normalizador(perfil, usuario.permissoes || null)
+  });
 }
 
 function opcoesPerfilParaBanco(perfil) {
@@ -38,7 +68,9 @@ function opcoesPerfilParaBanco(perfil) {
   if (app === "administrador") return ["administrador", "admin"];
   if (app === "operacional") return ["operacional", "operador"];
   if (app === "manutencao") return ["manutencao", "manutenção"];
-  if (app === "rua") return ["rua"];
+  // Alguns bancos antigos não têm "rua" no CHECK do perfil.
+  // Tenta salvar como rua e, se o Supabase recusar, mantém como operacional com permissões mobile.
+  if (app === "rua") return ["rua", "operacional"];
   return [app || "operacional"];
 }
 
@@ -96,15 +128,23 @@ async function salvarUsuarioSistemaBanco(usuario) {
   }
 
   const perfilAppUsuario = normalizarPerfilSistemaApp(usuario.perfil || "operacional");
+  const normalizadorPermUsuario = (typeof window !== "undefined" && typeof window.normalizarPermissoesUsuarioMobileV19 === "function")
+    ? window.normalizarPermissoesUsuarioMobileV19
+    : normalizarPermissoesUsuario;
+  const permissoesNormalizadas = normalizadorPermUsuario(perfilAppUsuario, usuario.permissoes || null);
   const payload = {
     nome: usuario.nome || "",
     usuario: usuarioLogin,
     senha: usuario.senha || "",
     perfil: perfilAppUsuario,
     ativo: usuario.ativo !== false,
-    permissoes: usuario.permissoes || normalizarPermissoesUsuario(perfilAppUsuario, null),
+    permissoes: permissoesNormalizadas,
     atualizado_em: new Date().toISOString()
   };
+
+  // Garante que a permissão alterada no modal já fique disponível nesta sessão,
+  // mesmo se o Supabase antigo recusar algum campo novo.
+  rtSalvarPermissoesUsuarioOverrideLocal({ ...usuario, perfil: perfilAppUsuario, permissoes: permissoesNormalizadas });
 
   if (typeof supabaseClient !== "undefined" && supabaseClient) {
     const perfisBancoTentativa = Array.from(new Set(opcoesPerfilParaBanco(perfilAppUsuario)));
@@ -113,9 +153,16 @@ async function salvarUsuarioSistemaBanco(usuario) {
       let ultimoErro = null;
       for (const perfilBanco of perfisBancoTentativa) {
         const payloadBanco = { ...payload, perfil: perfilBanco };
-        const resultado = await operacao(payloadBanco);
+        let resultado = await operacao(payloadBanco);
+        if (resultado.error) {
+          const msgCol = String(resultado.error?.message || "").toLowerCase();
+          if (msgCol.includes("permissoes") && (msgCol.includes("column") || msgCol.includes("schema cache") || msgCol.includes("could not find"))) {
+            const { permissoes, ...payloadSemPermissoes } = payloadBanco;
+            resultado = await operacao(payloadSemPermissoes);
+          }
+        }
         if (!resultado.error) {
-          return { data: normalizarUsuarioSistemaApp(resultado.data), error: null };
+          return { data: normalizarUsuarioSistemaApp({ ...resultado.data, permissoes: resultado.data?.permissoes || permissoesNormalizadas }), error: null };
         }
         ultimoErro = resultado.error;
         const msg = String(resultado.error?.message || "").toLowerCase();
@@ -504,15 +551,17 @@ async function renderizarUsuariosSistema() {
 
   tbody.innerHTML = usuariosSistema.map(u => `
     <tr>
-      <td class="clientes-actions"><div class="clientes-actions-row">${u.nome || "-"}</td>
+      <td>${u.nome || "-"}</td>
       <td>${u.usuario || "-"}</td>
       <td>${perfilUsuarioLabel(u.perfil)}</td>
       <td>${u.ativo === false ? "Inativo" : "Ativo"}</td>
       <td>${resumoPermissoesUsuario(u)}</td>
-      <td>${resumoPermissoesUsuario(u)}</td>
-      <td>
-        <button type="button" class="btn-outline" data-editar-usuario="${u.id}">Editar</button>
-        <button type="button" class="btn-outline danger" data-excluir-usuario="${u.id}">Excluir</button></div></td>
+      <td class="clientes-actions">
+        <div class="clientes-actions-row">
+          <button type="button" class="btn-outline" data-editar-usuario="${u.id}">Editar</button>
+          <button type="button" class="btn-outline danger" data-excluir-usuario="${u.id}">Excluir</button>
+        </div>
+      </td>
     </tr>
   `).join("");
 
@@ -1326,7 +1375,10 @@ function montarPermissoesNoModalUsuario(usuario = null) {
 
 function preencherPermissoesNoModalUsuario(usuario = null) {
   const perfil = usuario?.perfil || document.getElementById("usuarioPerfil")?.value || "operacional";
-  const permissoes = normalizarPermissoesUsuario(perfil, usuario?.permissoes || null);
+  const normalizador = (typeof window !== "undefined" && typeof window.normalizarPermissoesUsuarioMobileV19 === "function")
+    ? window.normalizarPermissoesUsuarioMobileV19
+    : normalizarPermissoesUsuario;
+  const permissoes = normalizador(perfil, usuario?.permissoes || null);
 
   document.querySelectorAll("#usuarioPermissoesBox input[data-user-perm]").forEach(input => {
     const pagina = input.dataset.userPerm;
@@ -1349,7 +1401,10 @@ function coletarPermissoesDoModalUsuario() {
     permissoes[input.dataset.userPerm] = input.checked;
   });
 
-  return normalizarPermissoesUsuario(perfil, permissoes);
+  const normalizador = (typeof window !== "undefined" && typeof window.normalizarPermissoesUsuarioMobileV19 === "function")
+    ? window.normalizarPermissoesUsuarioMobileV19
+    : normalizarPermissoesUsuario;
+  return normalizador(perfil, permissoes);
 }
 
 function garantirColunaPermissoesUsuarios() {
@@ -1368,7 +1423,10 @@ function garantirColunaPermissoesUsuarios() {
 }
 
 function resumoPermissoesUsuario(usuario) {
-  const permissoes = normalizarPermissoesUsuario(usuario.perfil, usuario.permissoes || null);
+  const normalizador = (typeof window !== "undefined" && typeof window.normalizarPermissoesUsuarioMobileV19 === "function")
+    ? window.normalizarPermissoesUsuarioMobileV19
+    : normalizarPermissoesUsuario;
+  const permissoes = normalizador(usuario.perfil, usuario.permissoes || null);
   const liberadas = paginasPermissaoUsuario
     .filter(p => permissoes[p.id])
     .map(p => p.label);

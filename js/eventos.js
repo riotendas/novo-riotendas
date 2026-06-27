@@ -1502,7 +1502,7 @@ function datasRecorrencia(inicio, fim, tipo, diasPersonalizado) {
   let atual = inicio;
   let seguranca = 0;
 
-  while (atual <= fim && seguranca < 120) {
+  while (atual < fim && seguranca < 120) {
     datas.push(atual);
 
     if (tipo === "mensal") atual = addMesISO(atual, 1);
@@ -2028,6 +2028,32 @@ function rtTextoConflitoProdutoEvento(conflito, permitirTransito = false) {
   return `⚠ Em uso até ${dataLiberacaoBR} - ${nome}`;
 }
 
+function rtEventoOrigemJaRecolhidoEvento(eventoOuId) {
+  const id = typeof eventoOuId === "object" ? String(eventoOuId?.id || "") : String(eventoOuId || "");
+  if (!id) return false;
+  try {
+    if (typeof obterOperacaoRota === "function") {
+      const opDesmontagem = obterOperacaoRota(`${id}-desmontagem`);
+      const opRetirada = obterOperacaoRota(`${id}-retirada`);
+      const st = String(opDesmontagem?.status || opRetirada?.status || "").toLowerCase();
+      if (st === "recolhido") return true;
+    }
+  } catch {}
+  try {
+    const ev = typeof eventoOuId === "object" ? eventoOuId : (Array.isArray(eventos) ? eventos.find(e => String(e.id || "") === id) : null);
+    const stEv = String(ev?.status_operacao || ev?.status_rota || ev?.situacao_rota || "").toLowerCase();
+    if (stEv.includes("recolh")) return true;
+  } catch {}
+  return false;
+}
+
+function rtProdutoUsoTransitoPendenteEvento(item) {
+  if (!item || !(item.uso_transito || item.usoEmTransito)) return false;
+  const origemId = String(item.origem_evento_id || "");
+  if (!origemId) return true;
+  return !rtEventoOrigemJaRecolhidoEvento(origemId);
+}
+
 function produtoJaSelecionadoNoEvento(lista, produto, ignorarIndex = -1) {
   const id = String(produto?.id || "");
   const codigo = String(produto?.codigo || "").trim();
@@ -2283,21 +2309,25 @@ function configurarCampoColaboradorEvento(valorAtual = "") {
   const campo = document.getElementById("eventoColaboradorSelect");
   const hint = document.getElementById("eventoColaboradorHint");
   if (!campo) return;
-  const admin = rtEventoUsuarioAdmin();
+
+  // Colaborador é somente o criador original do evento.
+  // Não deve mudar em edições de horário, rota, pagamento, troca rápida etc.
   const valor = valorAtual || (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "");
   const nomes = rtListaColaboradoresEvento();
   if (valor && !nomes.includes(valor)) nomes.unshift(valor);
   campo.innerHTML = nomes.map(nome => `<option value="${rtEventoEscape(nome)}">${rtEventoEscape(nome)}</option>`).join("");
   if (!campo.innerHTML) campo.innerHTML = `<option value="${rtEventoEscape(valor)}">${rtEventoEscape(valor || "-")}</option>`;
   campo.value = valor;
-  campo.disabled = !admin;
-  if (hint) hint.textContent = admin ? "Administrador pode corrigir o colaborador deste evento." : "Somente Administrador pode alterar este campo.";
+  campo.disabled = true;
+  if (hint) hint.textContent = "Colaborador original que criou o evento. Não é alterado nas edições.";
 }
 
 function obterColaboradorFormularioEvento(existente) {
-  const campo = document.getElementById("eventoColaboradorSelect");
-  if (rtEventoUsuarioAdmin() && campo && campo.value) return campo.value;
-  return existente?.colaborador || (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "");
+  // Em edição, preserva sempre o colaborador original.
+  if (existente && typeof existente.colaborador !== "undefined" && String(existente.colaborador || "").trim()) {
+    return existente.colaborador;
+  }
+  return (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "");
 }
 
 function produtoEstaDisponivelNoEvento(produto, evento, ignorarIndex = -1) {
@@ -2324,6 +2354,7 @@ function produtoEstaDisponivelNoEvento(produto, evento, ignorarIndex = -1) {
     if (!outro || (typeof rtEventoCancelado === "function" && rtEventoCancelado(outro))) return false;
     if (String(outro.id) === String(evento.id)) return false;
     if (!eventoUsaProdutoPorIdOuCodigo(outro, produto)) return false;
+    if (rtEventoOrigemJaRecolhidoEvento(outro)) return false;
 
     const intervaloOutro = intervaloDeEventoParaDisponibilidade(outro);
     return periodosConflitam(intervaloAtual.inicio, intervaloAtual.fim, intervaloOutro.inicio, intervaloOutro.fim);
@@ -2387,6 +2418,7 @@ function disponibilidadeProdutoParaEvento(produtoId) {
     if (!evento || (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento))) return false;
     if (String(evento.id) === String(eventoAtualId)) return false;
     if (!eventoUsaProdutoPorIdOuCodigo(evento, produto)) return false;
+    if (rtEventoOrigemJaRecolhidoEvento(evento)) return false;
 
     const intervalo = intervaloDeEventoParaDisponibilidade(evento);
     return periodosConflitam(intervaloAtual.inicio, intervaloAtual.fim, intervalo.inicio, intervalo.fim);
@@ -2440,7 +2472,7 @@ function rtAplicarUsoEmTransitoProduto(item, disponibilidade) {
 }
 
 function rtTextoUsoTransitoProduto(item) {
-  if (!item || !(item.uso_transito || item.usoEmTransito)) return "";
+  if (!rtProdutoUsoTransitoPendenteEvento(item)) return "";
   return item.origem_transito_texto || `Uso em trânsito${item.origem_evento_nome ? ": retirar de " + item.origem_evento_nome : ""}`;
 }
 
@@ -2648,7 +2680,7 @@ function renderizarProdutosSelecionadosEvento() {
         <span>
           <strong>${p.codigo || "Sem código"}</strong>
           <em>${rtDescricaoProdutoEvento(p)}</em>
-          <small class="availability-badge ${p.uso_transito || p.usoEmTransito ? 'warning' : disp.classe}">${p.uso_transito || p.usoEmTransito ? '⚠ Uso em trânsito — ' + rtTextoUsoTransitoProduto(p) : disp.texto}</small>
+          <small class="availability-badge ${rtProdutoUsoTransitoPendenteEvento(p) ? 'warning' : disp.classe}">${rtProdutoUsoTransitoPendenteEvento(p) ? '⚠ Uso em trânsito — ' + rtTextoUsoTransitoProduto(p) : disp.texto}</small>
         </span>
         <button type="button" class="btn-outline" data-remove-produto="${p.id}">×</button>
       </div>`;
@@ -3437,7 +3469,7 @@ async function salvarEventoForm(event) {
           assinatura_link: evento.assinatura_link,
           assinatura_enviada_em: evento.assinatura_enviada_em,
           assinatura_realizada_em: evento.assinatura_realizada_em,
-          colaborador: evento.colaborador,
+          colaborador: alvo.colaborador || evento.colaborador,
           atualizado_em: new Date().toISOString()
         };
         const salvoSerie = await salvarEventoBanco(atualizado);
@@ -4568,8 +4600,9 @@ function renderizarProdutosRapido() {
 
   container.innerHTML = produtosRapidoAtual.map((produto, index) => {
     const disponibilidade = disponibilidadeProdutoRapido(produto.id);
-    const classe = (produto.uso_transito || produto.usoEmTransito) ? "warning" : (disponibilidade.classe || "neutral");
-    const textoDisponibilidade = (produto.uso_transito || produto.usoEmTransito) ? `⚠ Uso em trânsito — ${rtTextoUsoTransitoProduto(produto)}` : (disponibilidade.texto || "Disponibilidade não verificada");
+    const transitoPendente = rtProdutoUsoTransitoPendenteEvento(produto);
+    const classe = transitoPendente ? "warning" : (disponibilidade.classe || "neutral");
+    const textoDisponibilidade = transitoPendente ? `⚠ Uso em trânsito — ${rtTextoUsoTransitoProduto(produto)}` : (disponibilidade.texto || "Disponibilidade não verificada");
 
     return `
       <div class="produto-rapido-row">
