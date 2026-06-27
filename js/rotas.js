@@ -223,6 +223,14 @@ function formatarDataHoraOperacaoRota(iso) {
 }
 
 function obterOperacaoRota(rotaId) {
+  const op = (rotasOperacao || {})[rotaId] || null;
+  // Tombstone de reversão administrativa: mantém gravado para não voltar
+  // da nuvem/realtime, mas na interface conta como pendente.
+  if (op && String(op.status || '').toLowerCase() === 'revertido') return null;
+  return op;
+}
+
+function obterOperacaoRotaBruta(rotaId) {
   return (rotasOperacao || {})[rotaId] || null;
 }
 
@@ -442,14 +450,38 @@ async function reverterOperacaoRota(rotaId) {
 
   if (opAnterior.status === "recolhido") {
     alterados = await alterarStatusProdutosEventoRota(rota, "__RESTORE__", "Reversão administrativa do recolhimento", opAnterior);
-    delete rotasOperacao[rota.id];
+    rotasOperacao[rota.id] = {
+      status: "revertido",
+      data: agora,
+      atualizado_em: agora,
+      colaborador,
+      evento_id: rota.evento_id,
+      tipo: rota.tipo,
+      status_anterior: opAnterior.status
+    };
   } else if (opAnterior.status === "entregue") {
     alterados = await alterarStatusProdutosEventoRota(rota, "__RESTORE__", "Reversão administrativa da entrega", opAnterior);
-    delete rotasOperacao[rota.id];
+    rotasOperacao[rota.id] = {
+      status: "revertido",
+      data: agora,
+      atualizado_em: agora,
+      colaborador,
+      evento_id: rota.evento_id,
+      tipo: rota.tipo,
+      status_anterior: opAnterior.status
+    };
   } else if (opAnterior.status === "efetuado") {
     // Atendimentos extras não alteram o status dos produtos; reverter significa
     // voltar o atendimento para pendente e liberar o botão Efetuado novamente.
-    delete rotasOperacao[rota.id];
+    rotasOperacao[rota.id] = {
+      status: "revertido",
+      data: agora,
+      atualizado_em: agora,
+      colaborador,
+      evento_id: rota.evento_id,
+      tipo: rota.tipo,
+      status_anterior: opAnterior.status
+    };
   }
 
   await salvarRotasOperacaoLocal();
@@ -496,6 +528,7 @@ async function reconciliarStatusProdutosOperacoesRotas() {
     if (!rota) continue;
 
     if (op.semAlterarProdutos) continue;
+    if (String(op.status || '').toLowerCase() === 'revertido') continue;
 
     if (op.status === "entregue") {
       const alterados = await alterarStatusProdutosEventoRota(rota, "Alugado", "Sincronização automática: rota entregue");

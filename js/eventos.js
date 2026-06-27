@@ -2403,6 +2403,13 @@ function disponibilidadeProdutoParaEvento(produtoId) {
   const intervaloAtual = intervaloEventoAtual();
   const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(produtoId)) || { id: produtoId };
 
+  // Ao editar evento passado/recolhido, não deixar reservas futuras do mesmo
+  // produto gerarem alerta/modal. Isso permite corrigir financeiro e detalhes
+  // históricos sem que o status operacional atual do produto interfira.
+  if (rtEventoAtualFormularioPassadoOuRecolhido(eventoAtualId, intervaloAtual)) {
+    return { livre: true, texto: "Evento passado", classe: "neutral", ignorarConflitos: true };
+  }
+
   if (produtoEventoEstaBloqueado(produto)) {
     return { livre: false, texto: "Produto bloqueado", classe: "busy" };
   }
@@ -2440,6 +2447,25 @@ function disponibilidadeProdutoParaEvento(produtoId) {
   return { livre: true, texto: "Livre para a data", classe: "free" };
 }
 
+
+
+function rtEventoAtualFormularioPassadoOuRecolhido(eventoId, intervaloAtual) {
+  const id = String(eventoId || "");
+  if (!id) return false;
+
+  try {
+    if (typeof rtEventoOrigemJaRecolhidoEvento === "function" && rtEventoOrigemJaRecolhidoEvento(id)) return true;
+  } catch {}
+
+  const fim = intervaloAtual?.fim ? new Date(intervaloAtual.fim) : null;
+  if (fim && !Number.isNaN(fim.getTime())) {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    if (fim < hoje) return true;
+  }
+
+  return false;
+}
 
 function rtEventoResumoOrigemTransito(conflito) {
   if (!conflito) return "evento anterior";
