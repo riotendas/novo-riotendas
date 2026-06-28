@@ -10,6 +10,17 @@
   let rtMapaDebounce = null;
   let rtMapaGeocodeFilaRodando = false;
 
+  const RT_MAPA_DADOS_CACHE_PREFIX = 'riotendas_mapa_dados_v1:';
+  const RT_MAPA_DADOS_CACHE_MS = 5 * 60 * 1000;
+  const RT_MAPA_SELECT_CAMPOS = [
+    'id','nome','cliente','cliente_nome','nome_cliente','contratante',
+    'data_evento','data','evento_data','data_inicio','data_montagem','montagem','data_desmontagem','desmontagem',
+    'endereco','numero','bairro','cidade','uf','carro','veiculo',
+    'latitude','longitude','lat','lng','lon','geocode_status','geocode_at',
+    'tendas','itens_apoio','apoio','produtos_extras','materiais_extra',
+    'status','status_evento','cancelado','cancelada','excluido'
+  ].join(',');
+
   const CACHE_KEY = 'riotendas_mapa_geocode_cache_v4';
   const RJ_CENTER = [-22.9068, -43.1729];
   const MAX_GEOCODE_BACKGROUND = 0; // coordenadas agora são salvas no evento; mapa não geocodifica ao abrir
@@ -30,6 +41,21 @@
     const dias = Math.max(1, Math.min(30, Number(document.getElementById('mapaPeriodo')?.value || 7) || 7));
     return {ini, fim:addDiasISO(ini, dias-1), dias};
   }
+  function cacheMapaKey(ini, fim){ return `${RT_MAPA_DADOS_CACHE_PREFIX}${ini}|${fim}`; }
+  function lerCacheEventosMapa(ini, fim){
+    try{
+      const bruto = sessionStorage.getItem(cacheMapaKey(ini,fim));
+      if(!bruto) return null;
+      const obj = JSON.parse(bruto);
+      if(!obj || !Array.isArray(obj.data)) return null;
+      if(Date.now() - Number(obj.ts || 0) > RT_MAPA_DADOS_CACHE_MS) return null;
+      return obj.data;
+    }catch(_){ return null; }
+  }
+  function salvarCacheEventosMapa(ini, fim, data){
+    try{ sessionStorage.setItem(cacheMapaKey(ini,fim), JSON.stringify({ts:Date.now(), data:Array.isArray(data)?data:[]})); }catch(_){ }
+  }
+
   function eventoNoPeriodo(e, ini, fim){
     const ev=dataEvento(e), mon=dataMontagem(e), des=dataDesmontagem(e);
     if(mon && mon >= ini && mon <= fim) return true;
@@ -206,22 +232,9 @@
     const mapa = { ids:new Map(), ends:new Map(), textos:[] };
     const cache=carregarCache();
     Object.keys(cache).forEach(k=>{ if(cache[k] && posValida(cache[k].lat, cache[k].lng)) mapa.ends.set(k, cache[k]); });
-    if(!window.supabaseClient){ rtMapaPontosCache = mapa; return mapa; }
-
-    const tabelas = [
-      'mapa_pontos','mapa_operacional','mapa_coordenadas','mapa_enderecos','enderecos_mapa','eventos_mapa','eventos_localizacoes',
-      'localizacoes_eventos','localizacoes','enderecos_coordenadas','coordenadas_enderecos','enderecos_geocodificados','geocodificacao_cache'
-    ];
-    const consultas = tabelas.map(tabela => withTimeout(
-      supabaseClient.from(tabela).select('*').limit(3000).then(r=>({tabela, ...r})).catch(error=>({tabela,error})),
-      1600
-    ));
-    const resultados = await Promise.allSettled(consultas);
-    resultados.forEach(r=>{
-      const v = r.value || {};
-      if(!Array.isArray(v.data)) return;
-      v.data.forEach(p=>indexarPonto(mapa, p, v.tabela));
-    });
+    // Otimização de egress: o mapa agora usa latitude/longitude gravadas no próprio evento.
+    // Não consultar tabelas auxiliares de coordenadas em toda abertura do mapa.
+    // Isso evita dezenas de selects grandes e reduz bastante o tráfego do Supabase.
     rtMapaPontosCache = mapa;
     return mapa;
   }
@@ -291,24 +304,58 @@
     const {ini,fim}=periodoMapa();
     const cacheKey = `${ini}|${fim}`;
     if(!force && Array.isArray(rtMapaEventosCache) && rtMapaEventosCacheKey === cacheKey) return rtMapaEventosCache;
-    // Primeiro tenta buscar no Supabase só um intervalo pequeno. Isso evita carregar/geocodificar a base inteira.
+
+    if(!force){
+      const cacheLocal = lerCacheEventosMapa(ini, fim);
+      if(Array.isArray(cacheLocal)){
+        rtMapaEventosCache = cacheLocal;
+        rtMapaEventosCacheKey = cacheKey;
+        return cacheLocal;
+      }
+    }
+
+    // Busca enxuta: somente período filtrado e campos usados pelo Mapa Operacional.
+    // Se algum campo específico não existir no Supabase, cai para o fallback seguro.
     if(window.supabaseClient){
+      const orFiltro = `and(data_evento.gte.${ini},data_evento.lte.${fim}),and(data_montagem.gte.${ini},data_montagem.lte.${fim}),and(data_desmontagem.gte.${ini},data_desmontagem.lte.${fim}),and(data_montagem.lte.${fim},data_desmontagem.gte.${ini})`;
       try{
-        const orFiltro = `and(data_evento.gte.${ini},data_evento.lte.${fim}),and(data_montagem.gte.${ini},data_montagem.lte.${fim}),and(data_desmontagem.gte.${ini},data_desmontagem.lte.${fim}),and(data_montagem.lte.${fim},data_desmontagem.gte.${ini})`;
-        const {data,error}=await supabaseClient.from('eventos').select('*').or(orFiltro).order('data_evento',{ascending:true}).limit(250);
-        if(!error && Array.isArray(data)){ rtMapaEventosCache=data; rtMapaEventosCacheKey=cacheKey; return data; }
-        if(error) console.warn('Mapa: busca por período falhou, usando cache/local', error);
+        let resp = await supabaseClient
+          .from('eventos')
+          .select(RT_MAPA_SELECT_CAMPOS)
+          .or(orFiltro)
+          .order('data_evento',{ascending:true})
+          .limit(150);
+
+        if(resp?.error){
+          console.warn('Mapa: select enxuto falhou; usando fallback mínimo', resp.error);
+          resp = await supabaseClient
+            .from('eventos')
+            .select('*')
+            .or(orFiltro)
+            .order('data_evento',{ascending:true})
+            .limit(150);
+        }
+
+        if(!resp?.error && Array.isArray(resp?.data)){
+          rtMapaEventosCache = resp.data;
+          rtMapaEventosCacheKey = cacheKey;
+          salvarCacheEventosMapa(ini, fim, resp.data);
+          return resp.data;
+        }
+        if(resp?.error) console.warn('Mapa: busca por período falhou, usando cache/local', resp.error);
       }catch(e){ console.warn('Mapa: erro na busca por período', e); }
     }
+
     let lista=[];
-    if(Array.isArray(window.eventos) && window.eventos.length) lista=window.eventos;
+    if(Array.isArray(window.eventos) && window.eventos.length) lista=window.eventos.filter(e=>eventoNoPeriodo(e,ini,fim)).slice(0,150);
     else if(typeof window.buscarEventosBanco === 'function'){
-      try{ const l=await window.buscarEventosBanco(); if(Array.isArray(l)){ window.eventos=l; lista=l; } }catch(e){ console.warn('Mapa: erro ao buscar eventos', e); }
+      try{ const l=await window.buscarEventosBanco(); if(Array.isArray(l)){ window.eventos=l; lista=l.filter(e=>eventoNoPeriodo(e,ini,fim)).slice(0,150); } }catch(e){ console.warn('Mapa: erro ao buscar eventos', e); }
     } else if(typeof window.garantirEventosDashboard === 'function'){
-      try{ const l=await window.garantirEventosDashboard(); if(Array.isArray(l)) lista=l; }catch(_){}
+      try{ const l=await window.garantirEventosDashboard(); if(Array.isArray(l)) lista=l.filter(e=>eventoNoPeriodo(e,ini,fim)).slice(0,150); }catch(_){}
     }
     rtMapaEventosCache=lista;
     rtMapaEventosCacheKey=cacheKey;
+    salvarCacheEventosMapa(ini, fim, lista);
     return lista;
   }
 
@@ -618,7 +665,7 @@
     const hojeBtn=document.getElementById('mapaHoje');
     if(hojeBtn && !hojeBtn.__rtMapaBind){ hojeBtn.__rtMapaBind=true; hojeBtn.addEventListener('click',()=>{ const d=document.getElementById('mapaDataBase'); if(d) d.value=hojeISO(); renderizarMapaOperacional(true); }); }
     const rec=document.getElementById('mapaRecarregar');
-    if(rec && !rec.__rtMapaBind){ rec.__rtMapaBind=true; rec.addEventListener('click',()=>renderizarMapaOperacional(true)); }
+    if(rec && !rec.__rtMapaBind){ rec.__rtMapaBind=true; rec.addEventListener('click',()=>{ try{ const {ini,fim}=periodoMapa(); sessionStorage.removeItem(cacheMapaKey(ini,fim)); }catch(_){} renderizarMapaOperacional(true); }); }
     const lista=document.getElementById('mapaListaEventos');
     if(lista && !lista.__rtMapaBind){
       lista.__rtMapaBind=true;

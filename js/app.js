@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // v19-dev: controle simples de versão/cache para reduzir app antigo em celulares.
-const RIOTENDAS_APP_VERSION = "v19-dev-2026-06-22-mapa-cards-4linhas-alinhado";
+const RIOTENDAS_APP_VERSION = "v19-dev-2026-06-28-mapa-egress-otimizado";
 
 function iniciarControleVersaoCache() {
   try {
