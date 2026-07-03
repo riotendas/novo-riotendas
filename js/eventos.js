@@ -1793,6 +1793,17 @@ function atualizarVisibilidadeDuplicarEvento(visivel) {
   if (btn) btn.style.display = visivel ? "inline-flex" : "none";
 }
 
+function rtLimparProdutoDuplicadoEvento(produto) {
+  const p = { ...(produto || {}) };
+  [
+    "uso_transito", "usoEmTransito", "origem_evento_id", "origem_evento_nome",
+    "origem_evento_data", "origem_transito_texto", "destino_evento_id",
+    "destino_evento_nome", "status_rota", "status_operacao", "entregue_em",
+    "recolhido_em", "entregue_por", "recolhido_por"
+  ].forEach(chave => { if (chave in p) delete p[chave]; });
+  return p;
+}
+
 function duplicarEventoAtual() {
   const idAtual = document.getElementById("eventoId")?.value || "";
   if (!idAtual) {
@@ -1814,10 +1825,32 @@ function duplicarEventoAtual() {
   atualizarBoxRecorrencia();
   atualizarCampoDiasRecorrencia();
 
+  // Duplicação deve copiar cliente/data/material como base, mas não histórico financeiro,
+  // pagamentos, assinatura ou status operacional de rota do evento original.
+  const valorTotal = document.getElementById("eventoValorTotal");
+  const valorSinal = document.getElementById("eventoValorSinal");
+  const valorSinal2 = document.getElementById("eventoValorSinal2");
+  const valorRestante = document.getElementById("eventoValorRestante");
+  const formaPagamento = document.getElementById("eventoFormaPagamento");
+  if (valorTotal) valorTotal.value = numeroParaMoeda(0);
+  if (valorSinal) valorSinal.value = numeroParaMoeda(0);
+  if (valorSinal2) valorSinal2.value = numeroParaMoeda(0);
+  if (valorRestante) valorRestante.value = numeroParaMoeda(0);
+  if (formaPagamento) formaPagamento.value = "";
+  mostrarSinal2Evento(false);
+  atualizarIconesFormaPagamentoEvento();
+
+  const pagarInloco = document.getElementById("eventoPagarInloco");
+  if (pagarInloco) pagarInloco.checked = false;
   const pagamentoQuitado = document.getElementById("eventoPagamentoQuitado");
   if (pagamentoQuitado) pagamentoQuitado.checked = false;
   rtAtualizarAssinaturaForm("nao_enviado", "");
 
+  produtosSelecionadosEventoAtual = (produtosSelecionadosEventoAtual || []).map(rtLimparProdutoDuplicadoEvento);
+  produtosReservaEventoAtual = (produtosReservaEventoAtual || []).map(rtLimparProdutoDuplicadoEvento);
+  produtosExtrasEventoAtual = (produtosExtrasEventoAtual || []).map(item => ({ ...(item || {}) }));
+
+  configurarCampoColaboradorEvento(typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "");
   popularSelectProdutosEvento();
   renderizarProdutosSelecionadosEvento();
   renderizarApoioEvento(obterApoioSelecionadoEvento());
@@ -2310,24 +2343,39 @@ function configurarCampoColaboradorEvento(valorAtual = "") {
   const hint = document.getElementById("eventoColaboradorHint");
   if (!campo) return;
 
-  // Colaborador é somente o criador original do evento.
-  // Não deve mudar em edições de horário, rota, pagamento, troca rápida etc.
+  // O colaborador identifica quem criou/assumiu o evento.
+  // Não muda sozinho em edições comuns; administrador pode corrigir manualmente.
   const valor = valorAtual || (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "");
   const nomes = rtListaColaboradoresEvento();
   if (valor && !nomes.includes(valor)) nomes.unshift(valor);
   campo.innerHTML = nomes.map(nome => `<option value="${rtEventoEscape(nome)}">${rtEventoEscape(nome)}</option>`).join("");
   if (!campo.innerHTML) campo.innerHTML = `<option value="${rtEventoEscape(valor)}">${rtEventoEscape(valor || "-")}</option>`;
   campo.value = valor;
-  campo.disabled = true;
-  if (hint) hint.textContent = "Colaborador original que criou o evento. Não é alterado nas edições.";
+
+  const admin = rtEventoUsuarioAdmin();
+  campo.disabled = !admin;
+  if (hint) {
+    hint.textContent = admin
+      ? "Colaborador original do evento. Administrador pode corrigir manualmente."
+      : "Colaborador original que criou o evento. Não é alterado nas edições.";
+  }
 }
 
 function obterColaboradorFormularioEvento(existente) {
-  // Em edição, preserva sempre o colaborador original.
-  if (existente && typeof existente.colaborador !== "undefined" && String(existente.colaborador || "").trim()) {
-    return existente.colaborador;
+  const campo = document.getElementById("eventoColaboradorSelect");
+  const valorCampo = String(campo?.value || "").trim();
+
+  // Usuário comum nunca troca colaborador em edição.
+  if (existente && !rtEventoUsuarioAdmin()) {
+    return existente.colaborador || valorCampo || (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "");
   }
-  return (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "");
+
+  // Administrador pode corrigir manualmente; se não mexer, preserva o valor exibido.
+  if (existente && rtEventoUsuarioAdmin()) {
+    return valorCampo || existente.colaborador || (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "");
+  }
+
+  return valorCampo || (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "");
 }
 
 function produtoEstaDisponivelNoEvento(produto, evento, ignorarIndex = -1) {

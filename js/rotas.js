@@ -1134,6 +1134,10 @@ function rtEventoOrigemJaRecolhidoRota(eventoOuId) {
   return false;
 }
 
+function rtProdutoUsoTransitoPendenteParaCarga(produto) {
+  return Boolean((produto?.uso_transito || produto?.usoEmTransito) && rtProdutoUsoTransitoAindaPendenteRota(produto));
+}
+
 function rtProdutoUsoTransitoTextoRota(produto, nomeBase) {
   const base = nomeBase || "Produto com código";
   if (!rtProdutoUsoTransitoAindaPendenteRota(produto)) return base;
@@ -1142,11 +1146,19 @@ function rtProdutoUsoTransitoTextoRota(produto, nomeBase) {
 }
 
 function montarListaMateriais(evento) {
-  const tendas = (evento.tendas || []).map((p, index) => {
+  const itens = [];
+  let temUsoTransito = false;
+
+  (evento.tendas || []).forEach((p) => {
+    if (rtProdutoUsoTransitoPendenteParaCarga(p)) {
+      temUsoTransito = true;
+      return;
+    }
     const nome = [p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - ");
-    const base = nome || "Produto com código";
-    return rtProdutoUsoTransitoTextoRota(p, base);
+    itens.push(nome || "Produto com código");
   });
+
+  if (temUsoTransito) itens.push("⚠ Uso em trânsito");
 
   const reservas = (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).map(i => typeof rtProdutoReservaParaTexto === "function" ? rtProdutoReservaParaTexto(i) : `🔄 R${i.codigo || ""}`);
 
@@ -1154,13 +1166,18 @@ function montarListaMateriais(evento) {
 
   const extras = (typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento.produtos_extras || [])).map(i => `${i.descricao} (${i.quantidade})`);
 
-  return [...tendas, ...reservas, ...apoio, ...extras];
+  return [...itens, ...reservas, ...apoio, ...extras];
 }
 
 function montarMateriaisRotaDetalhados(evento) {
   const materiais = [];
 
+  let temUsoTransito = false;
   (evento.tendas || []).forEach((p, index) => {
+    if (rtProdutoUsoTransitoPendenteParaCarga(p)) {
+      temUsoTransito = true;
+      return;
+    }
     const nome = [p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - ");
 
     materiais.push({
@@ -1169,9 +1186,16 @@ function montarMateriaisRotaDetalhados(evento) {
       id: p.id,
       categoria: p.categoria || p.tipo || "",
       tamanho: p.tamanho || "",
-      texto: rtProdutoUsoTransitoTextoRota(p, nome || "Produto com código")
+      texto: nome || "Produto com código"
     });
   });
+
+  if (temUsoTransito) {
+    materiais.push({
+      tipo: "aviso",
+      texto: "⚠ Uso em trânsito"
+    });
+  }
 
   (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).forEach((p, index) => {
     const nome = typeof rtProdutoReservaParaTexto === "function" ? rtProdutoReservaParaTexto(p) : `🔄 R${p.codigo || ""}`;
@@ -2706,7 +2730,10 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
       return;
     }
 
-    (evento.tendas || []).forEach(item => processarItem(item));
+    (evento.tendas || []).forEach(item => {
+      if (rtProdutoUsoTransitoPendenteParaCarga(item)) return;
+      processarItem(item);
+    });
     (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).forEach(item => processarItem(item));
     [
       ...(evento.itens_apoio || []),
@@ -4042,8 +4069,11 @@ function listaMateriaisRotas(listaRotas = []) {
       return;
     }
 
-    // Produtos com código continuam item a item.
+    // Produtos com código continuam item a item, exceto uso em trânsito pendente.
+    // Esses materiais ainda estão em outro evento e aparecem apenas como aviso no card,
+    // não como carga/material para colocar no carro.
     (evento.tendas || []).forEach(p => {
+      if (rtProdutoUsoTransitoPendenteParaCarga(p)) return;
       const nome = [p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - ");
       materiaisComCodigo.push(nome || "Produto com código");
     });
@@ -4074,7 +4104,9 @@ function listaMateriaisRotas(listaRotas = []) {
 function totalMateriaisRotas(listaRotas = []) {
   return listaRotas.reduce((total, rota) => {
     if (rotaEhDesmontagem(rota)) return total;
-    return total + (Array.isArray(rota.materiais) ? rota.materiais.length : 0);
+    if (!Array.isArray(rota.materiais)) return total;
+    const materiaisCarga = rota.materiais.filter(m => !String(m || "").toLowerCase().includes("uso em trânsito"));
+    return total + materiaisCarga.length;
   }, 0);
 }
 
