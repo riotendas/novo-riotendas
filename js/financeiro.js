@@ -12,11 +12,28 @@ let rtFinanceiroCarregandoEventos = null;
 let rtFinanceiroExtratoFiltro = localStorage.getItem("rtFinanceiroExtratoFiltro") || "pendentes";
 let rtFinanceiroExtratoBusca = localStorage.getItem("rtFinanceiroExtratoBusca") || "";
 
+function rtFinEventoTemFinanceiroConciliavel(evento) {
+  if (!evento) return false;
+  const forma = String(evento.forma_pagamento || "");
+  const temLinhaBanco = forma.split(/\r?\n|;/).some(linha => {
+    const t = String(linha || "").trim();
+    if (!t) return false;
+    const m = t.match(/^(Pg\s*Total|Sinal|Restante)\s*-\s*(Pix\s*\/\s*Transf\.\s*\/\s*Dep\.\s*\/\s*Boleto|Pix\s*\/\s*Transfer[eê]ncia|Pix\s*\/\s*Transf\.\s*\/\s*Dep[oó]sito\s*\/\s*Boleto|Dinheiro|Cart[aã]o(?:\s*\/\s*Rede)?|Rede|Dep[oó]sito|Boleto|[^\-]+?)\s*-\s*(.*)$/i);
+    return !!(m && rtFinMetodoPagamentoAuditavel(String(m[2] || "")));
+  });
+  return temLinhaBanco || Number(evento.sinal || 0) > 0 || Number(evento.valor_pago || 0) > 0 || Number(evento.total_pago || 0) > 0;
+}
+
 function rtFinEventosLista() {
-  const somenteAtivos = (lista) => (Array.isArray(lista) ? lista.filter(e => !(typeof rtEventoCancelado === "function" && rtEventoCancelado(e))) : lista);
-  try { if (Array.isArray(eventos) && eventos.length) return somenteAtivos(eventos); } catch (e) {}
-  try { if (Array.isArray(window.eventos) && window.eventos.length) return somenteAtivos(window.eventos); } catch (e) {}
-  try { if (Array.isArray(rtFinanceiroEventosCache) && rtFinanceiroEventosCache.length) return somenteAtivos(rtFinanceiroEventosCache); } catch (e) {}
+  // Para o financeiro, eventos cancelados com movimentação bancária continuam aparecendo
+  // para conciliação de sinal, devolução, multa/crédito etc.
+  const listaFinanceira = (lista) => (Array.isArray(lista) ? lista.filter(e => {
+    const cancelado = (typeof rtEventoCancelado === "function" && rtEventoCancelado(e));
+    return !cancelado || rtFinEventoTemFinanceiroConciliavel(e);
+  }) : lista);
+  try { if (Array.isArray(eventos) && eventos.length) return listaFinanceira(eventos); } catch (e) {}
+  try { if (Array.isArray(window.eventos) && window.eventos.length) return listaFinanceira(window.eventos); } catch (e) {}
+  try { if (Array.isArray(rtFinanceiroEventosCache) && rtFinanceiroEventosCache.length) return listaFinanceira(rtFinanceiroEventosCache); } catch (e) {}
 
   const chavesLocais = [
     "novoRioTendasEventosV2",
@@ -27,12 +44,12 @@ function rtFinEventosLista() {
   for (const chave of chavesLocais) {
     try {
       const local = JSON.parse(localStorage.getItem(chave) || "[]");
-      if (Array.isArray(local) && local.length) return somenteAtivos(local);
+      if (Array.isArray(local) && local.length) return listaFinanceira(local);
     } catch (e) {}
   }
 
-  try { if (Array.isArray(eventos)) return somenteAtivos(eventos); } catch (e) {}
-  try { if (Array.isArray(window.eventos)) return window.eventos; } catch (e) {}
+  try { if (Array.isArray(eventos)) return listaFinanceira(eventos); } catch (e) {}
+  try { if (Array.isArray(window.eventos)) return listaFinanceira(window.eventos); } catch (e) {}
   return [];
 }
 
@@ -587,7 +604,8 @@ function rtFinFormatarOpcaoAssociacao(o) {
   const valor = rtFinMoeda(o.valor || 0).replace(/^R\$\s*/, "R$ ");
   const tipo = String(o.tipo_pagamento || o.tipo || "").padEnd(8, " ");
   const cliente = String(o.cliente || "Cliente").trim();
-  return `${dataAviso.padEnd(8, " ")} | ${valor.padStart(12, " ")} | ${tipo} | ${cliente} - Evento ${dataEvento}`;
+  const tagCancelado = o.cancelado ? " [CANCELADO]" : "";
+  return `${dataAviso.padEnd(8, " ")} | ${valor.padStart(12, " ")} | ${tipo} | ${cliente}${tagCancelado} - Evento ${dataEvento}`;
 }
 
 function rtFinRegistroPagamentoKey(r) {
@@ -602,13 +620,27 @@ function rtFinOpcoesPagamentoEventos(linhaExtrato = null) {
   const bloqueadosAuditoria = new Set();
 
   // Pagamentos já vinculados a uma linha de extrato não devem aparecer novamente.
+  // Considera associação simples e associação múltipla; também guarda uma chave ampla
+  // evento|tipo|valor para cobrir linhas antigas que não tinham a data do aviso gravada.
   rtFinanceiroExtratoSalvo.forEach(l => {
     if (String(l.status || "") !== "associado") return;
     if (atualId && String(l.id || l.fingerprint || "") === atualId) return;
-    const keyCompleta = [l.evento_id || "", l.tipo_pagamento || "", l.data_informada || l.data_aviso || "", Number(l.valor_associado || l.valor || 0).toFixed(2)].join("||");
+    const assocs = rtFinAssociacoesLinhaExtrato(l);
+    if (assocs.length) {
+      assocs.forEach(a => {
+        const valorA = Number(a.valor || 0);
+        usados.add(a.key || [a.evento_id || "", a.tipo_pagamento || "", a.data_aviso || a.data_informada || "", valorA.toFixed(2)].join("||"));
+        usados.add(a.legacy_key || `${a.evento_id || ""}||${a.tipo_pagamento || ""}`);
+        usados.add([a.evento_id || "", a.tipo_pagamento || "", valorA.toFixed(2)].join("||VALOR||"));
+      });
+      return;
+    }
+    const valorL = Number(l.valor_associado || l.valor || 0);
+    const keyCompleta = [l.evento_id || "", l.tipo_pagamento || "", l.data_informada || l.data_aviso || "", valorL.toFixed(2)].join("||");
     const legacy = `${l.evento_id || ""}||${l.tipo_pagamento || ""}`;
     usados.add(keyCompleta);
     usados.add(legacy);
+    usados.add([l.evento_id || "", l.tipo_pagamento || "", valorL.toFixed(2)].join("||VALOR||"));
   });
 
   // Pagamentos resolvidos manualmente na auditoria (Outros/Ignorar) também saem da lista de associação.
@@ -631,9 +663,18 @@ function rtFinOpcoesPagamentoEventos(linhaExtrato = null) {
       data_evento: r.data_evento || "",
       tipo_pagamento: r.tipo || "",
       valor: Number(r.valor || 0),
+      cancelado: !!r.cancelado,
       label: ""
     };
-  }).filter(o => !usados.has(o.key) && !usados.has(o.legacy_key) && !bloqueadosAuditoria.has(o.key) && !bloqueadosAuditoria.has(o.legacy_key)).map(o => ({ ...o, label: rtFinFormatarOpcaoAssociacao(o) }));
+  }).filter(o => {
+    const keyValor = [o.evento_id || "", o.tipo_pagamento || "", Number(o.valor || 0).toFixed(2)].join("||VALOR||");
+    return !usados.has(o.key)
+      && !usados.has(o.legacy_key)
+      && !usados.has(keyValor)
+      && !bloqueadosAuditoria.has(o.key)
+      && !bloqueadosAuditoria.has(o.legacy_key)
+      && !bloqueadosAuditoria.has(keyValor);
+  }).map(o => ({ ...o, label: rtFinFormatarOpcaoAssociacao(o) }));
 
   opts.forEach(o => { o._score = item ? rtFinPontuarOpcaoPagamentoExtrato(item, o) : 0; });
   return opts.sort((a,b) => {
@@ -852,6 +893,7 @@ function rtFinExtrairPagamentosAuditaveis() {
         data_texto: dataTexto,
         valor,
         evento_descricao: evento.tipo_evento || evento.observacao || evento.endereco || "",
+        cancelado: !!(typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)),
         linha_original: linha
       });
     });
