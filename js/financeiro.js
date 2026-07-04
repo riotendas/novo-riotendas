@@ -526,14 +526,25 @@ async function rtFinCarregarExtratoSalvo() {
   await rtFinAuditoriaCarregarNuvem();
   try {
     if (rtFinSupabaseDisponivel()) {
-      const { data, error } = await supabaseClient
-        .from("extrato_bancario_linhas")
-        .select("*")
-        .order("data_lancamento", { ascending: true })
-        .order("criado_em", { ascending: true })
-        .limit(300);
-      if (error) throw error;
-      rtFinanceiroExtratoSalvo = rtFinDeduplicarExtratoSalvo(Array.isArray(data) ? data : []);
+      // Financeiro 2.1: não usar limit baixo aqui.
+      // A listagem de associação ficava presa nos primeiros registros do extrato
+      // e pagamentos a partir de determinadas datas deixavam de aparecer.
+      const todos = [];
+      const pageSize = 1000;
+      for (let ini = 0; ini < 10000; ini += pageSize) {
+        const fim = ini + pageSize - 1;
+        const { data, error } = await supabaseClient
+          .from("extrato_bancario_linhas")
+          .select("*")
+          .order("data_lancamento", { ascending: true })
+          .order("criado_em", { ascending: true })
+          .range(ini, fim);
+        if (error) throw error;
+        const lote = Array.isArray(data) ? data : [];
+        todos.push(...lote);
+        if (lote.length < pageSize) break;
+      }
+      rtFinanceiroExtratoSalvo = rtFinDeduplicarExtratoSalvo(todos);
     } else {
       rtFinanceiroExtratoSalvo = rtFinDeduplicarExtratoSalvo(rtFinExtratoLocalCarregar()).sort((a,b) => String(a.data_lancamento || "9999").localeCompare(String(b.data_lancamento || "9999")) || String(a.criado_em || "").localeCompare(String(b.criado_em || "")));
     }
