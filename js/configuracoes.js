@@ -4046,6 +4046,7 @@ if (document.readyState === "loading") {
     fotos: 'configModalFotos',
     documentos: 'configModalDocumentos',
     whatsapp: 'configModalWhatsapp',
+    whatsappApi: 'configModalWhatsappApi',
     preferencias: 'configModalPreferencias',
     carga: 'configModalCarga',
     logs: 'configModalLogs',
@@ -4068,6 +4069,9 @@ if (document.readyState === "loading") {
       rtChamar('renderizarFotosPadraoConfig');
     }
     if (tipo === 'documentos') rtChamar('iniciarModelosDocumentosConfig');
+    if (tipo === 'whatsappApi') {
+      try { window.rtWhatsappApi?.renderConfig?.(); } catch(e) { console.warn('[Config fix] WhatsApp API', e); }
+    }
     if (tipo === 'whatsapp') {
       if (typeof window.rtRenderizarWhatsappModelosConfigSeguro === 'function') window.rtRenderizarWhatsappModelosConfigSeguro();
       else rtChamar('renderizarWhatsappModelosConfig');

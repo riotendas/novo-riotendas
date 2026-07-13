@@ -1223,6 +1223,10 @@
           <strong>Modelos de Documentos</strong>
           <span>Editar textos, campos, logo e variáveis de Guia, Contrato e Recibo.</span>
         </button>
+        <button type="button" class="config-link-item" data-config-modal="whatsappApi">
+          <strong>WhatsApp API</strong>
+          <span>Templates da OneCode usados nos cards das Rotas.</span>
+        </button>
         <button type="button" class="config-link-item" data-config-modal="preferencias">
           <strong>Preferências do aplicativo</strong>
           <span>Personalização visual e ajustes operacionais.</span>
@@ -1418,6 +1422,36 @@
               </div>
               <small>As alterações ficam salvas nas configurações do sistema. Depois, os botões Guia, Contrato, Recibo e Orçamento usam estes modelos automaticamente.</small>
             </section>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="configModalWhatsappApi" class="modal large-modal config-popup">
+        <div class="modal-header">
+          <div><h2>WhatsApp API</h2><p>Configure os templates da OneCode exibidos nos cards das Rotas.</p></div>
+          <button type="button" class="modal-close" data-close-config="configModalWhatsappApi">×</button>
+        </div>
+        <div class="config-popup-body">
+          <div class="wa-api-status-box">
+            <strong>Integração protegida pelo Supabase</strong>
+            <span>A chave da OneCode fica somente nos Secrets da Edge Function. Ela não é gravada neste sistema.</span>
+          </div>
+          <div class="wa-api-sync-row">
+            <button id="waApiSincronizarTemplates" type="button">↻ Sincronizar templates da OneCode</button>
+            <span id="waApiSyncStatus" class="wa-api-sync-status">Clique para consultar os templates disponíveis.</span>
+          </div>
+          <div class="config-inline-form wa-api-add-row">
+            <input id="waApiNovoTitulo" type="text" placeholder="Nome exibido, ex.: Chegamos ao local">
+            <input id="waApiNovoIcone" type="text" placeholder="Ícone" value="📍">
+            <select id="waApiNovoTemplateSelect"><option value="">Sincronize para selecionar um template</option></select>
+            <button id="waApiAdicionarTemplate" type="button">Adicionar</button>
+          </div>
+          <div id="waApiNovoTemplateInfo" class="wa-api-template-preview"></div>
+          <small>O ID interno é identificado automaticamente. Templates pendentes ou rejeitados não aparecem para seleção.</small>
+          <div id="waApiTemplatesLista" class="wa-api-templates-lista"></div>
+          <div class="config-actions">
+            <button id="waApiSalvarTemplates" type="button">Salvar configurações</button>
+            <button id="waApiRestaurarTemplates" type="button" class="btn-outline">Restaurar padrão</button>
           </div>
         </div>
       </dialog>
@@ -2260,6 +2294,7 @@
   <script src="js/calendario.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="js/configuracoes.js"></script>
+  <script src="js/whatsapp-api.js?v=20260713-preview-compacta"></script>
   <script src="js/relatorios.js"></script>
   <script src="js/app.js"></script>
   <script src="js/calendario-nav-fix.js"></script>

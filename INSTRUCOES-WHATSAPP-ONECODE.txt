@@ -1,0 +1,75 @@
+RIOTENDAS — ATIVAÇÃO DO WHATSAPP ONECODE NO SUPABASE
+
+DADOS JÁ CONFIGURADOS NO SISTEMA
+- Conexão OneCode: 3
+- Template: utl_caminho
+- ID interno do template: 15
+- Variável 1: primeiro nome do cliente
+- Variável 2: montagem/desmontagem
+
+1) CRIAR OS SECRETS NO SUPABASE
+No projeto RioTendas, abra Edge Functions > Secrets e crie:
+
+ONECODE_API_URL
+https://api-riotendas.onecode.chat
+
+ONECODE_API_KEY
+Cole aqui a chave nova gerada na OneCode, sem a palavra Bearer.
+
+ONECODE_CONNECTION_ID
+3
+
+ONECODE_TEMPLATE_CAMINHO_ID
+15
+
+2) CRIAR/PUBLICAR A EDGE FUNCTION
+Nome obrigatório: onecode-whatsapp
+
+O código pronto está em:
+supabase/functions/onecode-whatsapp/index.ts
+
+No painel do Supabase:
+- Edge Functions > Deploy a new function / Create function
+- Nome: onecode-whatsapp
+- Cole todo o conteúdo do arquivo index.ts
+- Mantenha Verify JWT / Require authentication ATIVADO
+- Clique em Deploy
+
+Caso use o Supabase CLI:
+supabase functions deploy onecode-whatsapp
+
+3) TESTAR NO RIOTENDAS
+- Entre no sistema com usuário autenticado.
+- Abra Rotas.
+- Em um card com telefone, clique no círculo verde do WhatsApp.
+- Clique em “Estamos a caminho”.
+- Confirme o envio.
+
+4) CONFIGURAÇÕES
+Em Configurações > WhatsApp API é possível:
+- ativar/desativar uma ação;
+- trocar título e ícone;
+- alterar o ID interno do template;
+- adicionar outros templates futuramente.
+
+SEGURANÇA
+- Nunca coloque a chave OneCode no JavaScript, no GitHub ou no ZIP público.
+- A chave deve existir somente em Supabase Edge Functions > Secrets.
+- Se uma chave aparecer em captura de tela ou conversa, revogue e gere outra.
+
+ATUALIZAÇÃO — SINCRONIZAÇÃO DE TEMPLATES
+Após substituir e publicar novamente a Edge Function onecode-whatsapp, abra Configurações > WhatsApp API e clique em "Sincronizar templates da OneCode". O sistema buscará os templates da conexão 3, ocultará os IDs internos e permitirá escolher somente templates aprovados.
+
+ATUALIZAÇÃO — REUTILIZAÇÃO E VARIÁVEIS
+---------------------------------------
+Esta versão permite usar o mesmo template OneCode em mais de uma ação, desde que o nome exibido seja diferente.
+Exemplo: utl_caminho pode ser usado como "Estamos a caminho" e "Retirada a caminho".
+
+Em Configurações > WhatsApp API, cada variável pode ser configurada como:
+- Primeiro nome do cliente
+- Nome completo do cliente
+- Tipo da rota (montagem/desmontagem/retirada)
+- Texto fixo personalizado
+
+IMPORTANTE: publique novamente a Edge Function usando o arquivo atualizado:
+supabase/functions/onecode-whatsapp/index.ts
