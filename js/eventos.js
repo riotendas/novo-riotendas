@@ -3559,11 +3559,19 @@ async function salvarEventoForm(event) {
   renderizarEventos();
 }
 
+function rtNormalizarBuscaEventos(valor) {
+  return String(valor || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
 function filtrarEventos() {
-  const busca = document.getElementById("buscaEvento").value.trim().toLowerCase();
+  const busca = rtNormalizarBuscaEventos(document.getElementById("buscaEvento").value);
   const data = document.getElementById("filtroEventoData").value;
-  const cliente = document.getElementById("filtroEventoCliente").value.trim().toLowerCase();
-  const telefone = document.getElementById("filtroEventoTelefone").value.trim().toLowerCase();
+  const cliente = rtNormalizarBuscaEventos(document.getElementById("filtroEventoCliente").value);
+  const telefone = rtNormalizarBuscaEventos(document.getElementById("filtroEventoTelefone").value);
   const pagamento = document.getElementById("filtroEventoPagamento").value;
   const ocultarCancelados = document.getElementById("ocultarEventosCancelados")?.checked !== false;
 
@@ -3572,12 +3580,12 @@ function filtrarEventos() {
     if (ocultarCancelados && typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) return false;
 
     const produtosTxt = [...(e.tendas || []).map(p => `${p.codigo} ${p.categoria} ${p.tamanho}`), ...(e.itens_apoio || []).map(i => `${i.nome} ${i.quantidade}`)].join(" ");
-    const texto = `${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${e.bairro || ""} ${e.cidade || ""} ${e.complemento || ""} ${e.referencia_local || e.observacao_cliente || e.observacao || ""} ${e.colaborador || ""} ${produtosTxt}`.toLowerCase();
+    const texto = rtNormalizarBuscaEventos(`${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${e.bairro || ""} ${e.cidade || ""} ${e.complemento || ""} ${e.referencia_local || e.observacao_cliente || e.observacao || ""} ${e.colaborador || ""} ${produtosTxt}`);
 
     return (!busca || texto.includes(busca))
       && (!data || e.data_evento === data)
-      && (!cliente || String(e.nome || "").toLowerCase().includes(cliente))
-      && (!telefone || String(e.telefone || "").toLowerCase().includes(telefone))
+      && (!cliente || rtNormalizarBuscaEventos(e.nome).includes(cliente))
+      && (!telefone || rtNormalizarBuscaEventos(e.telefone).includes(telefone))
       && (!pagamento || (pagamento === "quitado" ? e.pagamento_quitado : !e.pagamento_quitado));
   });
 
@@ -3586,10 +3594,10 @@ function filtrarEventos() {
 
 
 function filtrarEventosRecorrentes() {
-  const busca = document.getElementById("buscaEvento").value.trim().toLowerCase();
+  const busca = rtNormalizarBuscaEventos(document.getElementById("buscaEvento").value);
   const data = document.getElementById("filtroEventoData").value;
-  const cliente = document.getElementById("filtroEventoCliente").value.trim().toLowerCase();
-  const telefone = document.getElementById("filtroEventoTelefone").value.trim().toLowerCase();
+  const cliente = rtNormalizarBuscaEventos(document.getElementById("filtroEventoCliente").value);
+  const telefone = rtNormalizarBuscaEventos(document.getElementById("filtroEventoTelefone").value);
   const pagamento = (document.getElementById("filtroRecorrentePagamento")?.value ?? document.getElementById("filtroEventoPagamento")?.value ?? "");
   const ocultarCancelados = document.getElementById("ocultarEventosCancelados")?.checked !== false;
 
@@ -3598,12 +3606,12 @@ function filtrarEventosRecorrentes() {
     if (ocultarCancelados && typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) return false;
 
     const produtosTxt = [...(e.tendas || []).map(p => `${p.codigo} ${p.categoria} ${p.tamanho}`), ...(e.itens_apoio || []).map(i => `${i.nome} ${i.quantidade}`)].join(" ");
-    const texto = `${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${e.bairro || ""} ${e.cidade || ""} ${e.complemento || ""} ${e.referencia_local || e.observacao_cliente || e.observacao || ""} ${e.colaborador || ""} ${produtosTxt}`.toLowerCase();
+    const texto = rtNormalizarBuscaEventos(`${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${e.bairro || ""} ${e.cidade || ""} ${e.complemento || ""} ${e.referencia_local || e.observacao_cliente || e.observacao || ""} ${e.colaborador || ""} ${produtosTxt}`);
 
     return (!busca || texto.includes(busca))
       && (!data || e.data_evento === data)
-      && (!cliente || String(e.nome || "").toLowerCase().includes(cliente))
-      && (!telefone || String(e.telefone || "").toLowerCase().includes(telefone))
+      && (!cliente || rtNormalizarBuscaEventos(e.nome).includes(cliente))
+      && (!telefone || rtNormalizarBuscaEventos(e.telefone).includes(telefone))
       && (!pagamento || (pagamento === "quitado" ? e.pagamento_quitado : !e.pagamento_quitado));
   }).sort((a, b) => String(a.data_evento || "").localeCompare(String(b.data_evento || "")));
 }

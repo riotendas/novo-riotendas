@@ -112,7 +112,7 @@ async function buscarProdutosBanco() {
   try {
     const { data, error } = await supabaseClient
       .from("produtos")
-      .select("id,codigo,tipo,categoria,tamanho,status,cor,observacao,foto,grau_usabilidade,colaborador,historico,locacoes,atualizado_em,criado_em")
+      .select("id,codigo,tipo,categoria,tamanho,status,cor,observacao,foto,grau_usabilidade,deposito_check,colaborador,historico,locacoes,atualizado_em,criado_em")
       .order("codigo", { ascending: true });
 
     if (error) {
@@ -844,6 +844,41 @@ function rtFimOperacaoDisponibilidade(valor, tipoSalvo, fallbackData = "") {
   return `${data}T23:59`;
 }
 
+function rtSomarDiasISOProdutoDisponibilidade(dataISO, dias) {
+  const base = String(dataISO || "").slice(0, 10);
+  if (!base) return "";
+  const d = new Date(`${base}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  d.setDate(d.getDate() + Number(dias || 0));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function rtSomarMesISOProdutoDisponibilidade(dataISO) {
+  const base = String(dataISO || "").slice(0, 10);
+  if (!base) return "";
+  const [ano, mes, dia] = base.split("-").map(Number);
+  if (!ano || !mes || !dia) return "";
+  const ultimoDiaDestino = new Date(ano, mes + 1, 0).getDate();
+  const d = new Date(ano, mes, Math.min(dia, ultimoDiaDestino), 12, 0, 0, 0);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function rtFimPeriodoRecorrenteProdutoDisponibilidade(evento, dataInicio) {
+  if (!evento || !(typeof isEventoRecorrente === "function" && isEventoRecorrente(evento))) return "";
+  const inicio = String(dataInicio || evento.data_evento || evento.recorrencia_inicio || "").slice(0, 10);
+  if (!inicio) return "";
+
+  const tipo = String(evento.recorrencia_tipo || "mensal").toLowerCase();
+  let fim = "";
+  if (tipo === "mensal") fim = rtSomarMesISOProdutoDisponibilidade(inicio);
+  else if (tipo === "quinzenal") fim = rtSomarDiasISOProdutoDisponibilidade(inicio, 15);
+  else fim = rtSomarDiasISOProdutoDisponibilidade(inicio, Number(evento.recorrencia_dias || 30));
+
+  const fimGeral = String(evento.recorrencia_fim || "").slice(0, 10);
+  if (fimGeral && (!fim || fim > fimGeral)) fim = fimGeral;
+  return fim;
+}
+
 function intervaloEventoDisponibilidade(evento) {
   if (!evento) return { inicio: null, fim: null };
 
@@ -857,7 +892,21 @@ function intervaloEventoDisponibilidade(evento) {
   }
 
   if (!fim && dataEvento) {
-    fim = `${dataEvento}T${String(evento.hora_termino || "23:59").slice(0, 5)}`;
+    const fimRecorrente = rtFimPeriodoRecorrenteProdutoDisponibilidade(evento, dataEvento);
+    fim = fimRecorrente
+      ? `${fimRecorrente}T23:59`
+      : `${dataEvento}T${String(evento.hora_termino || "23:59").slice(0, 5)}`;
+  }
+
+  // Eventos recorrentes representam o período inteiro entre uma cobrança/renovação e a próxima.
+  // Mesmo que tenham uma desmontagem gravada no dia inicial, o produto permanece vinculado
+  // até o fim do período recorrente, salvo quando houver um encerramento geral menor.
+  const fimRecorrente = rtFimPeriodoRecorrenteProdutoDisponibilidade(evento, dataEvento || inicio);
+  if (fimRecorrente) {
+    const fimRecorrenteCompleto = `${fimRecorrente}T23:59`;
+    if (!fim || rtTimestampLocalOperacional(fim) < rtTimestampLocalOperacional(fimRecorrenteCompleto)) {
+      fim = fimRecorrenteCompleto;
+    }
   }
 
   // Ajuste fino: no dia da desmontagem Livre/Comercial, não libera às 00:00.
@@ -936,6 +985,21 @@ function eventoUsaProdutoParaDisponibilidade(evento, produto) {
   });
 }
 
+function usoAtualProduto(produto) {
+  const agora = Date.now();
+  const atuais = getEventosDisponibilidadeProduto()
+    .filter(evento => eventoUsaProdutoParaDisponibilidade(evento, produto))
+    .map(evento => ({ evento, intervalo: intervaloEventoDisponibilidade(evento) }))
+    .filter(item => {
+      const inicio = rtTimestampLocalOperacional(item.intervalo.inicio);
+      const fim = rtTimestampLocalOperacional(item.intervalo.fim);
+      return !Number.isNaN(inicio) && !Number.isNaN(fim) && inicio <= agora && fim >= agora;
+    })
+    .sort((a, b) => rtTimestampLocalOperacional(a.intervalo.fim) - rtTimestampLocalOperacional(b.intervalo.fim));
+
+  return atuais[0] || null;
+}
+
 function proximoUsoProduto(produto) {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
@@ -994,6 +1058,16 @@ function disponibilidadePeriodoProduto(produto) {
   const periodo = periodoProdutoSelecionado();
 
   if (!periodo) {
+    const atual = usoAtualProduto(produto);
+    if (atual) {
+      return {
+        classe: "ocupado",
+        texto: "Alugado",
+        detalhe: `${atual.evento.nome || "Cliente"} — ${formatarDataHoraProdutoDisp(atual.intervalo.inicio)} até ${formatarDataHoraProdutoDisp(atual.intervalo.fim)}`,
+        eventoAtual: atual.evento
+      };
+    }
+
     const pendenteEntrega = pendenciaEntregaProduto(produto);
 
     if (pendenteEntrega) {
@@ -1106,10 +1180,12 @@ function ultimaLimpezaProduto(produto) {
 
 function htmlDisponibilidadePeriodoProduto(produto) {
   const d = disponibilidadePeriodoProduto(produto);
+  const atual = usoAtualProduto(produto);
   const proximo = proximoUsoProduto(produto);
   const limpeza = ultimaLimpezaProduto(produto);
-  const proxLinha = proximo
-    ? `${d.classe==="ocupado"||d.texto==="Alugado"?"Atual":"Próx"}: ${primeiroNomeProdutoDisp(proximo.evento?.nome)} ${formatarDataCurtaProdutoDisp(proximo.inicioComparacao || proximo.intervalo?.inicio)}`
+  const referencia = atual || proximo;
+  const proxLinha = referencia
+    ? `${atual ? "Atual" : "Próx"}: ${primeiroNomeProdutoDisp(referencia.evento?.nome)} ${formatarDataCurtaProdutoDisp((referencia.inicioComparacao || referencia.intervalo?.inicio))}`
     : (d.texto === "Sem locação" ? "Próx: —" : `${d.texto}`);
   const limpezaLinha = `Limp: ${limpeza ? formatarDataCurtaProdutoDisp(limpeza.dataObj) : "—"}`;
 
