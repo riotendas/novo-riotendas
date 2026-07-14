@@ -74,3 +74,14 @@
 .rota-whatsapp-api-btn svg{width:15px!important;height:15px!important;display:block}
 .rua-mobile-whatsapp-api-btn{color:#128c4a!important;border-color:#9fdfb8!important;background:#effcf4!important}
 .rua-mobile-whatsapp-api-btn svg{width:20px!important;height:20px!important;display:block}
+/* WhatsApp API — previsão de entrega editável */
+.wa-api-previsao-dialog{width:min(680px,calc(100vw - 20px));max-height:92vh}
+.wa-prev-body{padding:14px;display:grid;gap:12px}
+.wa-prev-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px}
+.wa-prev-grid label{display:grid;gap:4px;font-size:12px;font-weight:800;color:#334155}
+.wa-prev-grid input,.wa-prev-grid select{width:100%;min-height:38px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;box-sizing:border-box}
+.wa-prev-personalizado{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:9px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px}
+.wa-prev-preview{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:11px;display:grid;gap:7px}
+.wa-prev-preview #waPrevTexto{white-space:pre-wrap;line-height:1.45;font-size:13px;color:#0f172a}
+.wa-prev-preview small{color:#64748b}
+@media(max-width:600px){.wa-prev-grid{grid-template-columns:1fr}.wa-prev-personalizado{grid-column:auto}.wa-api-previsao-dialog{width:calc(100vw - 12px)}}

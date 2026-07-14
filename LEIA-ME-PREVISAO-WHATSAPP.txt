@@ -1,0 +1,25 @@
+PREVISÃO DE ENTREGA PELO WHATSAPP
+
+1. Abra Configurações > WhatsApp API.
+2. Clique em Sincronizar templates da OneCode.
+3. Selecione o template "previsao".
+4. Use, por exemplo:
+   Nome exibido na rota: Previsão de entrega
+   Ícone: 📅
+5. Clique em Adicionar e depois em Salvar configurações.
+
+Na Rota Desktop ou Mobile:
+1. Clique no ícone API do WhatsApp.
+2. Escolha Previsão de entrega.
+3. Edite cliente, materiais, dia e horário se necessário.
+4. Escolha uma faixa pronta de duas horas ou Personalizar horário.
+5. Confira a prévia e envie.
+
+Variáveis usadas pelo template:
+{{1}} cliente
+{{2}} materiais
+{{3}} dia
+{{4}} faixa de horário
+
+A função mantém o histórico e o aviso de envio duplicado já existentes.
+Não é necessário alterar novamente a Edge Function.

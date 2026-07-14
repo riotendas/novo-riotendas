@@ -74,6 +74,7 @@
           <small>Template: <strong>${esc(t.nomeTemplate||"Não definido")}</strong> ${badgeStatus(t.status)}</small>
           <small class="wa-api-vars">Variáveis: ${Array.isArray(t.variables)&&t.variables.length?t.variables.map(v=>`{{${esc(v)}}}`).join(" · "):"nenhuma"}</small>
           ${renderMapeamentos(t)}
+          ${renderConfigPrevisao(t)}
         </div>
         <input type="hidden" data-campo="templateId" value="${esc(t.templateId||"")}">
         <input type="hidden" data-campo="nomeTemplate" value="${esc(t.nomeTemplate||"")}">
@@ -94,7 +95,8 @@
       status:el.querySelector('[data-campo="status"]')?.value.trim()||"",
       variables:JSON.parse(el.querySelector('[data-campo="variables"]')?.value||"[]"),
       body:el.querySelector('[data-campo="body"]')?.value||"",
-      variableMappings:Array.from(el.querySelectorAll(".wa-api-variable-row")).map(r=>({position:r.dataset.varPosition,source:r.querySelector("[data-var-source]")?.value||"texto_fixo",value:r.querySelector("[data-var-value]")?.value||""}))
+      variableMappings:Array.from(el.querySelectorAll(".wa-api-variable-row")).map(r=>({position:r.dataset.varPosition,source:r.querySelector("[data-var-source]")?.value||"texto_fixo",value:r.querySelector("[data-var-value]")?.value||""})),
+      previsaoConfig:el.querySelector('[data-prev-config="inicio"]')?{inicio:el.querySelector('[data-prev-config="inicio"]').value||"08:00",fim:el.querySelector('[data-prev-config="fim"]').value||"18:00",duracao:Number(el.querySelector('[data-prev-config="duracao"]').value)||2}:undefined
     }));
   }
   function preencherSelect(){
@@ -152,6 +154,126 @@
     maps.forEach(m=>{out[`additionalProp${m.position}`]=valorVariavel(m,r,nome,tipo)});
     return out;
   }
+
+  function ehTemplatePrevisao(t){
+    const nome=String(t?.nomeTemplate||"").trim().toLowerCase();
+    return nome==="previsao" || nome==="utl_previsao" || nome.includes("previsao");
+  }
+  function configPrevisaoPadrao(t){
+    const c=t?.previsaoConfig||{};
+    return {inicio:String(c.inicio||"08:00"),fim:String(c.fim||"18:00"),duracao:Math.max(1,Math.min(6,Number(c.duracao)||2)),padrao:String(c.padrao||"")};
+  }
+  function horaTexto(min){const h=Math.floor(min/60),m=min%60;return m?`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`:`${h}h`;}
+  function minutosHora(v){const m=String(v||"").match(/^(\d{1,2}):(\d{2})$/);return m?Number(m[1])*60+Number(m[2]):0;}
+  function faixasPrevisao(t){
+    const c=configPrevisaoPadrao(t),ini=minutosHora(c.inicio),fim=minutosHora(c.fim),dur=c.duracao*60,out=[];
+    for(let a=ini;a+dur<=fim;a+=60)out.push(`${horaTexto(a)} e ${horaTexto(a+dur)}`);
+    return out.length?out:["9h e 11h","10h e 12h","11h e 13h","12h e 14h","13h e 15h","14h e 16h","15h e 17h"];
+  }
+  function renderConfigPrevisao(t){
+    if(!ehTemplatePrevisao(t))return "";const c=configPrevisaoPadrao(t);
+    return `<div class="wa-prev-config"><strong>Faixas de horário da previsão</strong><label>Início<input type="time" data-prev-config="inicio" value="${esc(c.inicio)}"></label><label>Fim<input type="time" data-prev-config="fim" value="${esc(c.fim)}"></label><label>Duração<select data-prev-config="duracao">${[1,2,3,4].map(n=>`<option value="${n}" ${c.duracao===n?"selected":""}>${n} hora${n>1?"s":""}</option>`).join("")}</select></label><small>As opções avançam de hora em hora e respeitam o intervalo escolhido.</small></div>`;
+  }
+  function formatarDataPrevisao(data){
+    const raw=String(data||"").slice(0,10); if(!raw)return "Amanhã";
+    const [a,m,d]=raw.split("-"); if(!d)return raw;
+    const alvo=new Date(Number(a),Number(m)-1,Number(d));
+    const hoje=new Date(); hoje.setHours(0,0,0,0);
+    const amanha=new Date(hoje); amanha.setDate(amanha.getDate()+1);
+    let prefixo="Dia";
+    if(alvo.getTime()===hoje.getTime())prefixo="Hoje, dia";
+    else if(alvo.getTime()===amanha.getTime())prefixo="Amanhã, dia";
+    return `${prefixo} ${d}/${m}`;
+  }
+  function resumirMateriaisPrevisao(r){
+    const itens=(Array.isArray(r?.materiais)?r.materiais:[]).map(x=>String(x||"").trim()).filter(Boolean);
+    if(!itens.length)return "do material";
+    const norm=v=>String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    const grupos={tenda:0,ombrelone:0,mesa:0,cadeira:0,outro:0};
+    itens.forEach(txt=>{
+      const n=norm(txt);
+      if(n.includes("ombrelone"))grupos.ombrelone++;
+      else if(/\btenda\b/.test(n))grupos.tenda++;
+      else if(n.includes("mesa"))grupos.mesa++;
+      else if(n.includes("cadeira"))grupos.cadeira++;
+      else if(!n.includes("uso em transito"))grupos.outro++;
+    });
+    const ativos=Object.entries(grupos).filter(([,q])=>q>0).map(([k])=>k);
+    if(ativos.length===1&&ativos[0]==="tenda")return grupos.tenda>1?"das tendas":"da tenda";
+    if(ativos.length===1&&ativos[0]==="ombrelone")return grupos.ombrelone>1?"dos ombrelones":"do ombrelone";
+    if(ativos.every(k=>k==="mesa"||k==="cadeira")&&ativos.length){
+      if(grupos.mesa&&grupos.cadeira)return "das mesas e cadeiras";
+      if(grupos.mesa)return grupos.mesa>1?"das mesas":"da mesa";
+      return grupos.cadeira>1?"das cadeiras":"da cadeira";
+    }
+    return ativos.length?"dos materiais":"do material";
+  }
+  function aplicarParametrosAoTexto(body,params){
+    let texto=String(body||"");
+    Object.entries(params||{}).forEach(([k,v])=>{const pos=String(k).replace("additionalProp","");texto=texto.replace(new RegExp(`\\{\\{${pos}\\}\\}`,"g"),String(v||""));});
+    return texto;
+  }
+  function garantirDialogPrevisao(){
+    let d=document.getElementById("waApiPrevisaoDialog"); if(d)return d;
+    d=document.createElement("dialog"); d.id="waApiPrevisaoDialog"; d.className="modal wa-api-previsao-dialog";
+    d.innerHTML=`<div class="modal-header"><div><h2>📅 Previsão de entrega</h2><p id="waPrevSubtitulo"></p></div><button type="button" class="modal-close" data-wa-prev-fechar>×</button></div>
+      <div class="wa-prev-body">
+        <div class="wa-prev-grid">
+          <label>Cliente<input id="waPrevCliente" type="text"></label>
+          <label>Materiais<input id="waPrevMateriais" type="text"></label>
+          <label>Dia<input id="waPrevDia" type="text"></label>
+          <label>Faixa de horário<select id="waPrevHorario"></select></label>
+          <div id="waPrevPersonalizado" class="wa-prev-personalizado" hidden><label>De<input id="waPrevDe" type="text" value="13h"></label><label>Até<input id="waPrevAte" type="text" value="16h"></label></div>
+        </div>
+        <div class="wa-prev-preview"><strong>Prévia da mensagem</strong><div id="waPrevTexto"></div><small>Você pode editar cliente, materiais, dia e horário antes do envio.</small></div>
+        <div id="waPrevStatus" class="wa-api-envio-status" hidden></div>
+        <div class="form-actions"><button type="button" class="btn-outline" data-wa-prev-fechar>Cancelar</button><button type="button" class="btn-primary" id="waPrevEnviar">Enviar confirmação</button></div>
+      </div>`;
+    document.body.appendChild(d); return d;
+  }
+  let templatePrevisaoSelecionado=null;
+  function parametrosPrevisao(){
+    const d=garantirDialogPrevisao();
+    const horario=d.querySelector("#waPrevHorario").value==="personalizado"?`${d.querySelector("#waPrevDe").value.trim()} e ${d.querySelector("#waPrevAte").value.trim()}`:d.querySelector("#waPrevHorario").value;
+    return {additionalProp1:d.querySelector("#waPrevCliente").value.trim(),additionalProp2:d.querySelector("#waPrevMateriais").value.trim(),additionalProp3:d.querySelector("#waPrevDia").value.trim(),additionalProp4:horario};
+  }
+  function atualizarPreviaEnvio(){
+    const d=garantirDialogPrevisao(); if(!templatePrevisaoSelecionado)return;
+    d.querySelector("#waPrevPersonalizado").hidden=d.querySelector("#waPrevHorario").value!=="personalizado";
+    d.querySelector("#waPrevTexto").textContent=aplicarParametrosAoTexto(templatePrevisaoSelecionado.body,parametrosPrevisao());
+  }
+  async function abrirPrevisao(t){
+    templatePrevisaoSelecionado=t; const r=rotaSelecionada,d=garantirDialogPrevisao();
+    d.querySelector("#waPrevSubtitulo").textContent=`${r.cliente||"Cliente"} • ${r.telefone||""}`;
+    d.querySelector("#waPrevCliente").value=primeiroNome(r.cliente);
+    d.querySelector("#waPrevMateriais").value=resumirMateriaisPrevisao(r);
+    d.querySelector("#waPrevDia").value=formatarDataPrevisao(r.data);
+    const faixas=faixasPrevisao(t),sel=d.querySelector("#waPrevHorario"),cfgPrev=configPrevisaoPadrao(t);
+    sel.innerHTML=faixas.map(x=>`<option value="${esc(x)}">${esc(x.replace(" e "," às "))}</option>`).join("")+`<option value="personalizado">Personalizar horário</option>`;
+    sel.value=faixas.includes(cfgPrev.padrao)?cfgPrev.padrao:(faixas.find(x=>x.startsWith("13h"))||faixas[0]);
+    d.querySelector("#waPrevStatus").hidden=true;
+    atualizarPreviaEnvio();
+    try{document.getElementById("waApiEnvioDialog")?.close()}catch{}
+    typeof d.showModal==="function"?d.showModal():d.setAttribute("open","");
+  }
+  async function enviarPrevisao(btn){
+    const t=templatePrevisaoSelecionado,r=rotaSelecionada;if(!t||!r)return;
+    const params=parametrosPrevisao(),faltando=Object.entries(params).find(([,v])=>!String(v||"").trim());
+    if(faltando)return alert("Preencha todos os campos antes de enviar.");
+    const hist=await buscarHistoricoEvento(r.evento_id),hoje=new Date().toISOString().slice(0,10);
+    const duplicado=hist.find(x=>String(x?.depois?.acaoId||"")===String(t.id)&&String(x.criado_em||"").slice(0,10)===hoje);
+    if(duplicado&&!confirm(`“${t.titulo}” já foi enviado hoje às ${horaBr(duplicado.criado_em)}. Enviar novamente?`))return;
+    const d=garantirDialogPrevisao(),status=d.querySelector("#waPrevStatus"); btn.disabled=true;status.hidden=false;status.className="wa-api-envio-status enviando";status.textContent="Enviando mensagem...";
+    try{
+      const sb=typeof supabaseClient!=="undefined"?supabaseClient:window.supabaseClient;if(!sb?.functions?.invoke)throw new Error("Cliente Supabase indisponível.");
+      const telefone=normalizarTelefone(r.telefone),nome=params.additionalProp1,tipo=String(r.tipo||"montagem").toLowerCase();
+      const {data,error}=await sb.functions.invoke("onecode-whatsapp",{body:{action:"send_template",telefone,nome,tipo,templateId:String(t.templateId),nomeTemplate:t.nomeTemplate||"",bodyParams:params}});
+      if(error)throw error;if(data?.error)throw new Error(data.error);
+      status.className="wa-api-envio-status sucesso";status.textContent="Previsão enviada com sucesso.";
+      if(typeof registrarLogSistema==="function")await registrarLogSistema({modulo:"WhatsApp",acao:"Template enviado",registro_id:String(r.evento_id||""),registro_nome:r.cliente||nome,depois:{acaoId:String(t.id),templateId:String(t.templateId),nomeTemplate:t.nomeTemplate||"",titulo:t.titulo||"Previsão de entrega",rotaId:r.id,tipo,telefone,bodyParams:params,mensagem:aplicarParametrosAoTexto(t.body,params)},detalhes:`${t.titulo||t.nomeTemplate} enviado para ${r.cliente||nome}`});
+      setTimeout(()=>{try{d.close()}catch{}},1200);
+    }catch(e){console.error(e);status.className="wa-api-envio-status erro";status.textContent=`Não foi possível enviar: ${e?.message||"erro desconhecido"}`;}finally{btn.disabled=false;}
+  }
   async function abrirMenu(id){const r=localizarRota(id);if(!r)return alert("Não foi possível localizar esta rota.");if(!normalizarTelefone(r.telefone))return alert("Este cliente não possui telefone válido.");rotaSelecionada=r;const d=garantirDialog();d.querySelector("#waApiEnvioCliente").textContent=`${r.cliente||"Cliente"} • ${r.telefone}`;const ts=ativos(), hist=await buscarHistoricoEvento(r.evento_id);d.querySelector("#waApiAcoesLista").innerHTML=ts.length?ts.map((t,i)=>{const h=hist.find(x=>String(x?.depois?.acaoId||"")===String(t.id));return `<button type="button" class="wa-api-acao-btn ${h?"ja-enviado":""}" data-wa-api-enviar="${i}"><span>${esc(t.icone||"💬")}</span><strong>${esc(t.titulo||"Enviar mensagem")}${h?` <em>✓ Enviado ${horaBr(h.criado_em)}</em>`:""}</strong></button>`}).join(""):'<p class="empty">Nenhum template ativo em Configurações → WhatsApp API.</p>';const s=d.querySelector("#waApiEnvioStatus");s.hidden=true;s.textContent="";typeof d.showModal==="function"?d.showModal():d.setAttribute("open","");}
   async function enviarTemplate(i,b){
     const t=ativos()[i],r=rotaSelecionada;if(!t||!r)return;
@@ -182,7 +304,9 @@
   });
   document.addEventListener("input",ev=>{
     if(ev.target.matches("[data-var-value], [data-campo='titulo']")) atualizarPreviewItem(ev.target.closest(".wa-api-template-item"));
+    if(ev.target.matches("#waPrevCliente,#waPrevMateriais,#waPrevDia,#waPrevDe,#waPrevAte")) atualizarPreviaEnvio();
   });
+  document.addEventListener("change",ev=>{if(ev.target.matches("#waPrevHorario"))atualizarPreviaEnvio();});
   document.addEventListener("click",async ev=>{
     const open=ev.target.closest('[data-config-modal="whatsappApi"]');if(open){const d=document.getElementById("configModalWhatsappApi");renderConfig();setTimeout(()=>{if(d&&!d.open)d.showModal()},0);return;}
     if(ev.target.closest('[data-close-config="configModalWhatsappApi"]')){document.getElementById("configModalWhatsappApi")?.close();return;}
@@ -193,7 +317,9 @@
     if(ev.target.closest("#waApiRestaurarTemplates")){if(!confirm("Restaurar o template padrão utl_caminho?"))return;const cfg=configAtual();cfg.whatsappApiTemplates=DEFAULT_TEMPLATES.map(x=>({...x}));await salvarConfig(cfg);renderConfig();return;}
     const wa=ev.target.closest("[data-rota-whatsapp]");if(wa){ev.preventDefault();ev.stopPropagation();abrirMenu(wa.dataset.rotaWhatsapp);return;}
     if(ev.target.closest("[data-wa-api-fechar]")){garantirDialog().close();return;}
-    const send=ev.target.closest("[data-wa-api-enviar]");if(send)await enviarTemplate(Number(send.dataset.waApiEnviar),send);
+    const send=ev.target.closest("[data-wa-api-enviar]");if(send){const t=ativos()[Number(send.dataset.waApiEnviar)];if(ehTemplatePrevisao(t)){await abrirPrevisao(t);return;}await enviarTemplate(Number(send.dataset.waApiEnviar),send);return;}
+    if(ev.target.closest("[data-wa-prev-fechar]")){garantirDialogPrevisao().close();return;}
+    const prevSend=ev.target.closest("#waPrevEnviar");if(prevSend){await enviarPrevisao(prevSend);return;}
   });
 
   async function renderHistoricoEvento(){const dlg=document.getElementById("eventoDialog"),form=document.getElementById("eventoForm");if(!dlg||!form)return;let box=document.getElementById("eventoWhatsappHistoricoBox");if(!box){box=document.createElement("div");box.id="eventoWhatsappHistoricoBox";box.className="subpanel evento-whatsapp-historico";box.innerHTML='<h3>📲 Histórico de comunicações</h3><div id="eventoWhatsappHistoricoLista" class="evento-whatsapp-historico-lista"><p class="empty">Nenhuma comunicação registrada.</p></div>';form.appendChild(box)}const id=document.getElementById("eventoId")?.value;if(!id){box.style.display="none";return}box.style.display="";const hist=await buscarHistoricoEvento(id),lista=box.querySelector("#eventoWhatsappHistoricoLista");lista.innerHTML=hist.length?hist.map(h=>`<div class="evento-whatsapp-historico-item"><strong>${esc(h?.depois?.titulo||h?.depois?.nomeTemplate||"Mensagem")}</strong><span>${horaBr(h.criado_em)} · ${esc(h.usuario||"Sistema")}</span></div>`).join(""):'<p class="empty">Nenhuma comunicação registrada.</p>';}

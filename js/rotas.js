@@ -127,6 +127,15 @@ async function salvarRotasOperacaoNuvem() {
   if (typeof supabaseClient === "undefined" || !supabaseClient) return false;
 
   try {
+    // Antes de gravar, incorpora operações mais recentes de outros usuários.
+    // Como cada rota possui data própria, o merge evita apagar um Recolhido/Entregue
+    // que acabou de ser salvo por outro aparelho.
+    const nuvemAtual = await carregarRotasOperacaoNuvem();
+    if (nuvemAtual && typeof nuvemAtual === "object") {
+      rotasOperacao = rtRotasOperacaoMesclar(nuvemAtual, rotasOperacao || {});
+      localStorage.setItem(storageRotasOperacaoKey, JSON.stringify(rotasOperacao || {}));
+    }
+
     const { error } = await supabaseClient
       .from("app_config")
       .upsert({
@@ -861,7 +870,7 @@ function atualizarFiltroCarrosRotas() {
 let ultimaSincronizacaoOrdemRotas = 0;
 let ultimaEdicaoManualOrdemRotas = 0;
 let ultimaEdicaoManualCarrosRotas = 0;
-const janelaProtecaoEdicaoRotasMs = 12000;
+const janelaProtecaoEdicaoRotasMs = 3500;
 
 function rtMarcarEdicaoManualOrdemRotas() {
   ultimaEdicaoManualOrdemRotas = Date.now();
@@ -3507,7 +3516,7 @@ function renderizarRotas() {
       <div class="rota-dia">
         <div class="rota-dia-header">
           <h3>${formatarDataRota(data)} <span>${diaSemanaRota(data)}</span></h3>
-          <button type="button" class="btn-outline rota-print-btn" data-print-date="${data}">Gerar PDF/Imprimir</button>
+          <div class="rota-dia-header-acoes"><button type="button" class="btn-outline rota-envio-lote-btn" data-wa-lote-data="${data}" title="Enviar previsões do dia" aria-label="Enviar previsões do dia">📨</button><button type="button" class="btn-outline rota-print-btn" data-print-date="${data}">Gerar PDF/Imprimir</button></div>
         </div>
 
         ${carros.map(carro => {
@@ -4427,8 +4436,8 @@ function renderizarCardRota(rota, index = 0, total = 0) {
               Editar
             </button>
 
-            <button type="button" class="rota-whatsapp-api-btn" data-rota-whatsapp="${rota.id}" title="Enviar mensagem pelo WhatsApp" aria-label="Enviar mensagem pelo WhatsApp" ${limparTelefoneRota(rota.telefone) ? "" : "disabled"}>
-              <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path fill="currentColor" d="M16.04 3.2A12.74 12.74 0 0 0 5.2 22.65L3.5 28.8l6.3-1.65A12.75 12.75 0 1 0 16.04 3.2Zm0 2.15a10.6 10.6 0 0 1 9.17 15.92 10.6 10.6 0 0 1-13.57 4.34l-.43-.21-3.74.98 1-3.64-.24-.45A10.6 10.6 0 0 1 16.04 5.35Zm-5.7 5.14c-.27 0-.7.1-1.07.5-.37.4-1.4 1.37-1.4 3.34 0 1.97 1.44 3.88 1.64 4.15.2.27 2.82 4.3 6.84 6.03.96.41 1.7.66 2.28.84.96.3 1.83.26 2.52.16.77-.12 2.36-.97 2.69-1.9.33-.93.33-1.73.23-1.9-.1-.17-.37-.27-.77-.47-.4-.2-2.36-1.17-2.73-1.3-.37-.14-.63-.2-.9.2-.26.4-1.03 1.3-1.26 1.57-.23.27-.47.3-.87.1-.4-.2-1.68-.62-3.2-1.98-1.18-1.05-1.98-2.35-2.21-2.75-.23-.4-.03-.62.17-.82.18-.18.4-.47.6-.7.2-.23.27-.4.4-.67.13-.27.07-.5-.03-.7-.1-.2-.9-2.17-1.23-2.97-.32-.77-.65-.67-.9-.68Z"/></svg>
+            <button type="button" class="rota-whatsapp-api-btn" data-rota-whatsapp="${rota.id}" title="Comunicações" aria-label="Abrir comunicações" ${limparTelefoneRota(rota.telefone) ? "" : "disabled"}>
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5.75A2.75 2.75 0 0 1 6.75 3h10.5A2.75 2.75 0 0 1 20 5.75v7.5A2.75 2.75 0 0 1 17.25 16H10l-4.6 3.45A.9.9 0 0 1 4 18.73V5.75Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 8.5h8M8 11.5h5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             </button>
 
             <div class="rota-ordem-controls">

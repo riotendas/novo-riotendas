@@ -22052,3 +22052,75 @@ tr.evento-cancelado .product-list-button {
  .wa-api-variable-row{grid-template-columns:42px 1fr!important}
  .wa-api-variable-row input{grid-column:2!important}
 }
+
+
+/* WhatsApp/Comunicações discreto + configuração flexível de previsão */
+.rota-whatsapp-api-btn{
+  width:25px!important;height:25px!important;min-width:25px!important;border:1px solid #cbd5e1!important;border-radius:6px!important;
+  background:#fff!important;color:#475569!important;box-shadow:none!important;padding:0!important;
+}
+.rota-whatsapp-api-btn:hover{background:#f8fafc!important;color:#0f172a!important;border-color:#94a3b8!important;transform:none!important;filter:none!important}
+.rota-whatsapp-api-btn:disabled{background:#f1f5f9!important;color:#a8b2bf!important;border-color:#e2e8f0!important}
+.rua-mobile-whatsapp-api-btn{color:#475569!important;border-color:#cbd5e1!important;background:#fff!important}
+.rua-mobile-whatsapp-api-btn:hover{background:#f8fafc!important;color:#0f172a!important}
+.wa-prev-config{margin-top:5px;padding:7px 8px;border:1px solid #dbe4ee;border-radius:8px;background:#f8fafc;display:grid;grid-template-columns:auto repeat(3,minmax(100px,1fr));gap:6px;align-items:end}
+.wa-prev-config>strong{grid-column:1/-1;font-size:.72rem;color:#334155}
+.wa-prev-config label{display:grid;gap:3px;font-size:.67rem;font-weight:800;color:#64748b}
+.wa-prev-config input,.wa-prev-config select{min-height:32px;padding:5px 7px;font-size:.74rem}
+.wa-prev-config small{grid-column:1/-1;font-size:.64rem;color:#64748b}
+@media(max-width:700px){.wa-prev-config{grid-template-columns:repeat(2,minmax(0,1fr))}.wa-prev-config label:last-of-type{grid-column:1/-1}}
+
+/* Central de Envios em lote — previsões — Desktop */
+.rota-dia-header-acoes{display:flex;align-items:center;gap:8px}.rota-envio-lote-btn{width:42px;min-width:42px;padding:7px 8px;font-size:17px;line-height:1}.wa-lote-dialog{width:min(1500px,96vw);max-width:1500px}.wa-lote-dialog .modal-header{position:sticky;top:0;z-index:2}.wa-lote-toolbar,.wa-lote-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px}.wa-lote-toolbar{border-bottom:1px solid #dbe4ef}.wa-lote-lista{padding:8px 14px;max-height:68vh;overflow:auto}.wa-lote-row{border:1px solid #d7e1ec;border-radius:10px;margin:6px 0;background:#fff}.wa-lote-main{display:grid;grid-template-columns:28px minmax(110px,.8fr) minmax(210px,1.5fr) minmax(215px,1.3fr) minmax(145px,.8fr) 88px 105px 42px;gap:7px;align-items:center;padding:7px}.wa-lote-main input,.wa-lote-main select{min-width:0;height:38px;padding:6px 8px}.wa-lote-periodo,.wa-lote-envio-status{font-size:12px;color:#5b6c7f}.wa-lote-row.ja-enviado{background:#fffaf0}.wa-lote-row.enviado-agora{border-color:#4dbb7a;background:#f1fff6}.wa-lote-row.erro-envio{border-color:#e67777;background:#fff4f4}.wa-lote-extra{display:grid;grid-template-columns:260px 1fr;gap:12px;border-top:1px dashed #d7e1ec;padding:10px 42px}.wa-lote-extra label{display:grid;gap:4px;font-weight:700}.wa-lote-extra p{white-space:pre-wrap;margin:5px 0 0;background:#f5f8fb;border-radius:8px;padding:9px}.wa-lote-footer{border-top:1px solid #dbe4ef;justify-content:flex-end}.wa-lote-expandir{padding:7px!important;min-width:38px!important}@media(max-width:1000px){.wa-lote-main{grid-template-columns:28px 110px 180px 200px 130px 70px 85px 38px;font-size:12px}}
+\n\n/* Central de Envios em lote v1.1 — compacta, uma linha por cliente */
+.wa-lote-dialog{width:min(1420px,97vw)!important;max-width:1420px!important}
+.wa-lote-dialog .modal-header{padding:10px 14px!important}
+.wa-lote-dialog .modal-header h2{font-size:1.25rem!important;margin:0!important}
+.wa-lote-dialog .modal-header p{font-size:.78rem!important;margin:3px 0 0!important}
+.wa-lote-toolbar,.wa-lote-footer{padding:8px 14px!important}
+.wa-lote-lista{padding:6px 10px!important;max-height:72vh!important}
+.wa-lote-row{margin:4px 0!important;border-radius:8px!important}
+.wa-lote-main{display:grid!important;grid-template-columns:26px minmax(105px,.72fr) minmax(180px,1.35fr) minmax(205px,1.35fr) minmax(125px,.8fr) minmax(135px,.82fr) 88px 92px!important;gap:5px!important;padding:5px 7px!important;align-items:center!important}
+.wa-lote-main input,.wa-lote-main select{height:32px!important;min-height:32px!important;padding:4px 7px!important;font-size:.78rem!important;border-radius:7px!important}
+.wa-lote-main input[type="checkbox"]{width:18px!important;height:18px!important;padding:0!important}
+.wa-lote-personalizado[hidden]{display:none!important}
+.wa-lote-periodo,.wa-lote-envio-status{font-size:10.5px!important;line-height:1.15!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.wa-lote-envio-status{font-weight:700!important;text-align:center!important}
+.wa-lote-extra,.wa-lote-expandir{display:none!important}
+.wa-lote-footer button{min-height:36px!important;padding:7px 14px!important}
+@media(max-width:1180px){
+ .wa-lote-main{grid-template-columns:24px 95px 155px 180px 112px 120px 70px 78px!important;gap:4px!important}
+ .wa-lote-main input,.wa-lote-main select{font-size:.7rem!important;padding:3px 5px!important}
+ .wa-lote-periodo,.wa-lote-envio-status{font-size:9.5px!important}
+}
+
+/* Central de Envios v1.2 — janela menor, móvel e materiais simplificados */
+#rotasSection .rota-dia-header-acoes{display:flex!important;align-items:center!important;gap:8px!important}
+#rotasSection .rota-envio-lote-btn{
+  width:34px!important;min-width:34px!important;height:25px!important;min-height:25px!important;
+  padding:2px 7px!important;font-size:.82rem!important;line-height:1!important;border-radius:9px!important;
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+}
+.wa-lote-dialog{
+  width:min(1180px,91vw)!important;max-width:1180px!important;max-height:82vh!important;
+  position:fixed!important;right:auto!important;bottom:auto!important;transform:translateX(-50%);
+  box-shadow:0 12px 34px rgba(13,45,78,.28)!important;
+}
+.wa-lote-dialog::backdrop{display:none!important;background:transparent!important}
+.wa-lote-dialog .modal-header{cursor:move!important;user-select:none!important;padding:8px 12px!important}
+.wa-lote-dialog .modal-header:active{cursor:grabbing!important}
+.wa-lote-dialog .modal-header h2{font-size:1.12rem!important}
+.wa-lote-toolbar,.wa-lote-footer{padding:6px 10px!important}
+.wa-lote-lista{padding:5px 8px!important;max-height:60vh!important}
+.wa-lote-main{
+  grid-template-columns:24px minmax(90px,.65fr) minmax(150px,1.15fr) minmax(170px,1.2fr) minmax(112px,.72fr) minmax(118px,.75fr) 65px 76px!important;
+  gap:4px!important;padding:4px 6px!important;
+}
+.wa-lote-main input,.wa-lote-main select{height:29px!important;min-height:29px!important;padding:3px 6px!important;font-size:.72rem!important}
+.wa-lote-main input[type="checkbox"]{width:17px!important;height:17px!important}
+.wa-lote-periodo,.wa-lote-envio-status{font-size:9.5px!important}
+.wa-lote-footer button{min-height:32px!important;height:32px!important;padding:5px 12px!important;font-size:.78rem!important}
+@media(max-width:1250px){
+ .wa-lote-dialog{width:min(1080px,94vw)!important}
+ .wa-lote-main{grid-template-columns:22px 82px 135px 155px 102px 108px 58px 66px!important}
+}
