@@ -85,3 +85,39 @@
 .wa-prev-preview #waPrevTexto{white-space:pre-wrap;line-height:1.45;font-size:13px;color:#0f172a}
 .wa-prev-preview small{color:#64748b}
 @media(max-width:600px){.wa-prev-grid{grid-template-columns:1fr}.wa-prev-personalizado{grid-column:auto}.wa-api-previsao-dialog{width:calc(100vw - 12px)}}
+
+
+/* v19-dev: eventos anteriores recolhidos */
+#eventosTbody .rt-eventos-anteriores-controle-row td {
+  padding: 5px 8px !important;
+  background: #f4f7fa;
+  border-top: 1px solid #d8e0e8;
+  border-bottom: 1px solid #d8e0e8;
+}
+#eventosTbody .rt-eventos-anteriores-btn {
+  width: 100%;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #3f5367;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background .15s ease, color .15s ease;
+}
+#eventosTbody .rt-eventos-anteriores-btn:hover:not(:disabled) {
+  background: #e8eef4;
+  color: #20384f;
+}
+#eventosTbody .rt-eventos-anteriores-btn:disabled {
+  cursor: default;
+  opacity: .78;
+}
+#eventosTbody .rt-eventos-anteriores-btn span {
+  font-size: 14px;
+  line-height: 1;
+}

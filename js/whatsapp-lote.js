@@ -47,6 +47,35 @@
     }
     return ativos.length?'dos materiais':'do material';
   }
+  function carroDaRota(r){
+    try{
+      if(typeof ruaMobileCarroDaRota==='function') return String(ruaMobileCarroDaRota(r)||'Sem carro');
+    }catch{}
+    try{return String((typeof rotasCarros!=='undefined'&&rotasCarros?.[String(r?.id)])||'Sem carro');}catch{}
+    return 'Sem carro';
+  }
+  function ordenarGrupoComoRota(lista){
+    try{
+      if(typeof inicializarOrdemManualRotas==='function') inicializarOrdemManualRotas(lista);
+      if(typeof ordenarRotasPorOrdemManual==='function') return ordenarRotasPorOrdemManual(lista);
+    }catch{}
+    return [...lista].sort((a,b)=>String(a?.horario||'').localeCompare(String(b?.horario||'')));
+  }
+  function agruparNaOrdemDaRota(lista){
+    const mapa={};
+    lista.forEach(r=>{const carro=carroDaRota(r);(mapa[carro]||(mapa[carro]=[])).push(r);});
+    let ordemCarros=Object.keys(mapa);
+    try{
+      if(typeof rtCarrosFixosOrganizador==='function'){
+        const base={};Object.keys(mapa).forEach(c=>base[c]=mapa[c]);
+        ordemCarros=rtCarrosFixosOrganizador(base).filter(c=>mapa[c]?.length);
+        Object.keys(mapa).forEach(c=>{if(!ordemCarros.includes(c))ordemCarros.push(c);});
+      }
+    }catch{}
+    // Mantém grupos com eventos primeiro e "Sem carro" ao final, como no organizador.
+    ordemCarros.sort((a,b)=>a==='Sem carro'?1:b==='Sem carro'?-1:0);
+    return ordemCarros.map(carro=>({carro,rotas:ordenarGrupoComoRota(mapa[carro]||[])}));
+  }
   function mensagem(t,row){let s=String(t.body||'');const vals=[row.nome,row.materiais,row.dia,row.horario];vals.forEach((v,i)=>s=s.replace(new RegExp(`\\{\\{${i+1}\\}\\}`,'g'),v));return s;}
   async function historico(eventoId){try{const sb=window.supabaseClient||supabaseClient;const {data,error}=await sb.from('logs_sistema').select('*').eq('modulo','WhatsApp').eq('registro_id',String(eventoId)).order('criado_em',{ascending:false}).limit(100);if(!error)return data||[];}catch{}return[]}
   function habilitarArraste(d){
@@ -67,14 +96,20 @@
     const todas=typeof window.criarRotasDosEventos==='function'?window.criarRotasDosEventos():[];
     const lista=todas.filter(r=>r.data===data&&String(r.tipo).toLowerCase()==='montagem');
     if(!lista.length)return alert('Nenhuma montagem encontrada nesta data.');
-    const fs=faixas(t); linhas=[];
-    for(let i=0;i<lista.length;i++){
-      const r=lista[i],hist=await historico(r.evento_id),h=hist.find(x=>String(x?.depois?.nomeTemplate||'').toLowerCase().includes('previsao'));
-      linhas.push({r,nome:primeiroNome(r.cliente),materiais:materiais(r),dia:textoDia(data),horario:fs[Math.min(i,fs.length-1)],enviado:h});
+    const grupos=agruparNaOrdemDaRota(lista),fs=faixas(t); linhas=[];let posicaoGeral=0;
+    for(const grupo of grupos){
+      for(const r of grupo.rotas){
+        const hist=await historico(r.evento_id),h=hist.find(x=>String(x?.depois?.nomeTemplate||'').toLowerCase().includes('previsao'));
+        linhas.push({r,carro:grupo.carro,nome:primeiroNome(r.cliente),materiais:materiais(r),dia:textoDia(data),horario:fs[Math.min(posicaoGeral,fs.length-1)],enviado:h});
+        posicaoGeral++;
+      }
     }
-    const d=dialog();d.querySelector('#waLoteSub').textContent=`${textoDia(data)} • ${lista.length} cliente(s)`;
-    d.querySelector('#waLoteLista').innerHTML=linhas.map((x,i)=>`<div class="wa-lote-row ${x.enviado?'ja-enviado':''}" data-rota-id="${esc(x.r.id)}" data-evento-id="${esc(x.r.evento_id)}" data-telefone="${esc(normalizarTelefone(x.r.telefone))}"><div class="wa-lote-main"><input type="checkbox" data-lote-check ${normalizarTelefone(x.r.telefone)?'checked':'disabled'} title="Selecionar cliente"><input data-lote-nome value="${esc(x.nome)}" aria-label="Nome" title="Nome do cliente"><input data-lote-materiais value="${esc(x.materiais)}" aria-label="Materiais" title="Materiais"><input data-lote-dia value="${esc(x.dia)}" aria-label="Dia" title="Dia da entrega"><select data-lote-horario title="Faixa de horário">${fs.map(f=>`<option ${f===x.horario?'selected':''}>${esc(f)}</option>`).join('')}<option value="personalizado">Personalizar...</option></select><input data-lote-personalizado class="wa-lote-personalizado" placeholder="Ex.: 13h e 16h" aria-label="Horário personalizado" hidden><span class="wa-lote-periodo">${periodo(x.horario)}</span><span class="wa-lote-envio-status">${x.enviado?'✓ Já enviado':'Pendente'}</span></div></div>`).join('');
-    atualizarContador();d.style.left='50%';d.style.top='72px';d.style.transform='translateX(-50%)';d.style.margin='0';typeof d.show==='function'?d.show():d.setAttribute('open','');
+    const d=dialog();d.querySelector('#waLoteSub').textContent=`${textoDia(data)} • ${lista.length} cliente(s) • ordem atual da rota`;
+    d.querySelector('#waLoteLista').innerHTML=grupos.map(grupo=>{
+      const itens=linhas.filter(x=>x.carro===grupo.carro);
+      return `<section class="wa-lote-grupo" data-lote-carro="${esc(grupo.carro)}"><div class="wa-lote-grupo-titulo"><span>🚚 ${esc(grupo.carro)}</span><small>${itens.length} cliente${itens.length===1?'':'s'}</small></div>${itens.map(x=>`<div class="wa-lote-row ${x.enviado?'ja-enviado':''}" data-rota-id="${esc(x.r.id)}" data-evento-id="${esc(x.r.evento_id)}" data-telefone="${esc(normalizarTelefone(x.r.telefone))}"><div class="wa-lote-main"><input type="checkbox" data-lote-check ${normalizarTelefone(x.r.telefone)?'checked':'disabled'} title="Selecionar cliente"><input data-lote-nome value="${esc(x.nome)}" aria-label="Nome" title="Nome do cliente"><input data-lote-materiais value="${esc(x.materiais)}" aria-label="Materiais" title="Materiais"><input data-lote-dia value="${esc(x.dia)}" aria-label="Dia" title="Dia da entrega"><select data-lote-horario title="Faixa de horário">${fs.map(f=>`<option ${f===x.horario?'selected':''}>${esc(f)}</option>`).join('')}<option value="personalizado">Personalizar...</option></select><input data-lote-personalizado class="wa-lote-personalizado" placeholder="Ex.: 13h e 16h" aria-label="Horário personalizado" hidden><span class="wa-lote-periodo">${periodo(x.horario)}</span><span class="wa-lote-envio-status">${x.enviado?'✓ Já enviado':'Pendente'}</span></div></div>`).join('')}</section>`;
+    }).join('');
+    atualizarContador();d.style.left='18px';d.style.top='72px';d.style.transform='none';d.style.margin='0';typeof d.show==='function'?d.show():d.setAttribute('open','');
   }
   async function enviar(){
     const t=templatePrevisao(),els=[...document.querySelectorAll('.wa-lote-row')].filter(e=>e.querySelector('[data-lote-check]').checked);if(!els.length)return alert('Selecione pelo menos um cliente.');

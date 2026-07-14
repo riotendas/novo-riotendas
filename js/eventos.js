@@ -1011,6 +1011,17 @@ function onEventoSeguro(id, evento, funcao) {
 
 function iniciarEventos() {
   if (!document.getElementById("eventosTbody")) return;
+  document.querySelectorAll('[data-section="eventosSection"]').forEach(btn => {
+    if (btn.dataset.rtEventosHojeBind === "1") return;
+    btn.addEventListener("click", () => {
+      rtEventosAnterioresExpandidos = false;
+      setTimeout(() => {
+        renderizarEventos();
+        rtRolarEventosParaInicioAtual();
+      }, 0);
+    });
+    btn.dataset.rtEventosHojeBind = "1";
+  });
   preencherSelectsHorarioEvento();
 
   onEventoSeguro("novoEventoBtn", "click", abrirNovoEvento);
@@ -3962,6 +3973,203 @@ function rtRecorrenciaAlertaHtml(evento) {
   return `<span class="recorrencia-final-badge" title="Último período cadastrado. Verificar se vai renovar ou encerrar.">⚠ Última recorrência</span> `;
 }
 
+
+// v19-dev: eventos anteriores recolhidos por padrão
+let rtEventosAnterioresExpandidos = false;
+let rtPendenciasFinanceirasAnterioresExpandidas = true;
+let rtMateriaisEmCampoExpandidos = false;
+let rtEventosPrecisaPosicionarInicial = true;
+
+function rtHojeISOEventos() {
+  const agora = new Date();
+  const y = agora.getFullYear();
+  const m = String(agora.getMonth() + 1).padStart(2, "0");
+  const d = String(agora.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function rtEventosTemFiltroAtivo() {
+  const idsTexto = ["buscaEvento", "filtroEventoData", "filtroEventoCliente", "filtroEventoTelefone", "filtroEventoPagamento"];
+  return idsTexto.some(id => String(document.getElementById(id)?.value || "").trim() !== "");
+}
+
+function rtLinhaEventoPrincipalHtml(e) {
+  return `
+      <tr class="${rtLinhaPagamentoClasse(e)} evento-status-${rtStatusDataEvento(e.data_evento)} ${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? "evento-cancelado" : ""}">
+        <td class="evento-data-cell"><div class="evento-data-stack">${dataEventoCompactaVisual(e.data_evento)}
+          <small class="event-hour-under">${horarioEventoAbaixoData(e) || ""}</small></div>
+        </td>
+        <td class="mont-desm-cell">${montagemDesmontagemCompacta(e)}</td>
+        <td><button class="code-link" data-action="editar" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '<span class="evento-cancelado-badge">Cancelado</span> ' : ''}${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
+        <td>${e.telefone || "-"}</td>
+        <td><div class="cell-scroll cell-endereco">${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(e) : e.endereco) || "-"}</div></td>
+        <td>
+          <div class="cell-scroll cell-produtos">
+            <button class="product-list-button" data-action="editar-produtos" data-id="${e.id}">
+              ${resumoProdutosEvento(e)}
+            </button>
+          </div>
+        </td>
+        <td>${dinheiro(e.valor_total)}</td>
+        <td>${dinheiro(e.valor_sinal)}</td>
+        <td>${dinheiro(e.valor_restante)}</td>
+        <td class="pagamento-status-cell">${rtPagamentoEventoBadge(e)}</td>
+        <td class="assinatura-status-cell">${rtAssinaturaBadgeEvento(e)}</td>
+        <td>${e.colaborador || "-"}</td>
+        <td class="actions clientes-actions"><div class="clientes-actions-row"><button class="btn-outline evento-editar-lista-btn" data-action="editar" data-id="${e.id}" title="Editar">Editar</button>
+          <button class="btn-outline" data-action="${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'reativar' : 'cancelar'}" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'Reativar' : 'Cancelar'}</button></div></td>
+      </tr>`;
+}
+
+
+function rtEventoAnteriorDevedor(evento) {
+  if (!evento) return false;
+  if (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)) return false;
+  const restante = Number(evento.valor_restante || 0);
+  return !Boolean(evento.pagamento_quitado) && restante > 0.009;
+}
+
+function rtLinhaPendenciasFinanceirasHtml(quantidade, expandido) {
+  if (!quantidade) return "";
+  const texto = expandido
+    ? `Ocultar devedores anteriores (${quantidade})`
+    : `Mostrar devedores anteriores (${quantidade})`;
+  const seta = expandido ? "▾" : "▸";
+  return `<tr class="rt-pendencias-anteriores-controle-row">
+    <td colspan="13">
+      <button type="button" class="rt-pendencias-anteriores-btn" data-rt-pendencias-anteriores>
+        <span>${seta}</span><strong>⚠ ${texto}</strong>
+      </button>
+    </td>
+  </tr>`;
+}
+
+function rtAlternarPendenciasFinanceirasAnteriores() {
+  rtPendenciasFinanceirasAnterioresExpandidas = !rtPendenciasFinanceirasAnterioresExpandidas;
+  renderizarEventos();
+}
+
+function rtEventoAnteriorComMaterialEmCampo(evento) {
+  if (!evento) return false;
+  if (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)) return false;
+
+  const possuiMaterial = Boolean(
+    (Array.isArray(evento.tendas) && evento.tendas.length) ||
+    (Array.isArray(evento.itens_apoio) && evento.itens_apoio.some(item => Number(item?.quantidade || 0) > 0)) ||
+    (Array.isArray(evento.produtos_extras) && evento.produtos_extras.some(item => Number(item?.quantidade || 0) > 0))
+  );
+  if (!possuiMaterial) return false;
+
+  // Usa exatamente a mesma condição que cria a rota de Desmontagem/Retirada:
+  // sem data de desmontagem não existe retorno previsto (ex.: venda), portanto
+  // o evento não deve ser tratado como material aguardando recolhimento.
+  if (!evento.desmontagem) return false;
+
+  // A mesma marcação operacional usada pela Rota/Mobile define quando o material voltou.
+  if (typeof rtEventoOrigemJaRecolhidoEvento === "function" && rtEventoOrigemJaRecolhidoEvento(evento)) return false;
+
+  return true;
+}
+
+function rtLinhaMateriaisEmCampoHtml(quantidade, expandido) {
+  if (!quantidade) return "";
+  const texto = expandido
+    ? `Ocultar materiais em campo (${quantidade})`
+    : `Mostrar materiais em campo (${quantidade})`;
+  const seta = expandido ? "▾" : "▸";
+  return `<tr class="rt-materiais-campo-controle-row">
+    <td colspan="13">
+      <button type="button" class="rt-materiais-campo-btn" data-rt-materiais-campo>
+        <span>${seta}</span><strong>📦 ${texto}</strong>
+      </button>
+    </td>
+  </tr>`;
+}
+
+function rtAlternarMateriaisEmCampo() {
+  rtMateriaisEmCampoExpandidos = !rtMateriaisEmCampoExpandidos;
+  renderizarEventos();
+}
+
+function rtLinhaControleEventosAnterioresHtml(quantidade, expandido, buscaAtiva) {
+  if (!quantidade) return "";
+  const texto = buscaAtiva
+    ? `Eventos anteriores encontrados (${quantidade})`
+    : expandido ? `Ocultar eventos anteriores (${quantidade})` : `Mostrar eventos anteriores (${quantidade})`;
+  const seta = expandido || buscaAtiva ? "▾" : "▸";
+  return `<tr class="rt-eventos-anteriores-controle-row">
+    <td colspan="13">
+      <button type="button" class="rt-eventos-anteriores-btn" data-rt-eventos-anteriores ${buscaAtiva ? 'disabled title="Os eventos anteriores são mostrados automaticamente durante a busca ou filtro."' : ''}>
+        <span>${seta}</span><strong>${texto}</strong>
+      </button>
+    </td>
+  </tr>`;
+}
+
+function rtRolarEventosParaInicioAtual() {
+  const tbody = document.getElementById("eventosTbody");
+  const wrapper = tbody?.closest(".eventos-table-scroll") || tbody?.closest(".table-wrapper");
+  const controle = tbody?.querySelector(".rt-eventos-anteriores-controle-row");
+  if (!wrapper || !controle) return;
+  wrapper.scrollTop = Math.max(0, controle.offsetTop - tbody.offsetTop);
+}
+
+// Posiciona a abertura da tela num meio-termo: exibe até os 3 últimos
+// devedores antes do divisor e já deixa os eventos atuais visíveis abaixo.
+function rtPosicionarEventosNoMeioTermo() {
+  if (!rtEventosPrecisaPosicionarInicial) return;
+  const section = document.getElementById("eventosSection");
+  if (!section?.classList.contains("active-section")) return;
+
+  const tbody = document.getElementById("eventosTbody");
+  const wrapper = tbody?.closest(".eventos-table-scroll") || tbody?.closest(".table-wrapper");
+  const controle = tbody?.querySelector(".rt-eventos-anteriores-controle-row");
+  if (!wrapper || !controle) return;
+
+  let ancora = controle;
+  let anterior = controle.previousElementSibling;
+  let exibidos = 0;
+  while (anterior && exibidos < 3) {
+    if (!anterior.classList.contains("rt-pendencias-anteriores-controle-row") &&
+        !anterior.classList.contains("rt-materiais-campo-controle-row")) {
+      ancora = anterior;
+      exibidos += 1;
+    }
+    anterior = anterior.previousElementSibling;
+  }
+
+  const alvo = Math.max(0, ancora.offsetTop - tbody.offsetTop - 6);
+  wrapper.scrollTop = alvo;
+  rtEventosPrecisaPosicionarInicial = false;
+}
+
+function rtPrepararPosicaoInicialEventos() {
+  rtEventosPrecisaPosicionarInicial = true;
+  // Aguarda a seção ficar visível e a tabela terminar o layout.
+  [0, 80, 220].forEach(ms => setTimeout(rtPosicionarEventosNoMeioTermo, ms));
+}
+
+if (!window.__rtEventosPosicaoInicialBind) {
+  window.__rtEventosPosicaoInicialBind = true;
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelector('[data-section="eventosSection"]')?.addEventListener("click", () => {
+      rtEventosAnterioresExpandidos = false;
+      rtPendenciasFinanceirasAnterioresExpandidas = true;
+      rtMateriaisEmCampoExpandidos = false;
+      rtPrepararPosicaoInicialEventos();
+    });
+    if (document.getElementById("eventosSection")?.classList.contains("active-section")) {
+      rtPrepararPosicaoInicialEventos();
+    }
+  });
+}
+
+function rtAlternarEventosAnteriores() {
+  rtEventosAnterioresExpandidos = !rtEventosAnterioresExpandidos;
+  renderizarEventos();
+  setTimeout(rtRolarEventosParaInicioAtual, 0);
+}
+
 function renderizarEventos() {
   normalizarOrdemEventosGlobal();
 
@@ -3992,35 +4200,48 @@ function renderizarEventos() {
   if (!lista.length) {
     tbody.innerHTML = `<tr><td colspan="13" class="empty">Nenhum evento pontual cadastrado.</td></tr>`;
   } else {
-    tbody.innerHTML = lista.map(e => `
-      <tr class="${rtLinhaPagamentoClasse(e)} evento-status-${rtStatusDataEvento(e.data_evento)} ${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? "evento-cancelado" : ""}">
-        <td class="evento-data-cell"><div class="evento-data-stack">${dataEventoCompactaVisual(e.data_evento)}
-          <small class="event-hour-under">${horarioEventoAbaixoData(e) || ""}</small></div>
-        </td>
-        <td class="mont-desm-cell">${montagemDesmontagemCompacta(e)}</td>
-        <td><button class="code-link" data-action="editar" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '<span class="evento-cancelado-badge">Cancelado</span> ' : ''}${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
-        <td>${e.telefone || "-"}</td>
-        <td><div class="cell-scroll cell-endereco">${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(e) : e.endereco) || "-"}</div></td>
-        <td>
-          <div class="cell-scroll cell-produtos">
-            <button class="product-list-button" data-action="editar-produtos" data-id="${e.id}">
-              ${resumoProdutosEvento(e)}
-            </button>
-          </div>
-        </td>
-        <td>${dinheiro(e.valor_total)}</td>
-        <td>${dinheiro(e.valor_sinal)}</td>
-        <td>${dinheiro(e.valor_restante)}</td>
-        <td class="pagamento-status-cell">${rtPagamentoEventoBadge(e)}</td>
-        <td class="assinatura-status-cell">${rtAssinaturaBadgeEvento(e)}</td>
-        <td>${e.colaborador || "-"}</td>
-        <td class="actions clientes-actions"><div class="clientes-actions-row"><button class="btn-outline evento-editar-lista-btn" data-action="editar" data-id="${e.id}" title="Editar">Editar</button>
-          <button class="btn-outline" data-action="${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'reativar' : 'cancelar'}" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'Reativar' : 'Cancelar'}</button></div></td>
-      </tr>
-    `).join("");
+    const hojeISO = rtHojeISOEventos();
+    const anteriores = lista.filter(e => String(e.data_evento || "").slice(0, 10) < hojeISO);
+    const atuaisEFuturos = lista.filter(e => String(e.data_evento || "").slice(0, 10) >= hojeISO);
+    const buscaAtiva = rtEventosTemFiltroAtivo();
+    const mostrarAnteriores = rtEventosAnterioresExpandidos || buscaAtiva;
+    const devedoresAnteriores = anteriores.filter(rtEventoAnteriorDevedor);
+    const materiaisEmCampo = anteriores.filter(rtEventoAnteriorComMaterialEmCampo);
+
+    // Com o histórico fechado, financeiro e operação aparecem em seções independentes.
+    // Ao expandir todos os anteriores, cada evento volta a aparecer apenas na ordem normal.
+    const htmlPendenciasControle = (!mostrarAnteriores && devedoresAnteriores.length)
+      ? rtLinhaPendenciasFinanceirasHtml(devedoresAnteriores.length, rtPendenciasFinanceirasAnterioresExpandidas)
+      : "";
+    const htmlPendencias = (!mostrarAnteriores && rtPendenciasFinanceirasAnterioresExpandidas)
+      ? devedoresAnteriores.map(rtLinhaEventoPrincipalHtml).join("")
+      : "";
+    const htmlMateriaisControle = (!mostrarAnteriores && materiaisEmCampo.length)
+      ? rtLinhaMateriaisEmCampoHtml(materiaisEmCampo.length, rtMateriaisEmCampoExpandidos)
+      : "";
+    const htmlMateriais = (!mostrarAnteriores && rtMateriaisEmCampoExpandidos)
+      ? materiaisEmCampo.map(rtLinhaEventoPrincipalHtml).join("")
+      : "";
+    const htmlAnteriores = mostrarAnteriores ? anteriores.map(rtLinhaEventoPrincipalHtml).join("") : "";
+    const htmlControle = rtLinhaControleEventosAnterioresHtml(anteriores.length, mostrarAnteriores, buscaAtiva);
+    const htmlAtuais = atuaisEFuturos.map(rtLinhaEventoPrincipalHtml).join("");
+
+    tbody.innerHTML = htmlPendenciasControle + htmlPendencias + htmlMateriaisControle + htmlMateriais + htmlAnteriores + htmlControle + htmlAtuais;
+
+    if (!atuaisEFuturos.length && anteriores.length && !mostrarAnteriores) {
+      tbody.innerHTML += `<tr><td colspan="13" class="empty">Não há eventos a partir de hoje.</td></tr>`;
+    }
+  }
+
+  // Só reposiciona na entrada da tela; atualizações em tempo real não roubam o scroll.
+  if (rtEventosPrecisaPosicionarInicial) {
+    setTimeout(rtPosicionarEventosNoMeioTermo, 0);
   }
 
   tbody.querySelectorAll("button[data-action]").forEach(btn => btn.addEventListener("click", lidarAcaoEvento));
+  tbody.querySelector("[data-rt-pendencias-anteriores]")?.addEventListener("click", rtAlternarPendenciasFinanceirasAnteriores);
+  tbody.querySelector("[data-rt-materiais-campo]")?.addEventListener("click", rtAlternarMateriaisEmCampo);
+  tbody.querySelector("[data-rt-eventos-anteriores]")?.addEventListener("click", rtAlternarEventosAnteriores);
 
   if (!tbodyRec) return;
 

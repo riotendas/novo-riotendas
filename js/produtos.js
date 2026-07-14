@@ -1501,9 +1501,31 @@ function obterFotoProduto(produto) {
 function obterUltimaChecagemProduto(produto, inicio = null, fim = null) {
   const historico = Array.isArray(produto?.historico) ? produto.historico : [];
   const checks = historico
-    .filter(item => String(item.alteracao || "").toLowerCase().includes("checagem de depósito") || String(item.alteracao || "").toLowerCase().includes("checagem de deposito"))
+    .filter(item => {
+      const texto = String(item.alteracao || "").toLowerCase();
+      return texto.includes("checagem de depósito") || texto.includes("checagem de deposito");
+    })
     .map(item => ({ ...item, dataObj: new Date(item.data || item.criado_em || item.atualizado_em || 0) }))
     .filter(item => !Number.isNaN(item.dataObj.getTime()));
+
+  // Compatibilidade com checks antigos: antes o botão desktop salvava deposito_check,
+  // atualizado_em e colaborador, mas não criava uma entrada no histórico do produto.
+  // O relatório precisa reconhecer esses registros já existentes.
+  if (produto?.deposito_check) {
+    const dataFallback = new Date(produto.atualizado_em || produto.criado_em || 0);
+    if (!Number.isNaN(dataFallback.getTime())) {
+      const jaExiste = checks.some(item => Math.abs(item.dataObj.getTime() - dataFallback.getTime()) < 1000);
+      if (!jaExiste) {
+        checks.push({
+          data: dataFallback.toISOString(),
+          dataObj: dataFallback,
+          colaborador: produto.colaborador || "-",
+          alteracao: "Checagem de depósito",
+          observacao: "Registro recuperado do checklist atual"
+        });
+      }
+    }
+  }
 
   const filtrados = checks.filter(item => {
     if (inicio && item.dataObj < inicio) return false;
@@ -1516,8 +1538,12 @@ function obterUltimaChecagemProduto(produto, inicio = null, fim = null) {
 
 function htmlCheckDepositoProduto(produto) {
   const marcado = !!produto.deposito_check;
+  const ultima = marcado ? obterUltimaChecagemProduto(produto) : null;
+  const dataTxt = ultima?.dataObj && !Number.isNaN(ultima.dataObj.getTime())
+    ? ultima.dataObj.toLocaleString("pt-BR")
+    : "data não registrada";
   const titulo = marcado
-    ? "Conferido no depósito. Clique para desmarcar."
+    ? `Conferido no depósito por ${ultima?.colaborador || produto.colaborador || "-"} em ${dataTxt}. Clique para desmarcar.`
     : "Ainda não conferido no depósito. Clique para marcar.";
 
   return `
@@ -1792,6 +1818,22 @@ async function lidarAcaoProduto(event) {
     produto.deposito_check = !antes;
     produto.atualizado_em = agora;
     produto.colaborador = colaborador;
+    produto.historico = Array.isArray(produto.historico) ? produto.historico : [];
+    if (!antes) {
+      produto.historico.push({
+        data: agora,
+        colaborador,
+        alteracao: "Checagem de depósito",
+        observacao: "Produto conferido pelo checklist da tela Produtos"
+      });
+    } else {
+      produto.historico.push({
+        data: agora,
+        colaborador,
+        alteracao: "Desmarcação da checagem de depósito",
+        observacao: "Produto removido do checklist da tela Produtos"
+      });
+    }
 
     const salvo = await salvarProdutoBanco(produto);
     if (salvo) {

@@ -40,7 +40,9 @@ function renderizarRelatorioChecagem() {
 
   const linhas = listaProdutos.map(p => {
     const ultimo = typeof obterUltimaChecagemProduto === "function" ? obterUltimaChecagemProduto(p, inicio, fim) : null;
-    return { produto: p, ultimo, checado: Boolean(ultimo) };
+    // O relatório representa o checklist atual e considera o período da última marcação.
+    // Isso mantém a mesma fonte de verdade da tela Produtos: deposito_check.
+    return { produto: p, ultimo, checado: Boolean(p.deposito_check && ultimo) };
   });
 
   const checados = linhas.filter(l => l.checado).length;

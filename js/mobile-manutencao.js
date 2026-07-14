@@ -1043,6 +1043,7 @@ async function alterarUsabilidadeManutencaoMobile(novaUsabilidade) {
   const colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : "Mobile";
 
   produto.grau_usabilidade = novaUsabilidade;
+  produto.deposito_check = true;
   produto.atualizado_em = agora;
   produto.colaborador = colaborador;
   produto.historico = Array.isArray(produto.historico) ? produto.historico : [];

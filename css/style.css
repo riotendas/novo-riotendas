@@ -22124,3 +22124,84 @@ tr.evento-cancelado .product-list-button {
  .wa-lote-dialog{width:min(1080px,94vw)!important}
  .wa-lote-main{grid-template-columns:22px 82px 135px 155px 102px 108px 58px 66px!important}
 }
+
+
+/* Central de Envios v1.3 — agrupada por carro, ordem da rota e coluna do organizador visível */
+.wa-lote-dialog{
+  width:min(920px,calc(100vw - 390px))!important;
+  max-width:920px!important;
+  min-width:760px!important;
+}
+.wa-lote-lista{padding:5px 7px!important}
+.wa-lote-grupo{margin:5px 0 9px;border:1px solid #cbd9e8;border-radius:9px;overflow:hidden;background:#f8fbfe}
+.wa-lote-grupo-titulo{height:28px;padding:4px 9px;display:flex;align-items:center;justify-content:space-between;background:#eaf3fb;border-bottom:1px solid #cbd9e8;color:#164f7d;font-size:.75rem;font-weight:800}
+.wa-lote-grupo-titulo small{font-size:.64rem;color:#63778b;font-weight:700}
+.wa-lote-grupo .wa-lote-row{border:0!important;border-bottom:1px solid #e1e9f1!important;border-radius:0!important;margin:0!important}
+.wa-lote-grupo .wa-lote-row:last-child{border-bottom:0!important}
+.wa-lote-main{
+  grid-template-columns:22px minmax(78px,.65fr) minmax(126px,1.15fr) minmax(145px,1.25fr) minmax(100px,.82fr) minmax(106px,.86fr) 52px 65px!important;
+  gap:3px!important;padding:3px 5px!important;
+}
+.wa-lote-main input,.wa-lote-main select{height:27px!important;min-height:27px!important;padding:2px 5px!important;font-size:.68rem!important}
+.wa-lote-main input[type="checkbox"]{width:16px!important;height:16px!important}
+.wa-lote-periodo,.wa-lote-envio-status{font-size:8.8px!important}
+@media(max-width:1220px){
+ .wa-lote-dialog{width:min(880px,calc(100vw - 330px))!important;min-width:720px!important}
+ .wa-lote-main{grid-template-columns:20px 72px 116px 132px 94px 98px 45px 58px!important}
+}
+@media(max-width:1050px){
+ .wa-lote-dialog{width:94vw!important;min-width:0!important}
+}
+
+
+/* Eventos anteriores — divisor discreto centralizado */
+#eventosTbody .rt-eventos-anteriores-controle-row td{
+  padding:7px 12px!important;background:#fff!important;border:0!important;
+}
+#eventosTbody .rt-eventos-anteriores-btn{
+  width:100%!important;min-height:24px!important;padding:0!important;border:0!important;
+  border-radius:0!important;background:transparent!important;color:#607184!important;
+  display:flex!important;align-items:center!important;justify-content:center!important;gap:9px!important;
+  font-size:11px!important;font-weight:700!important;box-shadow:none!important;cursor:pointer!important;
+}
+#eventosTbody .rt-eventos-anteriores-btn::before,
+#eventosTbody .rt-eventos-anteriores-btn::after{
+  content:"";height:1px;flex:1 1 auto;max-width:360px;background:#d7e0e8;
+}
+#eventosTbody .rt-eventos-anteriores-btn:hover:not(:disabled){background:transparent!important;color:#174f7d!important}
+#eventosTbody .rt-eventos-anteriores-btn span{font-size:11px!important}
+
+
+/* Eventos antigos com saldo — seção compacta, visível por padrão */
+#eventosTbody .rt-pendencias-anteriores-controle-row td{
+  padding:5px 12px 3px!important;background:#fffdf7!important;border:0!important;
+}
+#eventosTbody .rt-pendencias-anteriores-btn{
+  width:100%!important;min-height:23px!important;padding:0!important;border:0!important;
+  background:transparent!important;color:#9a5a05!important;display:flex!important;align-items:center!important;
+  justify-content:center!important;gap:9px!important;font-size:11px!important;font-weight:800!important;
+  box-shadow:none!important;cursor:pointer!important;
+}
+#eventosTbody .rt-pendencias-anteriores-btn::before,
+#eventosTbody .rt-pendencias-anteriores-btn::after{
+  content:"";height:1px;flex:1 1 auto;max-width:330px;background:#ead8b6;
+}
+#eventosTbody .rt-pendencias-anteriores-btn:hover{color:#713f00!important}
+#eventosTbody .rt-pendencias-anteriores-controle-row + tr{border-top:1px solid #f1e2c7!important}
+
+/* Eventos antigos com materiais ainda em campo */
+#eventosTbody .rt-materiais-campo-controle-row td{
+  padding:5px 12px 3px!important;background:#f8fbfd!important;border:0!important;
+}
+#eventosTbody .rt-materiais-campo-btn{
+  width:100%!important;min-height:23px!important;padding:0!important;border:0!important;
+  background:transparent!important;color:#37677d!important;display:flex!important;align-items:center!important;
+  justify-content:center!important;gap:9px!important;font-size:11px!important;font-weight:800!important;
+  box-shadow:none!important;cursor:pointer!important;
+}
+#eventosTbody .rt-materiais-campo-btn::before,
+#eventosTbody .rt-materiais-campo-btn::after{
+  content:"";height:1px;flex:1 1 auto;max-width:330px;background:#cfe0e8;
+}
+#eventosTbody .rt-materiais-campo-btn:hover{color:#174f67!important}
+#eventosTbody .rt-materiais-campo-controle-row + tr{border-top:1px solid #dbeaf0!important}
