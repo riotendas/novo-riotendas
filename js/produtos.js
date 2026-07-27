@@ -296,7 +296,7 @@ async function buscarEstoqueApoioBanco() {
 
   const { data, error } = await supabaseClient
     .from("estoque_apoio")
-    .select("id,nome,quantidade_total,quantidade_disponivel,observacao,ativo,criado_em,atualizado_em")
+    .select("*") // tabela pequena; evita falha por diferenças de esquema entre ambientes
     .order("nome", { ascending: true });
 
   if (error) {

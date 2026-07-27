@@ -6172,6 +6172,7 @@ function rtDocEventoAssinaturas() {
 
 function rtDocEventoAbrir(tipo) {
   const d = rtDocEventoColetarDados();
+  try { if (typeof window.rtEventoDocumentosRestaurarTipo === 'function') window.rtEventoDocumentosRestaurarTipo(tipo, d); } catch(e) {}
   const titulo = tipo === 'contrato' ? 'Contrato' : tipo === 'recibo' ? 'Recibo' : tipo === 'orcamento' ? 'Orçamento' : 'Guia de serviço';
   const conteudoConfigurado = rtDocEventoObterModeloConfigurado(tipo, d);
   const conteudo = conteudoConfigurado || (tipo === 'contrato' ? rtDocEventoModeloContrato(d) : tipo === 'recibo' ? rtDocEventoModeloRecibo(d) : tipo === 'orcamento' ? rtDocEventoModeloOrcamento(d) : rtDocEventoModeloGuia(d));
@@ -6508,9 +6509,14 @@ document.addEventListener('DOMContentLoaded', () => {
 /* v19-dev: pasta única de documentos vinculada ao evento */
 (function(){
   const KEY = 'novoRioTendasDocumentosEventosV1';
+  const HIDDEN_KEY = 'novoRioTendasDocumentosEventosOcultosV1';
   let filtro = 'todos';
   function ler(){ try { const v=JSON.parse(localStorage.getItem(KEY)||'[]'); return Array.isArray(v)?v:[]; } catch(e){ return []; } }
   function gravar(v){ localStorage.setItem(KEY, JSON.stringify(v)); }
+  function lerOcultos(){ try { const v=JSON.parse(localStorage.getItem(HIDDEN_KEY)||'[]'); return Array.isArray(v)?v:[]; } catch(e){ return []; } }
+  function gravarOcultos(v){ localStorage.setItem(HIDDEN_KEY, JSON.stringify(Array.from(new Set(v.map(String))))); }
+  function ocultar(chave){ const v=lerOcultos(); if(!v.includes(String(chave))) v.push(String(chave)); gravarOcultos(v); }
+  function reexibir(chave){ gravarOcultos(lerOcultos().filter(x=>String(x)!==String(chave))); }
   function esc(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function eventoId(){ return String(document.getElementById('eventoId')?.value || '').trim(); }
   function eventoData(){ return String(document.getElementById('eventoData')?.value || '').slice(0,10); }
@@ -6558,7 +6564,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dataGuia=eventoData();
     const numeroGuia=`${baseData(dataGuia)}-001`;
     const chaveGuia=`guia:${id}`;
-    if(!docs.some(d=>d.chave===chaveGuia)) docs.push({chave:chaveGuia,tipo:'guia',numero:numeroGuia,nome:documentoNome('guia',numeroGuia),evento_id:id,data_evento:dataGuia,status:'gerado',criado_em:'',atualizado_em:''});
+    if(!lerOcultos().includes(chaveGuia) && !docs.some(d=>d.chave===chaveGuia)) docs.push({chave:chaveGuia,tipo:'guia',numero:numeroGuia,nome:documentoNome('guia',numeroGuia),evento_id:id,data_evento:dataGuia,status:'gerado',criado_em:'',atualizado_em:''});
     orcamentosEvento(id).forEach(o=>{
       const numero=normalizarNumero(o.numero,o.data_evento);
       const chave=`orcamento:${o.id}`;
@@ -6603,8 +6609,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if(!excluir)return alert('Não foi possível acessar a exclusão do orçamento.');
       const ok=await excluir([d.orcamento_id],{confirmar:false});
       if(ok!==false){gravar(ler().filter(x=>x.chave!==d.chave));renderizar();}
-    }else{gravar(ler().filter(x=>x.chave!==d.chave));renderizar();}
+    }else{
+      gravar(ler().filter(x=>x.chave!==d.chave));
+      if(d.tipo==='guia') ocultar(d.chave);
+      renderizar();
+    }
   }
+  window.rtEventoDocumentosRestaurarTipo=function(tipo,dados){
+    const id=String(dados?.id||dados?.evento_id||eventoId()||'').trim();
+    if(!id)return;
+    if(tipo==='guia'){ reexibir(`guia:${id}`); setTimeout(renderizar,0); }
+  };
   window.rtEventoDocumentosRegistrarOrcamento=function(o){ if(!o||!o.evento_id)return; registrar('orcamento',{evento_id:o.evento_id,data_evento:o.data_evento,numero:o.numero,status:o.status,orcamento_id:o.id}); };
   window.rtEventoDocumentosRenderizar=renderizar;
   document.addEventListener('DOMContentLoaded',()=>{
