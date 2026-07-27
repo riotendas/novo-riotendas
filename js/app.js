@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // v19-dev: controle simples de versão/cache para reduzir app antigo em celulares.
-const RIOTENDAS_APP_VERSION = "v19-dev-2026-07-27-estabilizacao-materiais-apoio-schema-real";
+const RIOTENDAS_APP_VERSION = "v19-dev-2026-07-27-estabilizacao-guia-sob-demanda";
 
 function iniciarControleVersaoCache() {
   try {

@@ -6560,11 +6560,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function listar(){
     const id=eventoId(); if(!id) return [];
     const docs=ler().filter(d=>String(d.evento_id)===id);
-    // A guia de serviço é um documento nativo do evento e fica sempre disponível após salvar.
-    const dataGuia=eventoData();
-    const numeroGuia=`${baseData(dataGuia)}-001`;
-    const chaveGuia=`guia:${id}`;
-    if(!lerOcultos().includes(chaveGuia) && !docs.some(d=>d.chave===chaveGuia)) docs.push({chave:chaveGuia,tipo:'guia',numero:numeroGuia,nome:documentoNome('guia',numeroGuia),evento_id:id,data_evento:dataGuia,status:'gerado',criado_em:'',atualizado_em:''});
+    // Guias só aparecem depois que o usuário solicita a geração.
     orcamentosEvento(id).forEach(o=>{
       const numero=normalizarNumero(o.numero,o.data_evento);
       const chave=`orcamento:${o.id}`;
@@ -6618,7 +6614,11 @@ document.addEventListener('DOMContentLoaded', () => {
   window.rtEventoDocumentosRestaurarTipo=function(tipo,dados){
     const id=String(dados?.id||dados?.evento_id||eventoId()||'').trim();
     if(!id)return;
-    if(tipo==='guia'){ reexibir(`guia:${id}`); setTimeout(renderizar,0); }
+    if(tipo==='guia'){
+      const existente=ler().some(d=>String(d.evento_id)===id && d.tipo==='guia');
+      if(!existente) registrar('guia',{evento_id:id,data_evento:dados?.dataEvento||dados?.data_evento||eventoData(),status:'gerado'});
+      setTimeout(renderizar,0);
+    }
   };
   window.rtEventoDocumentosRegistrarOrcamento=function(o){ if(!o||!o.evento_id)return; registrar('orcamento',{evento_id:o.evento_id,data_evento:o.data_evento,numero:o.numero,status:o.status,orcamento_id:o.id}); };
   window.rtEventoDocumentosRenderizar=renderizar;
