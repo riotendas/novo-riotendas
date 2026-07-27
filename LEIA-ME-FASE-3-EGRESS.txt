@@ -1,0 +1,18 @@
+RIO TENDAS — FASE 3: CONSULTAS INTELIGENTES
+
+Versão: v19-dev-2026-07-27-fase3-consultas-inteligentes
+
+ALTERAÇÕES
+- Eventos: consulta principal agora solicita somente as colunas efetivamente usadas pelo aplicativo.
+- Clientes: removido select(*) da listagem.
+- Orçamentos: removido select(*) da listagem.
+- Usuários: removido select(*) da consulta de usuários.
+- Materiais de apoio: consulta com campos específicos.
+- Notas de rota: consulta com campos específicos.
+- Extrato bancário: paginação mantida, mas sem baixar colunas desnecessárias.
+- Geocodificação: consulta somente identificação e endereço/coordenadas.
+- Busca de detalhe de produto por ID continua completa de propósito, pois ocorre apenas ao abrir o registro.
+- Exportações administrativas completas continuam completas de propósito.
+
+OBJETIVO
+Reduzir o tamanho de cada resposta do Supabase sem alterar regras, telas, PDF, rotas ou dados salvos.

@@ -11,9 +11,9 @@
 /* Financeiro 2.1 compacto - associação + observação na mesma linha */
 .financeiro-extrato-salvo-table th:nth-child(7),
 .financeiro-extrato-salvo-table td:nth-child(7){display:none!important;}
-.financeiro-extrato-salvo-table td:nth-child(6){min-width:520px;}
+.financeiro-extrato-salvo-table td:nth-child(6){min-width:440px;}
 .fin-ext-assoc-compact{display:flex;flex-direction:column;gap:3px;min-width:520px;}
-.fin-ext-assoc-top{display:grid;grid-template-columns:minmax(320px,1fr) 32px minmax(130px,170px);gap:6px;align-items:center;}
+.fin-ext-assoc-top{display:grid;grid-template-columns:minmax(220px,1fr) 32px minmax(130px,170px);gap:6px;align-items:center;}
 .fin-ext-assoc-list{display:flex!important;flex-direction:column;gap:4px;min-width:0!important;}
 .fin-ext-assoc-row{display:flex!important;gap:4px;align-items:center;min-width:0;}
 .fin-ext-assoc-row select.fin-ext-assoc{min-width:0!important;width:100%!important;height:32px!important;padding:5px 28px 5px 10px!important;font-size:.82rem!important;}

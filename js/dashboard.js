@@ -91,23 +91,11 @@ async function garantirEventosDashboard() {
   }
 
   try {
-    if (typeof supabaseClient !== "undefined" && supabaseClient) {
-      for (const tabela of ["eventos", "eventos_cadastro"]) {
-        try {
-          const { data, error } = await supabaseClient.from(tabela).select("*");
-
-          if (!error && Array.isArray(data)) {
-            console.log(`[Dashboard] eventos carregados de ${tabela}:`, data.length);
-            window.eventos = data;
-            try { if (typeof eventos !== "undefined") eventos = data; } catch (e) {}
-            return data;
-          }
-
-          if (error) console.warn(`[Dashboard] erro ao buscar ${tabela}:`, error);
-        } catch (erroTabela) {
-          console.warn(`[Dashboard] falha ao consultar ${tabela}:`, erroTabela);
-        }
-      }
+    if (typeof eventos !== "undefined" && Array.isArray(eventos) && eventos.length) {
+      rtDashboardEventosCache = eventos; rtDashboardEventosCacheTs = Date.now(); return eventos;
+    }
+    if (Array.isArray(window.eventos) && window.eventos.length) {
+      rtDashboardEventosCache = window.eventos; rtDashboardEventosCacheTs = Date.now(); return window.eventos;
     }
 
     if (typeof buscarEventosBanco === "function") {

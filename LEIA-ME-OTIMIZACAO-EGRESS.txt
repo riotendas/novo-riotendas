@@ -1,0 +1,11 @@
+RIO TENDAS - OTIMIZAÇÃO EMERGENCIAL DE EGRESS
+
+Alterações aplicadas:
+- Removida a recarga completa automática de eventos e produtos a cada evento Realtime.
+- Mantido Realtime apenas para app_config operacional.
+- Polling operacional alterado de 2,5 segundos para 60 segundos e somente com módulo operacional ativo.
+- Sincronização automática da Manutenção Mobile alterada de 20 segundos para 2 minutos.
+- Mapa não usa mais select(*) como fallback; mantém cache/local se a consulta enxuta falhar.
+- Botões de atualização e salvamentos continuam sincronizando normalmente.
+
+Objetivo: reduzir tráfego repetitivo sem alterar os dados nem exigir mudanças no Supabase.

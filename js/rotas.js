@@ -15,11 +15,11 @@ function textoHorarioRota(tipoSalvo, horario, dataISO) {
   const fim = tipoHorarioFimRota(tipoSalvo);
 
   if (tipo === "Exatamente") return horario ? `Exatamente às ${horario}` : "Exatamente";
-  if (tipo === "A partir de") return horario ? `A partir das ${horario}` : "A partir de";
+  if (tipo === "A partir de") return horario ? `A partir ${horario}` : "A partir de";
   if (tipo === "Até") return horario ? `Até ${horario}` : "Até";
   if (tipo === "Intervalo") {
     if (horario && fim) return `Entre ${horario} e ${fim}`;
-    if (horario) return `Intervalo a partir das ${horario}`;
+    if (horario) return `Intervalo a partir ${horario}`;
     return "Intervalo";
   }
   if (tipo === "Horário comercial") return "Horário comercial";
@@ -1023,29 +1023,8 @@ function iniciarRotas() {
 
   setTimeout(renderizarRotas, 400);
 
-  setInterval(() => {
-    if (typeof rtUsuarioEditandoOperacional === "function" && rtUsuarioEditandoOperacional()) return;
-    const rotasAtiva = document.getElementById("rotasSection")?.classList.contains("active-section");
-    const ruaAtiva = document.getElementById("ruaMobileSection")?.classList.contains("active-section");
-    if (!rotasAtiva && !ruaAtiva) return;
-    atualizarCarrosRotasDaNuvemSeNecessario().catch(() => {});
-    atualizarOrdemRotasDaNuvemSeNecessario().catch(() => {});
-    sincronizarRotasOperacaoNuvem(true).then(() => {
-      if (rotasAtiva && typeof renderizarRotas === "function") renderizarRotas();
-      if (ruaAtiva && typeof renderizarRuaMobile === "function") renderizarRuaMobile();
-    }).catch(() => {});
-  }, 120000);
-
-  if (!window.__rtRotasOperacaoSyncTimer) {
-    window.__rtRotasOperacaoSyncTimer = setInterval(() => {
-      const rotasAtiva = document.getElementById("rotasSection")?.classList.contains("active-section");
-      const ruaAtiva = document.getElementById("ruaMobileSection")?.classList.contains("active-section");
-      const produtosAtiva = document.getElementById("produtosSection")?.classList.contains("active-section");
-      if ((rotasAtiva || ruaAtiva || produtosAtiva) && !(typeof rtUsuarioEditandoOperacional === "function" && rtUsuarioEditandoOperacional())) {
-        sincronizarRotasOperacaoNuvem(true).catch(() => {});
-      }
-    }, 120000);
-  }
+  // Fase 1 de Egress: não criar polling próprio em Rotas.
+  // app_config (operação, carros e ordem) passa a ser sincronizado somente pelo rt-realtime-sync.js.
 }
 
 function dataLocalISO(data) {
@@ -1169,7 +1148,7 @@ function montarListaMateriais(evento) {
 
   if (temUsoTransito) itens.push("⚠ Uso em trânsito");
 
-  const reservas = (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).map(i => typeof rtProdutoReservaParaTexto === "function" ? rtProdutoReservaParaTexto(i) : `🔄 R${i.codigo || ""}`);
+  const reservas = (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).map(i => typeof rtProdutoReservaParaTexto === "function" ? rtProdutoReservaParaTexto(i) : `Reserva - ${[i.codigo, i.categoria || i.tipo, i.tamanho, i.cor].filter(Boolean).join(" - ")}`);
 
   const apoio = (evento.itens_apoio || []).map(i => `${i.nome} (${i.quantidade})`);
 
@@ -1207,7 +1186,7 @@ function montarMateriaisRotaDetalhados(evento) {
   }
 
   (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).forEach((p, index) => {
-    const nome = typeof rtProdutoReservaParaTexto === "function" ? rtProdutoReservaParaTexto(p) : `🔄 R${p.codigo || ""}`;
+    const nome = typeof rtProdutoReservaParaTexto === "function" ? rtProdutoReservaParaTexto(p) : `Reserva - ${[p.codigo, p.categoria || p.tipo, p.tamanho, p.cor].filter(Boolean).join(" - ")}`;
     materiais.push({ tipo: "reserva", index, id: p.id, categoria: p.categoria || p.tipo || "", tamanho: p.tamanho || "", texto: nome });
   });
 
@@ -3088,7 +3067,7 @@ async function rtNotasCarregarNuvem() {
   try {
     const { data, error } = await supabaseClient
       .from("notas_rota")
-      .select("*")
+      .select("id,data_rota,carro,texto,endereco,ordem,criado_por,criado_em,atualizado_em")
       .order("data_rota", { ascending: true })
       .order("carro", { ascending: true })
       .order("ordem", { ascending: true });
@@ -3309,6 +3288,7 @@ function rtNotaLinhaHtml(nota) {
     <div class="rota-nota-linha" data-rota-nota-id="${rtHtml(nota.id)}" data-rota-nota-data="${rtHtml(nota.data || "")}" data-rota-nota-carro="${rtHtml(nota.carro || "")}"${dragAttrs}>
       <span class="rota-nota-texto">${icone} ${texto}${enderecoCurto}</span>
       ${admin ? `
+        <span class="rota-nota-mover"><button type="button" class="rota-nota-icon" title="Mover nota para cima" data-rota-nota-mover="${rtHtml(nota.id)}" data-direction="up">▲</button><button type="button" class="rota-nota-icon" title="Mover nota para baixo" data-rota-nota-mover="${rtHtml(nota.id)}" data-direction="down">▼</button></span>
         <button type="button" class="rota-nota-icon" title="Editar" data-rota-nota-editar="${rtHtml(nota.id)}">✏️</button>
         <button type="button" class="rota-nota-icon" title="Excluir" data-rota-nota-excluir="${rtHtml(nota.id)}">🗑️</button>
       ` : ""}
@@ -3489,6 +3469,18 @@ function rtAbrirGoogleMapsRotasComNotas(listaRotas, data, carro) {
   window.open(url, "_blank");
 }
 
+
+function rtOpcoesTrocaCarroGrupoHtml(carroAtual) {
+  const carros = ["Sem carro", ...carrosDisponiveisRotas()].filter((c, i, arr) => arr.indexOf(c) === i);
+  if (!carros.includes(carroAtual)) carros.push(carroAtual);
+  return carros.map(c => `<option value="${rtHtml(c)}"${c === carroAtual ? " selected" : ""}>${rtHtml(c)}</option>`).join("");
+}
+
+function rtSeletorTrocaCarroGrupoHtml(data, carro, classe = "rota-carro-titulo-select") {
+  if (!rotaUsuarioEhAdmin()) return rtHtml(carro);
+  return `<select class="${classe}" data-rota-trocar-data="${rtHtml(data)}" data-rota-trocar-carro="${rtHtml(carro)}" title="Trocar todos os eventos deste carro mantendo a ordem">${rtOpcoesTrocaCarroGrupoHtml(carro)}</select>`;
+}
+
 function renderizarRotas() {
   aplicarParametrosRotaLinkSeExistirem();
   const container = document.getElementById("rotasConteudo");
@@ -3528,7 +3520,7 @@ function renderizarRotas() {
           <div class="rota-carro">
             <div class="rota-carro-header rota-carro-header-maps">
               <div class="rota-carro-topo">
-                <h4>${carro}</h4>
+                <h4>${rtSeletorTrocaCarroGrupoHtml(data, carro)}</h4>
                 <div class="rota-carro-acoes">
                   ${rotaUsuarioEhAdmin() ? `<button type="button" class="btn-outline rota-nota-btn" data-rota-nota-data="${data}" data-rota-nota-carro="${carro}">+Nota</button>` : ""}
                   <button type="button" class="btn-outline rota-contador-btn" data-rota-contador-data="${data}" data-rota-contador-carro="${carro}">Contador</button>
@@ -3616,6 +3608,10 @@ function renderizarRotas() {
     btn.addEventListener("click", () => rtExcluirNotaRota(btn.dataset.rotaNotaExcluir));
   });
 
+  container.querySelectorAll("[data-rota-nota-mover]").forEach(btn => {
+    btn.addEventListener("click", () => rtMoverNotaRotaPasso(btn.dataset.rotaNotaMover, btn.dataset.direction));
+  });
+
   container.querySelectorAll("button[data-rota-move]").forEach(btn => {
     btn.addEventListener("click", () => {
       const data = btn.dataset.rotaData;
@@ -3670,6 +3666,15 @@ function renderizarRotas() {
     });
   });
 
+
+  container.querySelectorAll("select[data-rota-trocar-data]").forEach(select => {
+    select.addEventListener("change", () => {
+      const origem = select.dataset.rotaTrocarCarro;
+      const destino = select.value;
+      if (!destino || destino === origem) return;
+      rtTrocarCarroGrupo(select.dataset.rotaTrocarData, origem, destino);
+    });
+  });
 
   container.querySelectorAll("select[data-rota-carro]").forEach(select => {
     select.addEventListener("change", () => {
@@ -3813,7 +3818,7 @@ function rtRenderizarPainelOrganizarRotas(rotasFiltradas = []) {
           const grupoVazio = ordenadas.length ? "" : " grupo-vazio";
           return `
             <div class="rotas-organizador-grupo${grupoVazio}" data-org-grupo-data="${data}" data-org-grupo-carro="${carro}">
-              <h4><span>${carro} (${ordenadas.length})</span></h4>
+              <h4><span>${rtSeletorTrocaCarroGrupoHtml(data, carro, "rotas-organizador-carro-select")} (${ordenadas.length})</span></h4>
               <div class="rotas-organizador-dropzone ${ordenadas.length ? "" : "vazio"}" data-org-drop-data="${data}" data-org-drop-carro="${carro}">
                 ${rtRenderizarOrganizadorListaComNotas(ordenadas, data, carro)}
               </div>
@@ -3822,7 +3827,53 @@ function rtRenderizarPainelOrganizarRotas(rotasFiltradas = []) {
       </div>`;
   }).join("");
 
+  listaEl.querySelectorAll("select[data-rota-trocar-data]").forEach(select => {
+    select.addEventListener("change", () => {
+      const origem = select.dataset.rotaTrocarCarro;
+      const destino = select.value;
+      if (!destino || destino === origem) return;
+      rtTrocarCarroGrupo(select.dataset.rotaTrocarData, origem, destino);
+    });
+  });
   rtConfigurarPainelOrganizarEventos(listaEl);
+}
+
+function rtTrocarCarroGrupo(data, carroOrigem, destino) {
+  const todas = criarRotasDosEventos();
+  const grupo = ordenarRotasPorOrdemManual(
+    todas.filter(r => r.data === data && ((rotasCarros[String(r.id)] || "Sem carro") === carroOrigem))
+  );
+  if (!grupo.length) { alert("Não há eventos neste carro para transferir."); renderizarRotas(); return; }
+  if (!destino || destino === carroOrigem) return;
+  if (!confirm(`Mover todos os ${grupo.length} eventos de ${carroOrigem} para ${destino}?`)) { renderizarRotas(); return; }
+
+  const existentesDestino = ordenarRotasPorOrdemManual(
+    todas.filter(r => r.data === data && ((rotasCarros[String(r.id)] || "Sem carro") === destino))
+  );
+  const ordemFinal = [...existentesDestino, ...grupo];
+  grupo.forEach(rota => { rotasCarros[String(rota.id)] = destino; });
+  ordemFinal.forEach((rota, index) => { rotasOrdemManual[String(rota.id)] = index + 1; });
+
+  salvarRotasCarrosLocal();
+  salvarRotasOrdemManual();
+
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Rotas",
+      acao: "Carro da rota alterado em lote",
+      registro_id: `${data}:${carroOrigem}`,
+      registro_nome: `${carroOrigem} → ${destino}`,
+      antes: { data, carro: carroOrigem, quantidade: grupo.length },
+      depois: { data, carro: destino, quantidade: grupo.length }
+    });
+  }
+  renderizarRotas();
+}
+
+function rtAbrirTrocaCarroGrupo(data, carroOrigem) {
+  const destinos = ["Sem carro", ...carrosDisponiveisRotas()].filter((c, i, arr) => c !== carroOrigem && arr.indexOf(c) === i);
+  const destino = destinos[0];
+  if (destino) rtTrocarCarroGrupo(data, carroOrigem, destino);
 }
 
 function rtSalvarMovimentoOrganizador({ rotaId, data, carroOrigem, carroDestino, antesDeId = null }) {
@@ -4087,6 +4138,14 @@ function listaMateriaisRotas(listaRotas = []) {
       materiaisComCodigo.push(nome || "Produto com código");
     });
 
+    // Reservas também fazem parte da carga do carro e precisam aparecer no resumo superior.
+    (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).forEach(p => {
+      const nome = typeof rtProdutoReservaParaTexto === "function"
+        ? rtProdutoReservaParaTexto(p)
+        : `Reserva - ${[p.codigo, p.categoria || p.tipo, p.tamanho, p.cor].filter(Boolean).join(" - ")}`;
+      materiaisComCodigo.push(nome || "Reserva");
+    });
+
     // Materiais sem código, como materiais de apoio, são somados por nome.
     (evento.itens_apoio || []).forEach(item => {
       const nome = String(item.nome || "Item sem código").trim();
@@ -4274,16 +4333,6 @@ async function atualizarHorarioRotaEvento(rotaId, novoValor) {
 
   renderizarRotas();
 
-  if (!window.__rtRotasOperacaoSyncTimer) {
-    window.__rtRotasOperacaoSyncTimer = setInterval(() => {
-      const rotasAtiva = document.getElementById("rotasSection")?.classList.contains("active-section");
-      const ruaAtiva = document.getElementById("ruaMobileSection")?.classList.contains("active-section");
-      const produtosAtiva = document.getElementById("produtosSection")?.classList.contains("active-section");
-      if ((rotasAtiva || ruaAtiva || produtosAtiva) && !(typeof rtUsuarioEditandoOperacional === "function" && rtUsuarioEditandoOperacional())) {
-        sincronizarRotasOperacaoNuvem(true).catch(() => {});
-      }
-    }, 120000);
-  }
 }
 
 
@@ -5231,6 +5280,18 @@ function moverRotaParaIndice(rotaId, alvoId, listaRotas, inserirDepois = false) 
   });
 
   return salvarRotasOrdemManual();
+}
+
+function rtMoverNotaRotaPasso(notaId, direcao) {
+  const notas = rtNotasCarregar();
+  const nota = notas.find(n => String(n.id) === String(notaId));
+  if (!nota) return;
+  const delta = direcao === "up" ? -1 : 1;
+  nota.posicao = Math.max(0, Number(nota.posicao || 0) + delta);
+  nota.atualizadoEm = new Date().toISOString();
+  rtNotasSalvar(notas);
+  renderizarRotas();
+  if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
 }
 
 function rtMoverNotaRotaParaPosicao(notaId, data, carro, posicao) {

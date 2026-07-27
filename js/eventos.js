@@ -364,23 +364,46 @@ function aplicarTipoHorarioNoFormulario(prefixo, valorSalvo) {
   atualizarCampoHoraFinalOperacao(prefixo);
 }
 
-async function buscarEventosBanco() {
+let rtEventosCacheBanco = null;
+let rtEventosCacheBancoTs = 0;
+let rtEventosBuscaEmAndamento = null;
+const RT_EVENTOS_CACHE_TTL_MS = 90 * 1000;
+
+function rtInvalidarCacheEventosBanco() {
+  rtEventosCacheBanco = null;
+  rtEventosCacheBancoTs = 0;
+}
+window.rtInvalidarCacheEventosBanco = rtInvalidarCacheEventosBanco;
+
+async function buscarEventosBanco(forcarAtualizacao = false) {
   if (!supabaseClient) {
     return JSON.parse(localStorage.getItem(storageEventosKey) || "[]");
   }
 
-  const { data, error } = await supabaseClient
-    .from("eventos")
-    .select("*")
-    .order("data_evento", { ascending: true });
-
-  if (error) {
-    console.error("Erro Supabase ao buscar eventos:", error);
-    alert("Erro ao buscar eventos no Supabase: " + (error.message || ""));
-    return [];
+  if (!forcarAtualizacao && rtEventosCacheBanco && (Date.now() - rtEventosCacheBancoTs) < RT_EVENTOS_CACHE_TTL_MS) {
+    return rtEventosCacheBanco;
   }
+  if (!forcarAtualizacao && rtEventosBuscaEmAndamento) return rtEventosBuscaEmAndamento;
 
-  return data || [];
+  rtEventosBuscaEmAndamento = (async () => {
+    const { data, error } = await supabaseClient
+      .from("eventos")
+      .select("id,nome,documento,telefone,cliente_email,endereco,bairro,cidade,complemento,latitude,longitude,geocode_status,geocode_at,cliente_observacao,data_evento,hora_evento,hora_inicio,hora_termino,montagem_tipo,montagem,desmontagem_tipo,desmontagem,tendas,itens_apoio,produtos_extras,valor_total,valor_sinal,valor_restante,forma_pagamento,pagamento_quitado,assinatura_status,assinatura_link,assinatura_enviada_em,assinatura_realizada_em,status_evento,colaborador,criado_em,atualizado_em,tipo_evento,recorrente,recorrencia_grupo_id,recorrencia_tipo,recorrencia_dias,recorrencia_inicio,recorrencia_fim,recorrencia_ordem")
+      .order("data_evento", { ascending: true });
+
+    if (error) {
+      console.error("Erro Supabase ao buscar eventos:", error);
+      alert("Erro ao buscar eventos no Supabase: " + (error.message || ""));
+      return rtEventosCacheBanco || [];
+    }
+
+    rtEventosCacheBanco = data || [];
+    rtEventosCacheBancoTs = Date.now();
+    return rtEventosCacheBanco;
+  })();
+
+  try { return await rtEventosBuscaEmAndamento; }
+  finally { rtEventosBuscaEmAndamento = null; }
 }
 
 
@@ -643,6 +666,9 @@ async function salvarEventoBanco(evento) {
   // Localiza automaticamente ao salvar, sem exigir clique no botão Verificar Maps.
   await rtGeocodificarEventoAutomatico(evento, eventoAntesLog);
 
+  // Barreira final contra materiais repetidos, inclusive em dados antigos.
+  evento.tendas = rtRemoverProdutosDuplicadosEvento(evento.tendas);
+
   const eventoSupabase = {
     id: evento.id,
     nome: evento.nome || "",
@@ -719,6 +745,7 @@ async function salvarEventoBanco(evento) {
     try { await rtVincularOrcamentoEventoSePendente(data.id); } catch (e) { console.warn("Não foi possível vincular orçamento ao evento.", e); }
   }
 
+  rtInvalidarCacheEventosBanco();
   return data;
 }
 
@@ -735,6 +762,7 @@ async function excluirEventoBanco(id) {
   }
 
   const { error } = await supabaseClient.from("eventos").delete().eq("id", id);
+  if (!error) rtInvalidarCacheEventosBanco();
 
   if (error) {
     alert("Erro ao excluir evento: " + (error.message || ""));
@@ -915,10 +943,12 @@ async function garantirClienteDoEvento(evento) {
   let existente = null;
 
   if (Array.isArray(clientes)) {
+    // Nunca vincula/atualiza um cliente apenas pela coincidência do nome.
+    // Nomes curtos ou iguais são comuns e poderiam sobrescrever endereço e dados
+    // de outro cadastro. A vinculação automática só acontece por documento ou telefone.
     existente = clientes.find(c =>
       (documento && String(c.documento || "").trim() === documento) ||
-      (telefone && String(c.telefone || "").trim() === telefone) ||
-      (String(c.nome || "").toLowerCase() === String(evento.nome || "").toLowerCase())
+      (telefone && String(c.telefone || "").trim() === telefone)
     );
   }
 
@@ -1869,6 +1899,13 @@ function duplicarEventoAtual() {
 
 function fecharEventoModal() {
   document.getElementById("eventoDialog").close();
+  if (window.__rtEventoRetornoFinanceiro) {
+    setTimeout(() => {
+      if (typeof window.rtFinRestaurarRetornoEvento === "function") {
+        window.rtFinRestaurarRetornoEvento();
+      }
+    }, 30);
+  }
 }
 
 
@@ -2244,6 +2281,32 @@ function rtProdutoCompatAtalho(produto, tipo) {
   return false;
 }
 
+function rtChaveProdutoEvento(item) {
+  if (!item) return "";
+  const id = String(item.id || "").trim();
+  if (id) return `id:${id}`;
+  const codigo = String(item.codigo || "").trim().toLowerCase();
+  return codigo ? `codigo:${codigo}` : "";
+}
+
+function rtRemoverProdutosDuplicadosEvento(lista) {
+  const vistos = new Set();
+  return (Array.isArray(lista) ? lista : []).filter(item => {
+    const chave = rtChaveProdutoEvento(item);
+    if (!chave) return true;
+    if (vistos.has(chave)) return false;
+    vistos.add(chave);
+    return true;
+  });
+}
+
+function rtProdutoJaIncluidoEvento(item) {
+  const chave = rtChaveProdutoEvento(item);
+  if (!chave) return false;
+  return [...(produtosSelecionadosEventoAtual || []), ...(produtosReservaEventoAtual || [])]
+    .some(atual => rtChaveProdutoEvento(atual) === chave);
+}
+
 function rtAdicionarProdutoObjetoEvento(p, disponibilidadeTransito = null) {
   const item = {
     id: p.id,
@@ -2253,7 +2316,12 @@ function rtAdicionarProdutoObjetoEvento(p, disponibilidadeTransito = null) {
     cor: p.cor || ""
   };
   rtAplicarUsoEmTransitoProduto(item, disponibilidadeTransito);
+  if (rtProdutoJaIncluidoEvento(item)) {
+    alert(`O material ${item.codigo || "selecionado"} já foi adicionado a este evento.`);
+    return false;
+  }
   produtosSelecionadosEventoAtual.push(item);
+  return true;
 }
 
 
@@ -2637,9 +2705,15 @@ async function adicionarProdutoReservaAoEvento() {
     if (select) select.value = "";
     return;
   }
-  produtosReservaEventoAtual.push({
+  const itemReserva = {
     id: p.id, codigo: p.codigo || "", categoria: p.categoria || p.tipo || "", tipo: p.tipo || p.categoria || "", tamanho: p.tamanho || "", cor: p.cor || "", quantidade: 1, rt_tipo: "produto_reserva", produto_reserva: true, reserva_operacional: true
-  });
+  };
+  if (rtProdutoJaIncluidoEvento(itemReserva)) {
+    alert(`O material ${itemReserva.codigo || "selecionado"} já foi adicionado a este evento.`);
+    if (select) select.value = "";
+    return;
+  }
+  produtosReservaEventoAtual.push(itemReserva);
   if (select) select.value = "";
   popularSelectProdutosEvento();
   renderizarProdutosSelecionadosEvento();
@@ -3440,10 +3514,34 @@ function validarApoioDoEvento() {
   return true;
 }
 
+let rtEventoSalvamentoEmAndamento = false;
+
+function rtDefinirEstadoBotaoSalvarEvento(salvando) {
+  const form = document.getElementById("eventoForm");
+  const botao = form?.querySelector('.evento-save-actions button[type="submit"]') || form?.querySelector('button[type="submit"]');
+  if (!botao) return;
+  if (salvando) {
+    botao.dataset.textoOriginal = botao.textContent || "Salvar";
+    botao.disabled = true;
+    botao.setAttribute("aria-busy", "true");
+    botao.textContent = "Salvando…";
+  } else {
+    botao.disabled = false;
+    botao.removeAttribute("aria-busy");
+    botao.textContent = botao.dataset.textoOriginal || "Salvar";
+    delete botao.dataset.textoOriginal;
+  }
+}
+
 async function salvarEventoForm(event) {
   event.preventDefault();
+  if (rtEventoSalvamentoEmAndamento) return;
 
-  calcularRestanteEvento();
+  rtEventoSalvamentoEmAndamento = true;
+  rtDefinirEstadoBotaoSalvarEvento(true);
+
+  try {
+    calcularRestanteEvento();
 
   if (!(await validarProdutosDoEvento())) return;
   if (!validarApoioDoEvento()) return;
@@ -3568,6 +3666,10 @@ async function salvarEventoForm(event) {
   fecharEventoModal();
   normalizarOrdemEventosGlobal();
   renderizarEventos();
+  } finally {
+    rtEventoSalvamentoEmAndamento = false;
+    rtDefinirEstadoBotaoSalvarEvento(false);
+  }
 }
 
 function rtNormalizarBuscaEventos(valor) {
@@ -3766,7 +3868,7 @@ function rtStatusFinanceiroEvento(evento) {
       icone: '🟡',
       texto: 'Aguardando',
       titulo: 'Aguardando Confirmação',
-      linhaClasse: ''
+      linhaClasse: 'payment-awaiting'
     };
   }
 
@@ -3978,6 +4080,8 @@ function rtRecorrenciaAlertaHtml(evento) {
 let rtEventosAnterioresExpandidos = false;
 let rtPendenciasFinanceirasAnterioresExpandidas = true;
 let rtMateriaisEmCampoExpandidos = false;
+let rtRecorrentesAnterioresExpandidos = false;
+let rtRecorrentesDevedoresExpandidos = true;
 let rtEventosPrecisaPosicionarInicial = true;
 
 function rtHojeISOEventos() {
@@ -4170,6 +4274,39 @@ function rtAlternarEventosAnteriores() {
   setTimeout(rtRolarEventosParaInicioAtual, 0);
 }
 
+function rtLinhaEventoRecorrenteHtml(e) {
+  return `
+    <tr data-id="${e.id}" class="recurring-row ${rtLinhaPagamentoClasse(e)} evento-status-${rtStatusDataEvento(e.data_evento)} ${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? "evento-cancelado" : ""}">
+      <td class="rec-data-cell">${rtRecorrenciaPeriodoLinhaHtml(e)}</td>
+      <td>${periodoRecorrenciaTexto(e)}</td>
+      <td>${recorrenciaLabel(e.recorrencia_tipo, e.recorrencia_dias)}</td>
+      <td><button class="code-link" data-action="editar" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '<span class="evento-cancelado-badge">Cancelado</span> ' : ''}${rtRecorrenciaAlertaHtml(e)}${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
+      <td>${e.telefone || "-"}</td>
+      <td><div class="cell-scroll cell-endereco">${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(e) : e.endereco) || "-"}</div></td>
+      <td><div class="cell-scroll cell-produtos"><button class="product-list-button" data-action="editar-produtos" data-id="${e.id}">${resumoProdutosEvento(e)}</button></div></td>
+      <td>${dinheiro(e.valor_total)}</td>
+      <td class="pagamento-status-cell">${rtPagamentoEventoBadge(e)}</td>
+      <td class="assinatura-status-cell">${rtAssinaturaBadgeEvento(e)}</td>
+      <td>${e.colaborador || "-"}</td>
+      <td class="actions clientes-actions"><div class="clientes-actions-row"><button class="btn-mini" data-action="editar" data-id="${e.id}" title="Editar">✎</button><button class="btn-outline btn-atendimento-extra btn-mini" data-action="atendimento-extra" data-id="${e.id}" title="Gerenciar atendimentos extras">+</button><button class="btn-outline btn-mini" data-action="${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'reativar' : 'cancelar'}" data-id="${e.id}" title="${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'Reativar' : 'Cancelar'}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '↩' : '🚫'}</button></div></td>
+    </tr>`;
+}
+
+function rtLinhaControleRecorrentesAnterioresHtml(quantidade, expandido, buscaAtiva) {
+  if (!quantidade) return "";
+  const texto = buscaAtiva ? `Eventos recorrentes anteriores encontrados (${quantidade})` : (expandido ? `Ocultar eventos recorrentes anteriores (${quantidade})` : `Mostrar eventos recorrentes anteriores (${quantidade})`);
+  return `<tr class="rt-eventos-anteriores-controle-row"><td colspan="12"><button type="button" class="rt-eventos-anteriores-btn" data-rt-recorrentes-anteriores ${buscaAtiva ? 'disabled' : ''}><span>${expandido || buscaAtiva ? '▾' : '▸'}</span><strong>${texto}</strong></button></td></tr>`;
+}
+
+function rtLinhaRecorrentesDevedoresHtml(quantidade, expandido) {
+  if (!quantidade) return "";
+  const texto = expandido ? `Ocultar devedores recorrentes (${quantidade})` : `Mostrar devedores recorrentes (${quantidade})`;
+  return `<tr class="rt-pendencias-anteriores-controle-row"><td colspan="12"><button type="button" class="rt-pendencias-anteriores-btn" data-rt-recorrentes-devedores><span>${expandido ? '▾' : '▸'}</span><strong>⚠ ${texto}</strong></button></td></tr>`;
+}
+
+function rtAlternarRecorrentesAnteriores() { rtRecorrentesAnterioresExpandidos = !rtRecorrentesAnterioresExpandidos; renderizarEventos(); }
+function rtAlternarRecorrentesDevedores() { rtRecorrentesDevedoresExpandidos = !rtRecorrentesDevedoresExpandidos; renderizarEventos(); }
+
 function renderizarEventos() {
   normalizarOrdemEventosGlobal();
 
@@ -4250,30 +4387,27 @@ function renderizarEventos() {
     return;
   }
 
-  tbodyRec.innerHTML = recorrentes.map(e => `
-    <tr data-id="${e.id}" class="recurring-row ${rtLinhaPagamentoClasse(e)} evento-status-${rtStatusDataEvento(e.data_evento)} ${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? "evento-cancelado" : ""}">
-      <td class="rec-data-cell">${rtRecorrenciaPeriodoLinhaHtml(e)}</td>
-      <td>${periodoRecorrenciaTexto(e)}</td>
-      <td>${recorrenciaLabel(e.recorrencia_tipo, e.recorrencia_dias)}</td>
-      <td><button class="code-link" data-action="editar" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '<span class="evento-cancelado-badge">Cancelado</span> ' : ''}${rtRecorrenciaAlertaHtml(e)}${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
-      <td>${e.telefone || "-"}</td>
-      <td><div class="cell-scroll cell-endereco">${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(e) : e.endereco) || "-"}</div></td>
-      <td>
-        <div class="cell-scroll cell-produtos">
-          <button class="product-list-button" data-action="editar-produtos" data-id="${e.id}">
-            ${resumoProdutosEvento(e)}
-          </button>
-        </div>
-      </td>
-      <td>${dinheiro(e.valor_total)}</td>
-      <td class="pagamento-status-cell">${rtPagamentoEventoBadge(e)}</td>
-      <td class="assinatura-status-cell">${rtAssinaturaBadgeEvento(e)}</td>
-      <td>${e.colaborador || "-"}</td>
-      <td class="actions clientes-actions"><div class="clientes-actions-row"><button class="btn-mini" data-action="editar" data-id="${e.id}" title="Editar">✎</button><button class="btn-outline btn-atendimento-extra btn-mini" data-action="atendimento-extra" data-id="${e.id}" title="Gerenciar atendimentos extras">+</button><button class="btn-outline btn-mini" data-action="${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'reativar' : 'cancelar'}" data-id="${e.id}" title="${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? 'Reativar' : 'Cancelar'}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '↩' : '🚫'}</button></div></td>
-    </tr>
-  `).join("");
+  const hojeRec = rtHojeISOEventos();
+  const recorrentesAnteriores = recorrentes.filter(e => String(e.data_evento || "").slice(0, 10) < hojeRec);
+  const recorrentesAtuais = recorrentes.filter(e => String(e.data_evento || "").slice(0, 10) >= hojeRec);
+  const buscaRecAtiva = rtEventosTemFiltroAtivo() || String(document.getElementById("filtroRecorrentePagamento")?.value || "").trim() !== "";
+  const mostrarRecAnteriores = rtRecorrentesAnterioresExpandidos || buscaRecAtiva;
+  const recorrentesDevedores = recorrentesAnteriores.filter(rtEventoAnteriorDevedor);
+
+  const htmlDevedoresControle = (!mostrarRecAnteriores && recorrentesDevedores.length) ? rtLinhaRecorrentesDevedoresHtml(recorrentesDevedores.length, rtRecorrentesDevedoresExpandidos) : "";
+  const htmlDevedores = (!mostrarRecAnteriores && rtRecorrentesDevedoresExpandidos) ? recorrentesDevedores.map(rtLinhaEventoRecorrenteHtml).join("") : "";
+  const htmlRecAnteriores = mostrarRecAnteriores ? recorrentesAnteriores.map(rtLinhaEventoRecorrenteHtml).join("") : "";
+  const htmlRecControle = rtLinhaControleRecorrentesAnterioresHtml(recorrentesAnteriores.length, mostrarRecAnteriores, buscaRecAtiva);
+  const htmlRecAtuais = recorrentesAtuais.map(rtLinhaEventoRecorrenteHtml).join("");
+
+  tbodyRec.innerHTML = htmlDevedoresControle + htmlDevedores + htmlRecAnteriores + htmlRecControle + htmlRecAtuais;
+  if (!recorrentesAtuais.length && recorrentesAnteriores.length && !mostrarRecAnteriores) {
+    tbodyRec.innerHTML += `<tr><td colspan="12" class="empty">Não há eventos recorrentes a partir de hoje.</td></tr>`;
+  }
 
   tbodyRec.querySelectorAll("button[data-action]").forEach(btn => btn.addEventListener("click", lidarAcaoEvento));
+  tbodyRec.querySelector("[data-rt-recorrentes-anteriores]")?.addEventListener("click", rtAlternarRecorrentesAnteriores);
+  tbodyRec.querySelector("[data-rt-recorrentes-devedores]")?.addEventListener("click", rtAlternarRecorrentesDevedores);
   setTimeout(() => { if (typeof rtAplicarQuantidadeRecorrentesPorAltura === "function") rtAplicarQuantidadeRecorrentesPorAltura(); }, 0);
 }
 
@@ -6368,4 +6502,116 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener("DOMContentLoaded", () => setTimeout(window.rtInstalarQuantidadeRecorrentes, 400));
   document.addEventListener("click", () => setTimeout(window.rtInstalarQuantidadeRecorrentes, 200));
   setInterval(() => { try { window.rtInstalarQuantidadeRecorrentes(); } catch(e){} }, 1800);
+})();
+
+
+/* v19-dev: pasta única de documentos vinculada ao evento */
+(function(){
+  const KEY = 'novoRioTendasDocumentosEventosV1';
+  let filtro = 'todos';
+  function ler(){ try { const v=JSON.parse(localStorage.getItem(KEY)||'[]'); return Array.isArray(v)?v:[]; } catch(e){ return []; } }
+  function gravar(v){ localStorage.setItem(KEY, JSON.stringify(v)); }
+  function esc(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function eventoId(){ return String(document.getElementById('eventoId')?.value || '').trim(); }
+  function eventoData(){ return String(document.getElementById('eventoData')?.value || '').slice(0,10); }
+  function baseData(d){ return /^\d{4}-\d{2}-\d{2}$/.test(String(d||'')) ? String(d).replace(/-/g,'') : new Date().toISOString().slice(0,10).replace(/-/g,''); }
+  function statusLabel(s){ return ({em_aberto:'Em aberto',enviado:'Enviado',aprovado:'Aprovado',recusado:'Recusado',vencido:'Vencido',gerado:'Gerado'}[s]||s||'Gerado'); }
+  function orcamentosEvento(id){
+    const lista = Array.isArray(window.orcamentos) ? window.orcamentos : (typeof orcamentos !== 'undefined' && Array.isArray(orcamentos) ? orcamentos : []);
+    return lista.filter(o=>String(o.evento_id||'')===String(id));
+  }
+  function normalizarNumero(numero,data){
+    const n=String(numero||'');
+    if(/^\d{8}-\d{3}$/.test(n)) return n;
+    return `${baseData(data)}-${n.match(/(\d{3})$/)?.[1]||'001'}`;
+  }
+  function documentoNome(tipo,numero){ return `${tipo}-${numero}`; }
+  function proximoNumero(tipo,data,id){
+    const base=baseData(data);
+    const docs=ler().filter(d=>String(d.evento_id)===String(id) && d.tipo===tipo && String(d.numero||'').startsWith(base+'-'));
+    const max=docs.reduce((m,d)=>Math.max(m,Number(String(d.numero).split('-').pop())||0),0);
+    return `${base}-${String(max+1).padStart(3,'0')}`;
+  }
+  function numeroRelacionado(data,id){
+    const ors=orcamentosEvento(id).filter(o=>o.status==='aprovado').sort((a,b)=>String(b.atualizado_em||'').localeCompare(String(a.atualizado_em||'')));
+    if(ors[0]) return normalizarNumero(ors[0].numero, ors[0].data_evento||data);
+    const todos=orcamentosEvento(id).sort((a,b)=>String(b.atualizado_em||'').localeCompare(String(a.atualizado_em||'')));
+    return todos[0] ? normalizarNumero(todos[0].numero,todos[0].data_evento||data) : '';
+  }
+  function registrar(tipo, dados={}){
+    const id=String(dados.evento_id||eventoId()); if(!id) return null;
+    const data=dados.data_evento||eventoData();
+    let numero=dados.numero ? normalizarNumero(dados.numero,data) : '';
+    if(!numero && ['contrato','recibo'].includes(tipo)) numero=numeroRelacionado(data,id);
+    if(!numero) numero=proximoNumero(tipo,data,id);
+    const lista=ler();
+    const chave=dados.orcamento_id ? `orcamento:${dados.orcamento_id}` : `${tipo}:${id}:${numero}`;
+    const idx=lista.findIndex(d=>d.chave===chave);
+    const doc={chave,tipo,numero,nome:documentoNome(tipo,numero),evento_id:id,data_evento:data,status:dados.status||'gerado',orcamento_id:dados.orcamento_id||'',criado_em:idx>=0?lista[idx].criado_em:new Date().toISOString(),atualizado_em:new Date().toISOString()};
+    if(idx>=0) lista[idx]={...lista[idx],...doc}; else lista.push(doc);
+    gravar(lista); renderizar(); return doc;
+  }
+  function listar(){
+    const id=eventoId(); if(!id) return [];
+    const docs=ler().filter(d=>String(d.evento_id)===id);
+    // A guia de serviço é um documento nativo do evento e fica sempre disponível após salvar.
+    const dataGuia=eventoData();
+    const numeroGuia=`${baseData(dataGuia)}-001`;
+    const chaveGuia=`guia:${id}`;
+    if(!docs.some(d=>d.chave===chaveGuia)) docs.push({chave:chaveGuia,tipo:'guia',numero:numeroGuia,nome:documentoNome('guia',numeroGuia),evento_id:id,data_evento:dataGuia,status:'gerado',criado_em:'',atualizado_em:''});
+    orcamentosEvento(id).forEach(o=>{
+      const numero=normalizarNumero(o.numero,o.data_evento);
+      const chave=`orcamento:${o.id}`;
+      if(!docs.some(d=>d.chave===chave)) docs.push({chave,tipo:'orcamento',numero,nome:documentoNome('orcamento',numero),evento_id:id,data_evento:o.data_evento,status:o.status,orcamento_id:o.id,criado_em:o.criado_em,atualizado_em:o.atualizado_em});
+    });
+    return docs.filter(d=>filtro==='todos'||d.tipo===filtro).sort((a,b)=>String(b.atualizado_em||b.criado_em||'').localeCompare(String(a.atualizado_em||a.criado_em||'')));
+  }
+  async function abrir(doc){
+    if(doc.tipo==='orcamento'){
+      let lista=[];
+      try{lista=(typeof orcamentos!=='undefined'&&Array.isArray(orcamentos))?orcamentos:(Array.isArray(window.orcamentos)?window.orcamentos:[]);}catch(e){lista=Array.isArray(window.orcamentos)?window.orcamentos:[];}
+      let o=lista.find(x=>String(x.id)===String(doc.orcamento_id));
+      if(!o && typeof carregarOrcamentos==='function'){
+        try{const atualizados=await carregarOrcamentos(true);o=(atualizados||[]).find(x=>String(x.id)===String(doc.orcamento_id));}catch(e){console.warn('Falha ao carregar orçamento do documento:',e);}
+      }
+      const gerar=window.gerarPdfOrcamento||(typeof gerarPdfOrcamento==='function'?gerarPdfOrcamento:null);
+      if(o&&gerar){gerar(o);return;}
+      alert('Não foi possível carregar este orçamento. Abra a tela de Orçamentos e tente novamente.');return;
+    }
+    if(typeof rtDocEventoAbrir==='function') rtDocEventoAbrir(doc.tipo);
+  }
+  function renderizar(){
+    const area=document.getElementById('eventoDocumentosLista'); if(!area) return;
+    const id=eventoId();
+    if(!id){ area.innerHTML='<p class="empty">Salve o evento para começar a organizar seus documentos.</p>'; return; }
+    const lista=listar();
+    if(!lista.length){ area.innerHTML='<p class="empty">Nenhum documento salvo neste evento.</p>'; return; }
+    area.innerHTML=lista.map(d=>`<div class="evento-documento-item"><div class="evento-documento-nome"><strong>${esc(d.nome)}</strong><small>${esc(d.tipo.charAt(0).toUpperCase()+d.tipo.slice(1))} · evento ${esc((d.data_evento||'').split('-').reverse().join('/'))}</small></div><span class="evento-documento-status">${esc(statusLabel(d.status))}</span><div class="evento-documento-acoes"><button type="button" class="btn-outline btn-mini" data-doc-abrir="${esc(d.chave)}">Abrir</button><button type="button" class="btn-outline btn-mini danger" data-doc-apagar="${esc(d.chave)}">Apagar</button></div></div>`).join('');
+  }
+  async function tratarCliqueDocumento(ev){
+    const abrirBtn=ev.target.closest('[data-doc-abrir]');
+    const apagarBtn=ev.target.closest('[data-doc-apagar]');
+    const btn=abrirBtn||apagarBtn;if(!btn)return;
+    ev.preventDefault();ev.stopPropagation();
+    const chave=abrirBtn?.dataset.docAbrir||apagarBtn?.dataset.docApagar;
+    const d=listar().find(x=>String(x.chave)===String(chave))||ler().find(x=>String(x.chave)===String(chave));
+    if(!d)return alert('Documento não encontrado. Reabra o evento e tente novamente.');
+    if(abrirBtn){await abrir(d);return;}
+    if(!confirm(`Apagar ${d.nome}?`))return;
+    if(d.tipo==='orcamento'&&d.orcamento_id){
+      const excluir=window.rtOrcExcluirIds||(typeof rtOrcExcluirIds==='function'?rtOrcExcluirIds:null);
+      if(!excluir)return alert('Não foi possível acessar a exclusão do orçamento.');
+      const ok=await excluir([d.orcamento_id],{confirmar:false});
+      if(ok!==false){gravar(ler().filter(x=>x.chave!==d.chave));renderizar();}
+    }else{gravar(ler().filter(x=>x.chave!==d.chave));renderizar();}
+  }
+  window.rtEventoDocumentosRegistrarOrcamento=function(o){ if(!o||!o.evento_id)return; registrar('orcamento',{evento_id:o.evento_id,data_evento:o.data_evento,numero:o.numero,status:o.status,orcamento_id:o.id}); };
+  window.rtEventoDocumentosRenderizar=renderizar;
+  document.addEventListener('DOMContentLoaded',()=>{
+    document.querySelectorAll('[data-doc-evento-filtro]').forEach(b=>b.addEventListener('click',()=>{filtro=b.dataset.docEventoFiltro||'todos';document.querySelectorAll('[data-doc-evento-filtro]').forEach(x=>x.classList.toggle('active',x===b));renderizar();}));
+    const id=document.getElementById('eventoId'); if(id) new MutationObserver(renderizar).observe(id,{attributes:true,attributeFilter:['value']});
+    document.getElementById('eventoData')?.addEventListener('change',renderizar);
+    document.querySelectorAll('[data-editar-evento], #novoEventoBtn').forEach(b=>b.addEventListener('click',()=>setTimeout(renderizar,300)));
+    const area=document.getElementById('eventoDocumentosLista');if(area&&!area.dataset.rtDocDelegado){area.addEventListener('click',tratarCliqueDocumento);area.dataset.rtDocDelegado='1';}
+  });
 })();

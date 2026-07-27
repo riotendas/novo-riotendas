@@ -1020,18 +1020,16 @@ function iniciarRuaMobile() {
     if (typeof rtNotasSincronizarNuvem === "function") await rtNotasSincronizarNuvem(false);
     renderizarRuaMobile();
   }, 800);
-  // v19-dev: sincronização leve e segura. Não atualiza a tela enquanto alguém digita/edita/arrasta,
-  // evitando o bug antigo de a rota "voltar sozinha" durante alterações manuais.
+  // Fase 1 de Egress: app_config é sincronizado pelo rt-realtime-sync.js.
+  // Mantemos aqui somente as notas da rota como verificação de segurança, a cada 5 minutos.
   setInterval(async () => {
     const usuario = typeof getUsuarioLogado === "function" ? getUsuarioLogado() : null;
     const ruaAtiva = usuario?.perfil === "rua" || document.getElementById("ruaMobileSection")?.classList.contains("active-section");
     const editando = typeof window.rtUsuarioEditandoOperacional === "function" && window.rtUsuarioEditandoOperacional();
-    if (!ruaAtiva || editando) return;
-    if (typeof atualizarCarrosRotasDaNuvemSeNecessario === "function") await atualizarCarrosRotasDaNuvemSeNecessario();
-    if (typeof sincronizarRotasOperacaoNuvem === "function") await sincronizarRotasOperacaoNuvem(false);
+    if (document.visibilityState !== "visible" || !ruaAtiva || editando) return;
     if (typeof rtNotasSincronizarNuvem === "function") await rtNotasSincronizarNuvem(false);
     renderizarRuaMobile();
-  }, 60000);
+  }, 300000);
 }
 
 window.renderizarRuaMobile = renderizarRuaMobile;

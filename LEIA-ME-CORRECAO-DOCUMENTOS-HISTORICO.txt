@@ -1,0 +1,14 @@
+RIO TENDAS - ESTABILIZACAO: DOCUMENTOS E HISTORICO
+
+Correcoes desta versao:
+- botoes Abrir e Apagar da pasta de documentos do evento passaram a usar delegacao de clique estavel;
+- removida a remontagem automatica da lista que podia substituir os botoes durante o clique;
+- abertura de orcamento tenta recarregar o registro no Supabase quando ele nao estiver em memoria;
+- exclusao de orcamento nao exibe mais confirmacao duplicada;
+- falhas reais de exclusao no Supabase agora sao exibidas ao usuario e nao sao escondidas;
+- arquivos internos do orcamento tambem usam cliques estaveis;
+- historico de comunicacoes voltou a buscar o campo JSON depois e exibe titulo, nome do template, tipo, acao ou detalhes;
+- nenhuma funcionalidade nova foi adicionada.
+
+Versao:
+v19-dev-2026-07-27-estabilizacao-documentos-historico

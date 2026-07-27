@@ -435,12 +435,6 @@
       </div>
       <div class="mapa-toolbar panel">
         <input id="mapaDataBase" type="date" title="Data base do mapa" />
-        <select id="mapaPeriodo" title="Período do mapa">
-          <option value="1">Dia</option>
-          <option value="7" selected>7 dias</option>
-          <option value="15">15 dias</option>
-          <option value="30">30 dias</option>
-        </select>
         <input id="mapaBusca" type="search" placeholder="Buscar cliente, endereço, bairro, material ou carro..." />
         <select id="mapaFiltroStatus">
           <option value="na_rua" selected>Na rua</option>
@@ -542,50 +536,42 @@
 
       <div id="financeiroTabResumo" class="financeiro-tab-panel active" data-fin-panel="resumo">
         <div class="panel financeiro-competencia-panel">
-          <div class="section-header split compact">
-            <div>
-              <h3>Competência</h3>
-              <p class="hint">Escolha o mês/ano para calcular o resumo financeiro.</p>
-            </div>
-            <div class="filters-bar financeiro-filtros inline financeiro-competencia-controles">
-              <label>Mês
-                <select id="financeiroResumoMes">
-                  <option value="01">Janeiro</option>
-                  <option value="02">Fevereiro</option>
-                  <option value="03">Março</option>
-                  <option value="04">Abril</option>
-                  <option value="05">Maio</option>
-                  <option value="06">Junho</option>
-                  <option value="07">Julho</option>
-                  <option value="08">Agosto</option>
-                  <option value="09">Setembro</option>
-                  <option value="10">Outubro</option>
-                  <option value="11">Novembro</option>
-                  <option value="12">Dezembro</option>
-                </select>
-              </label>
-              <label>Ano
-                <input id="financeiroResumoAno" type="number" min="2020" max="2100" step="1">
-              </label>
-              <button type="button" id="financeiroMesAnteriorBtn" class="btn-outline">Mês anterior</button>
-              <button type="button" id="financeiroMesAtualBtn" class="btn-outline">Mês atual</button>
-              <button type="button" id="financeiroProximoMesBtn" class="btn-outline">Próximo mês</button>
-            </div>
+          <div class="filters-bar financeiro-filtros inline financeiro-competencia-controles">
+            <label>Mês
+              <select id="financeiroResumoMes">
+                <option value="01">Janeiro</option>
+                <option value="02">Fevereiro</option>
+                <option value="03">Março</option>
+                <option value="04">Abril</option>
+                <option value="05">Maio</option>
+                <option value="06">Junho</option>
+                <option value="07">Julho</option>
+                <option value="08">Agosto</option>
+                <option value="09">Setembro</option>
+                <option value="10">Outubro</option>
+                <option value="11">Novembro</option>
+                <option value="12">Dezembro</option>
+              </select>
+            </label>
+            <label>Ano
+              <input id="financeiroResumoAno" type="number" min="2020" max="2100" step="1">
+            </label>
+            <button type="button" id="financeiroMesAnteriorBtn" class="btn-outline">◀ Mês anterior</button>
+            <button type="button" id="financeiroMesAtualBtn" class="btn-primary financeiro-mes-atual-btn">📅 Mês atual</button>
+            <button type="button" id="financeiroProximoMesBtn" class="btn-outline">Próximo ▶</button>
           </div>
         </div>
-        <div class="cards-grid financeiro-cards">
+        <div class="cards-grid financeiro-cards financeiro-cards-resumo">
           <div class="dash-card"><span>Receita prevista</span><strong id="finReceitaPrevista">R$ 0,00</strong></div>
-          <div class="dash-card success"><span>Recebido no mês</span><strong id="finRecebidoMes">R$ 0,00</strong></div>
-          <div class="dash-card danger"><span>Faltante</span><strong id="finFaltanteMes">R$ 0,00</strong></div>
+          <div class="dash-card success"><span>Recebido</span><strong id="finRecebidoMes">R$ 0,00</strong></div>
           <div class="dash-card"><span>A receber</span><strong id="finAReceberMes">R$ 0,00</strong></div>
-          <div class="dash-card"><span>Sinais pendentes</span><strong id="finSinaisPendentes">R$ 0,00</strong></div>
-          <div class="dash-card"><span>Restantes pendentes</span><strong id="finRestantesPendentes">R$ 0,00</strong></div>
           <div class="dash-card success"><span>Eventos quitados</span><strong id="finEventosQuitados">0</strong></div>
-          <div class="dash-card danger"><span>Eventos pendentes</span><strong id="finEventosPendentes">0</strong></div>
+          <button type="button" class="dash-card danger rt-fin-resumo-acao" id="finEventosPendentesCard" title="Abrir eventos em atraso deste mês"><span>Eventos pendentes</span><strong id="finEventosPendentes">0</strong></button>
+          <button type="button" class="dash-card rt-fin-resumo-acao" id="finEventosFuturosCard" title="Abrir eventos futuros pendentes deste mês"><span>Eventos futuros pendentes</span><strong id="finEventosFuturos">0</strong></button>
         </div>
         <div class="panel">
           <h3>Resumo da fase 1</h3>
-          <p class="hint">Os valores são calculados automaticamente pelos eventos do mês/ano selecionado e pelo campo Forma de Pagamento. Pagamentos com data preenchida são considerados recebidos; Pix/Transf./Dep./Boleto conferido no banco fica validado na aba Conferência Bancária.</p>
+          <p class="hint">Os valores consideram somente os eventos do mês/ano selecionado. Receita prevista é a soma desses eventos; Recebido inclui todos os pagamentos já registrados para eles, mesmo que o sinal ou o restante tenham sido pagos em outro mês; A receber mostra o saldo ainda pendente desses mesmos eventos. Eventos pendentes mostra somente os eventos já ocorridos e ainda com pagamento em atraso. Eventos futuros pendentes mostra os eventos de hoje em diante que ainda possuem saldo a receber.</p>
         </div>
       </div>
 
@@ -603,6 +589,8 @@
                   <option value="hoje">Hoje</option>
                   <option value="7dias">Próximos 7 dias</option>
                   <option value="vencidos">Vencidos</option>
+                  <option value="atrasados_mes">Eventos pendentes do mês</option>
+                  <option value="futuros_mes">Eventos futuros pendentes do mês</option>
                 </select>
               </label>
             </div>
@@ -704,12 +692,11 @@
                     <th>Tipo</th>
                     <th>Status</th>
                     <th>Associação</th>
-                    <th>Obs.</th>
                     <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody id="financeiroExtratoSalvoTbody">
-                  <tr><td colspan="8" class="empty">Nenhum extrato salvo carregado.</td></tr>
+                  <tr><td colspan="7" class="empty">Nenhum extrato salvo carregado.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -1881,6 +1868,22 @@
         <div id="eventoExtrasSelecionados" class="selected-list extras-list"></div>
       </div>
 
+      <div class="subpanel evento-documentos-pasta" id="eventoDocumentosPanel">
+        <div class="evento-documentos-header">
+          <h3>Documentos</h3>
+          <div class="evento-documentos-filtros" role="group" aria-label="Filtrar documentos do evento">
+            <button type="button" class="btn-outline btn-mini active" data-doc-evento-filtro="todos">Todos</button>
+            <button type="button" class="btn-outline btn-mini" data-doc-evento-filtro="guia">Guias</button>
+            <button type="button" class="btn-outline btn-mini" data-doc-evento-filtro="orcamento">Orçamentos</button>
+            <button type="button" class="btn-outline btn-mini" data-doc-evento-filtro="contrato">Contratos</button>
+            <button type="button" class="btn-outline btn-mini" data-doc-evento-filtro="recibo">Recibos</button>
+          </div>
+        </div>
+        <div id="eventoDocumentosLista" class="evento-documentos-lista">
+          <p class="empty">Salve o evento para começar a organizar seus documentos.</p>
+        </div>
+      </div>
+
       <div class="modal-actions evento-modal-actions evento-rodape-documentos-final">
         <div class="evento-assinatura-compacta" title="Controle inicial do status da assinatura do contrato">
           <label class="assinatura-label-oculta">Assinatura
@@ -1892,12 +1895,6 @@
             </select>
           </label>
           <input id="eventoAssinaturaLink" type="url" placeholder="Link da assinatura" title="Link da assinatura digital, quando houver">
-        </div>
-        <div class="evento-doc-actions">
-          <button type="button" class="btn-outline btn-doc-evento" id="gerarGuiaServicoEvento" title="Gerar guia de serviço">📄 Guia</button>
-          <button type="button" class="btn-outline btn-doc-evento" id="gerarContratoEvento" title="Gerar contrato">📑 Cont.</button>
-          <button type="button" class="btn-outline btn-doc-evento" id="gerarReciboEvento" title="Gerar recibo">🧾 Rec.</button>
-          <button type="button" class="btn-outline btn-doc-evento" id="gerarOrcamentoEvento" title="Gerar orçamento">💰 Orç.</button>
         </div>
         <div class="evento-rodape-spacer"></div>
         <div class="evento-save-actions">
@@ -2191,10 +2188,8 @@
           <label>Total geral
             <input id="orcamentoValorTotal" class="money-input" type="text" readonly value="R$ 0,00">
           </label>
-          <label>Sinal
-            <input id="orcamentoValorSinal" class="money-input" type="text" inputmode="decimal" value="R$ 0,00">
-          </label>
-          <label>Restante
+          <input id="orcamentoValorSinal" type="hidden" value="R$ 0,00">
+          <label>Valor a pagar
             <input id="orcamentoValorRestante" class="money-input" type="text" readonly value="R$ 0,00">
           </label>
           <label>Forma de pagamento
@@ -2209,6 +2204,16 @@
         <label>Observações do orçamento
           <textarea id="orcamentoObservacoes" rows="3" placeholder="Ex: valor sujeito à disponibilidade, frete incluso, observação comercial..."></textarea>
         </label>
+      </div>
+
+      <div class="subpanel orcamento-documentos-panel">
+        <div class="section-header compact-header split">
+          <div>
+            <h3>Arquivos deste orçamento</h3>
+            <p class="hint">O PDF gerado fica registrado aqui. Você pode abrir, enviar pelo WhatsApp ou apagar.</p>
+          </div>
+        </div>
+        <div id="orcamentoDocumentosLista"><p class="empty">Salve ou gere o PDF para criar o primeiro arquivo.</p></div>
       </div>
 
       <div class="modal-actions evento-modal-actions" style="display:flex;justify-content:space-between;gap:10px;align-items:center;">
@@ -2301,7 +2306,7 @@
   <script src="js/calendario-nav-fix.js"></script>
   <script src="js/logs.js"></script>
   <script src="js/sync-produtos-disponibilidade.js"></script>
-  <script src="js/rt-realtime-sync.js?v=20260714-imediato-v2"></script>
+  <script src="js/rt-realtime-sync.js?v=20260727-fase1-sync-unica"></script>
   <script src="js/performance-safe.js"></script>
 
   <dialog id="previewImportarEventosDialog" class="modal large-modal import-preview-dialog">

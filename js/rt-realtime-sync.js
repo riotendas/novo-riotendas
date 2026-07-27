@@ -1,6 +1,6 @@
 // v19-dev: sincronização operacional imediata entre usuários + polling de segurança.
 (function () {
-  const RT_SYNC_VERSION = "v19-dev-2026-07-14-realtime-imediato-v2";
+  const RT_SYNC_VERSION = "v19-dev-2026-07-27-fase1-sync-unica";
   let iniciado = false;
   let timerDados = null;
   let timerPolling = null;
@@ -66,6 +66,7 @@
 
   async function sincronizarOperacionalAgora(forcar = false) {
     if (!moduloOperacionalAtivo() && !forcar) return;
+    if (!forcar && typeof window.rtUsuarioEditandoOperacional === "function" && window.rtUsuarioEditandoOperacional()) return;
     const agora = Date.now();
     if (!forcar && agora - ultimaExecucaoOperacional < 1200) return;
     ultimaExecucaoOperacional = agora;
@@ -133,7 +134,7 @@
     clearInterval(timerPolling);
     timerPolling = setInterval(() => {
       if (document.visibilityState === "visible" && moduloOperacionalAtivo()) sincronizarOperacionalAgora();
-    }, 2500);
+    }, 300000);
   }
 
   function iniciar() {
@@ -143,8 +144,8 @@
     if (typeof supabaseClient !== "undefined" && supabaseClient && supabaseClient.channel) {
       supabaseClient
         .channel("riotendas-operacional-imediato-v2")
-        .on("postgres_changes", { event: "*", schema: "public", table: "eventos" }, agendarDados)
-        .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, agendarDados)
+        // Eventos e produtos não disparam mais recarga completa automática.
+        // Isso evita baixar tabelas inteiras a cada pequena alteração e reduz fortemente o Egress.
         .on("postgres_changes", { event: "*", schema: "public", table: "app_config" }, aoMudarAppConfig)
         .subscribe(status => {
           if (status === "SUBSCRIBED") {
@@ -154,9 +155,9 @@
         });
     }
     iniciarPolling();
-    window.addEventListener("focus", () => sincronizarOperacionalAgora(true));
+    window.addEventListener("focus", () => sincronizarOperacionalAgora(false));
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") sincronizarOperacionalAgora(true);
+      if (document.visibilityState === "visible") sincronizarOperacionalAgora(false);
     });
   }
 

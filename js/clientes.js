@@ -2,20 +2,36 @@
 let clientes = [];
 const storageClientesKey = "novoRioTendasClientesV2";
 
-async function buscarClientesBanco() {
+let rtClientesCacheBanco = null;
+let rtClientesCacheBancoTs = 0;
+let rtClientesBuscaEmAndamento = null;
+const RT_CLIENTES_CACHE_TTL_MS = 5 * 60 * 1000;
+function rtInvalidarCacheClientesBanco(){ rtClientesCacheBanco = null; rtClientesCacheBancoTs = 0; }
+window.rtInvalidarCacheClientesBanco = rtInvalidarCacheClientesBanco;
+
+async function buscarClientesBanco(forcarAtualizacao = false) {
   if (!supabaseClient) return JSON.parse(localStorage.getItem(storageClientesKey) || "[]");
 
-  const { data, error } = await supabaseClient
-    .from("clientes_cadastro")
-    .select("*")
-    .order("nome", { ascending: true });
+  if (!forcarAtualizacao && rtClientesCacheBanco && (Date.now() - rtClientesCacheBancoTs) < RT_CLIENTES_CACHE_TTL_MS) return rtClientesCacheBanco;
+  if (!forcarAtualizacao && rtClientesBuscaEmAndamento) return rtClientesBuscaEmAndamento;
 
-  if (error) {
-    console.error(error);
-    alert("Erro ao buscar clientes no Supabase: " + (error.message || ""));
-    return [];
-  }
-  return data || [];
+  rtClientesBuscaEmAndamento = (async () => {
+    const { data, error } = await supabaseClient
+      .from("clientes_cadastro")
+      .select("id,nome,documento,telefone,email,endereco,bairro,cidade,complemento,observacao_cliente,observacao_interna,perfil_cliente,colaborador,criado_em")
+      .order("nome", { ascending: true });
+
+    if (error) {
+      console.error(error);
+      alert("Erro ao buscar clientes no Supabase: " + (error.message || ""));
+      return rtClientesCacheBanco || [];
+    }
+    rtClientesCacheBanco = data || [];
+    rtClientesCacheBancoTs = Date.now();
+    return rtClientesCacheBanco;
+  })();
+  try { return await rtClientesBuscaEmAndamento; }
+  finally { rtClientesBuscaEmAndamento = null; }
 }
 
 async function salvarClienteBanco(cliente) {
@@ -38,6 +54,7 @@ async function salvarClienteBanco(cliente) {
     alert("Erro ao salvar cliente no Supabase: " + (error.message || ""));
     return null;
   }
+  rtInvalidarCacheClientesBanco();
   return data;
 }
 
@@ -49,6 +66,7 @@ async function excluirClienteBanco(id) {
   }
 
   const { error } = await supabaseClient.from("clientes_cadastro").delete().eq("id", id);
+  if (!error) rtInvalidarCacheClientesBanco();
   if (error) {
     alert("Erro ao excluir cliente: " + (error.message || ""));
     return false;

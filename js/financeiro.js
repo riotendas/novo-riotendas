@@ -552,7 +552,7 @@ async function rtFinCarregarExtratoSalvo() {
         const fim = ini + pageSize - 1;
         const { data, error } = await supabaseClient
           .from("extrato_bancario_linhas")
-          .select("*")
+          .select("id,fingerprint,data_lancamento,descricao,linha_original,valor,valor_assinado,tipo,status,cliente_nome,evento_id,evento_data,tipo_pagamento,valor_associado,sugestao_json,observacao,origem,colaborador,criado_em,atualizado_em")
           .order("data_lancamento", { ascending: true })
           .order("criado_em", { ascending: true })
           .range(ini, fim);
@@ -801,8 +801,161 @@ function rtFinRenderSelectAssociacao(id, opcoes, selecionado = "", indice = 0) {
       <option value="">Selecionar evento/pagamento...</option>
       ${opts}
     </select>
+    <button type="button" class="btn-mini btn-outline fin-ext-cliente-info" title="Ver dados do cliente selecionado" aria-label="Ver dados do cliente selecionado" data-ext-cliente-info="${rtFinEscapeHtml(id)}" ${selecionado ? "" : "disabled"}>👤</button>
     ${indice > 0 ? `<button type="button" class="btn-mini btn-outline" title="Remover este evento" data-ext-remover-assoc="${rtFinEscapeHtml(id)}">✖</button>` : ""}
   </div>`;
+}
+
+function rtFinTelefoneSomenteNumeros(valor) {
+  return String(valor || "").replace(/\D/g, "");
+}
+
+function rtFinEventoPorId(eventoId) {
+  return rtFinEventosLista().find(e => String(e.id || e._id || "") === String(eventoId || "")) || null;
+}
+
+async function rtFinBuscarClienteCadastro(opcao, evento) {
+  const nomeAlvo = rtFinNormalizarTextoBusca(opcao?.cliente || evento?.nome || evento?.cliente || "");
+  const telAlvo = rtFinTelefoneSomenteNumeros(evento?.telefone || "");
+  let lista = [];
+  try {
+    if (typeof clientes !== "undefined" && Array.isArray(clientes) && clientes.length) lista = clientes;
+  } catch (e) {}
+  if (!lista.length) {
+    try {
+      if (rtFinSupabaseDisponivel()) {
+        const { data, error } = await supabaseClient.from("clientes_cadastro").select("id,nome,documento,telefone,email,endereco,bairro,cidade,complemento,observacao_cliente,observacao_interna,perfil_cliente,criado_em");
+        if (!error && Array.isArray(data)) lista = data;
+      } else {
+        lista = JSON.parse(localStorage.getItem("novoRioTendasClientesV2") || "[]");
+      }
+    } catch (e) { lista = []; }
+  }
+  return lista.find(c => {
+    const nome = rtFinNormalizarTextoBusca(c?.nome || "");
+    const tel = rtFinTelefoneSomenteNumeros(c?.telefone || "");
+    return (telAlvo && tel && (tel === telAlvo || tel.endsWith(telAlvo) || telAlvo.endsWith(tel))) || (nomeAlvo && nome === nomeAlvo);
+  }) || null;
+}
+
+function rtFinEnderecoClienteResumo(cliente, evento) {
+  const partes = [cliente?.endereco, cliente?.bairro, cliente?.cidade, cliente?.complemento].map(v => String(v || "").trim()).filter(Boolean);
+  return partes.join(" · ") || evento?.endereco || evento?.local || "Não informado";
+}
+
+function rtFinGarantirModalClienteResumo() {
+  let dlg = document.getElementById("finClienteResumoDialog");
+  if (dlg) return dlg;
+  dlg = document.createElement("dialog");
+  dlg.id = "finClienteResumoDialog";
+  dlg.className = "fin-cliente-resumo-dialog";
+  dlg.innerHTML = `<div class="fin-cliente-resumo-card">
+    <div class="fin-cliente-resumo-head"><strong>Dados do cliente</strong><button type="button" class="btn-mini btn-outline" data-fin-cliente-fechar>✖</button></div>
+    <div data-fin-cliente-conteudo></div>
+  </div>`;
+  document.body.appendChild(dlg);
+  dlg.querySelector("[data-fin-cliente-fechar]")?.addEventListener("click", () => dlg.close());
+  dlg.addEventListener("click", ev => { if (ev.target === dlg) dlg.close(); });
+  return dlg;
+}
+
+async function rtFinAbrirResumoClienteEvento(eventoId, opcaoBase = {}) {
+  const evento = rtFinEventoPorId(eventoId);
+  if (!evento) return;
+  const opcao = {
+    evento_id: eventoId,
+    cliente: opcaoBase.cliente || evento?.nome || evento?.cliente || "Cliente",
+    data_evento: opcaoBase.data_evento || evento?.data_evento || evento?.data || "",
+    ...opcaoBase
+  };
+  const cliente = await rtFinBuscarClienteCadastro(opcao, evento);
+  const telefone = cliente?.telefone || evento?.telefone || "Não informado";
+  const obs = [cliente?.observacao_cliente, cliente?.observacao_interna].map(v => String(v || "").trim()).filter(Boolean).join(" · ");
+  const dataEvento = rtFinDataBR(evento?.data_evento || evento?.data || opcao.data_evento || "");
+  const ultimos = rtFinanceiroExtratoSalvo.filter(l => String(l.status || "") === "associado" && rtFinAssociacoesLinhaExtrato(l).some(a => String(a.evento_id || "") === String(eventoId || ""))).slice().sort((a,b) => String(b.data_lancamento || "").localeCompare(String(a.data_lancamento || ""))).slice(0,3);
+  const pagamentos = ultimos.length ? ultimos.map(l => `<div class="fin-cliente-resumo-pag"><span>${rtFinDataBR(l.data_lancamento)}</span><strong>${rtFinMoeda(Math.abs(Number(l.valor_assinado ?? l.valor ?? 0)))}</strong>${l.observacao ? `<small>${rtFinEscapeHtml(l.observacao)}</small>` : ""}</div>`).join("") : `<span class="muted">Nenhum pagamento anterior localizado.</span>`;
+  const valorTotal = Number(evento?.valor_total || 0);
+  const valorSinal = Number(evento?.valor_sinal || 0);
+  const valorRestante = Number(evento?.valor_restante || 0);
+  const formaPagamento = String(evento?.forma_pagamento || "").trim() || "Não informada";
+  const situacaoFinanceira = evento?.pagamento_quitado || valorRestante <= 0.009
+    ? "Quitado"
+    : (valorSinal > 0 ? "Sinal informado / saldo pendente" : "Aguardando sinal");
+  const dlg = rtFinGarantirModalClienteResumo();
+  const conteudo = dlg.querySelector("[data-fin-cliente-conteudo]");
+  conteudo.innerHTML = `
+    <h3>${rtFinEscapeHtml(cliente?.nome || opcao.cliente || evento?.nome || "Cliente")}</h3>
+    <div class="fin-cliente-resumo-grid">
+      <div><span>Telefone</span><button type="button" class="fin-cliente-copiar" data-fin-copiar-telefone="${rtFinEscapeHtml(telefone)}" title="Copiar telefone">${rtFinEscapeHtml(telefone)} 📋</button></div>
+      <div><span>Evento selecionado</span><strong>${rtFinEscapeHtml(dataEvento || "Não informado")}</strong></div>
+      <div class="span-2"><span>Endereço</span><strong>${rtFinEscapeHtml(rtFinEnderecoClienteResumo(cliente, evento))}</strong></div>
+      ${obs ? `<div class="span-2"><span>Observações do cadastro</span><strong>${rtFinEscapeHtml(obs)}</strong></div>` : ""}
+      <div class="span-2 fin-cliente-financeiro"><span>Financeiro deste evento</span>
+        <div class="fin-cliente-financeiro-grid">
+          <div><small>Valor total</small><strong>${rtFinMoeda(valorTotal)}</strong></div>
+          <div><small>Sinal</small><strong>${rtFinMoeda(valorSinal)}</strong></div>
+          <div><small>Saldo restante</small><strong>${rtFinMoeda(valorRestante)}</strong></div>
+          <div><small>Situação</small><strong>${rtFinEscapeHtml(situacaoFinanceira)}</strong></div>
+          <div class="span-2"><small>Forma de pagamento</small><strong>${rtFinEscapeHtml(formaPagamento)}</strong></div>
+        </div>
+        <button type="button" class="btn-outline fin-cliente-abrir-evento" data-fin-abrir-evento="${rtFinEscapeHtml(eventoId || "")}">Abrir evento completo</button>
+      </div>
+      <div class="span-2"><span>Últimos pagamentos associados</span><div class="fin-cliente-resumo-pags">${pagamentos}</div></div>
+    </div>`;
+  conteudo.querySelector("[data-fin-copiar-telefone]")?.addEventListener("click", async ev => {
+    const valor = ev.currentTarget.dataset.finCopiarTelefone || "";
+    try { await navigator.clipboard.writeText(valor); ev.currentTarget.textContent = `${valor} ✓ Copiado`; setTimeout(() => { ev.currentTarget.textContent = `${valor} 📋`; }, 1400); }
+    catch (e) { prompt("Copie o telefone:", valor); }
+  });
+  conteudo.querySelector("[data-fin-abrir-evento]")?.addEventListener("click", ev => {
+    const id = ev.currentTarget.dataset.finAbrirEvento || "";
+    if (!id) return;
+
+    const painelAtivo = document.querySelector('.financeiro-tab-panel.active[data-fin-panel]');
+    const estadoCampos = {};
+    [
+      "financeiroExtratoBuscaSalvos",
+      "financeiroBusca",
+      "financeiroFiltroStatus",
+      "financeiroReceberFiltro"
+    ].forEach(campoId => {
+      const campo = document.getElementById(campoId);
+      if (campo) estadoCampos[campoId] = campo.value;
+    });
+
+    const scrolls = {};
+    document.querySelectorAll('#financeiroSection .table-wrapper, #financeiroSection [data-fin-panel]').forEach((el, idx) => {
+      if (el.scrollTop || el.scrollLeft) scrolls[idx] = { top: el.scrollTop, left: el.scrollLeft };
+    });
+
+    window.__rtEventoRetornoFinanceiro = {
+      aba: painelAtivo?.dataset.finPanel || "resumo",
+      campos: estadoCampos,
+      scrollY: window.scrollY || 0,
+      scrolls,
+      auditoriaFiltro: typeof rtFinanceiroAuditoriaFiltro !== "undefined" ? rtFinanceiroAuditoriaFiltro : "pendentes",
+      extratoFiltro: typeof rtFinanceiroExtratoFiltro !== "undefined" ? rtFinanceiroExtratoFiltro : "pendentes"
+    };
+
+    dlg.close();
+    const aba = document.querySelector('.tab-btn[data-section="eventosSection"]');
+    if (aba) aba.click();
+    setTimeout(() => {
+      if (typeof abrirEditarEvento === "function") abrirEditarEvento(id);
+    }, 80);
+  });
+  if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "open");
+}
+
+async function rtFinAbrirResumoClienteAssociacao(id, botao) {
+  const linha = rtFinanceiroExtratoSalvo.find(l => String(l.id || l.fingerprint) === String(id));
+  const row = botao?.closest("[data-ext-assoc-row]");
+  const select = row?.querySelector("select[data-ext-assoc]");
+  if (!linha || !select?.value) return;
+  const opcoes = rtFinOpcoesPagamentoEventos(rtFinItemExtratoDeLinhaSalva(linha));
+  const opcao = opcoes.find(o => o.key === select.value || o.legacy_key === select.value);
+  if (!opcao) return;
+  await rtFinAbrirResumoClienteEvento(opcao.evento_id, opcao);
 }
 
 function rtFinResumoAssociacaoMultipla(linha) {
@@ -984,7 +1137,7 @@ function rtFinRenderPagamentosNaoLocalizados() {
       <td>${rtFinMoeda(r.valor)}</td>
       <td>${rtFinEscapeHtml(r.tipo)}</td>
       <td title="${formaCompleta}"><span class="fin-forma-chip">${rtFinEscapeHtml(formaCurta)}</span></td>
-      <td><strong>${rtFinEscapeHtml(r.cliente)}</strong><div class="financeiro-registro"><span>Evento ${rtFinDataBR(r.data_evento)} · ${rtFinEscapeHtml(r.evento_descricao || "-")}</span></div></td>
+      <td><div class="fin-audit-cliente-linha"><strong>${rtFinEscapeHtml(r.cliente)}</strong><button type="button" class="btn-mini btn-outline fin-audit-cliente-info" title="Ver dados do cliente e do evento" aria-label="Ver dados do cliente e do evento" data-audit-cliente-info="${rtFinEscapeHtml(r.evento_id || "")}">👤</button></div><div class="financeiro-registro"><span>Evento ${rtFinDataBR(r.data_evento)} · ${rtFinEscapeHtml(r.evento_descricao || "-")}</span></div></td>
       <td colspan="2">
         <div class="financeiro-auditoria-linha-controle">
           <input class="fin-audit-obs" data-audit-obs="${rtFinEscapeHtml(r.id)}" value="${rtFinEscapeHtml(st.observacao || "")}" placeholder="observação">
@@ -1000,6 +1153,7 @@ function rtFinRenderPagamentosNaoLocalizados() {
   }).join("");
   tbody.querySelectorAll("[data-audit-marcar]").forEach(btn => btn.addEventListener("click", () => rtFinMarcarAuditoriaPagamento(btn.dataset.auditId, btn.dataset.auditMarcar)));
   tbody.querySelectorAll("[data-audit-limpar]").forEach(btn => btn.addEventListener("click", () => rtFinLimparAuditoriaPagamento(btn.dataset.auditLimpar)));
+  tbody.querySelectorAll("[data-audit-cliente-info]").forEach(btn => btn.addEventListener("click", () => rtFinAbrirResumoClienteEvento(btn.dataset.auditClienteInfo)));
 }
 
 function rtFinGrupoFiltroExtrato(linha) {
@@ -1114,7 +1268,13 @@ function rtFinRenderExtratoSalvo() {
         <div class="financeiro-registro fin-ext-assoc-total" data-ext-assoc-total="${rtFinEscapeHtml(id)}"><span>Calculando...</span></div>
         ${sugestaoCombo ? `<div class="financeiro-registro fin-ext-combo-sug"><span>💡 ${comboAutoSelecionado ? "Autoassociado: " : "Sugestão: "}${sugestaoCombo.associacoes.length} eventos · ${rtFinMoeda(sugestaoCombo.total)} (${sugestaoCombo.confianca}%)</span></div>` : (sugestao && sugestao.evento_id ? `<div class="financeiro-registro fin-ext-combo-sug"><span>💡 ${rtFinEscapeHtml(sugestao.cliente || "")} · ${rtFinEscapeHtml(sugestao.tipo_pagamento || "")} · ${rtFinMoeda(sugestao.valor_esperado || 0)} (${sugestao.confianca || 0}%)</span></div>` : "")}
       </div>
-    ` : (String(l.status || "") === "associado" ? (rtFinResumoAssociacaoMultipla(l) || `<span class="muted">Associado</span>`) : `<span class="muted">${tipo === "rendimento" ? "Rendimento bancário" : (tipo === "cartao" ? "Cartão/Rede ou outro crédito" : (tipo === "outro" ? "Outro crédito" : "Não vincular"))}</span>`);
+    ` : (() => {
+      const resumoBase = String(l.status || "") === "associado"
+        ? (rtFinResumoAssociacaoMultipla(l) || `<span class="muted">Associado</span>`)
+        : `<span class="muted">${tipo === "rendimento" ? "Rendimento bancário" : (tipo === "cartao" ? "Cartão/Rede ou outro crédito" : (tipo === "outro" ? "Outro crédito" : "Não vincular"))}</span>`;
+      const obsSalva = String(l.observacao || "").trim();
+      return `${resumoBase}${obsSalva ? `<span class="fin-ext-obs-inline" title="${rtFinEscapeHtml(obsSalva)}"> — <strong>Obs.:</strong> ${rtFinEscapeHtml(obsSalva)}</span>` : ""}`;
+    })();
     return `<tr class="financeiro-status-${l.status || "pendente"}">
       <td>${rtFinDataBR(l.data_lancamento)}</td>
       <td><strong>${rtFinEscapeHtml(l.descricao || l.linha_original || "")}</strong></td>
@@ -1122,7 +1282,6 @@ function rtFinRenderExtratoSalvo() {
       <td>${rtFinTipoExtratoTexto(tipo)}</td>
       <td><span class="financeiro-status-badge">${rtFinStatusLinhaExtrato(l)}</span></td>
       <td>${assoc}</td>
-      <td class="fin-ext-obs-td"></td>
       <td class="financeiro-acoes fin-ext-acoes-grid ${podeVincular ? "fin-ext-acoes-pendentes" : "fin-ext-acoes-compacta"}">
         ${podeVincular ? `<button type="button" class="btn-mini btn-outline fin-ext-save-action" data-ext-salvar-assoc="${rtFinEscapeHtml(id)}">Salvar associação</button>` : ""}
         <button type="button" class="btn-mini btn-outline fin-ext-action-pendente" data-ext-marcar="pendente" data-ext-id="${rtFinEscapeHtml(id)}">${podeVincular ? "Pendente" : "Pend."}</button>
@@ -1134,7 +1293,12 @@ function rtFinRenderExtratoSalvo() {
   }).join("");
 
   tbody.querySelectorAll("[data-ext-salvar-assoc]").forEach(btn => btn.addEventListener("click", () => rtFinSalvarAssociacaoExtrato(btn.dataset.extSalvarAssoc)));
-  tbody.querySelectorAll("select[data-ext-assoc]").forEach(sel => sel.addEventListener("change", () => rtFinAtualizarResumoAssociacaoLinha(sel.dataset.extAssoc)));
+  tbody.querySelectorAll("select[data-ext-assoc]").forEach(sel => sel.addEventListener("change", () => {
+    rtFinAtualizarResumoAssociacaoLinha(sel.dataset.extAssoc);
+    const info = sel.closest("[data-ext-assoc-row]")?.querySelector("[data-ext-cliente-info]");
+    if (info) info.disabled = !sel.value;
+  }));
+  tbody.querySelectorAll("[data-ext-cliente-info]").forEach(btn => btn.addEventListener("click", () => rtFinAbrirResumoClienteAssociacao(btn.dataset.extClienteInfo, btn)));
   tbody.querySelectorAll("[data-ext-add-assoc]").forEach(btn => btn.addEventListener("click", () => {
     const id = btn.dataset.extAddAssoc;
     const linha = rtFinanceiroExtratoSalvo.find(l => String(l.id || l.fingerprint) === String(id));
@@ -1142,7 +1306,12 @@ function rtFinRenderExtratoSalvo() {
     if (!linha || !lista) return;
     const opcoes = rtFinOpcoesPagamentoEventos(rtFinItemExtratoDeLinhaSalva(linha));
     lista.insertAdjacentHTML("beforeend", rtFinRenderSelectAssociacao(id, opcoes, "", lista.querySelectorAll("select").length));
-    lista.querySelectorAll("select[data-ext-assoc]").forEach(sel => sel.onchange = () => rtFinAtualizarResumoAssociacaoLinha(id));
+    lista.querySelectorAll("select[data-ext-assoc]").forEach(sel => sel.onchange = () => {
+      rtFinAtualizarResumoAssociacaoLinha(id);
+      const info = sel.closest("[data-ext-assoc-row]")?.querySelector("[data-ext-cliente-info]");
+      if (info) info.disabled = !sel.value;
+    });
+    lista.querySelectorAll("[data-ext-cliente-info]").forEach(b => b.onclick = () => rtFinAbrirResumoClienteAssociacao(b.dataset.extClienteInfo, b));
     lista.querySelectorAll("[data-ext-remover-assoc]").forEach(b => b.onclick = () => { b.closest("[data-ext-assoc-row]")?.remove(); rtFinAtualizarResumoAssociacaoLinha(id); });
     rtFinAtualizarResumoAssociacaoLinha(id);
   }));
@@ -1978,65 +2147,73 @@ function rtFinAtualizarResumo() {
   const eventosLista = rtFinEventosLista();
   const comp = rtFinCompetenciaAtual();
   let receitaPrevista = 0;
-  let recebidoMes = 0;
+  let recebido = 0;
   let aReceber = 0;
-  let sinaisPendentes = 0;
-  let restantesPendentes = 0;
   let eventosQuitados = 0;
   let eventosPendentes = 0;
+  let eventosFuturos = 0;
+  const hoje = rtFinDataHojeISO();
 
   eventosLista.forEach(evento => {
     const dataEvento = rtFinDataISOEvento(evento);
+    if (!rtFinMesmoMes(dataEvento, comp.ano, comp.mes)) return;
+
     const pagamentos = rtFinExtrairTodosPagamentosEvento(evento);
-    const pagamentoNoMes = pagamentos.some(p => rtFinMesmoMes(p.data, comp.ano, comp.mes));
-    const eventoNoMes = rtFinMesmoMes(dataEvento, comp.ano, comp.mes);
-
-    // O resumo da competência considera eventos do mês selecionado e também pagamentos recebidos naquele mês.
-    if (!eventoNoMes && !pagamentoNoMes) return;
-
-    const temPgTotal = pagamentos.some(p => p.tipo === "Pg Total");
-    const temSinal = temPgTotal || pagamentos.some(p => p.tipo === "Sinal");
-    const temRestante = temPgTotal || pagamentos.some(p => p.tipo === "Restante");
     const valorTotal = rtFinTipoValor(evento, "Pg Total");
     const valorSinal = rtFinTipoValor(evento, "Sinal");
     const valorRestante = rtFinTipoValor(evento, "Restante");
     const totalPrevistoEvento = valorTotal || (valorSinal + valorRestante);
 
-    // Receita prevista, pendências e contagem de eventos usam a data do evento.
-    if (eventoNoMes) {
-      receitaPrevista += totalPrevistoEvento;
+    // A competência é definida pela data do evento. Todos os pagamentos já
+    // registrados para esse evento entram em "Recebido", independentemente
+    // do mês em que o sinal ou o restante foram pagos.
+    const temPgTotal = pagamentos.some(p => p.tipo === "Pg Total");
+    const temSinal = pagamentos.some(p => p.tipo === "Sinal");
+    const temRestante = pagamentos.some(p => p.tipo === "Restante");
 
-      if (valorSinal > 0 && !temSinal) sinaisPendentes += valorSinal;
-      if (valorRestante > 0 && !temRestante) restantesPendentes += valorRestante;
-
-      if ((valorSinal > 0 && !temSinal) || (valorRestante > 0 && !temRestante) || (!temPgTotal && valorSinal <= 0 && valorRestante <= 0 && valorTotal > 0)) {
-        eventosPendentes += 1;
-      } else if (totalPrevistoEvento > 0) {
-        eventosQuitados += 1;
-      }
+    let recebidoEvento = 0;
+    if (temPgTotal) {
+      recebidoEvento = totalPrevistoEvento;
+    } else {
+      if (temSinal) recebidoEvento += valorSinal;
+      if (temRestante) recebidoEvento += valorRestante;
     }
 
-    // Recebido no mês usa a data digitada no campo Forma de pagamento.
-    pagamentos.forEach(p => {
-      if (rtFinMesmoMes(p.data, comp.ano, comp.mes)) recebidoMes += Number(p.valor || 0);
-    });
+    // Evita que inconsistências antigas façam o recebido ultrapassar o valor
+    // previsto do próprio evento.
+    recebidoEvento = Math.max(0, Math.min(totalPrevistoEvento, recebidoEvento));
+    const pendenteEvento = Math.max(0, totalPrevistoEvento - recebidoEvento);
+
+    receitaPrevista += totalPrevistoEvento;
+    recebido += recebidoEvento;
+    aReceber += pendenteEvento;
+
+    if (totalPrevistoEvento > 0) {
+      if (pendenteEvento <= 0.01) {
+        eventosQuitados += 1;
+      } else if (dataEvento && dataEvento < hoje) {
+        // Eventos pendentes passam a representar somente pagamentos em atraso:
+        // evento já ocorrido e ainda com saldo em aberto.
+        eventosPendentes += 1;
+      } else {
+        // Eventos de hoje ou de datas posteriores com saldo em aberto ficam
+        // separados no visor de eventos futuros.
+        eventosFuturos += 1;
+      }
+    }
   });
 
-  aReceber = sinaisPendentes + restantesPendentes;
-  const faltante = Math.max(0, receitaPrevista - recebidoMes);
   const setTxt = (id, val, moeda = true) => {
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = moeda ? rtFinMoeda(val) : String(val);
   };
   setTxt("finReceitaPrevista", receitaPrevista);
-  setTxt("finRecebidoMes", recebidoMes);
-  setTxt("finFaltanteMes", faltante);
+  setTxt("finRecebidoMes", recebido);
   setTxt("finAReceberMes", aReceber);
-  setTxt("finSinaisPendentes", sinaisPendentes);
-  setTxt("finRestantesPendentes", restantesPendentes);
   setTxt("finEventosQuitados", eventosQuitados, false);
   setTxt("finEventosPendentes", eventosPendentes, false);
+  setTxt("finEventosFuturos", eventosFuturos, false);
 }
 
 function rtFinDataHojeISO() {
@@ -2077,6 +2254,8 @@ function rtFinRenderContasAReceber() {
     if (filtro === "hoje") return c.data === hoje;
     if (filtro === "7dias") return c.data && c.data >= hoje && c.data <= limite7;
     if (filtro === "vencidos") return c.data && c.data < hoje;
+    if (filtro === "atrasados_mes") return c.data && c.data < hoje && rtFinMesmoMes(c.data, rtFinCompetenciaAtual().ano, rtFinCompetenciaAtual().mes);
+    if (filtro === "futuros_mes") return c.data && c.data >= hoje && rtFinMesmoMes(c.data, rtFinCompetenciaAtual().ano, rtFinCompetenciaAtual().mes);
     return true;
   });
   if (!contas.length) {
@@ -2099,6 +2278,46 @@ function rtFinTrocarAba(aba) {
   document.querySelectorAll(".financeiro-tab").forEach(btn => btn.classList.toggle("active", btn.dataset.finTab === aba));
   document.querySelectorAll(".financeiro-tab-panel").forEach(panel => panel.classList.toggle("active", panel.dataset.finPanel === aba));
 }
+
+window.rtFinRestaurarRetornoEvento = function() {
+  const estado = window.__rtEventoRetornoFinanceiro;
+  if (!estado) return false;
+  delete window.__rtEventoRetornoFinanceiro;
+
+  const abaFinanceiro = document.querySelector('.tab-btn[data-section="financeiroSection"]');
+  if (abaFinanceiro) abaFinanceiro.click();
+  rtFinTrocarAba(estado.aba || "resumo");
+
+  if (estado.auditoriaFiltro) rtFinanceiroAuditoriaFiltro = estado.auditoriaFiltro;
+  if (estado.extratoFiltro) rtFinanceiroExtratoFiltro = estado.extratoFiltro;
+
+  Object.entries(estado.campos || {}).forEach(([campoId, valor]) => {
+    const campo = document.getElementById(campoId);
+    if (campo) campo.value = valor ?? "";
+  });
+
+  if (typeof rtFinRenderTudoFase1 === "function") rtFinRenderTudoFase1();
+
+  setTimeout(() => {
+    Object.entries(estado.campos || {}).forEach(([campoId, valor]) => {
+      const campo = document.getElementById(campoId);
+      if (campo) campo.value = valor ?? "";
+    });
+    if (typeof rtFinRenderExtratoSalvo === "function") rtFinRenderExtratoSalvo();
+    if (typeof rtFinRenderPagamentosNaoLocalizados === "function") rtFinRenderPagamentosNaoLocalizados();
+
+    const elementosScroll = document.querySelectorAll('#financeiroSection .table-wrapper, #financeiroSection [data-fin-panel]');
+    Object.entries(estado.scrolls || {}).forEach(([idx, pos]) => {
+      const el = elementosScroll[Number(idx)];
+      if (el) {
+        el.scrollTop = Number(pos?.top || 0);
+        el.scrollLeft = Number(pos?.left || 0);
+      }
+    });
+    window.scrollTo({ top: Number(estado.scrollY || 0), behavior: "auto" });
+  }, 180);
+  return true;
+};
 
 async function rtFinRenderTudoFase1() {
   await rtFinGarantirEventosAtualizados();
@@ -2178,6 +2397,15 @@ function iniciarFinanceiro() {
   document.querySelectorAll(".financeiro-tab").forEach(btn => btn.addEventListener("click", () => rtFinTrocarAba(btn.dataset.finTab)));
   rtFinConfigurarResumoCompetencia();
   document.getElementById("financeiroReceberFiltro")?.addEventListener("change", rtFinRenderContasAReceber);
+  const abrirListaResumo = (filtro) => {
+    rtFinTrocarAba("receber");
+    const campo = document.getElementById("financeiroReceberFiltro");
+    if (campo) campo.value = filtro;
+    rtFinRenderContasAReceber();
+    document.getElementById("financeiroTabReceber")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  document.getElementById("finEventosPendentesCard")?.addEventListener("click", () => abrirListaResumo("atrasados_mes"));
+  document.getElementById("finEventosFuturosCard")?.addEventListener("click", () => abrirListaResumo("futuros_mes"));
   setTimeout(rtFinRenderTudoFase1, 300);
   setTimeout(async () => {
     await rtFinAuditoriaCarregarNuvem();

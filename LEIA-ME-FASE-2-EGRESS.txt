@@ -1,0 +1,12 @@
+RIOTENDAS - FASE 2 DE REDUCAO DE EGRESS
+
+Alteracoes aplicadas:
+- Cache temporario e deduplicacao de consultas simultaneas para eventos (90s), produtos (2min), clientes (5min) e orcamentos (2min).
+- Invalidacao automatica dos caches ao salvar ou excluir registros.
+- Dashboard passou a reutilizar eventos ja carregados e deixou de consultar tabelas alternativas repetidamente.
+- Disponibilidade de produtos passou a reutilizar a consulta central de eventos.
+- Logs e historico de WhatsApp passaram a solicitar somente as colunas necessarias.
+- Busca de cliente no Financeiro passou a solicitar somente as colunas usadas.
+- Nenhuma regra operacional, visual, PDF ou impressao foi alterada.
+
+Objetivo: reduzir consultas completas duplicadas sem atrasar salvamentos.

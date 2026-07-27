@@ -104,12 +104,22 @@ function rtProdutoObsEventoCurta(valor, produto = {}) {
 }
 window.rtProdutoObsEventoCurta = rtProdutoObsEventoCurta;
 
-async function buscarProdutosBanco() {
+let rtProdutosCacheBanco = null;
+let rtProdutosCacheBancoTs = 0;
+let rtProdutosBuscaEmAndamento = null;
+const RT_PRODUTOS_CACHE_TTL_MS = 2 * 60 * 1000;
+function rtInvalidarCacheProdutosBanco(){ rtProdutosCacheBanco = null; rtProdutosCacheBancoTs = 0; }
+window.rtInvalidarCacheProdutosBanco = rtInvalidarCacheProdutosBanco;
+
+async function buscarProdutosBanco(forcarAtualizacao = false) {
   if (!supabaseClient) {
     return JSON.parse(localStorage.getItem(storageProdutosKey) || "[]");
   }
 
-  try {
+  if (!forcarAtualizacao && rtProdutosCacheBanco && (Date.now() - rtProdutosCacheBancoTs) < RT_PRODUTOS_CACHE_TTL_MS) return rtProdutosCacheBanco;
+  if (!forcarAtualizacao && rtProdutosBuscaEmAndamento) return rtProdutosBuscaEmAndamento;
+
+  rtProdutosBuscaEmAndamento = (async () => { try {
     const { data, error } = await supabaseClient
       .from("produtos")
       .select("id,codigo,tipo,categoria,tamanho,status,cor,observacao,foto,grau_usabilidade,deposito_check,colaborador,historico,locacoes,atualizado_em,criado_em")
@@ -126,11 +136,15 @@ async function buscarProdutosBanco() {
       return JSON.parse(localStorage.getItem(storageProdutosKey) || "[]");
     }
     try { localStorage.removeItem(storageProdutosKey); } catch {}
-    return data || [];
+    rtProdutosCacheBanco = data || [];
+    rtProdutosCacheBancoTs = Date.now();
+    return rtProdutosCacheBanco;
   } catch (erro) {
     console.warn("Falha temporária ao buscar produtos. Mantendo dados locais e tentando novamente depois.", erro);
-    return JSON.parse(localStorage.getItem(storageProdutosKey) || "[]");
-  }
+    return rtProdutosCacheBanco || JSON.parse(localStorage.getItem(storageProdutosKey) || "[]");
+  } })();
+  try { return await rtProdutosBuscaEmAndamento; }
+  finally { rtProdutosBuscaEmAndamento = null; }
 }
 
 async function buscarProdutoDetalheBanco(id, usarCache = true) {
@@ -227,6 +241,7 @@ async function salvarProdutoBanco(produto) {
     produtoDetalheCache.set(String(data.id), data);
   }
 
+  rtInvalidarCacheProdutosBanco();
   return data;
 }
 
@@ -238,6 +253,7 @@ async function excluirProdutoBanco(id) {
   }
 
   const { error } = await supabaseClient.from("produtos").delete().eq("id", id);
+  if (!error) rtInvalidarCacheProdutosBanco();
   if (error) {
     console.error(error);
     alert("Erro ao excluir produto.");
@@ -280,7 +296,7 @@ async function buscarEstoqueApoioBanco() {
 
   const { data, error } = await supabaseClient
     .from("estoque_apoio")
-    .select("*")
+    .select("id,nome,quantidade_total,quantidade_disponivel,observacao,ativo,criado_em,atualizado_em")
     .order("nome", { ascending: true });
 
   if (error) {
@@ -458,17 +474,12 @@ function iniciarProdutos() {
   if (filtroUsabilidade) filtroUsabilidade.addEventListener("change", renderizarProdutos);
   document.getElementById("buscaProduto").addEventListener("input", renderizarProdutos);
 
-  if (typeof sincronizarRotasOperacaoNuvem === "function") {
+  // Fase 1 de Egress: a sincronização de app_config é centralizada em rt-realtime-sync.js.
+  // Aqui fazemos apenas a carga inicial, sem criar outro polling concorrente.
+  if (typeof window.rtSincronizarOperacionalAgora === "function") {
+    window.rtSincronizarOperacionalAgora(true).then(() => renderizarProdutos()).catch(() => {});
+  } else if (typeof sincronizarRotasOperacaoNuvem === "function") {
     sincronizarRotasOperacaoNuvem(false).then(() => renderizarProdutos()).catch(() => {});
-  }
-
-  if (!window.__rtProdutosOperacaoSyncTimer) {
-    window.__rtProdutosOperacaoSyncTimer = setInterval(() => {
-      const produtosAtiva = document.getElementById("produtosSection")?.classList.contains("active-section");
-      if (produtosAtiva && typeof sincronizarRotasOperacaoNuvem === "function" && !(typeof rtUsuarioEditandoOperacional === "function" && rtUsuarioEditandoOperacional())) {
-        sincronizarRotasOperacaoNuvem(false).then(() => renderizarProdutos()).catch(() => {});
-      }
-    }, 120000);
   }
 
   ["dispProdutoInicio", "dispProdutoFim", "mostrarSomenteDisponiveis"].forEach(id => {
@@ -701,9 +712,9 @@ async function carregarEventosDisponibilidadeProduto() {
       return;
     }
 
-    if (typeof supabaseClient !== "undefined" && supabaseClient) {
-      const { data, error } = await supabaseClient.from("eventos").select("*");
-      if (!error && Array.isArray(data)) window.eventos = data;
+    if (typeof buscarEventosBanco === "function") {
+      const data = await buscarEventosBanco(false);
+      if (Array.isArray(data)) window.eventos = data;
     }
   } catch (erro) {
     console.warn("Não foi possível carregar eventos para disponibilidade:", erro);

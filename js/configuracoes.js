@@ -4171,7 +4171,7 @@ if (document.readyState === "loading") {
     try {
       const { data, error } = await supabaseClient
         .from('eventos')
-        .select('*')
+        .select('id,nome,endereco,bairro,cidade,complemento,latitude,longitude,geocode_status,geocode_at,data_evento')
         .or('latitude.is.null,longitude.is.null,geocode_status.neq.LOCALIZADO')
         .order('data_evento', { ascending: false })
         .limit(500);

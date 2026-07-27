@@ -114,7 +114,7 @@ async function buscarLogsSistema({ termo = "", modulo = "", usuario = "", dataIn
     try {
       let query = supabaseClient
         .from("logs_sistema")
-        .select("*")
+        .select("id,usuario,perfil,modulo,acao,registro_id,registro_nome,antes,depois,detalhes,criado_em")
         .order("criado_em", { ascending: false })
         .limit(300);
 

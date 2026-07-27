@@ -105,7 +105,7 @@ async function buscarUsuariosSistemaBanco() {
   if (typeof supabaseClient !== "undefined" && supabaseClient) {
     const { data, error } = await supabaseClient
       .from("usuarios_sistema")
-      .select("*")
+      .select("id,nome,usuario,senha,perfil,ativo,criado_em,atualizado_em,permissoes")
       .order("nome", { ascending: true });
 
     if (!error && Array.isArray(data)) return data.map(normalizarUsuarioSistemaApp);

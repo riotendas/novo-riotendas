@@ -112,7 +112,17 @@
       const sb=typeof supabaseClient!=="undefined"?supabaseClient:window.supabaseClient;
       if(!sb?.functions?.invoke)throw new Error("Cliente Supabase indisponível.");
       const {data,error}=await sb.functions.invoke("onecode-whatsapp",{body:{action:"list_templates"}});
-      if(error)throw error;if(data?.error)throw new Error(data.error);
+      if(error){
+        let detalhe="";
+        try{
+          if(error.context&&typeof error.context.json==="function"){
+            const resposta=await error.context.json();
+            detalhe=resposta?.error||resposta?.message||JSON.stringify(resposta);
+          }
+        }catch{}
+        throw new Error(detalhe||error.message||"Falha ao chamar a Edge Function.");
+      }
+      if(data?.error)throw new Error(data.error);
       templatesOneCode=Array.isArray(data?.templates)?data.templates:[];
       const cfg=configAtual();
       cfg.whatsappApiTemplates=(cfg.whatsappApiTemplates||[]).map(item=>{const remoto=templatesOneCode.find(x=>String(x.id)===String(item.templateId));return remoto?{...item,nomeTemplate:remoto.name||item.nomeTemplate,status:remoto.status||item.status,variables:remoto.variables||item.variables||[],body:remoto.body||item.body||""}:item});
@@ -133,7 +143,7 @@
     try{
       const sb=typeof supabaseClient!=="undefined"?supabaseClient:window.supabaseClient;
       if(sb){
-        const {data,error}=await sb.from("logs_sistema").select("*").eq("modulo","WhatsApp").eq("registro_id",String(eventoId)).order("criado_em",{ascending:false}).limit(100);
+        const {data,error}=await sb.from("logs_sistema").select("id,usuario,perfil,modulo,acao,registro_id,registro_nome,detalhes,depois,criado_em").eq("modulo","WhatsApp").eq("registro_id",String(eventoId)).order("criado_em",{ascending:false}).limit(100);
         if(!error&&Array.isArray(data)) return data;
       }
     }catch(e){console.warn("Histórico WhatsApp:",e)}
@@ -322,7 +332,7 @@
     const prevSend=ev.target.closest("#waPrevEnviar");if(prevSend){await enviarPrevisao(prevSend);return;}
   });
 
-  async function renderHistoricoEvento(){const dlg=document.getElementById("eventoDialog"),form=document.getElementById("eventoForm");if(!dlg||!form)return;let box=document.getElementById("eventoWhatsappHistoricoBox");if(!box){box=document.createElement("div");box.id="eventoWhatsappHistoricoBox";box.className="subpanel evento-whatsapp-historico";box.innerHTML='<h3>📲 Histórico de comunicações</h3><div id="eventoWhatsappHistoricoLista" class="evento-whatsapp-historico-lista"><p class="empty">Nenhuma comunicação registrada.</p></div>';form.appendChild(box)}const id=document.getElementById("eventoId")?.value;if(!id){box.style.display="none";return}box.style.display="";const hist=await buscarHistoricoEvento(id),lista=box.querySelector("#eventoWhatsappHistoricoLista");lista.innerHTML=hist.length?hist.map(h=>`<div class="evento-whatsapp-historico-item"><strong>${esc(h?.depois?.titulo||h?.depois?.nomeTemplate||"Mensagem")}</strong><span>${horaBr(h.criado_em)} · ${esc(h.usuario||"Sistema")}</span></div>`).join(""):'<p class="empty">Nenhuma comunicação registrada.</p>';}
+  async function renderHistoricoEvento(){const dlg=document.getElementById("eventoDialog"),form=document.getElementById("eventoForm");if(!dlg||!form)return;let box=document.getElementById("eventoWhatsappHistoricoBox");if(!box){box=document.createElement("div");box.id="eventoWhatsappHistoricoBox";box.className="subpanel evento-whatsapp-historico";box.innerHTML='<h3>📲 Histórico de comunicações</h3><div id="eventoWhatsappHistoricoLista" class="evento-whatsapp-historico-lista"><p class="empty">Nenhuma comunicação registrada.</p></div>';form.appendChild(box)}const id=document.getElementById("eventoId")?.value;if(!id){box.style.display="none";return}box.style.display="";const hist=await buscarHistoricoEvento(id),lista=box.querySelector("#eventoWhatsappHistoricoLista");lista.innerHTML=hist.length?hist.map(h=>{let depois=h?.depois||{};if(typeof depois==="string"){try{depois=JSON.parse(depois)||{}}catch(e){depois={}}}const tipo=depois.titulo||depois.nomeTemplate||depois.tipo||h.acao||h.detalhes||"Mensagem";return `<div class="evento-whatsapp-historico-item"><strong>${esc(tipo)}</strong><span>${horaBr(h.criado_em)} · ${esc(h.usuario||"Sistema")}</span></div>`;}).join(""):'<p class="empty">Nenhuma comunicação registrada.</p>';}
   document.addEventListener("click",ev=>{if(ev.target.closest('[data-action="editar"], [data-editar-evento], .editar-evento-btn'))setTimeout(renderHistoricoEvento,350)});
   const obs=new MutationObserver(()=>{const d=document.getElementById("eventoDialog");if(d?.open)setTimeout(renderHistoricoEvento,120)});obs.observe(document.documentElement,{attributes:true,subtree:true,attributeFilter:["open"]});
   window.rtWhatsappApi={abrirMenu,renderConfig,defaults:DEFAULT_TEMPLATES,renderHistoricoEvento};

@@ -3,6 +3,13 @@ let orcamentos = [];
 let materiaisOrcamentoAtual = [];
 let orcamentoSinalEditadoManual = false;
 const rtOrcLogoUrlPadrao = "https://riotendas.smartwebinfo.com.br/webapp/public/img/logo.png";
+let rtOrcModeloExternoCache = '';
+async function rtOrcCarregarModeloExterno(){
+  try {
+    const resp = await fetch('modelo-orcamento.html', { cache: 'no-store' });
+    if (resp.ok) rtOrcModeloExternoCache = await resp.text();
+  } catch(e) { console.warn('Modelo HTML externo não pôde ser carregado; usando modelo interno.', e); }
+}
 
 function rtOrcGerarId(){ return (typeof gerarId === "function") ? gerarId() : String(Date.now()) + Math.random().toString(16).slice(2); }
 function rtOrcEhUuid(v){ return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||'').trim()); }
@@ -95,12 +102,22 @@ function preencherSelectsHorarioOrcamento(){
   });
 }
 
-async function carregarOrcamentos(){
+let rtOrcamentosCacheTs = 0;
+let rtOrcamentosBuscaEmAndamento = null;
+const RT_ORCAMENTOS_CACHE_TTL_MS = 2 * 60 * 1000;
+function rtInvalidarCacheOrcamentos(){ rtOrcamentosCacheTs = 0; }
+window.rtInvalidarCacheOrcamentos = rtInvalidarCacheOrcamentos;
+
+async function carregarOrcamentos(forcarAtualizacao = false){
   if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-    const { data, error } = await supabaseClient
+    if (!forcarAtualizacao && Array.isArray(orcamentos) && orcamentos.length && (Date.now() - rtOrcamentosCacheTs) < RT_ORCAMENTOS_CACHE_TTL_MS) return orcamentos;
+    if (!forcarAtualizacao && rtOrcamentosBuscaEmAndamento) return rtOrcamentosBuscaEmAndamento;
+    rtOrcamentosBuscaEmAndamento = supabaseClient
       .from('orcamentos')
-      .select('*')
+      .select('id,numero,status,nome,documento,telefone,email,endereco,bairro,cidade,complemento,data_evento,hora_inicio,hora_termino,montagem_tipo,montagem_data,montagem_hora,desmontagem_tipo,desmontagem_data,desmontagem_hora,tipo_evento,materiais,valor_materiais,valor_frete_montagem,valor_desconto,valor_total,valor_sinal,valor_restante,forma_pagamento,observacao_cliente,observacoes,evento_id,criado_em,atualizado_em')
       .order('criado_em', { ascending: false });
+    const { data, error } = await rtOrcamentosBuscaEmAndamento;
+    rtOrcamentosBuscaEmAndamento = null;
 
     if (error) {
       console.error('Erro ao buscar orçamentos no Supabase:', error);
@@ -113,6 +130,7 @@ async function carregarOrcamentos(){
       ...o,
       materiais: Array.isArray(o.materiais) ? o.materiais : []
     }));
+    rtOrcamentosCacheTs = Date.now();
     return orcamentos;
   }
 
@@ -162,6 +180,7 @@ async function salvarOrcamentoBanco(orcamento){
       alert('Erro ao salvar orçamento no Supabase: ' + (error.message || '') + '\n\nSe aparecer tabela não encontrada, execute o arquivo SQL incluído no ZIP: EXECUTAR-NO-SUPABASE-ORCAMENTOS.sql');
       return null;
     }
+    rtInvalidarCacheOrcamentos();
     return data;
   }
 
@@ -175,6 +194,7 @@ async function salvarOrcamentoBanco(orcamento){
 function salvarOrcamentosLocal(){ localStorage.setItem(storageOrcamentosKey, JSON.stringify(orcamentos)); }
 
 function iniciarOrcamentos(){
+  rtOrcCarregarModeloExterno();
   preencherSelectsHorarioOrcamento();
   preencherFormasPagamentoOrcamento();
   document.getElementById('novoOrcamentoBtn')?.addEventListener('click', abrirNovoOrcamento);
@@ -644,15 +664,10 @@ function rtOrcPagamentoUsaSinal(){
 }
 
 function ajustarSinalPorFormaPagamentoOrcamento(){
-  const total = rtOrcNumero(document.getElementById('orcamentoValorTotal')?.value || 0);
+  // Orçamento ainda não representa pagamento recebido.
   const sinalEl = document.getElementById('orcamentoValorSinal');
-  if (!sinalEl) return;
-  if (!rtOrcPagamentoUsaSinal()) {
-    sinalEl.value = rtOrcMoeda(0);
-    orcamentoSinalEditadoManual = false;
-  } else if (!orcamentoSinalEditadoManual && rtOrcNumero(sinalEl.value) === 0 && total > 0) {
-    sinalEl.value = rtOrcMoeda(total * 0.2);
-  }
+  if (sinalEl) sinalEl.value = rtOrcMoeda(0);
+  orcamentoSinalEditadoManual = false;
   calcularTotaisOrcamento(false);
 }
 
@@ -666,12 +681,9 @@ function calcularTotaisOrcamento(recalcularTotal=false){
   const totalEl = document.getElementById('orcamentoValorTotal');
   if (totalEl) totalEl.value = rtOrcMoeda(total);
   const sinalEl = document.getElementById('orcamentoValorSinal');
-  if (rtOrcPagamentoUsaSinal() && !orcamentoSinalEditadoManual && sinalEl) {
-    sinalEl.value = rtOrcMoeda(total * 0.2);
-  }
-  const sinal = rtOrcNumero(sinalEl?.value || 0);
+  if (sinalEl) sinalEl.value = rtOrcMoeda(0);
   const restanteEl = document.getElementById('orcamentoValorRestante');
-  if (restanteEl) restanteEl.value = rtOrcMoeda(Math.max(total - sinal, 0));
+  if (restanteEl) restanteEl.value = rtOrcMoeda(total);
 }
 
 function rtOrcDataSomarDias(data, dias){
@@ -703,10 +715,9 @@ function rtOrcNumeroBaseData(dataEvento){
   const data = String(dataEvento || '').slice(0,10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
     const d = new Date();
-    return `${String(d.getDate()).padStart(2,'0')}${String(d.getMonth()+1).padStart(2,'0')}${d.getFullYear()}`;
+    return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
   }
-  const [ano, mes, dia] = data.split('-');
-  return `${dia}${mes}${ano}`;
+  return data.replace(/-/g, '');
 }
 
 function numeroProximoOrcamento(dataEvento){
@@ -789,7 +800,7 @@ function obterOrcamentoDoForm(temporario=false){
     valor_frete_montagem: rtOrcNumero(document.getElementById('orcamentoValorFreteMontagem').value),
     valor_desconto: rtOrcNumero(document.getElementById('orcamentoValorDesconto').value),
     valor_total: rtOrcNumero(document.getElementById('orcamentoValorTotal').value),
-    valor_sinal: rtOrcNumero(document.getElementById('orcamentoValorSinal').value),
+    valor_sinal: 0,
     valor_restante: rtOrcNumero(document.getElementById('orcamentoValorRestante').value),
     forma_pagamento: document.getElementById('orcamentoFormaPagamento').value,
     observacoes: document.getElementById('orcamentoObservacoes').value.trim(),
@@ -834,6 +845,7 @@ async function rtOrcSalvarEmSegundoPlano(orcamento, eventoOrigemId){
     if (salvo) {
       rtOrcAtualizarCacheSalvo(salvo, orcamento);
       if (eventoOrigemId) rtOrcDefinirOrcamentoPendenteEvento(salvo);
+      if (typeof window.rtEventoDocumentosRegistrarOrcamento === 'function') window.rtEventoDocumentosRegistrarOrcamento(salvo);
     }
   } catch(e) {
     console.warn('Orçamento gerado, mas não foi possível salvar em segundo plano:', e);
@@ -882,6 +894,7 @@ async function salvarOrcamentoForm(ev){
       if (!salvo) return;
       rtOrcAtualizarCacheSalvo(salvo, o);
       if (eventoOrigemId) rtOrcDefinirOrcamentoPendenteEvento(salvo);
+      if (typeof window.rtEventoDocumentosRegistrarOrcamento === 'function') window.rtEventoDocumentosRegistrarOrcamento(salvo);
       if (typeof renderizarOrcamentos === 'function' && document.getElementById('orcamentosTbody')) {
         try { await renderizarOrcamentos(); } catch(e) {}
       }
@@ -941,17 +954,30 @@ function rtOrcGarantirBarraLimpeza(){
   tabela.parentNode.insertBefore(bar, tabela);
 }
 function rtOrcSelecionarTodos(marcado){ document.querySelectorAll('.orc-check').forEach(c => c.checked = !!marcado); }
-async function rtOrcExcluirIds(ids){
+async function rtOrcExcluirIds(ids, opcoes = {}){
   ids = [...new Set((ids || []).filter(Boolean).map(String))];
   if (!ids.length) { alert('Nenhum orçamento selecionado.'); return; }
-  if (!confirm(`Excluir ${ids.length} orçamento(s)? Essa ação não poderá ser desfeita.`)) return;
+  if (opcoes.confirmar !== false && !confirm(`Excluir ${ids.length} orçamento(s)? Essa ação não poderá ser desfeita.`)) return false;
   if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-    try { const { error } = await supabaseClient.from('orcamentos').delete().in('id', ids); if (error) throw error; } catch(e) { console.warn('Erro ao excluir no Supabase, usando local:', e); }
+    try {
+      const { error } = await supabaseClient.from('orcamentos').delete().in('id', ids);
+      if (error) throw error;
+    } catch(e) {
+      console.error('Erro ao excluir orçamento no Supabase:', e);
+      alert('Não foi possível apagar o orçamento: ' + (e?.message || e));
+      return false;
+    }
   }
   orcamentos = orcamentos.filter(o => !ids.includes(String(o.id)));
+  rtInvalidarCacheOrcamentos();
   salvarOrcamentosLocal();
   await renderizarOrcamentos();
+  if (typeof window.rtEventoDocumentosRenderizar === "function") window.rtEventoDocumentosRenderizar();
+  return true;
 }
+window.rtOrcExcluirIds = rtOrcExcluirIds;
+window.gerarPdfOrcamento = gerarPdfOrcamento;
+
 function rtOrcExcluirSelecionados(){ rtOrcExcluirIds(Array.from(document.querySelectorAll('.orc-check:checked')).map(c => c.value)); }
 function rtOrcExcluirVencidosAguardando(){
   const hoje = new Date().toISOString().slice(0,10);
@@ -973,6 +999,9 @@ function rtOrcObterModeloDocumento(){
 
     // Proteção: se o modelo salvo estiver sem placeholders, ele provavelmente foi salvo já preenchido
     // com dados de um orçamento antigo. Nesse caso, ignorar e usar o padrão dinâmico.
+    // O arquivo modelo-orcamento.html é a fonte principal do layout.
+    // Isso permite editar o modelo externamente sem um modelo antigo salvo nas configurações prevalecer.
+    if (rtOrcModeloExternoCache && /{{\s*[a-zA-Z0-9_]+\s*}}/.test(rtOrcModeloExternoCache)) return rtOrcModeloExternoCache;
     if (configurado && /{{\s*[a-zA-Z0-9_]+\s*}}/.test(configurado)) return configurado;
     if (configurado) console.warn('Modelo de orçamento sem placeholders ignorado para evitar PDF com dados antigos.');
     return padrao.orcamento || '';
@@ -1090,8 +1119,10 @@ async function rtSalvarModeloOrcamentoNuvem(){
   }catch(e){ console.error(e); alert('Não foi possível salvar o modelo do orçamento.'); }
 }
 </script></body></html>`;
+  try { rtOrcDocumentoRegistrar(o, html); } catch(e) { console.warn('Não foi possível registrar o arquivo do orçamento.', e); }
   const w = window.open('', '_blank');
   w.document.write(html); w.document.close();
+  return html;
 }
 
 
@@ -1362,3 +1393,47 @@ function preencherEventoComOrcamento(o){
   if (typeof popularSelectProdutosEvento === 'function') popularSelectProdutosEvento();
   if (typeof calcularRestanteEvento === 'function') calcularRestanteEvento();
 }
+
+
+/* v19-dev: arquivos gerados dentro do próprio orçamento */
+(function(){
+  const KEY='novoRioTendasArquivosOrcamentosV1';
+  function ler(){try{const v=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(v)?v:[]}catch(e){return[]}}
+  function gravar(v){localStorage.setItem(KEY,JSON.stringify(v));}
+  function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function chaveOrc(o){return String(o?.id||document.getElementById('orcamentoId')?.value||o?.numero||'').trim();}
+  function telefoneLimpo(v){let n=String(v||'').replace(/\D/g,'');if(n&&!n.startsWith('55'))n='55'+n;return n;}
+  window.rtOrcDocumentoRegistrar=function(o,html){
+    const chave=chaveOrc(o); if(!chave)return null;
+    const numero=String(o.numero||numeroProximoOrcamento(o.data_evento)||'PREVIEW');
+    const lista=ler(); const id='orcamento:'+chave+':pdf'; const idx=lista.findIndex(d=>d.id===id);
+    const doc={id,orcamento_chave:chave,orcamento_id:o.id||'',evento_id:o.evento_id||'',tipo:'orcamento',numero,nome:`orcamento-${numero}.pdf`,telefone:o.telefone||'',html:html||'',criado_em:idx>=0?lista[idx].criado_em:new Date().toISOString(),atualizado_em:new Date().toISOString()};
+    if(idx>=0)lista[idx]={...lista[idx],...doc};else lista.push(doc);gravar(lista);renderizar();return doc;
+  };
+  function atuais(){const chave=String(document.getElementById('orcamentoId')?.value||'').trim();const numero=String(document.getElementById('orcamentoModalTitulo')?.textContent||'').match(/\d{8}-\d{3}/)?.[0]||'';return ler().filter(d=>(chave&&d.orcamento_chave===chave)||(!chave&&numero&&d.numero===numero));}
+  function abrir(d){if(!d?.html){alert('O conteúdo deste arquivo não está mais disponível neste navegador. Gere o PDF novamente.');return;}const w=window.open('','_blank');w.document.write(d.html);w.document.close();}
+  function whatsapp(d){
+    const o=typeof obterOrcamentoDoForm==='function'?obterOrcamentoDoForm(false):{};
+    const tel=telefoneLimpo(o.telefone||d.telefone);if(!tel){alert('Informe o telefone do cliente antes de enviar.');return;}
+    const msg=`Olá ${rtOrcPrimeiroNome(o.nome)||''}, segue o orçamento ${d.numero} da RioTendas. Abra o arquivo gerado e anexe o PDF nesta conversa.`;
+    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,'_blank');
+  }
+  function apagar(d){if(!confirm(`Apagar ${d.nome}?`))return;gravar(ler().filter(x=>x.id!==d.id));renderizar();}
+  function renderizar(){
+    const area=document.getElementById('orcamentoDocumentosLista');if(!area)return;
+    const lista=atuais();if(!lista.length){area.innerHTML='<p class="empty">Salve ou gere o PDF para criar o primeiro arquivo.</p>';return;}
+    area.innerHTML=lista.map(d=>`<div class="evento-documento-item"><div class="evento-documento-nome"><strong>${esc(d.nome)}</strong><small>Orçamento · ${new Date(d.atualizado_em).toLocaleString('pt-BR')}</small></div><span class="evento-documento-status">Gerado</span><div class="evento-documento-acoes"><button type="button" class="btn-outline btn-mini" data-orc-doc-abrir="${esc(d.id)}">Abrir/PDF</button><button type="button" class="btn-outline btn-mini" data-orc-doc-wa="${esc(d.id)}">WhatsApp</button><button type="button" class="btn-outline btn-mini danger" data-orc-doc-apagar="${esc(d.id)}">Apagar</button></div></div>`).join('');
+  }
+  function tratarClique(ev){
+    const abrirBtn=ev.target.closest('[data-orc-doc-abrir]');
+    const waBtn=ev.target.closest('[data-orc-doc-wa]');
+    const apagarBtn=ev.target.closest('[data-orc-doc-apagar]');
+    const btn=abrirBtn||waBtn||apagarBtn;if(!btn)return;
+    ev.preventDefault();ev.stopPropagation();
+    const id=abrirBtn?.dataset.orcDocAbrir||waBtn?.dataset.orcDocWa||apagarBtn?.dataset.orcDocApagar;
+    const doc=ler().find(d=>String(d.id)===String(id));if(!doc)return alert('Arquivo não encontrado. Gere o PDF novamente.');
+    if(abrirBtn) abrir(doc); else if(waBtn) whatsapp(doc); else apagar(doc);
+  }
+  window.rtOrcDocumentosRenderizar=renderizar;
+  document.addEventListener('DOMContentLoaded',()=>{const area=document.getElementById('orcamentoDocumentosLista');if(area&&!area.dataset.rtDocDelegado){area.addEventListener('click',tratarClique);area.dataset.rtDocDelegado='1';}document.getElementById('orcamentoDialog')?.addEventListener('close',renderizar);});
+})();

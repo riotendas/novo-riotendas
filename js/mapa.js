@@ -37,9 +37,8 @@
   function periodoMapa(){
     const baseEl=document.getElementById('mapaDataBase');
     if(baseEl && !baseEl.value) baseEl.value = hojeISO();
-    const ini = baseEl?.value || hojeISO();
-    const dias = Math.max(1, Math.min(30, Number(document.getElementById('mapaPeriodo')?.value || 7) || 7));
-    return {ini, fim:addDiasISO(ini, dias-1), dias};
+    const dia = baseEl?.value || hojeISO();
+    return {ini:dia, fim:dia, dias:1};
   }
   function cacheMapaKey(ini, fim){ return `${RT_MAPA_DADOS_CACHE_PREFIX}${ini}|${fim}`; }
   function lerCacheEventosMapa(ini, fim){
@@ -327,13 +326,9 @@
           .limit(150);
 
         if(resp?.error){
-          console.warn('Mapa: select enxuto falhou; usando fallback mínimo', resp.error);
-          resp = await supabaseClient
-            .from('eventos')
-            .select('*')
-            .or(orFiltro)
-            .order('data_evento',{ascending:true})
-            .limit(150);
+          // Não fazer fallback com select('*'): isso pode baixar registros muito grandes
+          // e aumentar bastante o Egress. Mantemos cache/local e registramos o erro.
+          console.warn('Mapa: select enxuto falhou; mantendo cache/local para economizar Egress', resp.error);
         }
 
         if(!resp?.error && Array.isArray(resp?.data)){
@@ -654,11 +649,11 @@
   }
   function iniciarMapaOperacional(){
     const dataBase=document.getElementById('mapaDataBase'); if(dataBase && !dataBase.value) dataBase.value=hojeISO();
-    ['mapaDataBase','mapaPeriodo','mapaBusca','mapaFiltroStatus','mapaFiltroMaterial'].forEach(id=>{
+    ['mapaDataBase','mapaBusca','mapaFiltroStatus','mapaFiltroMaterial'].forEach(id=>{
       const el=document.getElementById(id);
       if(!el || el.__rtMapaBind) return;
       el.__rtMapaBind=true;
-      const mudaBase = id === 'mapaDataBase' || id === 'mapaPeriodo';
+      const mudaBase = id === 'mapaDataBase';
       el.addEventListener('input',()=>renderizarMapaDebounced(mudaBase));
       el.addEventListener('change',()=>renderizarMapaDebounced(mudaBase));
     });

@@ -1,0 +1,26 @@
+<section class="doc-header">
+  {{logo_empresa}}
+  <h2>ORÇAMENTO Nº {{numero_orcamento}}</h2>
+  <p>Rio de Janeiro, {{data_orcamento}}<br><strong>Validade:</strong> {{validade_orcamento}}</p>
+</section>
+<table class="doc-table compact">
+  <tr><th>Cliente</th><td>{{cliente}}</td><th>CPF/CNPJ</th><td>{{cpf_cnpj}}</td></tr>
+  <tr><th>Telefone</th><td>{{telefone}}</td><th>E-mail</th><td>{{email}}</td></tr>
+  <tr><th>Evento</th><td>{{data_evento}} — {{horario_evento}}</td><th>Endereço</th><td>{{endereco}}</td></tr>
+  <tr><th>Montagem</th><td>{{montagem}}</td><th>Desmontagem</th><td>{{desmontagem}}</td></tr>
+</table>
+<h3>{{descricao_servico}}</h3>
+{{itens}}
+<table class="doc-table compact">
+  <tr><th>Materiais</th><td>{{valor_materiais}}</td></tr>
+  <tr><th>Frete/Montagem</th><td>{{valor_frete}}</td></tr>
+  {{desconto}}
+  <tr><th>Valor total</th><td><strong>{{valor_total}}</strong></td></tr>
+  <tr><th>Valor a pagar</th><td>{{restante}}</td></tr>
+</table>
+<p><strong>Forma de pagamento:</strong> {{forma_pagamento}}</p>
+{{observacao_horarios}}
+{{observacao_cliente}}
+<p>* Valor válido por 30 dias após a data da proposta, mediante disponibilidade de material. Este orçamento não reserva material até confirmação/sinal.</p>
+<p>A assinatura do “De Acordo” desta proposta firma o contrato de prestação de serviços entre as partes.</p>
+{{assinaturas}}

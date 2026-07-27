@@ -77,7 +77,7 @@
     return ordemCarros.map(carro=>({carro,rotas:ordenarGrupoComoRota(mapa[carro]||[])}));
   }
   function mensagem(t,row){let s=String(t.body||'');const vals=[row.nome,row.materiais,row.dia,row.horario];vals.forEach((v,i)=>s=s.replace(new RegExp(`\\{\\{${i+1}\\}\\}`,'g'),v));return s;}
-  async function historico(eventoId){try{const sb=window.supabaseClient||supabaseClient;const {data,error}=await sb.from('logs_sistema').select('*').eq('modulo','WhatsApp').eq('registro_id',String(eventoId)).order('criado_em',{ascending:false}).limit(100);if(!error)return data||[];}catch{}return[]}
+  async function historico(eventoId){try{const sb=window.supabaseClient||supabaseClient;const {data,error}=await sb.from('logs_sistema').select('id,usuario,perfil,modulo,acao,registro_id,registro_nome,detalhes,criado_em').eq('modulo','WhatsApp').eq('registro_id',String(eventoId)).order('criado_em',{ascending:false}).limit(100);if(!error)return data||[];}catch{}return[]}
   function habilitarArraste(d){
     if(d.dataset.dragReady==='1')return;d.dataset.dragReady='1';
     const cab=d.querySelector('.modal-header');let ativo=false,dx=0,dy=0;

@@ -889,7 +889,7 @@ async function manutMobileSincronizarProdutosAutomatico() {
 
 function manutMobileIniciarSincronizacaoAutomatica() {
   clearInterval(manutMobileSyncTimer);
-  manutMobileSyncTimer = setInterval(manutMobileSincronizarProdutosAutomatico, 20000);
+  manutMobileSyncTimer = setInterval(manutMobileSincronizarProdutosAutomatico, 120000);
 }
 
 function manutMobileChecklistHtml(produto = {}) {

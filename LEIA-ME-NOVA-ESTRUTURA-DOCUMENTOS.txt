@@ -1,0 +1,22 @@
+NOVA ESTRUTURA DE ORÇAMENTOS E DOCUMENTOS — VERSÃO DE TESTE
+
+1. O arquivo modelo-orcamento.html fica na raiz do projeto.
+   Ele pode ser editado externamente, preservando os marcadores {{campo}}.
+
+2. Os orçamentos continuam na tela Orçamentos enquanto estiverem em aberto,
+   enviados, aprovados, recusados ou vencidos. A aprovação altera o status,
+   sem apagar o histórico.
+
+3. Dentro de cada evento existe agora uma única área Documentos, com filtros
+   discretos para Todos, Orçamentos, Contratos e Recibos.
+
+4. A numeração dos novos orçamentos segue o padrão AAAAMMDD-NNN.
+   Exemplo: 20260801-002.
+   O nome exibido na pasta do evento será orçamento-20260801-002.
+
+5. Contrato e recibo procuram usar o mesmo número do orçamento aprovado mais
+   recente daquele evento, facilitando a identificação da negociação.
+
+6. Esta é uma primeira versão para teste operacional. Os orçamentos continuam
+   gravados na tabela orcamentos do Supabase. O índice visual de contratos e
+   recibos é mantido no navegador nesta fase, sem duplicar os PDFs.

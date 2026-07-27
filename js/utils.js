@@ -201,8 +201,20 @@ function rtMesclarProdutosExtrasComAtendimentos(produtosExtrasVisiveis, eventoEx
   ];
 }
 function rtProdutoReservaParaTexto(item) {
-  const codigo = item?.codigo ? String(item.codigo).trim() : "-";
-  return `🔄 Res - ${codigo}`;
+  const partes = [
+    item?.codigo,
+    item?.categoria || item?.tipo,
+    item?.tamanho,
+    item?.cor
+  ].map(v => String(v || "").trim()).filter(Boolean);
+
+  // Algumas reservas antigas podem ter apenas a descrição salva.
+  if (partes.length <= 1 && item?.descricao) {
+    const descricao = String(item.descricao).trim();
+    if (descricao && !partes.includes(descricao)) partes.push(descricao);
+  }
+
+  return `Reserva - ${partes.join(" - ") || "Material sem identificação"}`;
 }
 function rtLabelAtendimentoExtra(item) {
   return String(item?.tipo || item?.descricao || "Atendimento extra").trim() || "Atendimento extra";
