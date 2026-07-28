@@ -22394,3 +22394,194 @@ tr.evento-cancelado .product-list-button {
 
 /* v19-dev: pasta única de documentos por evento */
 .evento-documentos-pasta{margin-top:10px}.evento-documentos-header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.evento-documentos-header h3{margin:0}.evento-documentos-filtros{display:flex;gap:5px;flex-wrap:wrap}.evento-documentos-filtros .active{background:#173f73;color:#fff;border-color:#173f73}.evento-documentos-lista{margin-top:8px;border-top:1px solid #dfe5ee}.evento-documento-item{display:grid;grid-template-columns:minmax(210px,1fr) auto auto;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid #e7ebf1}.evento-documento-nome{min-width:0}.evento-documento-nome strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.evento-documento-nome small{display:block;color:#667085;margin-top:2px}.evento-documento-status{font-size:11px;padding:3px 7px;border-radius:999px;background:#edf2f7;white-space:nowrap}.evento-documento-acoes{display:flex;gap:5px}.evento-documento-acoes button{min-width:auto}.evento-documentos-lista .empty{padding:10px 4px;margin:0}@media(max-width:760px){.evento-documento-item{grid-template-columns:1fr auto}.evento-documento-status{grid-column:1}.evento-documento-acoes{grid-column:2;grid-row:1/3}}
+
+/* WhatsApp na rota — prévia editável das variáveis */
+.wa-api-template-preview-dialog{width:min(650px,calc(100vw - 20px));max-height:92vh;padding:0;border:0;border-radius:14px;overflow:hidden}
+.wa-tpl-preview-body{padding:14px;display:grid;gap:12px}
+.wa-tpl-preview-variaveis{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
+.wa-tpl-preview-variaveis label{display:grid;gap:5px;font-size:12px;font-weight:800;color:#334155}
+.wa-tpl-preview-variaveis label span{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.wa-tpl-preview-variaveis label small{font-weight:700;color:#64748b}
+.wa-tpl-preview-variaveis input{width:100%;min-height:39px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;box-sizing:border-box}
+.wa-tpl-preview-mensagem{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;display:grid;gap:8px}
+.wa-tpl-preview-mensagem #waTplPreviewTexto{white-space:pre-wrap;line-height:1.48;font-size:14px;color:#0f172a;max-height:280px;overflow:auto}
+.wa-tpl-preview-mensagem small{color:#64748b}
+@media(max-width:600px){.wa-tpl-preview-variaveis{grid-template-columns:1fr}.wa-api-template-preview-dialog{width:calc(100vw - 12px)}}
+
+/* Estabilização — prévias WhatsApp com o mesmo padrão visual */
+.wa-api-template-preview-dialog{
+  width:min(680px,calc(100vw - 20px));
+  max-height:92vh;
+}
+.wa-api-template-preview-dialog .modal-header{
+  background:#eaf4ff;
+}
+.wa-tpl-preview-body{
+  padding:14px;
+  display:grid;
+  gap:12px;
+}
+.wa-tpl-preview-variaveis{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:8px;
+}
+.wa-tpl-preview-variaveis label{
+  display:grid;
+  gap:4px;
+  font-size:12px;
+  font-weight:800;
+  color:#334155;
+}
+.wa-tpl-preview-variaveis label span{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  align-items:center;
+}
+.wa-tpl-preview-variaveis input{
+  width:100%;
+  min-height:42px;
+  padding:8px 12px;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  box-sizing:border-box;
+  font-size:14px;
+  font-weight:700;
+}
+.wa-tpl-preview-mensagem{
+  background:#f0fdf4;
+  border:1px solid #bbf7d0;
+  border-radius:10px;
+  padding:12px;
+  display:grid;
+  gap:8px;
+}
+.wa-tpl-preview-mensagem #waTplPreviewTexto{
+  white-space:pre-wrap;
+  line-height:1.48;
+  font-size:14px;
+  color:#0f172a;
+  max-height:280px;
+  overflow:auto;
+}
+.wa-api-template-preview-dialog .form-actions{
+  justify-content:flex-start;
+}
+@media(max-width:600px){
+  .wa-api-template-preview-dialog{width:calc(100vw - 12px)}
+}
+
+
+/* Estabilização — previsão de entrega no mesmo padrão das demais prévias */
+.wa-api-previsao-dialog{
+  width:min(680px,calc(100vw - 20px));
+  max-height:92vh;
+  padding:0;
+  border:0;
+  border-radius:14px;
+  overflow:hidden;
+}
+.wa-api-previsao-dialog .modal-header{background:#eaf4ff;}
+.wa-api-previsao-dialog .wa-prev-grid{grid-template-columns:1fr;}
+.wa-api-previsao-dialog .wa-prev-grid label{display:grid;gap:4px;font-size:12px;font-weight:800;color:#334155;}
+.wa-api-previsao-dialog .wa-prev-grid label>span{display:block;}
+.wa-api-previsao-dialog .wa-prev-grid input,
+.wa-api-previsao-dialog .wa-prev-grid select{
+  width:100%;min-height:42px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:10px;
+  background:#fff;box-sizing:border-box;font-size:14px;font-weight:700;
+}
+.wa-api-previsao-dialog .wa-prev-personalizado{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.wa-api-previsao-dialog .wa-prev-personalizado[hidden]{display:none!important;}
+.wa-api-previsao-dialog .wa-prev-preview #waPrevTexto{white-space:pre-wrap;line-height:1.48;font-size:14px;color:#0f172a;max-height:280px;overflow:auto;}
+.wa-api-previsao-dialog .form-actions{justify-content:flex-start;}
+@media(max-width:600px){.wa-api-previsao-dialog{width:calc(100vw - 12px)}.wa-api-previsao-dialog .wa-prev-personalizado{grid-template-columns:1fr}}
+
+/* Diagnóstico de tráfego local */
+.diag-acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.diag-filtros{margin-bottom:14px}.diag-cards{display:grid;grid-template-columns:repeat(5,minmax(140px,1fr));gap:12px;margin-bottom:14px}.diag-card{background:#fff;border:1px solid #d8e3ef;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:5px}.diag-card span{font-size:.82rem;color:#607086;font-weight:700}.diag-card strong{font-size:1.42rem;color:#0f4f82}.diag-card.diag-erro strong{color:#b42318}.diag-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}.diag-grid .panel,.diag-consultas{padding:14px}.diag-grid h3,.diag-consultas h3{margin:0 0 10px;color:#0f4f82}.diag-ranking th,.diag-ranking td,.diag-consultas th,.diag-consultas td{white-space:nowrap}.diag-linha-erro{background:#fff1f0}.diag-consultas .table-wrapper{max-height:460px;overflow:auto}
+@media(max-width:900px){.diag-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.diag-grid{grid-template-columns:1fr}.diag-acoes{width:100%}.diag-acoes button{flex:1}}
+
+
+/* Diagnóstico/admin: compatibilidade com perfil normalizado */
+.perfil-administrador .admin-only {
+  display: inline-flex !important;
+  visibility: visible !important;
+}
+.perfil-administrador .section.admin-only {
+  display: block !important;
+}
+
+/* =====================================================
+   ESTABILIZAÇÃO: navegação por abas para administrador
+   Mantém seções administrativas ocultas até a aba ser aberta.
+===================================================== */
+body.perfil-admin .section,
+body.perfil-admin .section.admin-only {
+  display: none !important;
+}
+
+body.perfil-admin .section.active-section,
+body.perfil-admin .section.admin-only.active-section {
+  display: block !important;
+}
+
+body.perfil-admin .tab-btn.admin-only {
+  display: inline-flex !important;
+  visibility: visible !important;
+}
+
+/* =====================================================
+   CORREÇÃO DEFINITIVA: navegação por abas do administrador
+   Elementos admin-only de menu ficam visíveis, mas seções
+   continuam ocultas até receberem active/active-section.
+===================================================== */
+.perfil-admin .section,
+.perfil-admin .section.admin-only,
+.perfil-administrador .section,
+.perfil-administrador .section.admin-only {
+  display: none !important;
+}
+
+.perfil-admin .section.active,
+.perfil-admin .section.active-section,
+.perfil-admin .section.admin-only.active,
+.perfil-admin .section.admin-only.active-section,
+.perfil-administrador .section.active,
+.perfil-administrador .section.active-section,
+.perfil-administrador .section.admin-only.active,
+.perfil-administrador .section.admin-only.active-section {
+  display: block !important;
+}
+
+.perfil-admin .tab-btn.admin-only,
+.perfil-admin button.admin-only,
+.perfil-admin .config-link-item.admin-only,
+.perfil-administrador .tab-btn.admin-only,
+.perfil-administrador button.admin-only,
+.perfil-administrador .config-link-item.admin-only {
+  display: inline-flex !important;
+  visibility: visible !important;
+}
+
+/* =====================================================
+   ESTABILIZAÇÃO 2026-07-28: isolamento real de Usuários/Diagnóstico
+   Sobrescreve regras legadas com seletor por ID.
+===================================================== */
+body.perfil-admin #usuariosSection,
+body.perfil-administrador #usuariosSection,
+body.perfil-admin #diagnosticoTrafegoSection,
+body.perfil-administrador #diagnosticoTrafegoSection {
+  display: none !important;
+}
+
+body.perfil-admin #usuariosSection.active,
+body.perfil-admin #usuariosSection.active-section,
+body.perfil-administrador #usuariosSection.active,
+body.perfil-administrador #usuariosSection.active-section,
+body.perfil-admin #diagnosticoTrafegoSection.active,
+body.perfil-admin #diagnosticoTrafegoSection.active-section,
+body.perfil-administrador #diagnosticoTrafegoSection.active,
+body.perfil-administrador #diagnosticoTrafegoSection.active-section {
+  display: block !important;
+}

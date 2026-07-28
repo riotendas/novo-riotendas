@@ -80,6 +80,7 @@
       <button class="tab-btn" data-section="financeiroSection">Financeiro</button>
       <button class="tab-btn" data-section="relatoriosSection">Relatórios</button>
       <button class="tab-btn admin-only" data-section="usuariosSection">Usuários</button>
+      <button class="tab-btn admin-only" data-section="diagnosticoTrafegoSection">Diagnóstico</button>
       <button class="tab-btn" data-section="configSection">Configurações</button>
     </nav>
 
@@ -1176,6 +1177,39 @@
           </table>
         </div>
       </section>
+
+
+    <section id="diagnosticoTrafegoSection" class="section admin-only">
+      <div class="section-header split">
+        <div>
+          <h2>Diagnóstico de tráfego</h2>
+          <p>Medição local das consultas feitas por este navegador ao Supabase.</p>
+        </div>
+        <div class="diag-acoes">
+          <select id="diagPeriodo" aria-label="Período do diagnóstico">
+            <option value="hoje">Hoje</option>
+            <option value="todos">Últimos 7 dias</option>
+          </select>
+          <select id="diagServico" aria-label="Serviço do diagnóstico">
+            <option value="todos">Todos os serviços</option>
+            <option value="PostgREST">PostgREST</option>
+            <option value="Functions">Functions</option>
+            <option value="Auth">Auth</option>
+            <option value="Storage">Storage</option>
+            <option value="Realtime">Realtime</option>
+          </select>
+          <button type="button" class="btn-outline" id="diagAtualizar">Atualizar</button>
+          <button type="button" class="btn-outline" id="diagExportar">Exportar JSON</button>
+          <button type="button" class="btn-danger" id="diagLimpar">Limpar</button>
+        </div>
+      </div>
+      <div class="panel diag-aviso">
+        <strong>Importante:</strong> os registros ficam somente neste computador ou celular por até 7 dias. Esta tela não grava dados no Supabase e não gera Egress adicional.
+      </div>
+      <div id="diagnosticoTrafegoConteudo">
+        <p class="empty">Carregando diagnóstico...</p>
+      </div>
+    </section>
 
       <section id="configSection" class="section">
       <div class="section-header">
@@ -2280,6 +2314,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/diagnostico-trafego.js?v=20260727-menu-corrigido"></script>
   <script src="js/supabase.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/auth.js"></script>

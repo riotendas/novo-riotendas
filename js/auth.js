@@ -75,10 +75,18 @@ function opcoesPerfilParaBanco(perfil) {
 }
 
 function getUsuarioLogado() {
-  if (usuarioLogadoSistema) return usuarioLogadoSistema;
+  // Sempre normaliza também a sessão mantida em memória. Alguns logins antigos
+  // preservavam o perfil como "Administrador"/"ADMIN", fazendo elementos
+  // .admin-only permanecerem ocultos apesar do usuário ser administrador.
+  if (usuarioLogadoSistema) {
+    usuarioLogadoSistema = normalizarUsuarioSistemaApp(usuarioLogadoSistema);
+    return usuarioLogadoSistema;
+  }
 
   try {
-    return normalizarUsuarioSistemaApp(JSON.parse(localStorage.getItem(storageSessaoUsuarioKey) || "null"));
+    const usuarioSalvo = JSON.parse(localStorage.getItem(storageSessaoUsuarioKey) || "null");
+    usuarioLogadoSistema = normalizarUsuarioSistemaApp(usuarioSalvo);
+    return usuarioLogadoSistema;
   } catch {
     return null;
   }
@@ -333,7 +341,8 @@ function aplicarPermissoesUsuario() {
     "perfil-rua"
   );
 
-  document.body.classList.add(`perfil-${usuario.perfil}`);
+  const classePerfil = usuario.perfil === "administrador" ? "admin" : usuario.perfil;
+  document.body.classList.add(`perfil-${classePerfil}`);
 
   document.querySelectorAll(".admin-only").forEach(el => {
     el.style.display = usuario.perfil === "administrador" ? "" : "none";

@@ -3,7 +3,7 @@
   "use strict";
 
   const DEFAULT_TEMPLATES = [{
-    id: "caminho", titulo: "Estamos a caminho", icone: "🚚", templateId: "15",
+    id: "caminho", titulo: "Caminho de Entrega", icone: "🚚", templateId: "15",
     nomeTemplate: "utl_caminho", status: "APPROVED", body: "Olá {{1}}, Td bem?!\n\nPassando para avisar que *estamos a caminho* 🚚 da sua {{2}}. Ok ?", variables: ["1", "2"], ativo: true,
     variableMappings: [{position:"1",source:"primeiro_nome",value:""},{position:"2",source:"tipo_rota",value:""}]
   }];
@@ -20,6 +20,26 @@
     else localStorage.setItem("novoRioTendasConfiguracoesV1", JSON.stringify(cfg));
   }
   const ativos = () => configAtual().whatsappApiTemplates.filter(t=>t && t.ativo!==false && t.templateId);
+
+  function textoNormalizado(v){
+    return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLowerCase();
+  }
+  function ehAcaoRetirada(t){
+    const id=textoNormalizado(t?.id), titulo=textoNormalizado(t?.titulo), nome=textoNormalizado(t?.nomeTemplate);
+    return id.includes("retirada") || titulo.includes("retirada") || nome.includes("retirada");
+  }
+  function ehTemplateEntrega(t){
+    if(ehAcaoRetirada(t))return false;
+    const id=textoNormalizado(t?.id), nome=textoNormalizado(t?.nomeTemplate);
+    return id==="caminho" || id.includes("entrega") || nome==="utl_caminho" || nome==="caminho";
+  }
+  function tituloExibicaoTemplate(t){
+    if(ehAcaoRetirada(t))return "Caminho de Retirada";
+    if(ehTemplateEntrega(t))return "Caminho de Entrega";
+    if(ehTemplatePrevisao(t))return "Previsão de Entrega";
+    const titulo=String(t?.titulo||t?.nomeTemplate||"Mensagem");
+    return textoNormalizado(titulo)==="chegamos"?"Chegamos":titulo;
+  }
   const badgeStatus = s => String(s||"").toUpperCase()==="APPROVED" ? '<span class="wa-api-badge aprovado">Aprovado</span>' : `<span class="wa-api-badge pendente">${esc(s||"Não sincronizado")}</span>`;
   const FONTES_VARIAVEL = [
     ["primeiro_nome","Primeiro nome do cliente"],
@@ -133,6 +153,28 @@
     }catch(e){console.error(e);if(status){status.textContent=`Falha ao sincronizar: ${e?.message||e}`;status.className="wa-api-sync-status erro";}}
     finally{btn.disabled=false;}
   }
+
+  async function mensagemErroEdge(error,data){
+    if(data?.error){
+      const detalhe=data?.details?.message||data?.details?.error||data?.details?.raw||"";
+      return detalhe?`${data.error} — ${detalhe}`:String(data.error);
+    }
+    if(!error)return "";
+    try{
+      const ctx=error.context;
+      if(ctx&&typeof ctx.clone==="function"&&typeof ctx.json==="function"){
+        const resposta=await ctx.clone().json();
+        const detalhe=resposta?.details?.message||resposta?.details?.error||resposta?.details?.raw||"";
+        return detalhe?`${resposta?.error||resposta?.message||error.message} — ${detalhe}`:(resposta?.error||resposta?.message||error.message);
+      }
+      if(ctx&&typeof ctx.json==="function"){
+        const resposta=await ctx.json();
+        const detalhe=resposta?.details?.message||resposta?.details?.error||resposta?.details?.raw||"";
+        return detalhe?`${resposta?.error||resposta?.message||error.message} — ${detalhe}`:(resposta?.error||resposta?.message||error.message);
+      }
+    }catch{}
+    return error?.message||"Falha ao chamar a Edge Function.";
+  }
   function normalizarTelefone(v){let n=String(v||"").replace(/\D/g,"");if(!n)return"";if(n.startsWith("00"))n=n.slice(2);if(!n.startsWith("55"))n="55"+n;return n;}
   const primeiroNome=n=>String(n||"Cliente").trim().split(/\s+/)[0]||"Cliente";
   function localizarRota(id){return typeof window.criarRotasDosEventos==="function"?window.criarRotasDosEventos().find(r=>String(r.id)===String(id))||null:null;}
@@ -226,18 +268,18 @@
   function garantirDialogPrevisao(){
     let d=document.getElementById("waApiPrevisaoDialog"); if(d)return d;
     d=document.createElement("dialog"); d.id="waApiPrevisaoDialog"; d.className="modal wa-api-previsao-dialog";
-    d.innerHTML=`<div class="modal-header"><div><h2>📅 Previsão de entrega</h2><p id="waPrevSubtitulo"></p></div><button type="button" class="modal-close" data-wa-prev-fechar>×</button></div>
-      <div class="wa-prev-body">
-        <div class="wa-prev-grid">
-          <label>Cliente<input id="waPrevCliente" type="text"></label>
-          <label>Materiais<input id="waPrevMateriais" type="text"></label>
-          <label>Dia<input id="waPrevDia" type="text"></label>
-          <label>Faixa de horário<select id="waPrevHorario"></select></label>
-          <div id="waPrevPersonalizado" class="wa-prev-personalizado" hidden><label>De<input id="waPrevDe" type="text" value="13h"></label><label>Até<input id="waPrevAte" type="text" value="16h"></label></div>
+    d.innerHTML=`<div class="modal-header"><div><h2>📅 Previsão de Entrega</h2><p id="waPrevSubtitulo"></p></div><button type="button" class="modal-close" data-wa-prev-fechar>×</button></div>
+      <div class="wa-tpl-preview-body wa-prev-body">
+        <div class="wa-tpl-preview-variaveis wa-prev-grid">
+          <label><span>Cliente</span><input id="waPrevCliente" type="text"></label>
+          <label><span>Materiais</span><input id="waPrevMateriais" type="text"></label>
+          <label><span>Dia</span><input id="waPrevDia" type="text"></label>
+          <label><span>Faixa de horário</span><select id="waPrevHorario"></select></label>
+          <div id="waPrevPersonalizado" class="wa-prev-personalizado" hidden><label><span>De</span><input id="waPrevDe" type="text" value="13h"></label><label><span>Até</span><input id="waPrevAte" type="text" value="16h"></label></div>
         </div>
-        <div class="wa-prev-preview"><strong>Prévia da mensagem</strong><div id="waPrevTexto"></div><small>Você pode editar cliente, materiais, dia e horário antes do envio.</small></div>
+        <div class="wa-tpl-preview-mensagem wa-prev-preview"><strong>Como a mensagem será enviada</strong><div id="waPrevTexto"></div><small>Você pode editar cliente, materiais, dia e horário antes do envio.</small></div>
         <div id="waPrevStatus" class="wa-api-envio-status" hidden></div>
-        <div class="form-actions"><button type="button" class="btn-outline" data-wa-prev-fechar>Cancelar</button><button type="button" class="btn-primary" id="waPrevEnviar">Enviar confirmação</button></div>
+        <div class="form-actions"><button type="button" class="btn-outline" data-wa-prev-fechar>Cancelar</button><button type="button" class="btn-primary" id="waPrevEnviar">Enviar WhatsApp</button></div>
       </div>`;
     document.body.appendChild(d); return d;
   }
@@ -272,25 +314,83 @@
     if(faltando)return alert("Preencha todos os campos antes de enviar.");
     const hist=await buscarHistoricoEvento(r.evento_id),hoje=new Date().toISOString().slice(0,10);
     const duplicado=hist.find(x=>String(x?.depois?.acaoId||"")===String(t.id)&&String(x.criado_em||"").slice(0,10)===hoje);
-    if(duplicado&&!confirm(`“${t.titulo}” já foi enviado hoje às ${horaBr(duplicado.criado_em)}. Enviar novamente?`))return;
+    if(duplicado&&!confirm(`“${tituloExibicaoTemplate(t)}” já foi enviado hoje às ${horaBr(duplicado.criado_em)}. Enviar novamente?`))return;
     const d=garantirDialogPrevisao(),status=d.querySelector("#waPrevStatus"); btn.disabled=true;status.hidden=false;status.className="wa-api-envio-status enviando";status.textContent="Enviando mensagem...";
     try{
       const sb=typeof supabaseClient!=="undefined"?supabaseClient:window.supabaseClient;if(!sb?.functions?.invoke)throw new Error("Cliente Supabase indisponível.");
       const telefone=normalizarTelefone(r.telefone),nome=params.additionalProp1,tipo=String(r.tipo||"montagem").toLowerCase();
-      const {data,error}=await sb.functions.invoke("onecode-whatsapp",{body:{action:"send_template",telefone,nome,tipo,templateId:String(t.templateId),nomeTemplate:t.nomeTemplate||"",bodyParams:params}});
-      if(error)throw error;if(data?.error)throw new Error(data.error);
+      const {data,error}=await sb.functions.invoke("onecode-whatsapp",{body:{action:"send_template",telefone,nome,tipo,templateId:Number(t.templateId),nomeTemplate:t.nomeTemplate||"",bodyParams:params}});
+      if(error||data?.error)throw new Error(await mensagemErroEdge(error,data));
       status.className="wa-api-envio-status sucesso";status.textContent="Previsão enviada com sucesso.";
-      if(typeof registrarLogSistema==="function")await registrarLogSistema({modulo:"WhatsApp",acao:"Template enviado",registro_id:String(r.evento_id||""),registro_nome:r.cliente||nome,depois:{acaoId:String(t.id),templateId:String(t.templateId),nomeTemplate:t.nomeTemplate||"",titulo:t.titulo||"Previsão de entrega",rotaId:r.id,tipo,telefone,bodyParams:params,mensagem:aplicarParametrosAoTexto(t.body,params)},detalhes:`${t.titulo||t.nomeTemplate} enviado para ${r.cliente||nome}`});
+      if(typeof registrarLogSistema==="function")await registrarLogSistema({modulo:"WhatsApp",acao:"Template enviado",registro_id:String(r.evento_id||""),registro_nome:r.cliente||nome,depois:{acaoId:String(t.id),templateId:String(t.templateId),nomeTemplate:t.nomeTemplate||"",titulo:t.titulo||"Previsão de entrega",rotaId:r.id,tipo,telefone,bodyParams:params,mensagem:aplicarParametrosAoTexto(t.body,params)},detalhes:`${tituloExibicaoTemplate(t)} enviado para ${r.cliente||nome}`});
       setTimeout(()=>{try{d.close()}catch{}},1200);
     }catch(e){console.error(e);status.className="wa-api-envio-status erro";status.textContent=`Não foi possível enviar: ${e?.message||"erro desconhecido"}`;}finally{btn.disabled=false;}
   }
-  async function abrirMenu(id){const r=localizarRota(id);if(!r)return alert("Não foi possível localizar esta rota.");if(!normalizarTelefone(r.telefone))return alert("Este cliente não possui telefone válido.");rotaSelecionada=r;const d=garantirDialog();d.querySelector("#waApiEnvioCliente").textContent=`${r.cliente||"Cliente"} • ${r.telefone}`;const ts=ativos(), hist=await buscarHistoricoEvento(r.evento_id);d.querySelector("#waApiAcoesLista").innerHTML=ts.length?ts.map((t,i)=>{const h=hist.find(x=>String(x?.depois?.acaoId||"")===String(t.id));return `<button type="button" class="wa-api-acao-btn ${h?"ja-enviado":""}" data-wa-api-enviar="${i}"><span>${esc(t.icone||"💬")}</span><strong>${esc(t.titulo||"Enviar mensagem")}${h?` <em>✓ Enviado ${horaBr(h.criado_em)}</em>`:""}</strong></button>`}).join(""):'<p class="empty">Nenhum template ativo em Configurações → WhatsApp API.</p>';const s=d.querySelector("#waApiEnvioStatus");s.hidden=true;s.textContent="";typeof d.showModal==="function"?d.showModal():d.setAttribute("open","");}
+  let templatePreviewSelecionado=null;
+  let templatePreviewIndice=-1;
+  function rotuloVariavelTemplate(t,pos){
+    const m=normalizarMappings(t).find(x=>String(x.position)===String(pos));
+    const fonte=FONTES_VARIAVEL.find(([v])=>v===m?.source);
+    return fonte?.[1]||`Variável {{${pos}}}`;
+  }
+  function garantirDialogTemplatePreview(){
+    let d=document.getElementById("waApiTemplatePreviewDialog");if(d)return d;
+    d=document.createElement("dialog");d.id="waApiTemplatePreviewDialog";d.className="modal wa-api-template-preview-dialog";
+    d.innerHTML=`<div class="modal-header"><div><h2>💬 Prévia do WhatsApp</h2><p id="waTplPreviewSubtitulo"></p></div><button type="button" class="modal-close" data-wa-tpl-preview-fechar>×</button></div>
+      <div class="wa-tpl-preview-body">
+        <div id="waTplPreviewVariaveis" class="wa-tpl-preview-variaveis"></div>
+        <div class="wa-tpl-preview-mensagem"><strong>Como a mensagem será enviada</strong><div id="waTplPreviewTexto"></div><small>O texto fixo segue o template aprovado. Você pode editar somente as variáveis.</small></div>
+        <div id="waTplPreviewStatus" class="wa-api-envio-status" hidden></div>
+        <div class="form-actions"><button type="button" class="btn-outline" data-wa-tpl-preview-fechar>Cancelar</button><button type="button" class="btn-primary" id="waTplPreviewEnviar">Enviar WhatsApp</button></div>
+      </div>`;
+    document.body.appendChild(d);return d;
+  }
+  function parametrosTemplatePreview(){
+    const d=garantirDialogTemplatePreview(),out={};
+    d.querySelectorAll("[data-wa-tpl-param]").forEach(inp=>{out[`additionalProp${inp.dataset.waTplParam}`]=inp.value.trim()});
+    return out;
+  }
+  function atualizarTemplatePreview(){
+    const d=garantirDialogTemplatePreview();if(!templatePreviewSelecionado)return;
+    d.querySelector("#waTplPreviewTexto").textContent=aplicarParametrosAoTexto(templatePreviewSelecionado.body,parametrosTemplatePreview());
+  }
+  async function abrirTemplatePreview(i){
+    const t=ativos()[i],r=rotaSelecionada;if(!t||!r)return;
+    templatePreviewSelecionado=t;templatePreviewIndice=i;
+    const tipo=String(r.tipo||"montagem").toLowerCase(),nome=primeiroNome(r.cliente),params=bodyParamsDoTemplate(t,r,nome,tipo),d=garantirDialogTemplatePreview();
+    d.querySelector("#waTplPreviewSubtitulo").textContent=`${tituloExibicaoTemplate(t)} • ${r.cliente||"Cliente"} • ${r.telefone||""}`;
+    const posicoes=(Array.isArray(t.variables)&&t.variables.length?t.variables:normalizarMappings(t).map(x=>x.position));
+    d.querySelector("#waTplPreviewVariaveis").innerHTML=posicoes.length?posicoes.map(pos=>`<label><span>${esc(rotuloVariavelTemplate(t,pos))} <small>{{${esc(pos)}}}</small></span><input type="text" data-wa-tpl-param="${esc(pos)}" value="${esc(params[`additionalProp${pos}`]||"")}"></label>`).join(""):'<p class="empty">Este template não possui variáveis editáveis.</p>';
+    const status=d.querySelector("#waTplPreviewStatus");status.hidden=true;status.textContent="";
+    atualizarTemplatePreview();
+    try{document.getElementById("waApiEnvioDialog")?.close()}catch{}
+    typeof d.showModal==="function"?d.showModal():d.setAttribute("open","");
+  }
+  async function enviarTemplatePreview(btn){
+    const t=templatePreviewSelecionado,r=rotaSelecionada;if(!t||!r)return;
+    const bodyParams=parametrosTemplatePreview(),telefone=normalizarTelefone(r.telefone),tipo=String(r.tipo||"montagem").toLowerCase(),nome=primeiroNome(r.cliente);
+    const vazio=Object.entries(bodyParams).find(([,v])=>!String(v||"").trim());
+    if(vazio){const pos=vazio[0].replace("additionalProp","");if(!confirm(`A variável {{${pos}}} está vazia. Enviar mesmo assim?`))return;}
+    const hist=await buscarHistoricoEvento(r.evento_id),hoje=new Date().toISOString().slice(0,10);
+    const duplicado=hist.find(x=>String(x?.depois?.acaoId||"")===String(t.id)&&String(x.criado_em||"").slice(0,10)===hoje);
+    if(duplicado&&!confirm(`“${tituloExibicaoTemplate(t)}” já foi enviado hoje às ${horaBr(duplicado.criado_em)}. Enviar novamente?`))return;
+    const d=garantirDialogTemplatePreview(),status=d.querySelector("#waTplPreviewStatus");btn.disabled=true;status.hidden=false;status.className="wa-api-envio-status enviando";status.textContent="Enviando mensagem...";
+    try{
+      const sb=typeof supabaseClient!=="undefined"?supabaseClient:window.supabaseClient;if(!sb?.functions?.invoke)throw new Error("Cliente Supabase indisponível.");
+      const {data,error}=await sb.functions.invoke("onecode-whatsapp",{body:{action:"send_template",telefone,nome,tipo,templateId:Number(t.templateId),nomeTemplate:t.nomeTemplate||"",bodyParams}});
+      if(error||data?.error)throw new Error(await mensagemErroEdge(error,data));
+      status.className="wa-api-envio-status sucesso";status.textContent="Mensagem enviada com sucesso.";
+      if(typeof registrarLogSistema==="function")await registrarLogSistema({modulo:"WhatsApp",acao:"Template enviado",registro_id:String(r.evento_id||""),registro_nome:r.cliente||nome,depois:{acaoId:String(t.id),templateId:String(t.templateId),nomeTemplate:t.nomeTemplate||"",titulo:tituloExibicaoTemplate(t),rotaId:r.id,tipo,telefone,bodyParams,mensagem:aplicarParametrosAoTexto(t.body,bodyParams)},detalhes:`${tituloExibicaoTemplate(t)} enviado para ${r.cliente||nome}`});
+      setTimeout(()=>{try{d.close()}catch{}},1200);
+    }catch(e){console.error(e);status.className="wa-api-envio-status erro";status.textContent=`Não foi possível enviar: ${e?.message||"erro desconhecido"}`;}finally{btn.disabled=false;}
+  }
+  async function abrirMenu(id){const r=localizarRota(id);if(!r)return alert("Não foi possível localizar esta rota.");if(!normalizarTelefone(r.telefone))return alert("Este cliente não possui telefone válido.");rotaSelecionada=r;const d=garantirDialog();d.querySelector("#waApiEnvioCliente").textContent=`${r.cliente||"Cliente"} • ${r.telefone}`;const ts=ativos(), hist=await buscarHistoricoEvento(r.evento_id);d.querySelector("#waApiAcoesLista").innerHTML=ts.length?ts.map((t,i)=>{const h=hist.find(x=>String(x?.depois?.acaoId||"")===String(t.id));return `<button type="button" class="wa-api-acao-btn ${h?"ja-enviado":""}" data-wa-api-enviar="${i}"><span>${esc(t.icone||"💬")}</span><strong>${esc(tituloExibicaoTemplate(t))}${h?` <em>✓ Enviado ${horaBr(h.criado_em)}</em>`:""}</strong></button>`}).join(""):'<p class="empty">Nenhum template ativo em Configurações → WhatsApp API.</p>';const s=d.querySelector("#waApiEnvioStatus");s.hidden=true;s.textContent="";typeof d.showModal==="function"?d.showModal():d.setAttribute("open","");}
   async function enviarTemplate(i,b){
     const t=ativos()[i],r=rotaSelecionada;if(!t||!r)return;
     const telefone=normalizarTelefone(r.telefone),tipo=String(r.tipo||"montagem").toLowerCase(),nome=primeiroNome(r.cliente);
     const hist=await buscarHistoricoEvento(r.evento_id),hoje=new Date().toISOString().slice(0,10);
     const duplicado=hist.find(x=>String(x?.depois?.acaoId||"")===String(t.id)&&String(x.criado_em||"").slice(0,10)===hoje);
-    if(duplicado&&!confirm(`“${t.titulo}” já foi enviado hoje às ${horaBr(duplicado.criado_em)}. Enviar novamente?`))return;
+    if(duplicado&&!confirm(`“${tituloExibicaoTemplate(t)}” já foi enviado hoje às ${horaBr(duplicado.criado_em)}. Enviar novamente?`))return;
     if(!duplicado&&!confirm(`Enviar “${t.titulo}” para ${r.cliente||nome}?`))return;
     const bodyParams=bodyParamsDoTemplate(t,r,nome,tipo);
     const vazio=Object.entries(bodyParams).find(([,v])=>!String(v||"").trim());
@@ -298,10 +398,10 @@
     const d=garantirDialog(),s=d.querySelector("#waApiEnvioStatus");b.disabled=true;s.hidden=false;s.className="wa-api-envio-status enviando";s.textContent="Enviando mensagem...";
     try{
       const sb=typeof supabaseClient!=="undefined"?supabaseClient:window.supabaseClient;if(!sb?.functions?.invoke)throw new Error("Cliente Supabase indisponível.");
-      const {data,error}=await sb.functions.invoke("onecode-whatsapp",{body:{action:"send_template",telefone,nome,tipo,templateId:String(t.templateId),nomeTemplate:t.nomeTemplate||"",bodyParams}});
-      if(error)throw error;if(data?.error)throw new Error(data.error);
+      const {data,error}=await sb.functions.invoke("onecode-whatsapp",{body:{action:"send_template",telefone,nome,tipo,templateId:Number(t.templateId),nomeTemplate:t.nomeTemplate||"",bodyParams}});
+      if(error||data?.error)throw new Error(await mensagemErroEdge(error,data));
       s.className="wa-api-envio-status sucesso";s.textContent="Mensagem enviada com sucesso.";
-      if(typeof registrarLogSistema==="function")await registrarLogSistema({modulo:"WhatsApp",acao:"Template enviado",registro_id:String(r.evento_id||""),registro_nome:r.cliente||nome,depois:{acaoId:String(t.id),templateId:String(t.templateId),nomeTemplate:t.nomeTemplate||"",titulo:t.titulo||"",rotaId:r.id,tipo,telefone,bodyParams},detalhes:`${t.titulo||t.nomeTemplate} enviado para ${r.cliente||nome}`});
+      if(typeof registrarLogSistema==="function")await registrarLogSistema({modulo:"WhatsApp",acao:"Template enviado",registro_id:String(r.evento_id||""),registro_nome:r.cliente||nome,depois:{acaoId:String(t.id),templateId:String(t.templateId),nomeTemplate:t.nomeTemplate||"",titulo:tituloExibicaoTemplate(t),rotaId:r.id,tipo,telefone,bodyParams},detalhes:`${tituloExibicaoTemplate(t)} enviado para ${r.cliente||nome}`});
       setTimeout(()=>{try{d.close()}catch{}},1200);
     }catch(e){console.error(e);s.className="wa-api-envio-status erro";s.textContent=`Não foi possível enviar: ${e?.message||"erro desconhecido"}`;}finally{b.disabled=false;}
   }
@@ -315,6 +415,7 @@
   document.addEventListener("input",ev=>{
     if(ev.target.matches("[data-var-value], [data-campo='titulo']")) atualizarPreviewItem(ev.target.closest(".wa-api-template-item"));
     if(ev.target.matches("#waPrevCliente,#waPrevMateriais,#waPrevDia,#waPrevDe,#waPrevAte")) atualizarPreviaEnvio();
+    if(ev.target.matches("[data-wa-tpl-param]")) atualizarTemplatePreview();
   });
   document.addEventListener("change",ev=>{if(ev.target.matches("#waPrevHorario"))atualizarPreviaEnvio();});
   document.addEventListener("click",async ev=>{
@@ -327,9 +428,11 @@
     if(ev.target.closest("#waApiRestaurarTemplates")){if(!confirm("Restaurar o template padrão utl_caminho?"))return;const cfg=configAtual();cfg.whatsappApiTemplates=DEFAULT_TEMPLATES.map(x=>({...x}));await salvarConfig(cfg);renderConfig();return;}
     const wa=ev.target.closest("[data-rota-whatsapp]");if(wa){ev.preventDefault();ev.stopPropagation();abrirMenu(wa.dataset.rotaWhatsapp);return;}
     if(ev.target.closest("[data-wa-api-fechar]")){garantirDialog().close();return;}
-    const send=ev.target.closest("[data-wa-api-enviar]");if(send){const t=ativos()[Number(send.dataset.waApiEnviar)];if(ehTemplatePrevisao(t)){await abrirPrevisao(t);return;}await enviarTemplate(Number(send.dataset.waApiEnviar),send);return;}
+    const send=ev.target.closest("[data-wa-api-enviar]");if(send){const i=Number(send.dataset.waApiEnviar),t=ativos()[i];if(ehTemplatePrevisao(t)){await abrirPrevisao(t);return;}await abrirTemplatePreview(i);return;}
     if(ev.target.closest("[data-wa-prev-fechar]")){garantirDialogPrevisao().close();return;}
     const prevSend=ev.target.closest("#waPrevEnviar");if(prevSend){await enviarPrevisao(prevSend);return;}
+    if(ev.target.closest("[data-wa-tpl-preview-fechar]")){garantirDialogTemplatePreview().close();return;}
+    const tplSend=ev.target.closest("#waTplPreviewEnviar");if(tplSend){await enviarTemplatePreview(tplSend);return;}
   });
 
   async function renderHistoricoEvento(){const dlg=document.getElementById("eventoDialog"),form=document.getElementById("eventoForm");if(!dlg||!form)return;let box=document.getElementById("eventoWhatsappHistoricoBox");if(!box){box=document.createElement("div");box.id="eventoWhatsappHistoricoBox";box.className="subpanel evento-whatsapp-historico";box.innerHTML='<h3>📲 Histórico de comunicações</h3><div id="eventoWhatsappHistoricoLista" class="evento-whatsapp-historico-lista"><p class="empty">Nenhuma comunicação registrada.</p></div>';form.appendChild(box)}const id=document.getElementById("eventoId")?.value;if(!id){box.style.display="none";return}box.style.display="";const hist=await buscarHistoricoEvento(id),lista=box.querySelector("#eventoWhatsappHistoricoLista");lista.innerHTML=hist.length?hist.map(h=>{let depois=h?.depois||{};if(typeof depois==="string"){try{depois=JSON.parse(depois)||{}}catch(e){depois={}}}const tipo=depois.titulo||depois.nomeTemplate||depois.tipo||h.acao||h.detalhes||"Mensagem";return `<div class="evento-whatsapp-historico-item"><strong>${esc(tipo)}</strong><span>${horaBr(h.criado_em)} · ${esc(h.usuario||"Sistema")}</span></div>`;}).join(""):'<p class="empty">Nenhuma comunicação registrada.</p>';}
