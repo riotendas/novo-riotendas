@@ -2,12 +2,44 @@
   "use strict";
 
   const STORAGE_KEY = "riotendas_diagnostico_trafego_v1";
-  const MAX_REGISTROS = 2500;
+  const MAX_REGISTROS = 4000;
   const RETENCAO_MS = 7 * 24 * 60 * 60 * 1000;
   const originalFetch = window.fetch.bind(window);
 
   function agoraIso() { return new Date().toISOString(); }
   function seguroNumero(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+
+  function origemAtual() {
+    if (location.protocol === "file:") return `Arquivo local (${location.pathname.split("/").pop() || "index.html"})`;
+    return location.origin || "Origem desconhecida";
+  }
+
+  function resumoUrl(urlTexto) {
+    try {
+      const url = new URL(urlTexto, location.href);
+      const params = new URLSearchParams(url.search);
+      // Evita poluir a tela com consultas gigantes, preservando os filtros úteis.
+      const query = params.toString();
+      return `${url.pathname}${query ? `?${query}` : ""}`.slice(0, 900);
+    } catch (_) { return String(urlTexto || "-").slice(0, 900); }
+  }
+
+  function operacaoDaRequisicao(metodo, urlTexto) {
+    const m = String(metodo || "GET").toUpperCase();
+    if (m === "GET" || m === "HEAD") return "SELECT";
+    if (m === "POST") return /\/rpc\//i.test(urlTexto || "") ? "RPC" : "INSERT/RPC";
+    if (m === "PATCH" || m === "PUT") return "UPDATE";
+    if (m === "DELETE") return "DELETE";
+    return m;
+  }
+
+  function identificarChamador(stackTexto) {
+    const linhas = String(stackTexto || "").split("\n").map(x => x.trim()).filter(Boolean);
+    const ignorar = /diagnostico-trafego\.js|window\.fetch|diagnosticoFetch|Error$/i;
+    const linha = linhas.find((l, i) => i > 0 && !ignorar.test(l) && /(?:\.js|\.html)(?::\d+){1,2}/i.test(l));
+    if (!linha) return "Chamador não identificado";
+    return linha.replace(/^at\s+/, "").slice(0, 240);
+  }
 
   function lerRegistros() {
     try {
@@ -69,6 +101,10 @@
     const inicio = performance.now();
     const metodo = String(init?.method || input?.method || "GET").toUpperCase();
     const modulo = moduloAtual();
+    const chamador = identificarChamador(new Error().stack);
+    const urlResumo = resumoUrl(urlTexto || "");
+    const operacao = operacaoDaRequisicao(metodo, urlTexto || "");
+    const origem = origemAtual();
     try {
       const resposta = await originalFetch(input, init);
       const duracaoMs = Math.round((performance.now() - inicio) * 10) / 10;
@@ -88,12 +124,14 @@
             } catch (_) {}
           }
         } catch (_) {}
-        registrar({ horario: agoraIso(), modulo, servico: info.servico, recurso: info.recurso, metodo,
+        registrar({ horario: agoraIso(), origem, modulo, chamador, operacao, url: urlResumo,
+          servico: info.servico, recurso: info.recurso, metodo,
           status: resposta.status, sucesso: resposta.ok, duracaoMs, bytes, linhas });
       });
       return resposta;
     } catch (erro) {
-      registrar({ horario: agoraIso(), modulo, servico: info.servico, recurso: info.recurso, metodo,
+      registrar({ horario: agoraIso(), origem, modulo, chamador, operacao, url: urlResumo,
+        servico: info.servico, recurso: info.recurso, metodo,
         status: 0, sucesso: false, duracaoMs: Math.round((performance.now() - inicio) * 10) / 10,
         bytes: 0, linhas: 0, erro: String(erro?.message || erro) });
       throw erro;
@@ -145,7 +183,8 @@
     const erros = lista.filter(r => !r.sucesso).length;
     const porModulo = agrupar(lista, r => r.modulo || "-");
     const porRecurso = agrupar(lista, r => `${r.servico} · ${r.recurso}`);
-    const recentes = [...lista].reverse().slice(0, 100);
+    const porChamador = agrupar(lista, r => r.chamador || "Chamador não identificado");
+    const recentes = [...lista].reverse().slice(0, 150);
 
     root.innerHTML = `
       <div class="diag-cards">
@@ -155,13 +194,15 @@
         <div class="diag-card"><span>Tempo acumulado</span><strong>${(totalTempo/1000).toFixed(1)} s</strong></div>
         <div class="diag-card ${erros ? "diag-erro" : ""}"><span>Erros</span><strong>${erros}</strong></div>
       </div>
+      <div class="panel" style="margin-bottom:16px"><strong>Origem desta medição:</strong> ${esc(origemAtual())}. Os dados locais e os dados do servidor ficam separados pelo navegador.</div>
       <div class="diag-grid">
         <div class="panel"><h3>Ranking por tela</h3>${tabelaRanking(porModulo)}</div>
         <div class="panel"><h3>Ranking por serviço/tabela</h3>${tabelaRanking(porRecurso)}</div>
       </div>
+      <div class="panel" style="margin-top:16px"><h3>Ranking por função/chamador</h3>${tabelaRanking(porChamador)}</div>
       <div class="panel diag-consultas"><h3>Últimas consultas</h3>
-        <div class="table-wrapper"><table><thead><tr><th>Horário</th><th>Tela</th><th>Serviço</th><th>Recurso</th><th>Método</th><th>Status</th><th>Linhas</th><th>Dados</th><th>Tempo</th></tr></thead>
-        <tbody>${recentes.length ? recentes.map(r => `<tr class="${r.sucesso ? "" : "diag-linha-erro"}"><td>${formatarData(r.horario)}</td><td>${esc(r.modulo)}</td><td>${esc(r.servico)}</td><td>${esc(r.recurso)}</td><td>${esc(r.metodo)}</td><td>${r.status || "Erro"}</td><td>${seguroNumero(r.linhas).toLocaleString("pt-BR")}</td><td>${formatarBytes(r.bytes)}</td><td>${seguroNumero(r.duracaoMs).toFixed(1)} ms</td></tr>`).join("") : `<tr><td colspan="9" class="empty">Ainda não há consultas registradas neste navegador.</td></tr>`}</tbody></table></div>
+        <div class="table-wrapper"><table><thead><tr><th>Horário</th><th>Tela</th><th>Função/chamador</th><th>Tabela</th><th>Operação</th><th>Status</th><th>Linhas</th><th>Dados</th><th>Tempo</th><th>URL/filtros</th></tr></thead>
+        <tbody>${recentes.length ? recentes.map(r => `<tr class="${r.sucesso ? "" : "diag-linha-erro"}"><td>${formatarData(r.horario)}</td><td>${esc(r.modulo)}</td><td title="${esc(r.chamador)}">${esc(r.chamador || "-")}</td><td>${esc(`${r.servico} · ${r.recurso}`)}</td><td>${esc(r.operacao || r.metodo)}</td><td>${r.status || "Erro"}</td><td>${seguroNumero(r.linhas).toLocaleString("pt-BR")}</td><td>${formatarBytes(r.bytes)}</td><td>${seguroNumero(r.duracaoMs).toFixed(1)} ms</td><td title="${esc(r.url)}"><code>${esc(r.url || "-")}</code></td></tr>`).join("") : `<tr><td colspan="10" class="empty">Ainda não há consultas registradas neste navegador.</td></tr>`}</tbody></table></div>
       </div>`;
   }
 
