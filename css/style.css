@@ -22585,3 +22585,415 @@ body.perfil-administrador #diagnosticoTrafegoSection.active,
 body.perfil-administrador #diagnosticoTrafegoSection.active-section {
   display: block !important;
 }
+
+/* =====================================================
+   Estabilização documentos/evento 2026-07-31
+   - colaborador ocupa o antigo espaço de observações
+   - observações passam ao final dos dados do evento
+   - recibo discreto por valor financeiro
+   - ações do evento entre extras e documentos
+===================================================== */
+#eventoDialog .compact-client-grid .evento-colaborador-posicao-observacao{
+  grid-column: 11 / span 2 !important;
+  grid-row: 2 !important;
+  margin-top: 0 !important;
+  align-self: stretch !important;
+}
+#eventoDialog .compact-client-grid .evento-colaborador-posicao-observacao select{
+  width: 100% !important;
+  min-height: 56px !important;
+}
+#eventoDialog .compact-client-grid .evento-colaborador-posicao-observacao small{
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  line-height: 1.15;
+}
+#eventoDialog .evento-observacao-evento-final{
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  font-weight: 700;
+}
+#eventoDialog .evento-observacao-evento-final textarea{
+  display: block;
+  width: 100% !important;
+  min-height: 64px !important;
+  height: 64px !important;
+  margin-top: 5px;
+  box-sizing: border-box;
+  resize: vertical;
+}
+#eventoDialog .evento-recibo-link{
+  display: block;
+  width: max-content;
+  margin: 2px auto 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #185b93;
+  font-size: 10px;
+  line-height: 1.1;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+#eventoDialog .evento-recibo-link:hover{
+  color: #0b4778;
+}
+#eventoDialog .evento-acoes-entre-extras-documentos{
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin: 8px 0 10px;
+  padding: 0 2px;
+}
+#eventoDialog .evento-acoes-entre-extras-documentos .evento-save-actions{
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+#eventoDialog .evento-rodape-documentos-final{
+  margin-top: 8px !important;
+  padding-top: 8px !important;
+}
+@media (max-width: 900px){
+  #eventoDialog .compact-client-grid .evento-colaborador-posicao-observacao{
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+  }
+  #eventoDialog .compact-client-grid .evento-colaborador-posicao-observacao select{
+    min-height: 38px !important;
+  }
+  #eventoDialog .evento-observacao-evento-final textarea{
+    min-height: 72px !important;
+    height: 72px !important;
+  }
+  #eventoDialog .evento-acoes-entre-extras-documentos,
+  #eventoDialog .evento-acoes-entre-extras-documentos .evento-save-actions{
+    width: 100%;
+  }
+  #eventoDialog .evento-acoes-entre-extras-documentos .evento-save-actions{
+    display: grid;
+    grid-template-columns: repeat(3,minmax(0,1fr));
+  }
+  #eventoDialog .evento-acoes-entre-extras-documentos .evento-save-actions button{
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+
+/* Cliente unificado sem alterar a grade original do formulário */
+#eventoDialog .compact-client-grid > .evento-cliente-unico{
+  grid-column: 1 / span 6 !important;
+  grid-row: 1 !important;
+}
+#eventoDialog .compact-client-grid > .evento-nome-interno{
+  display: none !important;
+}
+#eventoDialog .compact-client-grid > label:has(#eventoDocumento){
+  grid-column: 7 / span 1 !important;
+  grid-row: 1 !important;
+}
+#eventoDialog .compact-client-grid > label:has(#eventoTelefone){
+  grid-column: 8 / span 2 !important;
+  grid-row: 1 !important;
+}
+#eventoDialog .compact-client-grid > label:has(#eventoEmail){
+  grid-column: 10 / span 3 !important;
+  grid-row: 1 !important;
+}
+@media (max-width: 900px){
+  #eventoDialog .compact-client-grid > .evento-cliente-unico,
+  #eventoDialog .compact-client-grid > label:has(#eventoDocumento),
+  #eventoDialog .compact-client-grid > label:has(#eventoTelefone),
+  #eventoDialog .compact-client-grid > label:has(#eventoEmail){
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+  }
+}
+
+/* =====================================================
+   Ajuste pontual 2026-08-01: Dados do cliente
+   - amplia Cliente e CPF/CNPJ sem alterar os demais blocos
+   - colaborador com seletor de uma única linha
+===================================================== */
+@media (min-width: 901px) {
+  #eventoDialog .compact-client-grid > .evento-cliente-unico {
+    grid-column: 1 / span 5 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+  #eventoDialog .compact-client-grid > .evento-cliente-unico #eventoBuscaCliente {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+  #eventoDialog .compact-client-grid > label:has(#eventoDocumento) {
+    grid-column: 6 / span 2 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+  #eventoDialog .compact-client-grid > label:has(#eventoTelefone) {
+    grid-column: 8 / span 2 !important;
+    grid-row: 1 !important;
+  }
+  #eventoDialog .compact-client-grid > label:has(#eventoEmail) {
+    grid-column: 10 / span 3 !important;
+    grid-row: 1 !important;
+  }
+}
+
+#eventoDialog .compact-client-grid .evento-colaborador-posicao-observacao select,
+#eventoDialog .compact-client-grid .evento-colaborador-admin-field select,
+#eventoDialog #eventoColaboradorSelect {
+  min-height: 38px !important;
+  height: 38px !important;
+  max-height: 38px !important;
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+  line-height: 1.2 !important;
+}
+
+/* =====================================================
+   Ajuste pontual aprovado — Dados do cliente
+   Mantém Cliente, CPF/CNPJ, Telefone e E-mail na mesma linha
+   e distribui a segunda linha como no esboço aprovado.
+===================================================== */
+@media (min-width: 901px) {
+  #eventoDialog .compact-client-grid {
+    display: grid !important;
+    grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+    column-gap: 10px !important;
+    row-gap: 8px !important;
+    align-items: start !important;
+  }
+
+  #eventoDialog .compact-client-grid > .evento-cliente-unico {
+    grid-column: 1 / span 5 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+  #eventoDialog .compact-client-grid > .evento-cliente-unico #eventoBuscaCliente {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+  #eventoDialog .compact-client-grid > .evento-nome-interno {
+    display: none !important;
+  }
+  #eventoDialog .compact-client-grid > label:has(#eventoDocumento) {
+    grid-column: 6 / span 2 !important;
+    grid-row: 1 !important;
+  }
+  #eventoDialog .compact-client-grid > label:has(#eventoTelefone) {
+    grid-column: 8 / span 2 !important;
+    grid-row: 1 !important;
+  }
+  #eventoDialog .compact-client-grid > label:has(#eventoEmail) {
+    grid-column: 10 / span 3 !important;
+    grid-row: 1 !important;
+  }
+
+  #eventoDialog .compact-client-grid > .evento-endereco-wide {
+    grid-column: 1 / span 4 !important;
+    grid-row: 2 !important;
+  }
+  #eventoDialog .compact-client-grid > label:has(#eventoBairro) {
+    grid-column: 5 / span 2 !important;
+    grid-row: 2 !important;
+  }
+  #eventoDialog .compact-client-grid > label:has(#eventoCidade) {
+    grid-column: 7 / span 2 !important;
+    grid-row: 2 !important;
+  }
+  #eventoDialog .compact-client-grid > label:has(#eventoComplemento) {
+    grid-column: 9 / span 2 !important;
+    grid-row: 2 !important;
+  }
+  #eventoDialog .compact-client-grid > .evento-colaborador-admin-field {
+    grid-column: 11 / span 2 !important;
+    grid-row: 2 !important;
+    margin-top: 0 !important;
+    align-self: start !important;
+  }
+
+  #eventoDialog .compact-client-grid > label:has(#eventoDocumento),
+  #eventoDialog .compact-client-grid > label:has(#eventoTelefone),
+  #eventoDialog .compact-client-grid > label:has(#eventoEmail),
+  #eventoDialog .compact-client-grid > label:has(#eventoBairro),
+  #eventoDialog .compact-client-grid > label:has(#eventoCidade),
+  #eventoDialog .compact-client-grid > label:has(#eventoComplemento),
+  #eventoDialog .compact-client-grid > .evento-colaborador-admin-field {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  #eventoDialog #eventoColaboradorSelect {
+    width: 100% !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    padding: 6px 12px !important;
+    line-height: 1.2 !important;
+    box-sizing: border-box !important;
+  }
+}
+
+/* =====================================================
+   2026-08-01 — Dados do cliente com linhas isoladas
+   Evita conflitos com as regras antigas da grade do evento.
+===================================================== */
+#eventoDialog .compact-client-grid.cliente-grid-isolado {
+  display: block !important;
+  width: 100% !important;
+}
+
+#eventoDialog .cliente-grid-isolado .cliente-linha-principal,
+#eventoDialog .cliente-grid-isolado .cliente-linha-endereco {
+  display: grid !important;
+  width: 100% !important;
+  gap: 10px !important;
+  align-items: start !important;
+}
+
+#eventoDialog .cliente-grid-isolado .cliente-linha-principal {
+  grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.25fr) minmax(0, 1.05fr) minmax(0, 1.55fr) !important;
+  margin-bottom: 8px !important;
+}
+
+#eventoDialog .cliente-grid-isolado .cliente-linha-endereco {
+  grid-template-columns: minmax(0, 2.25fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1.15fr) !important;
+}
+
+#eventoDialog .cliente-grid-isolado .cliente-linha-principal > label,
+#eventoDialog .cliente-grid-isolado .cliente-linha-endereco > label {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
+
+#eventoDialog .cliente-grid-isolado .evento-nome-interno {
+  display: none !important;
+}
+
+#eventoDialog .cliente-grid-isolado input,
+#eventoDialog .cliente-grid-isolado select,
+#eventoDialog .cliente-grid-isolado textarea {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
+
+#eventoDialog .cliente-grid-isolado #eventoColaboradorSelect {
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  padding: 6px 12px !important;
+  line-height: 1.2 !important;
+}
+
+@media (max-width: 900px) {
+  #eventoDialog .cliente-grid-isolado .cliente-linha-principal,
+  #eventoDialog .cliente-grid-isolado .cliente-linha-endereco {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+
+/* =====================================================
+   2026-08-02 — ajustes pontuais aprovados no evento
+   Fonte dos títulos, financeiro alinhado e documentos/histórico em colunas.
+===================================================== */
+#eventoDialog .cliente-grid-isolado .cliente-linha-principal > label,
+#eventoDialog .cliente-grid-isolado .cliente-linha-endereco > label {
+  font-family: inherit !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  color: #374151 !important;
+  gap: 5px !important;
+}
+
+#eventoDialog .finance-row-inline {
+  align-items: start !important;
+}
+#eventoDialog .finance-row-inline > label,
+#eventoDialog .finance-row-inline > .finance-check-stack {
+  align-self: start !important;
+}
+#eventoDialog .finance-row-inline .finance-payment-field {
+  margin-top: 0 !important;
+}
+
+#eventoDialog .evento-documentos-historico-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 12px !important;
+  align-items: stretch !important;
+  margin-top: 10px !important;
+}
+#eventoDialog .evento-documentos-historico-grid > .subpanel {
+  margin: 0 !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+}
+#eventoDialog .evento-whatsapp-historico h3 {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 900px) {
+  #eventoDialog .evento-documentos-historico-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Associação dos modelos de documentos aos arquivos HTML da raiz */
+.doc-model-file-panel{padding:16px;border:1px solid #d7e1ee;border-radius:12px;background:#f8fbff;margin:10px 0 14px}.doc-model-file-panel label{display:block;font-weight:700;color:#173b63}.doc-model-file-panel input{display:block;width:100%;margin-top:7px;min-height:44px;padding:10px 12px;border:1px solid #cbd7e6;border-radius:9px;font:inherit;background:#fff}.doc-model-file-status{margin-top:10px;padding:9px 11px;border-radius:8px;font-weight:700}.doc-model-file-status.neutral{background:#eef3f8;color:#516174}.doc-model-file-status.success{background:#e8f8ee;color:#137333}.doc-model-file-status.warning{background:#fff5d9;color:#8a6100}.doc-model-file-status.error{background:#fdeaea;color:#b42318}.doc-model-file-panel .small{margin:10px 0 0;color:#5e6c7e}.doc-model-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+
+/* v19-dev: venda de material ao lado das observações operacionais */
+.evento-observacao-venda-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:14px;
+  align-items:end;
+}
+.evento-observacao-venda-row .evento-observacao-evento-final{min-width:0;margin:0}
+.evento-venda-material-opcao{
+  display:inline-flex!important;
+  flex-direction:row!important;
+  align-items:center;
+  gap:8px;
+  min-height:42px;
+  padding:9px 13px;
+  margin:0 0 1px;
+  border:1px solid #f0b65a;
+  border-radius:12px;
+  background:#fff8e8;
+  color:#794500;
+  font-weight:800;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.evento-venda-material-opcao input{width:18px;height:18px;margin:0;accent-color:#d88600}
+.evento-modo-venda .event-operation-row:nth-of-type(3){opacity:.62}
+.evento-modo-venda #eventoDesmontagemAlertaDia{display:none!important}
+@media(max-width:760px){
+  .evento-observacao-venda-row{grid-template-columns:1fr}
+  .evento-venda-material-opcao{justify-content:flex-start;width:100%}
+}

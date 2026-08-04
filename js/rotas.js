@@ -3460,8 +3460,28 @@ function rtGoogleMapsUrlRotasComExtras(listaRotas, extras = []) {
   return url;
 }
 
+function rtRotasComNotasNaOrdemVisual(listaRotas, data, carro) {
+  const rotasOrdenadas = Array.isArray(listaRotas) ? listaRotas : [];
+  const notas = rtNotasDaRota(data, carro).filter(n => rtEnderecoRotaValido(n.endereco));
+  const porPosicao = new Map();
+  notas.forEach(nota => {
+    const pos = Math.max(0, Math.min(Number(nota.posicao || 0), rotasOrdenadas.length));
+    if (!porPosicao.has(pos)) porPosicao.set(pos, []);
+    porPosicao.get(pos).push(nota);
+  });
+
+  const sequencia = [];
+  (porPosicao.get(0) || []).forEach(nota => sequencia.push({ endereco: nota.endereco, __notaRota: true }));
+  rotasOrdenadas.forEach((rota, idx) => {
+    sequencia.push(rota);
+    (porPosicao.get(idx + 1) || []).forEach(nota => sequencia.push({ endereco: nota.endereco, __notaRota: true }));
+  });
+  return sequencia;
+}
+
 function rtAbrirGoogleMapsRotasComNotas(listaRotas, data, carro) {
-  const url = rtGoogleMapsUrlRotasComExtras(listaRotas, rtNotasEnderecos(data, carro));
+  const sequencia = rtRotasComNotasNaOrdemVisual(listaRotas, data, carro);
+  const url = rtGoogleMapsUrlRotas(sequencia);
   if (!url) {
     alert("Nenhum endereço encontrado para gerar a rota.");
     return;

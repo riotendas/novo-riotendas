@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // v19-dev: controle simples de versão/cache para reduzir app antigo em celulares.
-const RIOTENDAS_APP_VERSION = "v19-dev-2026-07-28-diagnostico-funcao-url-origem";
+const RIOTENDAS_APP_VERSION = "v19-dev-2026-08-03-venda-como-tipo-evento";
 
 function iniciarControleVersaoCache() {
   try {

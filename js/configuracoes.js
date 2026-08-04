@@ -144,6 +144,15 @@ function modelosWhatsappPadrao() {
   ];
 }
 
+function modelosArquivosDocumentosPadrao() {
+  return {
+    guia: "modelo-guia.html",
+    contrato: "modelo-contrato.html",
+    recibo: "modelo-recibo.html",
+    orcamento: "modelo-orcamento.html"
+  };
+}
+
 function configPadrao() {
   return {
     carros: ["Saveiro", "Dupla", "Caminhão"],
@@ -219,6 +228,7 @@ function configPadrao() {
       }
     },
     modelosDocumentos: modelosDocumentosPadrao(),
+    modelosArquivosDocumentos: modelosArquivosDocumentosPadrao(),
     modelosWhatsapp: modelosWhatsappPadrao()
   };
 }
@@ -231,6 +241,7 @@ function rtMesclarConfigPadrao(configSalva = null) {
   mesclada.pix = { ...(padrao.pix || {}), ...(salva.pix || {}) };
   mesclada.horarioComercial = { ...(padrao.horarioComercial || {}), ...(salva.horarioComercial || {}) };
   mesclada.modelosDocumentos = { ...(padrao.modelosDocumentos || {}), ...(salva.modelosDocumentos || {}) };
+  mesclada.modelosArquivosDocumentos = { ...(padrao.modelosArquivosDocumentos || modelosArquivosDocumentosPadrao()), ...(salva.modelosArquivosDocumentos || {}) };
   mesclada.modelosWhatsapp = Array.isArray(salva.modelosWhatsapp) ? salva.modelosWhatsapp : (padrao.modelosWhatsapp || []);
   mesclada.cargaOperacional = {
     ...(padrao.cargaOperacional || {}),
@@ -1138,15 +1149,45 @@ function iniciarManutencaoAdminConfig() {
 
 let modeloDocumentoAtualConfig = "guia";
 
-function rtObterModelosDocumentosConfig() {
+const RT_MODELOS_DOCUMENTOS_LOCAIS_KEY = "rt_modelos_documentos_locais_v1";
+
+function rtCarregarModelosDocumentosLocais() {
+  try {
+    const dados = JSON.parse(localStorage.getItem(RT_MODELOS_DOCUMENTOS_LOCAIS_KEY) || "{}");
+    return dados && typeof dados === "object" ? dados : {};
+  } catch (_) { return {}; }
+}
+
+function rtObterModeloDocumentoLocal(tipo, arquivoEsperado = "") {
+  const item = rtCarregarModelosDocumentosLocais()[tipo];
+  if (!item || !item.html) return null;
+  if (arquivoEsperado && item.nome && item.nome !== arquivoEsperado) return null;
+  return item;
+}
+
+function rtSalvarModeloDocumentoLocal(tipo, nome, html) {
+  const dados = rtCarregarModelosDocumentosLocais();
+  dados[tipo] = { nome, html, atualizadoEm: new Date().toISOString() };
+  localStorage.setItem(RT_MODELOS_DOCUMENTOS_LOCAIS_KEY, JSON.stringify(dados));
+}
+
+function rtRemoverModeloDocumentoLocal(tipo) {
+  const dados = rtCarregarModelosDocumentosLocais();
+  delete dados[tipo];
+  localStorage.setItem(RT_MODELOS_DOCUMENTOS_LOCAIS_KEY, JSON.stringify(dados));
+}
+
+window.rtObterModeloDocumentoLocal = rtObterModeloDocumentoLocal;
+
+function rtObterArquivosDocumentosConfig() {
   const config = carregarConfiguracoes();
-  const padrao = modelosDocumentosPadrao();
-  return { ...padrao, ...(config.modelosDocumentos || {}) };
+  const padrao = modelosArquivosDocumentosPadrao();
+  return { ...padrao, ...(config.modelosArquivosDocumentos || {}) };
 }
 
 function iniciarModelosDocumentosConfig() {
-  const editor = document.getElementById("docModeloEditor");
-  if (!editor) return;
+  const arquivoInput = document.getElementById("docModeloArquivo");
+  if (!arquivoInput) return;
 
   document.querySelectorAll(".doc-model-tab").forEach(btn => {
     if (btn.dataset.docModelBound === "1") return;
@@ -1163,11 +1204,25 @@ function iniciarModelosDocumentosConfig() {
     salvar.dataset.bound = "1";
     salvar.addEventListener("click", salvarModeloDocumentoAtual);
   }
-
+  const testar = document.getElementById("testarModeloDocumento");
+  if (testar && testar.dataset.bound !== "1") {
+    testar.dataset.bound = "1";
+    testar.addEventListener("click", () => testarArquivoModeloDocumentoAtual(true));
+  }
   const restaurar = document.getElementById("restaurarModeloDocumento");
   if (restaurar && restaurar.dataset.bound !== "1") {
     restaurar.dataset.bound = "1";
     restaurar.addEventListener("click", restaurarModeloDocumentoAtual);
+  }
+  const arquivoLocal = document.getElementById("docModeloArquivoLocal");
+  if (arquivoLocal && arquivoLocal.dataset.bound !== "1") {
+    arquivoLocal.dataset.bound = "1";
+    arquivoLocal.addEventListener("change", carregarModeloDocumentoLocalSelecionado);
+  }
+  const removerLocal = document.getElementById("removerModeloDocumentoLocal");
+  if (removerLocal && removerLocal.dataset.bound !== "1") {
+    removerLocal.dataset.bound = "1";
+    removerLocal.addEventListener("click", removerModeloDocumentoLocalAtual);
   }
 
   const arquivoAssinatura = document.getElementById("docAssinaturaResponsavelArquivo");
@@ -1195,8 +1250,9 @@ function iniciarModelosDocumentosConfig() {
 }
 
 function carregarModeloDocumentoNoEditor() {
-  const editor = document.getElementById("docModeloEditor");
-  if (!editor) return;
+  const arquivoPainel = document.getElementById("docModeloArquivoPainel");
+  const arquivoInput = document.getElementById("docModeloArquivo");
+  if (!arquivoInput) return;
   const painelAssinatura = document.getElementById("docAssinaturaDigitalPainel");
   const acoesModelo = document.querySelector(".doc-model-actions");
   const toolbarSpan = document.querySelector(".doc-model-toolbar span");
@@ -1205,10 +1261,12 @@ function carregarModeloDocumentoNoEditor() {
   if (titulo) titulo.textContent = titulos[modeloDocumentoAtualConfig] || "Modelo";
 
   const ehAssinatura = modeloDocumentoAtualConfig === "assinatura";
-  editor.style.display = ehAssinatura ? "none" : "";
+  if (arquivoPainel) arquivoPainel.style.display = ehAssinatura ? "none" : "block";
   if (painelAssinatura) painelAssinatura.style.display = ehAssinatura ? "block" : "none";
-  if (acoesModelo) acoesModelo.style.display = ehAssinatura ? "none" : "";
-  if (toolbarSpan) toolbarSpan.textContent = ehAssinatura ? "Envie, visualize ou remova a assinatura usada nos documentos." : "Use HTML simples e as variáveis ao lado.";
+  if (acoesModelo) acoesModelo.style.display = ehAssinatura ? "none" : "flex";
+  if (toolbarSpan) toolbarSpan.textContent = ehAssinatura
+    ? "Envie, visualize ou remova a assinatura usada nos documentos."
+    : "Associe este documento a um arquivo HTML localizado na pasta raiz do sistema.";
 
   if (ehAssinatura) {
     const config = carregarConfiguracoes();
@@ -1216,8 +1274,122 @@ function carregarModeloDocumentoNoEditor() {
     return;
   }
 
-  const modelos = rtObterModelosDocumentosConfig();
-  editor.value = modelos[modeloDocumentoAtualConfig] || "";
+  const arquivos = rtObterArquivosDocumentosConfig();
+  arquivoInput.value = arquivos[modeloDocumentoAtualConfig] || "";
+  const modoLocal = location.protocol === "file:";
+  const painelLocal = document.getElementById("docModeloArquivoLocalPainel");
+  if (painelLocal) painelLocal.style.display = modoLocal ? "block" : "none";
+  atualizarStatusArquivoModeloDocumento(modoLocal ? "Modo local: selecione o arquivo HTML abaixo para testar." : "Aguardando verificação.", modoLocal ? "warning" : "neutral");
+  atualizarStatusModeloDocumentoLocal();
+  testarArquivoModeloDocumentoAtual(false);
+}
+
+function rtNormalizarNomeArquivoModelo(valor) {
+  const nome = String(valor || "").trim().replace(/^\/+/, "");
+  if (!nome) return "";
+  if (nome.includes("..") || /[\\\\]/.test(nome)) return "";
+  return nome;
+}
+
+function atualizarStatusArquivoModeloDocumento(texto, tipo = "neutral") {
+  const status = document.getElementById("docModeloArquivoStatus");
+  if (!status) return;
+  status.textContent = texto;
+  status.className = `doc-model-file-status ${tipo}`;
+}
+
+function atualizarStatusModeloDocumentoLocal() {
+  const status = document.getElementById("docModeloArquivoLocalStatus");
+  if (!status || modeloDocumentoAtualConfig === "assinatura") return;
+  const arquivo = rtNormalizarNomeArquivoModelo(document.getElementById("docModeloArquivo")?.value);
+  const item = rtObterModeloDocumentoLocal(modeloDocumentoAtualConfig, arquivo);
+  if (!item) {
+    status.textContent = "Nenhum arquivo local carregado para este documento.";
+    status.className = "doc-model-file-status neutral";
+    return;
+  }
+  const data = item.atualizadoEm ? new Date(item.atualizadoEm).toLocaleString("pt-BR") : "";
+  status.textContent = `✓ ${item.nome} carregado localmente${data ? ` em ${data}` : ""}.`;
+  status.className = "doc-model-file-status success";
+}
+
+function carregarModeloDocumentoLocalSelecionado(evento) {
+  const arquivo = evento.target.files?.[0];
+  if (!arquivo) return;
+  const nomeEsperado = rtNormalizarNomeArquivoModelo(document.getElementById("docModeloArquivo")?.value);
+  if (!/\.html?$/i.test(arquivo.name)) {
+    alert("Selecione um arquivo HTML.");
+    evento.target.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const html = String(reader.result || "");
+    if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(html)) {
+      alert("O arquivo selecionado não possui variáveis no formato {{cliente}}, {{valor_total}} etc.");
+      return;
+    }
+    const nome = nomeEsperado || arquivo.name;
+    rtSalvarModeloDocumentoLocal(modeloDocumentoAtualConfig, nome, html);
+    try { if (window.rtDocEventoLimparCacheModelosRaiz) window.rtDocEventoLimparCacheModelosRaiz(); } catch (_) {}
+    try { if (window.rtOrcLimparCacheModeloExterno) window.rtOrcLimparCacheModeloExterno(); } catch (_) {}
+    atualizarStatusModeloDocumentoLocal();
+    atualizarStatusArquivoModeloDocumento(`✓ ${arquivo.name} carregado para testes locais.`, "success");
+  };
+  reader.onerror = () => alert("Não foi possível ler o arquivo selecionado.");
+  reader.readAsText(arquivo, "UTF-8");
+}
+
+function removerModeloDocumentoLocalAtual() {
+  if (modeloDocumentoAtualConfig === "assinatura") return;
+  rtRemoverModeloDocumentoLocal(modeloDocumentoAtualConfig);
+  const input = document.getElementById("docModeloArquivoLocal");
+  if (input) input.value = "";
+  try { if (window.rtDocEventoLimparCacheModelosRaiz) window.rtDocEventoLimparCacheModelosRaiz(); } catch (_) {}
+  try { if (window.rtOrcLimparCacheModeloExterno) window.rtOrcLimparCacheModeloExterno(); } catch (_) {}
+  atualizarStatusModeloDocumentoLocal();
+  atualizarStatusArquivoModeloDocumento("Arquivo local removido. Selecione outro para continuar os testes.", "neutral");
+}
+
+async function testarArquivoModeloDocumentoAtual(exibirAlerta = false) {
+  if (modeloDocumentoAtualConfig === "assinatura") return false;
+  const input = document.getElementById("docModeloArquivo");
+  const arquivo = rtNormalizarNomeArquivoModelo(input?.value);
+  if (!arquivo) {
+    atualizarStatusArquivoModeloDocumento("Informe um arquivo HTML válido da pasta raiz.", "error");
+    if (exibirAlerta) alert("Informe um nome de arquivo HTML válido.");
+    return false;
+  }
+  atualizarStatusArquivoModeloDocumento(`Verificando ${arquivo}...`, "neutral");
+  try {
+    if (location.protocol === "file:") {
+      const local = rtObterModeloDocumentoLocal(modeloDocumentoAtualConfig, arquivo);
+      if (!local?.html) {
+        atualizarStatusArquivoModeloDocumento(`Modo local: selecione ${arquivo} no campo abaixo.`, "warning");
+        if (exibirAlerta) alert(`Para testar localmente, selecione o arquivo ${arquivo}.`);
+        return false;
+      }
+      if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(local.html)) throw new Error("arquivo local sem variáveis");
+      atualizarStatusArquivoModeloDocumento(`✓ ${local.nome || arquivo} carregado e válido no modo local.`, "success");
+      if (exibirAlerta) alert(`Arquivo ${local.nome || arquivo} carregado localmente e pronto para uso.`);
+      return true;
+    }
+    const resp = await fetch(arquivo, { cache: "no-store" });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const html = await resp.text();
+    if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(html)) {
+      atualizarStatusArquivoModeloDocumento(`⚠ ${arquivo} foi encontrado, mas não possui variáveis {{...}}.`, "warning");
+      if (exibirAlerta) alert("Arquivo encontrado, mas sem variáveis no formato {{cliente}}, {{valor_total}} etc.");
+      return false;
+    }
+    atualizarStatusArquivoModeloDocumento(`✓ ${arquivo} encontrado e válido.`, "success");
+    if (exibirAlerta) alert(`Arquivo ${arquivo} encontrado e pronto para uso.`);
+    return true;
+  } catch (erro) {
+    atualizarStatusArquivoModeloDocumento(`✗ ${arquivo} não foi encontrado na pasta raiz.`, "error");
+    if (exibirAlerta) alert(`Não foi possível localizar ${arquivo} na pasta raiz.`);
+    return false;
+  }
 }
 
 function atualizarPreviewAssinaturaDigitalDocumentoConfig(valor) {
@@ -1266,26 +1438,32 @@ function restaurarAssinaturaDigitalDocumentoConfig() {
   if (arquivo) arquivo.value = "";
 }
 
-function salvarModeloDocumentoAtual() {
-  const editor = document.getElementById("docModeloEditor");
-  if (!editor) return;
+async function salvarModeloDocumentoAtual() {
+  if (modeloDocumentoAtualConfig === "assinatura") return;
+  const input = document.getElementById("docModeloArquivo");
+  const arquivo = rtNormalizarNomeArquivoModelo(input?.value);
+  if (!arquivo) {
+    alert("Informe um nome de arquivo HTML válido.");
+    return;
+  }
+  const valido = await testarArquivoModeloDocumentoAtual(false);
+  if (!valido && !confirm("O arquivo não pôde ser validado agora. Deseja salvar a associação mesmo assim?")) return;
   const config = carregarConfiguracoes();
-  const modelos = rtObterModelosDocumentosConfig();
-  modelos[modeloDocumentoAtualConfig] = editor.value;
-  config.modelosDocumentos = modelos;
+  const arquivos = rtObterArquivosDocumentosConfig();
+  arquivos[modeloDocumentoAtualConfig] = arquivo;
+  config.modelosArquivosDocumentos = arquivos;
   salvarConfiguracoes(config);
-  alert("Modelo salvo.");
+  try { if (window.rtDocEventoLimparCacheModelosRaiz) window.rtDocEventoLimparCacheModelosRaiz(); } catch (_) {}
+  try { if (window.rtOrcLimparCacheModeloExterno) window.rtOrcLimparCacheModeloExterno(); } catch (_) {}
+  alert("Associação do arquivo salva.");
 }
 
 function restaurarModeloDocumentoAtual() {
-  if (!confirm("Restaurar o modelo padrão deste documento?")) return;
-  const config = carregarConfiguracoes();
-  const modelos = rtObterModelosDocumentosConfig();
-  modelos[modeloDocumentoAtualConfig] = modelosDocumentosPadrao()[modeloDocumentoAtualConfig] || "";
-  config.modelosDocumentos = modelos;
-  salvarConfiguracoes(config);
-  carregarModeloDocumentoNoEditor();
-  alert("Modelo restaurado.");
+  if (modeloDocumentoAtualConfig === "assinatura") return;
+  const padrao = modelosArquivosDocumentosPadrao();
+  const input = document.getElementById("docModeloArquivo");
+  if (input) input.value = padrao[modeloDocumentoAtualConfig] || "";
+  atualizarStatusArquivoModeloDocumento("Nome padrão restaurado. Clique em Salvar associação.", "neutral");
 }
 
 function garantirXLSX() {

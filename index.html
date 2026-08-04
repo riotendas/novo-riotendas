@@ -1378,7 +1378,7 @@
 
 
       <dialog id="configModalDocumentos" class="modal large-modal config-popup config-popup-documentos">
-        <div class="modal-header"><div><h2>Modelos de Documentos</h2><p>Edite os textos padrão usados na Guia de Serviço, Contrato, Recibo e Orçamento.</p></div><button type="button" class="modal-close" data-close-config="configModalDocumentos">×</button></div>
+        <div class="modal-header"><div><h2>Modelos de Documentos</h2><p>Associe cada documento ao respectivo arquivo HTML localizado na pasta raiz do sistema.</p></div><button type="button" class="modal-close" data-close-config="configModalDocumentos">×</button></div>
         <div class="config-popup-body">
           <div class="doc-model-layout">
             <aside class="doc-model-side">
@@ -1422,7 +1422,22 @@
                 <strong id="docModeloTituloAtual">Guia de Serviço</strong>
                 <span>Use HTML simples e as variáveis ao lado.</span>
               </div>
-              <textarea id="docModeloEditor" spellcheck="false"></textarea>
+              <div id="docModeloArquivoPainel" class="doc-model-file-panel">
+                <label>Arquivo HTML associado
+                  <input id="docModeloArquivo" type="text" placeholder="Ex.: modelo-guia.html" autocomplete="off">
+                </label>
+                <div id="docModeloArquivoStatus" class="doc-model-file-status neutral">Aguardando verificação.</div>
+                <div id="docModeloArquivoLocalPainel" class="doc-model-local-panel" style="display:none">
+                  <strong>Teste local (arquivo aberto pelo computador)</strong>
+                  <p class="small">Selecione o mesmo arquivo HTML da pasta raiz. O conteúdo ficará salvo somente neste navegador para permitir os testes sem servidor local.</p>
+                  <label class="btn-outline doc-model-local-picker">Selecionar arquivo HTML local
+                    <input id="docModeloArquivoLocal" type="file" accept=".html,text/html" hidden>
+                  </label>
+                  <button id="removerModeloDocumentoLocal" class="btn-outline danger" type="button">Remover arquivo local carregado</button>
+                  <div id="docModeloArquivoLocalStatus" class="doc-model-file-status neutral">Nenhum arquivo local carregado.</div>
+                </div>
+                <p class="small">No servidor, o arquivo deve estar na mesma pasta do <strong>index.html</strong>. O sistema usará exatamente o HTML, o CSS e os textos desse arquivo, substituindo somente as variáveis <code>{{...}}</code>.</p>
+              </div>
               <div id="docAssinaturaDigitalPainel" class="assinatura-config-box" style="display:none">
                 <strong>Assinatura Digital</strong>
                 <p class="small">Envie uma imagem PNG ou JPG da assinatura. Ela será usada automaticamente no PDF de orçamento e ficará preparada para os demais documentos.</p>
@@ -1438,10 +1453,11 @@
                 </div>
               </div>
               <div class="config-actions doc-model-actions">
-                <button id="salvarModeloDocumento" type="button">Salvar modelo</button>
-                <button id="restaurarModeloDocumento" class="btn-outline" type="button">Restaurar padrão</button>
+                <button id="salvarModeloDocumento" type="button">Salvar associação</button>
+                <button id="testarModeloDocumento" class="btn-outline" type="button">Testar / Recarregar</button>
+                <button id="restaurarModeloDocumento" class="btn-outline" type="button">Usar nome padrão</button>
               </div>
-              <small>As alterações ficam salvas nas configurações do sistema. Depois, os botões Guia, Contrato, Recibo e Orçamento usam estes modelos automaticamente.</small>
+              <small>A associação fica salva nas configurações. Para alterar layout ou texto, edite diretamente o arquivo HTML correspondente na pasta raiz.</small>
             </section>
           </div>
         </div>
@@ -1684,46 +1700,47 @@
 
       <div class="subpanel">
         <h3>Dados do cliente</h3>
-        <div class="form-grid compact-client-grid">
-          <label>Buscar cliente
-            <input id="eventoBuscaCliente" type="search" list="clientesDatalist" placeholder="Digite para buscar cliente já cadastrado">
-            <datalist id="clientesDatalist"></datalist>
-          </label>
-          <label>Nome
-            <input id="eventoNome" type="text" required>
-          </label>
-          <label>CPF/CNPJ
-            <input id="eventoDocumento" type="text">
-          </label>
-          <label>Telefone
-            <input id="eventoTelefone" type="text">
-          </label>
-          <label>E-mail
-            <input id="eventoEmail" type="email">
-          </label>
-          <label class="evento-endereco-wide">Endereço
-            <textarea id="eventoEndereco" rows="2" tabindex="60" placeholder="Rua, avenida, número ou referência principal"></textarea>
-            <div class="endereco-validacao-row">
-              <span id="eventoEnderecoStatus" class="endereco-validacao-status neutro">Endereço ainda não validado</span>
-              <button type="button" id="validarEventoEndereco" tabindex="65" class="btn-outline btn-mini endereco-validacao-btn">📍 Verificar no Maps</button>
-            </div>
-          </label>
-          <label>Bairro
-            <input id="eventoBairro" type="text" tabindex="61" placeholder="Ex: Copacabana">
-          </label>
-          <label>Cidade
-            <input id="eventoCidade" type="text" tabindex="62" value="Rio de Janeiro" placeholder="Ex: Rio de Janeiro">
-          </label>
-          <label>Comp./Referência
-            <input id="eventoComplemento" type="text" tabindex="63" placeholder="Ex: Quiosque 15, apto, salão...">
-          </label>
-          <label class="evento-observacao-wide">Observações Operacionais
-            <textarea id="eventoClienteObservacao" rows="3" tabindex="64" placeholder="Ex: portão lateral, quiosque, salão, referência de acesso..."></textarea>
-          </label>
-          <label class="evento-colaborador-admin-field">Colaborador do evento
-            <select id="eventoColaboradorSelect"></select>
-            <small id="eventoColaboradorHint">Somente Administrador pode alterar este campo.</small>
-          </label>
+        <div class="form-grid compact-client-grid cliente-grid-isolado">
+          <div class="cliente-linha-principal">
+            <label class="evento-cliente-unico">Cliente
+              <input id="eventoBuscaCliente" type="search" list="clientesDatalist" placeholder="Digite o nome ou selecione um cliente cadastrado" required autocomplete="off">
+              <datalist id="clientesDatalist"></datalist>
+            </label>
+            <label class="evento-nome-interno" hidden aria-hidden="true">Nome
+              <input id="eventoNome" type="hidden">
+            </label>
+            <label>CPF/CNPJ
+              <input id="eventoDocumento" type="text">
+            </label>
+            <label>Telefone
+              <input id="eventoTelefone" type="text">
+            </label>
+            <label>E-mail
+              <input id="eventoEmail" type="email">
+            </label>
+          </div>
+          <div class="cliente-linha-endereco">
+            <label class="evento-endereco-wide">Endereço
+              <textarea id="eventoEndereco" rows="2" tabindex="60" placeholder="Rua, avenida, número ou referência principal"></textarea>
+              <div class="endereco-validacao-row">
+                <span id="eventoEnderecoStatus" class="endereco-validacao-status neutro">Endereço ainda não validado</span>
+                <button type="button" id="validarEventoEndereco" tabindex="65" class="btn-outline btn-mini endereco-validacao-btn">📍 Verificar no Maps</button>
+              </div>
+            </label>
+            <label>Bairro
+              <input id="eventoBairro" type="text" tabindex="61" placeholder="Ex: Copacabana">
+            </label>
+            <label>Cidade
+              <input id="eventoCidade" type="text" tabindex="62" value="Rio de Janeiro" placeholder="Ex: Rio de Janeiro">
+            </label>
+            <label>Comp./Referência
+              <input id="eventoComplemento" type="text" tabindex="63" placeholder="Ex: Quiosque 15, apto, salão...">
+            </label>
+            <label class="evento-colaborador-admin-field evento-colaborador-posicao-observacao">Colaborador do evento
+              <select id="eventoColaboradorSelect"></select>
+              <small id="eventoColaboradorHint">Somente Administrador pode alterar este campo.</small>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -1767,6 +1784,7 @@
               <select id="eventoTipoEvento">
                 <option value="pontual">Pontual</option>
                 <option value="recorrente">Recorrente</option>
+                <option value="venda">Venda</option>
               </select>
             </label>
           </div>
@@ -1812,6 +1830,10 @@
             </label>
             <div id="eventoDesmontagemAlertaDia" class="evento-dia-operacao-alerta" aria-live="polite"></div>
           </div>
+
+          <label class="evento-observacao-evento-final">Observações Operacionais
+            <textarea id="eventoClienteObservacao" rows="3" tabindex="64" placeholder="Ex: portão lateral, quiosque, salão, referência de acesso..."></textarea>
+          </label>
         </div>
       </div>
 
@@ -1825,6 +1847,7 @@
               <button type="button" class="pagamento-icone" data-pagamento-forma="Dinheiro" title="Pg Total - Dinheiro">💵</button>
               <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão/Rede" title="Pg Total - Cartão/Rede">💳</button>
             </span>
+            <button type="button" class="evento-recibo-link" data-recibo-tipo="Pagamento total" data-recibo-valor-id="eventoValorTotal">+ recibo</button>
           </label>
           <label>Sinal
             <input id="eventoValorSinal" class="money-input" type="text" inputmode="decimal" value="R$ 0,00">
@@ -1833,6 +1856,7 @@
               <button type="button" class="pagamento-icone" data-pagamento-forma="Dinheiro" title="Sinal - Dinheiro">💵</button>
               <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão/Rede" title="Sinal - Cartão/Rede">💳</button>
             </span>
+            <button type="button" class="evento-recibo-link" data-recibo-tipo="Sinal" data-recibo-valor-id="eventoValorSinal">+ recibo</button>
           </label>
           <button type="button" id="adicionarSinal2Evento" class="btn-outline btn-sinal2-evento hidden" aria-hidden="true" tabindex="-1">+ outro sinal</button>
           <label id="eventoSinal2Box" class="evento-sinal2-box hidden">Sinal 2
@@ -1842,6 +1866,7 @@
               <button type="button" class="pagamento-icone" data-pagamento-forma="Dinheiro" title="Sinal 2 - Dinheiro">💵</button>
               <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão/Rede" title="Sinal 2 - Cartão/Rede">💳</button>
             </span>
+            <button type="button" class="evento-recibo-link" data-recibo-tipo="Sinal 2" data-recibo-valor-id="eventoValorSinal2">+ recibo</button>
           </label>
           <label>Restante
             <input id="eventoValorRestante" class="money-input" type="text" readonly value="R$ 0,00">
@@ -1850,6 +1875,7 @@
               <button type="button" class="pagamento-icone" data-pagamento-forma="Dinheiro" title="Restante - Dinheiro">💵</button>
               <button type="button" class="pagamento-icone" data-pagamento-forma="Cartão/Rede" title="Restante - Cartão/Rede">💳</button>
             </span>
+            <button type="button" class="evento-recibo-link" data-recibo-tipo="Saldo restante" data-recibo-valor-id="eventoValorRestante">+ recibo</button>
           </label>
           <label class="finance-payment-field">Forma de pagamento
             <textarea id="eventoFormaPagamento" rows="2" placeholder="Ex: Pix, dinheiro, cartão..."></textarea>
@@ -1902,9 +1928,23 @@
         <div id="eventoExtrasSelecionados" class="selected-list extras-list"></div>
       </div>
 
+      <div class="evento-acoes-entre-extras-documentos">
+        <div class="evento-save-actions">
+          <button type="button" class="btn-outline" id="duplicarEventoBtn" style="display:none;">Duplicar</button>
+          <button type="button" class="btn-outline" id="cancelarEvento">Cancelar</button>
+          <button type="submit">Salvar</button>
+        </div>
+      </div>
+
+      <div class="evento-documentos-historico-grid">
       <div class="subpanel evento-documentos-pasta" id="eventoDocumentosPanel">
         <div class="evento-documentos-header">
           <h3>Documentos</h3>
+          <div class="evento-documentos-acoes-gerar" role="group" aria-label="Gerar documento do evento">
+            <button type="button" class="btn-outline btn-mini" id="gerarGuiaServicoEvento">+ Guia</button>
+            <button type="button" class="btn-outline btn-mini" id="gerarOrcamentoEvento">+ Orçamento</button>
+            <button type="button" class="btn-outline btn-mini" id="gerarContratoEvento">+ Contrato</button>
+          </div>
           <div class="evento-documentos-filtros" role="group" aria-label="Filtrar documentos do evento">
             <button type="button" class="btn-outline btn-mini active" data-doc-evento-filtro="todos">Todos</button>
             <button type="button" class="btn-outline btn-mini" data-doc-evento-filtro="guia">Guias</button>
@@ -1916,6 +1956,14 @@
         <div id="eventoDocumentosLista" class="evento-documentos-lista">
           <p class="empty">Salve o evento para começar a organizar seus documentos.</p>
         </div>
+      </div>
+
+      <div id="eventoWhatsappHistoricoBox" class="subpanel evento-whatsapp-historico">
+        <h3>📲 Histórico de comunicações</h3>
+        <div id="eventoWhatsappHistoricoLista" class="evento-whatsapp-historico-lista">
+          <p class="empty">Nenhuma comunicação registrada.</p>
+        </div>
+      </div>
       </div>
 
       <div class="modal-actions evento-modal-actions evento-rodape-documentos-final">
@@ -1930,12 +1978,7 @@
           </label>
           <input id="eventoAssinaturaLink" type="url" placeholder="Link da assinatura" title="Link da assinatura digital, quando houver">
         </div>
-        <div class="evento-rodape-spacer"></div>
-        <div class="evento-save-actions">
-          <button type="button" class="btn-outline" id="duplicarEventoBtn" style="display:none;">Duplicar</button>
-          <button type="button" class="btn-outline" id="cancelarEvento">Cancelar</button>
-          <button type="submit">Salvar</button>
-        </div>
+
       </div>
     </form>
   </dialog>

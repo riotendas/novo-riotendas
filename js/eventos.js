@@ -1079,7 +1079,13 @@ function iniciarEventos() {
   iniciarSinal2Evento();
   rtIniciarPagarInlocoEvento();
   onEventoSeguro("eventoFormaPagamento", "input", atualizarIconesFormaPagamentoEvento);
+  onEventoSeguro("eventoBuscaCliente", "input", rtEventoSincronizarCampoClienteUnico);
   onEventoSeguro("eventoBuscaCliente", "change", preencherClienteSelecionado);
+  const eventoFormClienteUnico = document.getElementById("eventoForm");
+  if (eventoFormClienteUnico && eventoFormClienteUnico.dataset.rtClienteUnicoBind !== "1") {
+    eventoFormClienteUnico.addEventListener("submit", rtEventoSincronizarCampoClienteUnico, true);
+    eventoFormClienteUnico.dataset.rtClienteUnicoBind = "1";
+  }
   rtEventoPrepararValidadorEndereco();
   onEventoSeguro("eventoMontagemTipo", "change", () => atualizarCampoHoraFinalOperacao("Montagem"));
   onEventoSeguro("eventoDesmontagemTipo", "change", () => atualizarCampoHoraFinalOperacao("Desmontagem"));
@@ -1119,6 +1125,7 @@ function iniciarEventos() {
   onEventoSeguro("eventoTipoEvento", "change", () => {
     atualizarBoxRecorrencia();
     preencherDatasRecorrenciaPadrao();
+    rtAtualizarModoVendaEvento();
   });
   onEventoSeguro("eventoRecorrenciaTipo", "change", atualizarCampoDiasRecorrencia);
   onEventoSeguro("eventoData", "change", preencherDatasRecorrenciaPadrao);
@@ -1210,20 +1217,66 @@ function abrirRotaPeloAlertaEvento(ev) {
   window.open(url.toString(), "_blank", "noopener,noreferrer");
 }
 
+function rtEventoClienteOpcaoValor(cliente) {
+  const nome = String(cliente?.nome || "").trim();
+  const telefone = String(cliente?.telefone || "").trim();
+  const documento = String(cliente?.documento || "").trim();
+  const identificador = telefone || documento;
+  return identificador ? `${nome} • ${identificador}` : nome;
+}
+
+function rtEventoSincronizarCampoClienteUnico() {
+  const busca = document.getElementById("eventoBuscaCliente");
+  const nome = document.getElementById("eventoNome");
+  if (!busca || !nome) return;
+
+  const valor = String(busca.value || "").trim();
+  const clienteExato = Array.isArray(clientes)
+    ? clientes.find(c => rtEventoClienteOpcaoValor(c).toLowerCase() === valor.toLowerCase())
+    : null;
+
+  nome.value = clienteExato ? (clienteExato.nome || "") : valor;
+}
+
 function atualizarDatalistClientes() {
   const datalist = document.getElementById("clientesDatalist");
   if (!datalist || !Array.isArray(clientes)) return;
 
-  datalist.innerHTML = clientes.map(c => `
-    <option value="${c.nome || ""}" data-id="${c.id}">
-  `).join("");
+  const esc = valor => String(valor || "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  datalist.innerHTML = clientes.map(c => {
+    const valor = esc(rtEventoClienteOpcaoValor(c));
+    const nome = esc(c.nome || "");
+    return `<option value="${valor}" label="${nome}"></option>`;
+  }).join("");
 }
 
 function preencherClienteSelecionado() {
-  const nome = document.getElementById("eventoBuscaCliente").value.trim().toLowerCase();
-  const cliente = Array.isArray(clientes) ? clientes.find(c => String(c.nome || "").toLowerCase() === nome) : null;
-  if (!cliente) return;
+  const busca = document.getElementById("eventoBuscaCliente");
+  const valor = String(busca?.value || "").trim();
+  const valorLower = valor.toLowerCase();
 
+  if (!valor) {
+    document.getElementById("eventoNome").value = "";
+    return;
+  }
+
+  const cliente = Array.isArray(clientes)
+    ? clientes.find(c => rtEventoClienteOpcaoValor(c).toLowerCase() === valorLower) || null
+    : null;
+
+  // Nome digitado sozinho é tratado como cliente novo.
+  // Só preenche os demais dados quando a opção completa da lista for selecionada.
+  if (!cliente) {
+    document.getElementById("eventoNome").value = valor;
+    return;
+  }
+
+  busca.value = cliente.nome || "";
   document.getElementById("eventoNome").value = cliente.nome || "";
   document.getElementById("eventoDocumento").value = cliente.documento || "";
   document.getElementById("eventoTelefone").value = cliente.telefone || "";
@@ -1601,6 +1654,57 @@ function valorOperacaoParaSalvar(campoId, tipoSelectId) {
   return montarDataHoraEvento(valor, horaNormalizada || "09:00");
 }
 
+
+const RT_EVENTO_VENDA_MARCADOR = "[VENDA DE MATERIAL]";
+
+function rtEventoObservacaoEhVenda(valor) {
+  return String(valor || "").toUpperCase().includes(RT_EVENTO_VENDA_MARCADOR);
+}
+
+function rtEventoObservacaoSemVenda(valor) {
+  return String(valor || "")
+    .replace(/\s*\[VENDA DE MATERIAL\]\s*/gi, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function rtEventoObservacaoComVenda(valor, venda) {
+  const limpa = rtEventoObservacaoSemVenda(valor);
+  return venda ? [limpa, RT_EVENTO_VENDA_MARCADOR].filter(Boolean).join(" ") : limpa;
+}
+
+function rtEventoVendaMarcada() {
+  return String(document.getElementById("eventoTipoEvento")?.value || "pontual").toLowerCase() === "venda";
+}
+
+function rtAtualizarModoVendaEvento() {
+  const venda = rtEventoVendaMarcada();
+  const ids = ["eventoDesmontagem", "eventoDesmontagemHora", "eventoDesmontagemTipo", "eventoDesmontagemFim", "btnDesmontagemDiaPosterior"];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = venda;
+    el.setAttribute("aria-disabled", venda ? "true" : "false");
+  });
+  if (venda) {
+    ["eventoDesmontagem", "eventoDesmontagemHora", "eventoDesmontagemFim"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+  }
+  document.getElementById("eventoForm")?.classList.toggle("evento-modo-venda", venda);
+  atualizarAlertasOperacaoEvento();
+}
+
+function rtValidarRetiradaOuVendaEvento() {
+  if (rtEventoVendaMarcada()) return true;
+  const retirada = String(document.getElementById("eventoDesmontagem")?.value || "").trim();
+  if (retirada) return true;
+  alert('Informe a data de desmontagem/retirada. Se os materiais forem vendidos, selecione "Venda" em Tipo de evento.');
+  document.getElementById("eventoDesmontagem")?.focus();
+  return false;
+}
+
 function montarEventoRecorrenteBase(id, existente) {
   return {
     id,
@@ -1612,7 +1716,7 @@ function montarEventoRecorrenteBase(id, existente) {
     bairro: document.getElementById("eventoBairro")?.value.trim() || "",
     cidade: document.getElementById("eventoCidade")?.value.trim() || (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro"),
     complemento: document.getElementById("eventoComplemento")?.value.trim() || "",
-    cliente_observacao: document.getElementById("eventoClienteObservacao")?.value.trim() || "",
+    cliente_observacao: rtEventoObservacaoComVenda(document.getElementById("eventoClienteObservacao")?.value || "", rtEventoVendaMarcada()),
     data_evento: document.getElementById("eventoData").value || null,
     hora_inicio: rtNormalizarHoraEventoParaSalvar(document.getElementById("eventoHoraInicio")?.value) || null,
     hora_termino: rtNormalizarHoraEventoParaSalvar(document.getElementById("eventoHoraTermino")?.value) || null,
@@ -1704,6 +1808,7 @@ function abrirNovoEvento() {
   preencherSelectsHorarioEvento();
   document.getElementById("eventoForm").reset();
   prepararHorarioPadraoNovoEvento();
+  rtAtualizarModoVendaEvento();
   document.getElementById("eventoId").value = "";
   document.getElementById("eventoModalTitulo").textContent = "Novo evento";
   const campoCidadeEvento = document.getElementById("eventoCidade");
@@ -1765,7 +1870,8 @@ function abrirEditarEvento(id) {
   document.getElementById("eventoCidade").value = e.cidade || (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro");
   document.getElementById("eventoComplemento").value = e.complemento || "";
   rtEventoSetEnderecoStatus("", "neutro");
-  document.getElementById("eventoClienteObservacao").value = e.cliente_observacao || "";
+  document.getElementById("eventoClienteObservacao").value = rtEventoObservacaoSemVenda(e.cliente_observacao || "");
+  const vendaLegada = rtEventoObservacaoEhVenda(e.cliente_observacao || "");
   document.getElementById("eventoData").value = e.data_evento || "";
   rtSelecionarHoraEventoNoSelect("eventoHoraInicio", e.hora_inicio || e.hora_evento || "");
   rtSelecionarHoraEventoNoSelect("eventoHoraTermino", e.hora_termino || "");
@@ -1801,7 +1907,12 @@ function abrirEditarEvento(id) {
   document.getElementById("eventoPagamentoQuitado").checked = Boolean(e.pagamento_quitado);
   rtAtualizarAssinaturaForm(e.assinatura_status || "nao_enviado", e.assinatura_link || "");
   const tipoEvento = document.getElementById("eventoTipoEvento");
-  if (tipoEvento) tipoEvento.value = isEventoRecorrente(e) ? "recorrente" : "pontual";
+  if (tipoEvento) {
+    tipoEvento.value = (String(e.tipo_evento || "").toLowerCase() === "venda" || vendaLegada)
+      ? "venda"
+      : (isEventoRecorrente(e) ? "recorrente" : "pontual");
+  }
+  rtAtualizarModoVendaEvento();
   const tipoRec = document.getElementById("eventoRecorrenciaTipo");
   if (tipoRec) tipoRec.value = e.recorrencia_tipo || "mensal";
   const diasRec = document.getElementById("eventoRecorrenciaDias");
@@ -1866,7 +1977,21 @@ function duplicarEventoAtual() {
   atualizarBoxRecorrencia();
   atualizarCampoDiasRecorrencia();
 
-  // Duplicação deve copiar cliente/data/material como base, mas não histórico financeiro,
+  // O duplicado nasce como um novo evento: mantém cliente, endereço e materiais,
+  // mas exige novas datas e não herda venda, rota, assinatura ou quitação.
+  ["eventoData", "eventoHoraInicio", "eventoHoraTermino", "eventoMontagem", "eventoMontagemHora", "eventoMontagemFim", "eventoDesmontagem", "eventoDesmontagemHora", "eventoDesmontagemFim"].forEach(id => {
+    const campo = document.getElementById(id);
+    if (campo) campo.value = "";
+  });
+  aplicarTipoHorarioNoFormulario("Montagem", "Horário comercial");
+  aplicarTipoHorarioNoFormulario("Desmontagem", "Horário comercial");
+  const obsDuplicada = document.getElementById("eventoClienteObservacao");
+  if (obsDuplicada) obsDuplicada.value = rtEventoObservacaoSemVenda(obsDuplicada.value);
+  rtAtualizarModoVendaEvento();
+  atualizarAlertasOperacaoEvento();
+  if (typeof window.rtEventoDocumentosRenderizar === "function") window.rtEventoDocumentosRenderizar();
+
+  // Duplicação deve copiar cliente/material como base, mas não histórico financeiro,
   // pagamentos, assinatura ou status operacional de rota do evento original.
   const valorTotal = document.getElementById("eventoValorTotal");
   const valorSinal = document.getElementById("eventoValorSinal");
@@ -3439,11 +3564,41 @@ async function rtSubstituirProdutoNoEventoConflitante(produtoAtual, conflito, ev
   return true;
 }
 
+function rtChaveProdutoEventoValidacao(produto) {
+  if (!produto) return "";
+  const id = String(produto.id || "").trim();
+  if (id) return `id:${id}`;
+  const codigo = String(produto.codigo || "").trim();
+  if (codigo) return `codigo:${codigo}`;
+  return "";
+}
+
+function rtProdutoJaPertenciaAoEventoAtual(produto) {
+  const eventoAtualId = document.getElementById("eventoId")?.value || "";
+  if (!eventoAtualId) return false;
+
+  const eventoOriginal = (Array.isArray(eventos) ? eventos : []).find(e => String(e.id) === String(eventoAtualId));
+  if (!eventoOriginal) return false;
+
+  const originais = [
+    ...(Array.isArray(eventoOriginal.tendas) ? eventoOriginal.tendas : []),
+    ...(typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(eventoOriginal) : [])
+  ];
+
+  const chaveAtual = rtChaveProdutoEventoValidacao(produto);
+  if (!chaveAtual) return false;
+  return originais.some(item => rtChaveProdutoEventoValidacao(item) === chaveAtual);
+}
+
 async function validarProdutosDoEvento() {
   const bloqueados = [...produtosSelecionadosEventoAtual, ...produtosReservaEventoAtual]
     .filter(p => !p.pendente_codigo)
     .map(p => (Array.isArray(produtos) ? produtos : []).find(prod => String(prod.id) === String(p.id)) || p)
-    .filter(produtoEventoEstaBloqueado);
+    .filter(produtoEventoEstaBloqueado)
+    // Produtos que já faziam parte deste mesmo evento continuam permitidos.
+    // Assim, um bloqueio posterior não impede correções financeiras,
+    // observações, documentos ou outros ajustes históricos.
+    .filter(p => !rtProdutoJaPertenciaAoEventoAtual(p));
 
   if (bloqueados.length) {
     alert("Não é possível salvar este evento. Existem produtos bloqueados:\n\n" + bloqueados.map(p => `${p.codigo || "Sem código"} — ${rtDescricaoProdutoEvento(p)}`).join("\n"));
@@ -3543,6 +3698,7 @@ async function salvarEventoForm(event) {
   try {
     calcularRestanteEvento();
 
+  if (!rtValidarRetiradaOuVendaEvento()) return;
   if (!(await validarProdutosDoEvento())) return;
   if (!validarApoioDoEvento()) return;
 
@@ -5907,6 +6063,7 @@ function rtDocEventoColetarDados() {
     desmontagem: rtDocEventoOperacao('eventoDesmontagem', 'eventoDesmontagemHora', 'eventoDesmontagemTipo', 'eventoDesmontagemFim'),
     valorTotal: moedaParaNumero(document.getElementById('eventoValorTotal')?.value || 0),
     valorSinal: moedaParaNumero(document.getElementById('eventoValorSinal')?.value || 0),
+    valorSinal2: moedaParaNumero(document.getElementById('eventoValorSinal2')?.value || 0),
     valorRestante: moedaParaNumero(document.getElementById('eventoValorRestante')?.value || 0),
     formaPagamento: document.getElementById('eventoFormaPagamento')?.value || '',
     quitado: !!document.getElementById('eventoPagamentoQuitado')?.checked,
@@ -5952,12 +6109,19 @@ function rtDocEventoAplicarModelo(template, d) {
     descricao_servico: rtDocEventoValorHtml(d.descricaoServico, true),
     observacao_cliente: rtDocEventoValorHtml(d.observacaoCliente, true),
     referencia_local: rtDocEventoValorHtml(d.observacaoCliente, true),
-    valor_total: rtDocEventoValorHtml(dinheiro(d.valorTotal)),
+    valor_total: rtDocEventoValorHtml(dinheiro(d.valorRecibo != null ? d.valorRecibo : d.valorTotal)),
+    valor_recibo: rtDocEventoValorHtml(dinheiro(d.valorRecibo != null ? d.valorRecibo : d.valorTotal)),
+    tipo_pagamento: rtDocEventoValorHtml(d.tipoPagamento || 'Pagamento'),
+    referencia_pagamento: rtDocEventoValorHtml(d.referenciaPagamento || d.tipoPagamento || 'Pagamento referente ao evento'),
     sinal: rtDocEventoValorHtml(dinheiro(d.valorSinal)),
     restante: rtDocEventoValorHtml(dinheiro(d.valorRestante)),
     forma_pagamento: rtDocEventoValorHtml((d.formaPagamento || '') + (d.quitado ? '\nPagamento quitado' : ''), true),
     data_hoje: rtDocEventoValorHtml(rtDocEventoDataExtensoHoje()),
-    numero_orcamento: rtDocEventoValorHtml(d.numeroOrcamento || d.id || 'PREVIEW'),
+    numero_documento: rtDocEventoValorHtml(d.numeroDocumento || d.numeroOrcamento || d.id || 'PREVIEW'),
+    numero_guia: rtDocEventoValorHtml(d.numeroDocumento || d.id || 'PREVIEW'),
+    numero_contrato: rtDocEventoValorHtml(d.numeroDocumento || d.id || 'PREVIEW'),
+    numero_recibo: rtDocEventoValorHtml(d.numeroDocumento || d.id || 'PREVIEW'),
+    numero_orcamento: rtDocEventoValorHtml(d.numeroOrcamento || d.numeroDocumento || d.id || 'PREVIEW'),
     data_orcamento: rtDocEventoValorHtml(rtDocEventoDataBR(new Date().toISOString().slice(0,10))),
     validade_orcamento: rtDocEventoValorHtml(rtDocEventoValidadeOrcamentoBR()),
     itens: rtDocEventoItensTabelaOrcamento(d),
@@ -6133,14 +6297,14 @@ function rtDocEventoModeloRecibo(d) {
       <h2>Recibo de locação de bens móveis</h2>
     </section>
     <table class="doc-table compact">
-      <tr><th>Valor</th><td>${dinheiro(d.valorTotal)}</td><th>Data</th><td>${rtDocEventoDataBR(new Date().toISOString().slice(0,10))}</td></tr>
+      <tr><th>Valor</th><td>${dinheiro(d.valorRecibo != null ? d.valorRecibo : d.valorTotal)}</td><th>Data</th><td>${rtDocEventoDataBR(new Date().toISOString().slice(0,10))}</td></tr>
     </table>
     <p><strong>Documento emitido conforme Lei 8.846/1994</strong></p>
     <table class="doc-table">
       <tr><th>Recebemos de</th><td>${rtDocEventoEscape(d.nome)}</td></tr>
       <tr><th>Endereço</th><td>${rtDocEventoEscape((typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(d) : d.endereco))}</td></tr>
-      <tr><th>A importância de (R$)</th><td>${dinheiro(d.valorTotal)}</td></tr>
-      <tr><th>Referente a</th><td>Locação de materiais para evento em ${rtDocEventoDataBR(d.dataEvento)}<br>${rtDocEventoLinhasTexto(d.descricaoServico)}</td></tr>
+      <tr><th>A importância de (R$)</th><td>${dinheiro(d.valorRecibo != null ? d.valorRecibo : d.valorTotal)}</td></tr>
+      <tr><th>Referente a</th><td><strong>${rtDocEventoEscape(d.referenciaPagamento || d.tipoPagamento || 'Pagamento')}</strong><br>Locação de materiais para evento em ${rtDocEventoDataBR(d.dataEvento)}<br>${rtDocEventoLinhasTexto(d.descricaoServico)}</td></tr>
       <tr><th>Recebimento</th><td>${rtDocEventoLinhasTexto(d.formaPagamento || 'Pix / transferência / espécie')}</td></tr>
     </table>
     <p class="small-text">A atividade de locação de bens móveis não está sujeita à tributação de ISS, conforme Lei Complementar nº 116/03, Anexo III da Lei Complementar nº 123/2006 e Instr. Normativa SMF nº 15 de 12/01/2012. As empresas deverão emitir recibo ou fatura de locação de bens móveis.</p>
@@ -6170,12 +6334,110 @@ function rtDocEventoAssinaturas() {
   `;
 }
 
-function rtDocEventoAbrir(tipo) {
+
+const RT_DOC_EVENTO_MODELOS_RAIZ = {
+  guia: 'modelo-guia.html',
+  contrato: 'modelo-contrato.html',
+  recibo: 'modelo-recibo.html',
+  orcamento: 'modelo-orcamento.html'
+};
+const rtDocEventoModelosRaizCache = {};
+
+function rtDocEventoArquivoModeloAssociado(tipo) {
+  try {
+    const config = (typeof carregarConfiguracoes === 'function') ? carregarConfiguracoes() : (window.configRioTendas || {});
+    const associados = config?.modelosArquivosDocumentos || {};
+    const arquivo = String(associados[tipo] || RT_DOC_EVENTO_MODELOS_RAIZ[tipo] || '').trim().replace(/^\/+/, '');
+    if (!arquivo || arquivo.includes('..') || /[\\\\]/.test(arquivo)) return '';
+    return arquivo;
+  } catch (_) {
+    return RT_DOC_EVENTO_MODELOS_RAIZ[tipo] || '';
+  }
+}
+
+function rtDocEventoLimparCacheModelosRaiz() {
+  Object.keys(rtDocEventoModelosRaizCache).forEach(k => delete rtDocEventoModelosRaizCache[k]);
+}
+window.rtDocEventoLimparCacheModelosRaiz = rtDocEventoLimparCacheModelosRaiz;
+
+async function rtDocEventoCarregarModeloRaiz(tipo) {
+  const arquivo = rtDocEventoArquivoModeloAssociado(tipo);
+  if (!arquivo) throw new Error(`Nenhum arquivo HTML associado ao documento ${tipo}.`);
+  const chaveCache = `${tipo}:${arquivo}`;
+  if (rtDocEventoModelosRaizCache[chaveCache]) return rtDocEventoModelosRaizCache[chaveCache];
+
+  if (location.protocol === 'file:') {
+    let local = null;
+    try {
+      if (typeof window.rtObterModeloDocumentoLocal === 'function') {
+        local = window.rtObterModeloDocumentoLocal(tipo, arquivo);
+      } else {
+        const todos = JSON.parse(localStorage.getItem('rt_modelos_documentos_locais_v1') || '{}');
+        local = todos?.[tipo] || null;
+      }
+    } catch (_) {}
+    if (!local?.html) throw new Error(`No modo local, selecione o arquivo ${arquivo} em Configurações > Modelos de Documentos.`);
+    if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(local.html)) throw new Error(`${arquivo} não possui variáveis no formato {{cliente}}.`);
+    rtDocEventoModelosRaizCache[chaveCache] = local.html;
+    return local.html;
+  }
+
+  const resposta = await fetch(arquivo, { cache: 'no-store' });
+  if (!resposta.ok) throw new Error(`${arquivo} não encontrado (HTTP ${resposta.status}).`);
+  const html = await resposta.text();
+  if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(html)) throw new Error(`${arquivo} não possui variáveis no formato {{cliente}}.`);
+  rtDocEventoModelosRaizCache[chaveCache] = html;
+  return html;
+}
+
+function rtDocEventoNumeroPrevio(tipo, dataEvento, eventoId) {
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(String(dataEvento || ''))
+    ? String(dataEvento).replace(/-/g, '')
+    : new Date().toISOString().slice(0,10).replace(/-/g, '');
+  let docs = [];
+  try { docs = JSON.parse(localStorage.getItem('novoRioTendasDocumentosEventosV1') || '[]'); } catch(e) {}
+  if (!Array.isArray(docs)) docs = [];
+  const max = docs
+    .filter(d => String(d.evento_id || '') === String(eventoId || '') && d.tipo === tipo && String(d.numero || '').startsWith(base + '-'))
+    .reduce((m,d) => Math.max(m, Number(String(d.numero || '').split('-').pop()) || 0), 0);
+  return `${base}-${String(max + 1).padStart(3,'0')}`;
+}
+
+async function rtDocEventoAbrir(tipo, opcoes = {}) {
   const d = rtDocEventoColetarDados();
-  try { if (typeof window.rtEventoDocumentosRestaurarTipo === 'function') window.rtEventoDocumentosRestaurarTipo(tipo, d); } catch(e) {}
+  const documentoSalvoMeta = window.__rtDocEventoDocumentoSalvoMeta || null;
+  window.__rtDocEventoDocumentoSalvoMeta = null;
+  if (tipo === 'recibo' && !window.__rtDocEventoConteudoSalvo) {
+    const valor = Number(opcoes.valor);
+    if (!Number.isFinite(valor) || valor <= 0) {
+      alert('Informe um valor maior que zero antes de gerar o recibo.');
+      return;
+    }
+    d.valorRecibo = valor;
+    d.tipoPagamento = String(opcoes.tipoPagamento || 'Pagamento').trim();
+    d.referenciaPagamento = `Recebimento referente a ${d.tipoPagamento}`;
+  }
+  if (!d.id) {
+    alert('Salve o evento antes de gerar documentos.');
+    return;
+  }
   const titulo = tipo === 'contrato' ? 'Contrato' : tipo === 'recibo' ? 'Recibo' : tipo === 'orcamento' ? 'Orçamento' : 'Guia de serviço';
-  const conteudoConfigurado = rtDocEventoObterModeloConfigurado(tipo, d);
-  const conteudo = conteudoConfigurado || (tipo === 'contrato' ? rtDocEventoModeloContrato(d) : tipo === 'recibo' ? rtDocEventoModeloRecibo(d) : tipo === 'orcamento' ? rtDocEventoModeloOrcamento(d) : rtDocEventoModeloGuia(d));
+  const numero = documentoSalvoMeta?.numero || rtDocEventoNumeroPrevio(tipo, d.dataEvento, d.id);
+  d.numeroDocumento = numero;
+  d.numeroOrcamento = numero;
+  const salvo = window.__rtDocEventoConteudoSalvo;
+  window.__rtDocEventoConteudoSalvo = null;
+  let conteudo = salvo || '';
+  if (!salvo) {
+    try {
+      const modeloRaiz = await rtDocEventoCarregarModeloRaiz(tipo);
+      conteudo = rtDocEventoAplicarModelo(modeloRaiz, d);
+    } catch (erro) {
+      console.error('Falha ao carregar modelo HTML associado:', erro);
+      alert(`Não foi possível gerar o documento. ${erro.message || erro}\n\nConfira a associação em Configurações > Modelos de Documentos e se o arquivo existe na pasta raiz.`);
+      return;
+    }
+  }
   const janela = window.open('', '_blank');
   if (!janela) {
     alert('O navegador bloqueou a abertura do documento. Libere pop-ups para este sistema.');
@@ -6183,9 +6445,23 @@ function rtDocEventoAbrir(tipo) {
   }
   janela.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${titulo}</title><style>
     *{box-sizing:border-box} body{font-family:Arial, Helvetica, sans-serif;background:#eef1f6;margin:0;color:#111;font-size:calc(12px * var(--rt-doc-font-scale,1))}.toolbar{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:9px 12px;background:#172033;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.18)}.toolbar strong{font-size:13px}.toolbar .editor-controls{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.toolbar button{border:0;border-radius:7px;padding:7px 9px;cursor:pointer;font-weight:700;background:#f3b33e;color:#172033;min-height:30px}.toolbar .secondary{background:#fff;color:#172033}.toolbar input[type=color]{width:34px;height:30px;border:0;border-radius:7px;background:#fff;padding:2px;cursor:pointer}.page{width:210mm;min-height:297mm;margin:16px auto;background:#fff;padding:16mm;box-shadow:0 8px 28px rgba(0,0,0,.18);font-size:calc(12px * var(--rt-doc-font-scale,1))}.doc-header{text-align:center;border-bottom:1px solid #333;margin-bottom:14px;padding-bottom:10px}.doc-logo{max-height:70px;max-width:220px;margin:0 auto 10px;display:block}.doc-header h1{font-size:calc(18px * var(--rt-doc-font-scale,1));margin:0 0 6px}.doc-header h2{font-size:calc(18px * var(--rt-doc-font-scale,1));text-transform:uppercase;margin:12px 0 0}.doc-header p{margin:0;line-height:1.35}h3{margin:16px 0 8px;text-transform:uppercase;font-size:calc(15px * var(--rt-doc-font-scale,1))}h4{margin:12px 0 6px;font-size:calc(13px * var(--rt-doc-font-scale,1));text-transform:uppercase}p{font-size:calc(12px * var(--rt-doc-font-scale,1));line-height:1.45;margin:7px 0}.doc-table{width:100%;border-collapse:collapse;margin:10px 0}.doc-table th,.doc-table td{border:1px solid #333;padding:7px;vertical-align:top;font-size:calc(12px * var(--rt-doc-font-scale,1))}.doc-table th{width:18%;background:#f2f2f2;text-align:left;text-transform:uppercase;font-size:calc(11px * var(--rt-doc-font-scale,1))}.doc-table.compact th,.doc-table.compact td{padding:6px}.small-text{font-size:calc(11px * var(--rt-doc-font-scale,1))}.assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:30px;text-align:center;margin-top:26px;font-size:calc(12px * var(--rt-doc-font-scale,1));align-items:end}.doc-assinatura-img{display:block;max-width:190px;max-height:58px;margin:0 auto -5px;object-fit:contain}.linha-assinatura{line-height:1;margin-top:2px}.linha-assinatura.cliente{margin-top:58px}.doc-editavel{outline:0}.doc-editavel:focus{box-shadow:0 0 0 2px #7aa7ff inset}.doc-editavel table{position:relative;table-layout:auto}.doc-editavel td,.doc-editavel th,.doc-editavel p,.doc-editavel h1,.doc-editavel h2,.doc-editavel h3,.doc-editavel h4{min-height:1em}.doc-editavel.layout-mode table{position:relative;table-layout:fixed}.doc-editavel.layout-mode td,.doc-editavel.layout-mode th{position:relative;min-width:34px;min-height:18px}.doc-editavel.layout-mode .assinaturas,.doc-editavel.layout-mode .doc-header,.doc-editavel.layout-mode p,.doc-editavel.layout-mode h3,.doc-editavel.layout-mode h4{position:relative;outline:1px dashed #8aa1c1}.rt-layout-hint{font-size:11px;background:#fff3cd;color:#172033;border-radius:7px;padding:7px 9px;display:none}.layout-on .rt-layout-hint{display:inline-block}.rt-resizer{display:none;position:absolute;z-index:20;background:#f3b33e;opacity:.85}.layout-on .rt-resizer{display:block}.rt-col-resizer{top:0;right:-3px;width:6px;height:100%;cursor:col-resize}.rt-row-resizer{left:0;right:0;bottom:-3px;height:6px;cursor:row-resize}.rt-block-resizer{right:-6px;bottom:-6px;width:12px;height:12px;border-radius:50%;cursor:nwse-resize;box-shadow:0 0 0 2px #fff}.rt-layout-selected{outline:2px solid #f3b33e!important}@media(max-width:900px){.page{width:calc(100% - 20px);padding:18px}.toolbar{align-items:flex-start}.toolbar .editor-controls{justify-content:flex-start}}@media print{body{background:#fff}.toolbar{display:none}.page{margin:0!important;box-shadow:none;width:auto;min-height:auto;padding:0!important}@page{size:A4;margin:0} .doc-header{margin-top:0!important;padding-top:0!important}.doc-header h1,.doc-header h2,.doc-header p{margin-top:0!important}.assinaturas{margin-top:10px!important}}
-  </style></head><body><div class="toolbar" contenteditable="false"><strong>${titulo} editável — ajuste antes de imprimir/PDF</strong><div class="editor-controls" contenteditable="false"><button class="secondary" type="button" data-doc-font="down" title="Diminuir fonte">A−</button><button class="secondary" type="button" data-doc-font="up" title="Aumentar fonte">A+</button><button class="secondary" type="button" data-doc-cmd="bold" title="Negrito"><b>N</b></button><button class="secondary" type="button" data-doc-cmd="italic" title="Itálico"><i>I</i></button><button class="secondary" type="button" data-doc-cmd="underline" title="Sublinhado"><u>S</u></button><button class="secondary" type="button" data-doc-cmd="justifyLeft" title="Alinhar à esquerda">☰</button><button class="secondary" type="button" data-doc-cmd="justifyCenter" title="Centralizar">≡</button><button class="secondary" type="button" data-doc-cmd="justifyRight" title="Alinhar à direita">☷</button><input type="color" id="rtDocTextColor" value="#111111" title="Cor do texto"><button class="secondary" type="button" data-doc-cmd="undo" title="Desfazer">↶</button><button class="secondary" type="button" data-doc-cmd="redo" title="Refazer">↷</button><button class="secondary" type="button" id="rtDocLayoutBtn" title="Ativar ajuste direto de linhas, colunas e blocos na folha">Editar layout</button><button class="secondary" type="button" id="rtDocResetBtn">Restaurar padrão</button><button class="secondary" type="button" id="rtDocSaveModelBtn">Salvar modelo</button><span class="rt-layout-hint">Layout ativo: arraste as divisórias das colunas, as bordas das linhas e os pontos dos blocos diretamente na folha.</span><button class="secondary" type="button" onclick="window.print()">Imprimir/PDF</button><button type="button" onclick="window.close()">Fechar</button></div></div><main class="page doc-editavel" id="rtDocPage" contenteditable="true">${conteudo}</main><script>
+  </style></head><body><div class="toolbar" contenteditable="false"><strong>${titulo} editável — ajuste antes de imprimir/PDF</strong><div class="editor-controls" contenteditable="false"><button class="secondary" type="button" data-doc-font="down" title="Diminuir fonte">A−</button><button class="secondary" type="button" data-doc-font="up" title="Aumentar fonte">A+</button><button class="secondary" type="button" data-doc-cmd="bold" title="Negrito"><b>N</b></button><button class="secondary" type="button" data-doc-cmd="italic" title="Itálico"><i>I</i></button><button class="secondary" type="button" data-doc-cmd="underline" title="Sublinhado"><u>S</u></button><button class="secondary" type="button" data-doc-cmd="justifyLeft" title="Alinhar à esquerda">☰</button><button class="secondary" type="button" data-doc-cmd="justifyCenter" title="Centralizar">≡</button><button class="secondary" type="button" data-doc-cmd="justifyRight" title="Alinhar à direita">☷</button><input type="color" id="rtDocTextColor" value="#111111" title="Cor do texto"><button class="secondary" type="button" data-doc-cmd="undo" title="Desfazer">↶</button><button class="secondary" type="button" data-doc-cmd="redo" title="Refazer">↷</button><button class="secondary" type="button" id="rtDocLayoutBtn" title="Ativar ajuste direto de linhas, colunas e blocos na folha">Editar layout</button><button class="secondary" type="button" id="rtDocResetBtn">Restaurar padrão</button><span class="rt-layout-hint">Layout ativo: arraste as divisórias das colunas, as bordas das linhas e os pontos dos blocos diretamente na folha.</span><button class="secondary" type="button" onclick="rtDocImprimirDocumento()">Imprimir/PDF</button><button type="button" onclick="window.close()">Fechar</button></div></div><main class="page doc-editavel" id="rtDocPage" contenteditable="true">${conteudo}</main><script>
     (function(){
       const tipo = ${JSON.stringify(tipo)};
+      const dadosDocumento = ${JSON.stringify({ id: d.id, nome: d.nome, dataEvento: d.dataEvento, numero: numero, tipoPagamento: d.tipoPagamento || '', valorRecibo: d.valorRecibo != null ? d.valorRecibo : null })};
+      let documentoRegistrado = false;
+      function rtDocRegistrarGeracao(){
+        if(documentoRegistrado) return;
+        try{
+          const opener=window.opener;
+          if(opener && typeof opener.rtEventoDocumentosRestaurarTipo === 'function'){
+            opener.rtEventoDocumentosRestaurarTipo(tipo,{...dadosDocumento,numero:dadosDocumento.numero,numeroDocumento:dadosDocumento.numero,html:rtDocHtmlLimpo(),status:'gerado'});
+            documentoRegistrado=true;
+          }
+        }catch(e){ console.warn('Não foi possível registrar o documento ao imprimir.',e); }
+      }
+      window.rtDocImprimirDocumento=function(){ rtDocRegistrarGeracao(); window.print(); };
+      window.addEventListener('beforeprint',rtDocRegistrarGeracao);
       const storageKey = 'rt_doc_editor_estilo_' + tipo;
       let fontScale = 1;
       function normalizarFontScale(valor){ const n=Number(valor); return Number.isFinite(n) ? Math.min(1.6, Math.max(0.75,n)) : 1; }
@@ -6456,8 +6732,15 @@ function rtEventoWhatsappFechar() {
 document.addEventListener('DOMContentLoaded', () => {
   onEventoSeguro('gerarGuiaServicoEvento', 'click', () => rtDocEventoAbrir('guia'));
   onEventoSeguro('gerarContratoEvento', 'click', () => rtDocEventoAbrir('contrato'));
-  onEventoSeguro('gerarReciboEvento', 'click', () => rtDocEventoAbrir('recibo'));
   onEventoSeguro('gerarOrcamentoEvento', 'click', () => { if (typeof rtAbrirOrcamentoPdfDeEventoAtual === 'function') rtAbrirOrcamentoPdfDeEventoAtual(); else rtDocEventoAbrir('orcamento'); });
+  document.getElementById('eventoForm')?.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.evento-recibo-link');
+    if (!btn) return;
+    ev.preventDefault();
+    const campo = document.getElementById(btn.dataset.reciboValorId || '');
+    const valor = moedaParaNumero(campo?.value || 0);
+    rtDocEventoAbrir('recibo', { valor, tipoPagamento: btn.dataset.reciboTipo || 'Pagamento' });
+  });
   onEventoSeguro('abrirWhatsappEvento', 'click', rtEventoWhatsappAbrir);
   onEventoSeguro('fecharEventoWhatsappDialog', 'click', rtEventoWhatsappFechar);
 });
@@ -6553,7 +6836,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const lista=ler();
     const chave=dados.orcamento_id ? `orcamento:${dados.orcamento_id}` : `${tipo}:${id}:${numero}`;
     const idx=lista.findIndex(d=>d.chave===chave);
-    const doc={chave,tipo,numero,nome:documentoNome(tipo,numero),evento_id:id,data_evento:data,status:dados.status||'gerado',orcamento_id:dados.orcamento_id||'',criado_em:idx>=0?lista[idx].criado_em:new Date().toISOString(),atualizado_em:new Date().toISOString()};
+    const doc={chave,tipo,numero,nome:documentoNome(tipo,numero),evento_id:id,cliente_id:dados.cliente_id||'',cliente_nome:dados.nome||dados.cliente_nome||'',data_evento:data,status:dados.status||'gerado',orcamento_id:dados.orcamento_id||'',html:dados.html||lista[idx]?.html||'',criado_em:idx>=0?lista[idx].criado_em:new Date().toISOString(),atualizado_em:new Date().toISOString()};
     if(idx>=0) lista[idx]={...lista[idx],...doc}; else lista.push(doc);
     gravar(lista); renderizar(); return doc;
   }
@@ -6580,7 +6863,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if(o&&gerar){gerar(o);return;}
       alert('Não foi possível carregar este orçamento. Abra a tela de Orçamentos e tente novamente.');return;
     }
-    if(typeof rtDocEventoAbrir==='function') rtDocEventoAbrir(doc.tipo);
+    if(typeof rtDocEventoAbrir==='function') {
+      window.__rtDocEventoConteudoSalvo = doc.html || '';
+      window.__rtDocEventoDocumentoSalvoMeta = doc;
+      rtDocEventoAbrir(doc.tipo);
+    }
   }
   function renderizar(){
     const area=document.getElementById('eventoDocumentosLista'); if(!area) return;
@@ -6614,11 +6901,16 @@ document.addEventListener('DOMContentLoaded', () => {
   window.rtEventoDocumentosRestaurarTipo=function(tipo,dados){
     const id=String(dados?.id||dados?.evento_id||eventoId()||'').trim();
     if(!id)return;
-    if(tipo==='guia'){
-      const existente=ler().some(d=>String(d.evento_id)===id && d.tipo==='guia');
-      if(!existente) registrar('guia',{evento_id:id,data_evento:dados?.dataEvento||dados?.data_evento||eventoData(),status:'gerado'});
-      setTimeout(renderizar,0);
-    }
+    registrar(tipo,{
+      evento_id:id,
+      cliente_id:dados?.cliente_id||'',
+      nome:dados?.nome||'',
+      data_evento:dados?.dataEvento||dados?.data_evento||eventoData(),
+      numero:dados?.numero||dados?.numeroDocumento||dados?.numeroOrcamento||'',
+      status:dados?.status||'gerado',
+      html:dados?.html||''
+    });
+    setTimeout(renderizar,0);
   };
   window.rtEventoDocumentosRegistrarOrcamento=function(o){ if(!o||!o.evento_id)return; registrar('orcamento',{evento_id:o.evento_id,data_evento:o.data_evento,numero:o.numero,status:o.status,orcamento_id:o.id}); };
   window.rtEventoDocumentosRenderizar=renderizar;
