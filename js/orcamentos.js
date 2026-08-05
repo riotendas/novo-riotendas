@@ -902,6 +902,18 @@ async function rtOrcSalvarEGerarPdfAtual(ev){
   rtOrcSetBotaoProcessando(btn, true, 'Gerando...');
   try {
     gerarPdfOrcamento(o);
+    // Exibe imediatamente na pasta Documentos do evento, sem esperar a gravação
+    // em segundo plano. O registro provisório é reconciliado com o ID definitivo.
+    if (eventoOrigemId && typeof window.rtEventoDocumentosRestaurarTipo === 'function') {
+      window.rtEventoDocumentosRestaurarTipo('orcamento', {
+        id: eventoOrigemId,
+        evento_id: eventoOrigemId,
+        nome: o.nome || '',
+        dataEvento: o.data_evento,
+        numero: o.numero,
+        status: o.status || 'em_aberto'
+      });
+    }
   } finally {
     setTimeout(() => rtOrcSetBotaoProcessando(btn, false), 250);
   }

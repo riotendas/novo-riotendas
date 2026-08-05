@@ -1080,7 +1080,16 @@ function iniciarEventos() {
   rtIniciarPagarInlocoEvento();
   onEventoSeguro("eventoFormaPagamento", "input", atualizarIconesFormaPagamentoEvento);
   onEventoSeguro("eventoBuscaCliente", "input", rtEventoSincronizarCampoClienteUnico);
+  onEventoSeguro("eventoBuscaCliente", "input", rtEventoLimparClienteAoEsvaziarBusca);
+  onEventoSeguro("eventoBuscaCliente", "search", rtEventoLimparClienteAoEsvaziarBusca);
   onEventoSeguro("eventoBuscaCliente", "change", preencherClienteSelecionado);
+  onEventoSeguro("eventoDocumento", "change", () => rtEventoSelecionarClientePorCampo("documento"));
+  onEventoSeguro("eventoDocumento", "input", () => rtEventoLimparClienteAoEsvaziarCampoRelacionado("eventoDocumento"));
+  onEventoSeguro("eventoDocumento", "search", () => rtEventoLimparClienteAoEsvaziarCampoRelacionado("eventoDocumento"));
+  onEventoSeguro("eventoTelefone", "change", () => rtEventoSelecionarClientePorCampo("telefone"));
+  onEventoSeguro("eventoTelefone", "input", () => rtEventoLimparClienteAoEsvaziarCampoRelacionado("eventoTelefone"));
+  onEventoSeguro("eventoTelefone", "search", () => rtEventoLimparClienteAoEsvaziarCampoRelacionado("eventoTelefone"));
+  onEventoSeguro("eventoEndereco", "change", rtEventoSelecionarEnderecoCadastrado);
   const eventoFormClienteUnico = document.getElementById("eventoForm");
   if (eventoFormClienteUnico && eventoFormClienteUnico.dataset.rtClienteUnicoBind !== "1") {
     eventoFormClienteUnico.addEventListener("submit", rtEventoSincronizarCampoClienteUnico, true);
@@ -1238,9 +1247,172 @@ function rtEventoSincronizarCampoClienteUnico() {
   nome.value = clienteExato ? (clienteExato.nome || "") : valor;
 }
 
+
+function rtEventoSomenteDigitos(valor) {
+  return String(valor || "").replace(/\D/g, "");
+}
+
+function rtEventoLimparCamposCliente() {
+  const ids = [
+    "eventoBuscaCliente", "eventoNome", "eventoDocumento", "eventoTelefone",
+    "eventoEmail", "eventoEndereco", "eventoBairro", "eventoCidade",
+    "eventoComplemento", "eventoClienteObservacao"
+  ];
+  ids.forEach(id => {
+    const campo = document.getElementById(id);
+    if (campo) campo.value = "";
+  });
+  const busca = document.getElementById("eventoBuscaCliente");
+  if (busca) delete busca.dataset.clienteIdSelecionado;
+  rtEventoSetEnderecoStatus("", "neutro");
+  rtEventoFecharSugestoesEndereco();
+}
+
+function rtEventoLimparClienteAoEsvaziarBusca() {
+  const busca = document.getElementById("eventoBuscaCliente");
+  if (!busca) return;
+  if (String(busca.value || "").trim()) return;
+
+  // O X nativo do campo search limpa somente o nome. Quando havia um cliente
+  // selecionado, limpamos também os demais dados carregados no formulário.
+  const haviaDados = ["eventoNome", "eventoDocumento", "eventoTelefone", "eventoEmail", "eventoEndereco", "eventoBairro", "eventoCidade", "eventoComplemento"]
+    .some(id => String(document.getElementById(id)?.value || "").trim());
+  if (busca.dataset.clienteIdSelecionado || haviaDados) rtEventoLimparCamposCliente();
+  else {
+    const nome = document.getElementById("eventoNome");
+    if (nome) nome.value = "";
+  }
+}
+
+function rtEventoLimparClienteAoEsvaziarCampoRelacionado(campoId) {
+  const campo = document.getElementById(campoId);
+  if (!campo || String(campo.value || "").trim()) return;
+
+  // Mantém o mesmo comportamento do X do seletor de Cliente:
+  // ao apagar CPF/CNPJ ou Telefone, remove todos os dados carregados daquele cliente.
+  rtEventoLimparCamposCliente();
+}
+
+function rtEventoPreencherDadosCliente(cliente) {
+  if (!cliente) return;
+  const busca = document.getElementById("eventoBuscaCliente");
+  if (busca) {
+    busca.value = cliente.nome || "";
+    busca.dataset.clienteIdSelecionado = String(cliente.id || "");
+  }
+  document.getElementById("eventoNome").value = cliente.nome || "";
+  document.getElementById("eventoDocumento").value = cliente.documento || "";
+  document.getElementById("eventoTelefone").value = cliente.telefone || "";
+  document.getElementById("eventoEmail").value = cliente.email || "";
+  document.getElementById("eventoEndereco").value = cliente.endereco || "";
+  document.getElementById("eventoBairro").value = cliente.bairro || "";
+  document.getElementById("eventoCidade").value = cliente.cidade || (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro");
+  document.getElementById("eventoComplemento").value = cliente.complemento || "";
+  rtEventoSetEnderecoStatus("", "neutro");
+  document.getElementById("eventoClienteObservacao").value = cliente.observacao_cliente || "";
+}
+
+function rtEventoSelecionarClientePorCampo(tipo) {
+  if (!Array.isArray(clientes)) return;
+  const campo = document.getElementById(tipo === "documento" ? "eventoDocumento" : "eventoTelefone");
+  const valor = rtEventoSomenteDigitos(campo?.value);
+  if (!valor) return;
+  const cliente = clientes.find(c => rtEventoSomenteDigitos(c?.[tipo]) === valor) || null;
+  if (cliente) rtEventoPreencherDadosCliente(cliente);
+}
+
+function rtEventoEscHtml(valor) {
+  return String(valor || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function rtEventoFecharSugestoesEndereco() {
+  const lista = document.getElementById("eventoEnderecoSugestoes");
+  if (!lista) return;
+  lista.hidden = true;
+  lista.innerHTML = "";
+}
+
+function rtEventoFecharSugestoesEnderecoFora(ev) {
+  const lista = document.getElementById("eventoEnderecoSugestoes");
+  const campo = document.getElementById("eventoEndereco");
+  if (!lista || lista.hidden) return;
+  if (lista.contains(ev.target) || campo === ev.target) return;
+  rtEventoFecharSugestoesEndereco();
+}
+
+function rtEventoAplicarEnderecoCliente(indice) {
+  const cliente = Array.isArray(clientes) ? clientes[Number(indice)] : null;
+  if (!cliente) return;
+  // Busca por endereço não cria vínculo nem altera nome, CPF, telefone ou e-mail.
+  document.getElementById("eventoEndereco").value = cliente.endereco || "";
+  document.getElementById("eventoBairro").value = cliente.bairro || "";
+  document.getElementById("eventoCidade").value = cliente.cidade || "";
+  document.getElementById("eventoComplemento").value = cliente.complemento || "";
+  rtEventoSetEnderecoStatus("", "neutro");
+  rtEventoFecharSugestoesEndereco();
+}
+
+function rtEventoAtualizarSugestoesEndereco() {
+  const campo = document.getElementById("eventoEndereco");
+  const lista = document.getElementById("eventoEnderecoSugestoes");
+  if (!campo || !lista || !Array.isArray(clientes)) return;
+  const termo = String(campo.value || "").trim().toLocaleLowerCase("pt-BR");
+  if (termo.length < 3) return rtEventoFecharSugestoesEndereco();
+
+  const vistos = new Set();
+  const achados = [];
+  clientes.forEach((c, indice) => {
+    const endereco = String(c?.endereco || "").trim();
+    if (!endereco) return;
+    const texto = `${endereco} ${c?.bairro || ""} ${c?.cidade || ""} ${c?.complemento || ""}`.toLocaleLowerCase("pt-BR");
+    const chave = `${endereco}|${c?.bairro || ""}|${c?.cidade || ""}|${c?.complemento || ""}`.toLocaleLowerCase("pt-BR");
+    if (!texto.includes(termo) || vistos.has(chave)) return;
+    vistos.add(chave);
+    achados.push({ c, indice });
+  });
+
+  if (!achados.length) return rtEventoFecharSugestoesEndereco();
+  lista.innerHTML = achados.slice(0, 8).map(({ c, indice }) => `
+    <button type="button" class="evento-endereco-sugestao" data-endereco-indice="${indice}">
+      <strong>${rtEventoEscHtml(c.endereco)}</strong>
+      <span>${rtEventoEscHtml([c.bairro, c.cidade, c.complemento].filter(Boolean).join(" • "))}</span>
+    </button>`).join("");
+  lista.hidden = false;
+  lista.querySelectorAll("[data-endereco-indice]").forEach(btn => {
+    btn.addEventListener("click", () => rtEventoAplicarEnderecoCliente(btn.dataset.enderecoIndice));
+  });
+}
+
+function rtEventoSelecionarEnderecoCadastrado() {
+  if (!Array.isArray(clientes)) return;
+  const campo = document.getElementById("eventoEndereco");
+  const valor = String(campo?.value || "").trim().toLocaleLowerCase("pt-BR");
+  if (!valor) return;
+
+  const cliente = clientes.find(c =>
+    String(c?.endereco || "").trim().toLocaleLowerCase("pt-BR") === valor
+  ) || null;
+  if (!cliente) return;
+
+  // A busca por endereço mantém os dados pessoais já digitados.
+  document.getElementById("eventoEndereco").value = cliente.endereco || "";
+  document.getElementById("eventoBairro").value = cliente.bairro || "";
+  document.getElementById("eventoCidade").value = cliente.cidade || "";
+  document.getElementById("eventoComplemento").value = cliente.complemento || "";
+  rtEventoSetEnderecoStatus("", "neutro");
+}
+
 function atualizarDatalistClientes() {
   const datalist = document.getElementById("clientesDatalist");
-  if (!datalist || !Array.isArray(clientes)) return;
+  const docs = document.getElementById("clientesDocumentoDatalist");
+  const telefones = document.getElementById("clientesTelefoneDatalist");
+  const enderecos = document.getElementById("clientesEnderecoDatalist");
+  if (!Array.isArray(clientes)) return;
 
   const esc = valor => String(valor || "")
     .replace(/&/g, "&amp;")
@@ -1248,11 +1420,36 @@ function atualizarDatalistClientes() {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  datalist.innerHTML = clientes.map(c => {
-    const valor = esc(rtEventoClienteOpcaoValor(c));
-    const nome = esc(c.nome || "");
-    return `<option value="${valor}" label="${nome}"></option>`;
-  }).join("");
+  if (datalist) {
+    datalist.innerHTML = clientes.map(c => {
+      const valor = esc(rtEventoClienteOpcaoValor(c));
+      const nome = esc(c.nome || "");
+      return `<option value="${valor}" label="${nome}"></option>`;
+    }).join("");
+  }
+  if (docs) {
+    docs.innerHTML = clientes.filter(c => String(c.documento || "").trim()).map(c =>
+      `<option value="${esc(c.documento)}" label="${esc(c.nome || "Cliente")}"></option>`
+    ).join("");
+  }
+  if (telefones) {
+    telefones.innerHTML = clientes.filter(c => String(c.telefone || "").trim()).map(c =>
+      `<option value="${esc(c.telefone)}" label="${esc(c.nome || "Cliente")}"></option>`
+    ).join("");
+  }
+  if (enderecos) {
+    const vistos = new Set();
+    enderecos.innerHTML = clientes.filter(c => {
+      const endereco = String(c.endereco || "").trim();
+      const chave = endereco.toLocaleLowerCase("pt-BR");
+      if (!endereco || vistos.has(chave)) return false;
+      vistos.add(chave);
+      return true;
+    }).map(c => {
+      const detalhe = [c.bairro, c.cidade, c.complemento].filter(Boolean).join(" • ");
+      return `<option value="${esc(c.endereco)}" label="${esc(detalhe || "Endereço cadastrado")}"></option>`;
+    }).join("");
+  }
 }
 
 function preencherClienteSelecionado() {
@@ -1276,17 +1473,7 @@ function preencherClienteSelecionado() {
     return;
   }
 
-  busca.value = cliente.nome || "";
-  document.getElementById("eventoNome").value = cliente.nome || "";
-  document.getElementById("eventoDocumento").value = cliente.documento || "";
-  document.getElementById("eventoTelefone").value = cliente.telefone || "";
-  document.getElementById("eventoEmail").value = cliente.email || "";
-  document.getElementById("eventoEndereco").value = cliente.endereco || "";
-  document.getElementById("eventoBairro").value = cliente.bairro || "";
-  document.getElementById("eventoCidade").value = cliente.cidade || (typeof carregarConfiguracoes === "function" ? (carregarConfiguracoes().cidadePadrao || "Rio de Janeiro") : "Rio de Janeiro");
-  document.getElementById("eventoComplemento").value = cliente.complemento || "";
-  rtEventoSetEnderecoStatus("", "neutro");
-  document.getElementById("eventoClienteObservacao").value = cliente.observacao_cliente || "";
+  rtEventoPreencherDadosCliente(cliente);
 }
 
 
@@ -6438,6 +6625,26 @@ async function rtDocEventoAbrir(tipo, opcoes = {}) {
       return;
     }
   }
+  // Registra o documento assim que ele é gerado. Antes, o vínculo dependia do clique
+  // em Imprimir/PDF dentro da nova janela; se o usuário apenas abrisse ou fechasse,
+  // o documento podia não aparecer na pasta do evento.
+  try {
+    if (typeof window.rtEventoDocumentosRestaurarTipo === 'function') {
+      window.rtEventoDocumentosRestaurarTipo(tipo, {
+        id: d.id,
+        evento_id: d.id,
+        nome: d.nome,
+        dataEvento: d.dataEvento,
+        numero,
+        numeroDocumento: numero,
+        html: conteudo,
+        status: 'gerado'
+      });
+    }
+  } catch (erroRegistro) {
+    console.warn('Não foi possível vincular o documento ao evento ao gerar.', erroRegistro);
+  }
+
   const janela = window.open('', '_blank');
   if (!janela) {
     alert('O navegador bloqueou a abertura do documento. Libere pop-ups para este sistema.');
@@ -6835,7 +7042,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if(!numero) numero=proximoNumero(tipo,data,id);
     const lista=ler();
     const chave=dados.orcamento_id ? `orcamento:${dados.orcamento_id}` : `${tipo}:${id}:${numero}`;
-    const idx=lista.findIndex(d=>d.chave===chave);
+    let idx=lista.findIndex(d=>d.chave===chave);
+    // Ao gerar um orçamento, ele entra imediatamente como provisório. Quando o banco
+    // devolver o ID definitivo, atualiza esse mesmo item em vez de criar uma duplicata.
+    if(idx<0 && tipo==='orcamento' && dados.orcamento_id){
+      idx=lista.findIndex(d=>d.tipo==='orcamento' && String(d.evento_id)===id && String(d.numero||'')===String(numero||'') && !d.orcamento_id);
+      if(idx>=0) lista[idx].chave=chave;
+    }
     const doc={chave,tipo,numero,nome:documentoNome(tipo,numero),evento_id:id,cliente_id:dados.cliente_id||'',cliente_nome:dados.nome||dados.cliente_nome||'',data_evento:data,status:dados.status||'gerado',orcamento_id:dados.orcamento_id||'',html:dados.html||lista[idx]?.html||'',criado_em:idx>=0?lista[idx].criado_em:new Date().toISOString(),atualizado_em:new Date().toISOString()};
     if(idx>=0) lista[idx]={...lista[idx],...doc}; else lista.push(doc);
     gravar(lista); renderizar(); return doc;

@@ -1,0 +1,15 @@
+<section class="doc-header">
+  {{logo_empresa}}
+  <h1>RECIBO Nº {{numero_recibo}}</h1>
+  <p>RioTendas – Empresa do Grupo Maximum<br>CNPJ: 05.831.617/0001-72<br>Tels.: (21) 3490-2333 / 99692-9292</p>
+</section>
+<table class="doc-table">
+  <tr><th>Recebemos de</th><td>{{cliente}}</td></tr>
+  <tr><th>CPF/CNPJ</th><td>{{cpf_cnpj}}</td></tr>
+  <tr><th>Endereço</th><td>{{endereco}}</td></tr>
+  <tr><th>Valor recebido</th><td><strong>{{valor_recibo}}</strong></td></tr>
+  <tr><th>Referente a</th><td><strong>{{referencia_pagamento}}</strong><br>Locação de materiais para o evento de {{data_evento}}.<br>{{descricao_servico}}</td></tr>
+  <tr><th>Forma de pagamento</th><td>{{forma_pagamento}}</td></tr>
+</table>
+<p>Rio de Janeiro, {{data_hoje}}.</p>
+{{assinaturas}}

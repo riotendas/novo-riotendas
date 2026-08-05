@@ -1,59 +1,20 @@
+<section class="doc-header">
+  {{logo_empresa}}
+  <h1>GUIA DE SERVIÇO Nº {{numero_guia}}</h1>
+  <p>RioTendas – Empresa do Grupo Maximum<br>CNPJ: 05.831.617/0001-72<br>Tels.: (21) 3490-2333 / 99692-9292<br>www.riotendas.com.br</p>
+</section>
 <table class="doc-table">
-  <tr>
-    <td width="273" height="82" valign="middle">{{logo_empresa}} </td>
-    <td width="422" height="82" valign="middle"><h4>RioTendas – Empresa do Grupo Maximum<br />
-      CNPJ: 05.831.617/0001-72<br />
-      Tels.: (21) 3490-2333 / 99692-9292<br />
-      www.riotendas.com.br</h4></td>
-  </tr>
+  <tr><th>Cliente</th><td>{{cliente}}</td><th>CPF/CNPJ</th><td>{{cpf_cnpj}}</td></tr>
+  <tr><th>Telefone</th><td>{{telefone}}</td><th>E-mail</th><td>{{email}}</td></tr>
+  <tr><th>Evento</th><td>{{data_evento}} — {{horario_evento}}</td><th>Endereço</th><td>{{endereco}}</td></tr>
+  <tr><th>Montagem</th><td>{{montagem}}</td><th>Desmontagem</th><td>{{desmontagem}}</td></tr>
+  <tr><th>Descrição do serviço</th><td colspan="3">{{descricao_servico}}</td></tr>
+  <tr><th>Referência do local</th><td colspan="3">{{referencia_local}}</td></tr>
 </table>
-
-
-<table class="doc-table">
-  <tr>
-    <td height="33" colspan="2" align="center" valign="middle"><h4><strong>GUIA DE SERVIÇO Nº {{numero_guia}}</strong></h4></td>
-  </tr>
-  <tr>
-    <td height="33" valign="middle"><strong>Evento:</strong> {{data_evento}} — {{horario_evento}}</td>
-    <td height="33" valign="middle"><strong>Montagem: </strong>{{montagem}} - <strong>Desmontagem: </strong>{{desmontagem}}</td>
-  </tr>
-  <tr>
-    <td width="231" height="33" valign="middle"><strong>Cliente:</strong> {{cliente}}</td>
-    <td width="481" height="33" valign="middle"><strong>CPF/CNPJ:</strong> {{cpf_cnpj}}</th>    </tr>
-  <tr>
-    <td height="33" valign="middle"><strong>Telefone: </strong>{{telefone}}</td>
-    <td height="33" valign="middle"><strong>E-mail:</strong> {{email}}</td>
-  </tr>
-  <tr>
-    <td height="33" colspan="2" valign="middle"><strong>Endereço: </strong>{{endereco}}</td>
-  </tr>
-  <tr>
-    <td height="33" colspan="2" valign="middle"><strong>Referência do local:</strong> {{referencia_local}}</td></tr>
-  <tr>
-    <td height="33" colspan="2" valign="middle"><strong>Descrição do serviço: </strong>{{descricao_servico}}</td>
-  </tr>
+<h3>Pagamento</h3>
+<table class="doc-table compact">
+  <tr><th>Valor total</th><td>{{valor_total}}</td><th>Sinal pago</th><td>{{sinal}}</td><th>Receber</th><td>{{restante}}</td></tr>
+  <tr><th>Forma de pagamento</th><td colspan="5">{{forma_pagamento}}</td></tr>
 </table>
-
-<br />
-<table width="707">
-  <tr>
-    <th height="29" colspan="6" align="center" valign="middle"><h4>Pagamento</h4></th>
-  </tr>
-  <tr><th width="152" height="33">Valor total</th><td width="147" height="33">{{valor_total}}</td><th width="87" height="33">Sinal pago</th><td width="110" height="33">{{sinal}}</td><th width="74" height="33">Receber</th><td width="109" height="33">{{restante}}</td></tr>
-  <tr><th height="33">Forma de pagamento</th><td height="33" colspan="5">{{forma_pagamento}}</td></tr>
-</table>
-
-  <p align="center"><strong><u>CONTRATO</u></strong></p>
-  <p>Pelo presente CONTRATO DE LOCAÇÃO, de  um lado, na qualidade de LOCADORA a empresa RIOTENDAS, pessoa jurídica de  direito privado e, na qualidade de LOCATÁRIO, o cliente acima identificado, têm  entre si justo e contratado o que abaixo segue:</p>
-  <p>1º  - Confirmo o recebimento dos objetos locados acima descritos em perfeito estado  de conservação e funcionamento e, desta forma deverão ser devolvidos à LOCADORA,  sendo terminantemente vedada a &ldquo;sub-locação&rdquo; ou empréstimo, sob qualquer  pretexto, devendo permanecer no mesmo local até o fim da locação;</p>
-  <p>2º  - <u>É <strong>terminantemente vedado ao LOCATÁRIO a instalação de qualquer material  adesivo</strong> na lona ou estrutura</u> bem como alteração de configuração,  amarramento, ou peças, assumindo total responsabilidade, civil ou criminal, no  caso de acidentes, desabamento, queda ou avaria ao mesmo;</p>
-  <p>3º  - O LOCATÁRIO assume todas as responsabilidades quanto a guarda e conservação  dos objetos locados, obrigando-se a indenizar a LOCADORA por todo e qualquer  dano, avaria parcial e total, independente da causa, climática ou não, por perda,  roubo ou extravio dos equipamentos acima relacionados no valor de 5x o  estipulado neste serviço;</p>
-<p>4º  - Se obriga também o LOCATÁRIO a dar acesso ao LOCADOR às dependências ou local  de instalação dos objetos ora locados, para fiscalização e desmonte ao final do  tempo acertado para a locação;<br />
-    <br />
-    5º  - Os atos e eventos não previstos no presente contrato, deverão ser tratados à  parte e de acordo com cada caso e, sempre no mais harmonioso clima comercial  que norteou a presente locação.</p>
-  <p>E  por estarem assim, justas e contratadas, as partes assinam o presente contrato,  elegendo o foro da comarca do Rio de Janeiro, para dirimir dúvidas e possíveis  omissões e para que se produzam os reais efeitos de fato e de direito.</p>
- <br />
-
-  <h4 align="center"><strong>Rio de Janeiro, {{data_hoje}}</strong>.</h4>
-  <p>  {{assinaturas}}
-  </p>
+<p>Confirmo o recebimento dos objetos locados acima descritos em perfeito estado de conservação e funcionamento, obrigando-me a devolvê-los nas mesmas condições.</p>
+{{assinaturas}}

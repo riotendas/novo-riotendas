@@ -1710,10 +1710,12 @@
               <input id="eventoNome" type="hidden">
             </label>
             <label>CPF/CNPJ
-              <input id="eventoDocumento" type="text">
+              <input id="eventoDocumento" type="search" list="clientesDocumentoDatalist" autocomplete="off">
+              <datalist id="clientesDocumentoDatalist"></datalist>
             </label>
             <label>Telefone
-              <input id="eventoTelefone" type="text">
+              <input id="eventoTelefone" type="search" list="clientesTelefoneDatalist" autocomplete="off">
+              <datalist id="clientesTelefoneDatalist"></datalist>
             </label>
             <label>E-mail
               <input id="eventoEmail" type="email">
@@ -1721,7 +1723,8 @@
           </div>
           <div class="cliente-linha-endereco">
             <label class="evento-endereco-wide">Endereço
-              <textarea id="eventoEndereco" rows="2" tabindex="60" placeholder="Rua, avenida, número ou referência principal"></textarea>
+              <input id="eventoEndereco" type="search" list="clientesEnderecoDatalist" tabindex="60" placeholder="Digite ou selecione um endereço cadastrado" autocomplete="off">
+              <datalist id="clientesEnderecoDatalist"></datalist>
               <div class="endereco-validacao-row">
                 <span id="eventoEnderecoStatus" class="endereco-validacao-status neutro">Endereço ainda não validado</span>
                 <button type="button" id="validarEventoEndereco" tabindex="65" class="btn-outline btn-mini endereco-validacao-btn">📍 Verificar no Maps</button>
