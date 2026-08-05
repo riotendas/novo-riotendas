@@ -6610,6 +6610,8 @@ async function rtDocEventoAbrir(tipo, opcoes = {}) {
   }
   const titulo = tipo === 'contrato' ? 'Contrato' : tipo === 'recibo' ? 'Recibo' : tipo === 'orcamento' ? 'Orçamento' : 'Guia de serviço';
   const numero = documentoSalvoMeta?.numero || rtDocEventoNumeroPrevio(tipo, d.dataEvento, d.id);
+  const nomeArquivoPdf = `${tipo}-${numero}.pdf`;
+  const tituloArquivoPdf = nomeArquivoPdf.replace(/\.pdf$/i, '');
   d.numeroDocumento = numero;
   d.numeroOrcamento = numero;
   const salvo = window.__rtDocEventoConteudoSalvo;
@@ -6625,32 +6627,12 @@ async function rtDocEventoAbrir(tipo, opcoes = {}) {
       return;
     }
   }
-  // Registra o documento assim que ele é gerado. Antes, o vínculo dependia do clique
-  // em Imprimir/PDF dentro da nova janela; se o usuário apenas abrisse ou fechasse,
-  // o documento podia não aparecer na pasta do evento.
-  try {
-    if (typeof window.rtEventoDocumentosRestaurarTipo === 'function') {
-      window.rtEventoDocumentosRestaurarTipo(tipo, {
-        id: d.id,
-        evento_id: d.id,
-        nome: d.nome,
-        dataEvento: d.dataEvento,
-        numero,
-        numeroDocumento: numero,
-        html: conteudo,
-        status: 'gerado'
-      });
-    }
-  } catch (erroRegistro) {
-    console.warn('Não foi possível vincular o documento ao evento ao gerar.', erroRegistro);
-  }
-
   const janela = window.open('', '_blank');
   if (!janela) {
     alert('O navegador bloqueou a abertura do documento. Libere pop-ups para este sistema.');
     return;
   }
-  janela.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${titulo}</title><style>
+  janela.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${tituloArquivoPdf}</title><style>
     *{box-sizing:border-box} body{font-family:Arial, Helvetica, sans-serif;background:#eef1f6;margin:0;color:#111;font-size:calc(12px * var(--rt-doc-font-scale,1))}.toolbar{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:9px 12px;background:#172033;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.18)}.toolbar strong{font-size:13px}.toolbar .editor-controls{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.toolbar button{border:0;border-radius:7px;padding:7px 9px;cursor:pointer;font-weight:700;background:#f3b33e;color:#172033;min-height:30px}.toolbar .secondary{background:#fff;color:#172033}.toolbar input[type=color]{width:34px;height:30px;border:0;border-radius:7px;background:#fff;padding:2px;cursor:pointer}.page{width:210mm;min-height:297mm;margin:16px auto;background:#fff;padding:16mm;box-shadow:0 8px 28px rgba(0,0,0,.18);font-size:calc(12px * var(--rt-doc-font-scale,1))}.doc-header{text-align:center;border-bottom:1px solid #333;margin-bottom:14px;padding-bottom:10px}.doc-logo{max-height:70px;max-width:220px;margin:0 auto 10px;display:block}.doc-header h1{font-size:calc(18px * var(--rt-doc-font-scale,1));margin:0 0 6px}.doc-header h2{font-size:calc(18px * var(--rt-doc-font-scale,1));text-transform:uppercase;margin:12px 0 0}.doc-header p{margin:0;line-height:1.35}h3{margin:16px 0 8px;text-transform:uppercase;font-size:calc(15px * var(--rt-doc-font-scale,1))}h4{margin:12px 0 6px;font-size:calc(13px * var(--rt-doc-font-scale,1));text-transform:uppercase}p{font-size:calc(12px * var(--rt-doc-font-scale,1));line-height:1.45;margin:7px 0}.doc-table{width:100%;border-collapse:collapse;margin:10px 0}.doc-table th,.doc-table td{border:1px solid #333;padding:7px;vertical-align:top;font-size:calc(12px * var(--rt-doc-font-scale,1))}.doc-table th{width:18%;background:#f2f2f2;text-align:left;text-transform:uppercase;font-size:calc(11px * var(--rt-doc-font-scale,1))}.doc-table.compact th,.doc-table.compact td{padding:6px}.small-text{font-size:calc(11px * var(--rt-doc-font-scale,1))}.assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:30px;text-align:center;margin-top:26px;font-size:calc(12px * var(--rt-doc-font-scale,1));align-items:end}.doc-assinatura-img{display:block;max-width:190px;max-height:58px;margin:0 auto -5px;object-fit:contain}.linha-assinatura{line-height:1;margin-top:2px}.linha-assinatura.cliente{margin-top:58px}.doc-editavel{outline:0}.doc-editavel:focus{box-shadow:0 0 0 2px #7aa7ff inset}.doc-editavel table{position:relative;table-layout:auto}.doc-editavel td,.doc-editavel th,.doc-editavel p,.doc-editavel h1,.doc-editavel h2,.doc-editavel h3,.doc-editavel h4{min-height:1em}.doc-editavel.layout-mode table{position:relative;table-layout:fixed}.doc-editavel.layout-mode td,.doc-editavel.layout-mode th{position:relative;min-width:34px;min-height:18px}.doc-editavel.layout-mode .assinaturas,.doc-editavel.layout-mode .doc-header,.doc-editavel.layout-mode p,.doc-editavel.layout-mode h3,.doc-editavel.layout-mode h4{position:relative;outline:1px dashed #8aa1c1}.rt-layout-hint{font-size:11px;background:#fff3cd;color:#172033;border-radius:7px;padding:7px 9px;display:none}.layout-on .rt-layout-hint{display:inline-block}.rt-resizer{display:none;position:absolute;z-index:20;background:#f3b33e;opacity:.85}.layout-on .rt-resizer{display:block}.rt-col-resizer{top:0;right:-3px;width:6px;height:100%;cursor:col-resize}.rt-row-resizer{left:0;right:0;bottom:-3px;height:6px;cursor:row-resize}.rt-block-resizer{right:-6px;bottom:-6px;width:12px;height:12px;border-radius:50%;cursor:nwse-resize;box-shadow:0 0 0 2px #fff}.rt-layout-selected{outline:2px solid #f3b33e!important}@media(max-width:900px){.page{width:calc(100% - 20px);padding:18px}.toolbar{align-items:flex-start}.toolbar .editor-controls{justify-content:flex-start}}@media print{body{background:#fff}.toolbar{display:none}.page{margin:0!important;box-shadow:none;width:auto;min-height:auto;padding:0!important}@page{size:A4;margin:0} .doc-header{margin-top:0!important;padding-top:0!important}.doc-header h1,.doc-header h2,.doc-header p{margin-top:0!important}.assinaturas{margin-top:10px!important}}
   </style></head><body><div class="toolbar" contenteditable="false"><strong>${titulo} editável — ajuste antes de imprimir/PDF</strong><div class="editor-controls" contenteditable="false"><button class="secondary" type="button" data-doc-font="down" title="Diminuir fonte">A−</button><button class="secondary" type="button" data-doc-font="up" title="Aumentar fonte">A+</button><button class="secondary" type="button" data-doc-cmd="bold" title="Negrito"><b>N</b></button><button class="secondary" type="button" data-doc-cmd="italic" title="Itálico"><i>I</i></button><button class="secondary" type="button" data-doc-cmd="underline" title="Sublinhado"><u>S</u></button><button class="secondary" type="button" data-doc-cmd="justifyLeft" title="Alinhar à esquerda">☰</button><button class="secondary" type="button" data-doc-cmd="justifyCenter" title="Centralizar">≡</button><button class="secondary" type="button" data-doc-cmd="justifyRight" title="Alinhar à direita">☷</button><input type="color" id="rtDocTextColor" value="#111111" title="Cor do texto"><button class="secondary" type="button" data-doc-cmd="undo" title="Desfazer">↶</button><button class="secondary" type="button" data-doc-cmd="redo" title="Refazer">↷</button><button class="secondary" type="button" id="rtDocLayoutBtn" title="Ativar ajuste direto de linhas, colunas e blocos na folha">Editar layout</button><button class="secondary" type="button" id="rtDocResetBtn">Restaurar padrão</button><span class="rt-layout-hint">Layout ativo: arraste as divisórias das colunas, as bordas das linhas e os pontos dos blocos diretamente na folha.</span><button class="secondary" type="button" onclick="rtDocImprimirDocumento()">Imprimir/PDF</button><button type="button" onclick="window.close()">Fechar</button></div></div><main class="page doc-editavel" id="rtDocPage" contenteditable="true">${conteudo}</main><script>
     (function(){
@@ -6667,8 +6649,9 @@ async function rtDocEventoAbrir(tipo, opcoes = {}) {
           }
         }catch(e){ console.warn('Não foi possível registrar o documento ao imprimir.',e); }
       }
-      window.rtDocImprimirDocumento=function(){ rtDocRegistrarGeracao(); window.print(); };
-      window.addEventListener('beforeprint',rtDocRegistrarGeracao);
+      function rtDocPrepararNomeArquivo(){ document.title = ${JSON.stringify(tituloArquivoPdf)}; }
+      window.rtDocImprimirDocumento=function(){ rtDocPrepararNomeArquivo(); rtDocRegistrarGeracao(); window.print(); };
+      window.addEventListener('beforeprint',function(){ rtDocPrepararNomeArquivo(); rtDocRegistrarGeracao(); });
       const storageKey = 'rt_doc_editor_estilo_' + tipo;
       let fontScale = 1;
       function normalizarFontScale(valor){ const n=Number(valor); return Number.isFinite(n) ? Math.min(1.6, Math.max(0.75,n)) : 1; }
@@ -7021,7 +7004,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(/^\d{8}-\d{3}$/.test(n)) return n;
     return `${baseData(data)}-${n.match(/(\d{3})$/)?.[1]||'001'}`;
   }
-  function documentoNome(tipo,numero){ return `${tipo}-${numero}`; }
+  function documentoNome(tipo,numero){ return `${tipo}-${numero}.pdf`; }
   function proximoNumero(tipo,data,id){
     const base=baseData(data);
     const docs=ler().filter(d=>String(d.evento_id)===String(id) && d.tipo===tipo && String(d.numero||'').startsWith(base+'-'));
