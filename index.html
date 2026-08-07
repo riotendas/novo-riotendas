@@ -1182,33 +1182,32 @@
     <section id="diagnosticoTrafegoSection" class="section admin-only">
       <div class="section-header split">
         <div>
-          <h2>Diagnóstico de tráfego</h2>
-          <p>Medição local das consultas feitas por este navegador ao Supabase.</p>
+          <h2>Diagnóstico central de tráfego</h2>
+          <p>Consolida o desempenho e o Egress estimado de todos os computadores e celulares.</p>
         </div>
         <div class="diag-acoes">
           <select id="diagPeriodo" aria-label="Período do diagnóstico">
-            <option value="hoje">Hoje</option>
-            <option value="todos">Últimos 7 dias</option>
-          </select>
-          <select id="diagServico" aria-label="Serviço do diagnóstico">
-            <option value="todos">Todos os serviços</option>
-            <option value="PostgREST">PostgREST</option>
-            <option value="Functions">Functions</option>
-            <option value="Auth">Auth</option>
-            <option value="Storage">Storage</option>
-            <option value="Realtime">Realtime</option>
+            <option value="1">Hoje</option>
+            <option value="7" selected>Últimos 7 dias</option>
+            <option value="30">Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
           </select>
           <button type="button" class="btn-outline" id="diagAtualizar">Atualizar</button>
-          <button type="button" class="btn-outline" id="diagExportar">Exportar JSON</button>
-          <button type="button" class="btn-danger" id="diagLimpar">Limpar</button>
+          <button type="button" class="btn-outline" id="diagEnviar">Enviar pendentes (<span id="diagFilaStatus">0 pendentes</span>)</button>
+          <button type="button" class="btn-outline" id="diagExportar">Exportar log completo</button>
+          <button type="button" class="btn-primary" id="diagPacote">📦 Gerar pacote para análise</button>
         </div>
       </div>
+      <div class="panel diag-config-central">
+        <label><span>Nome deste acesso/dispositivo</span><input id="diagDispositivoNome" type="text" maxlength="120" placeholder="Ex.: Rua-Celular-01"></label>
+        <label><span>Modo de medição</span><select id="diagModo"><option value="normal">Normal — mede no consumo real</option><option value="detalhado">Detalhado — mantém medição e espera maior por respostas não consumidas</option></select></label>
+        <div class="diag-modo-ajuda"><strong>Recomendado:</strong> mantenha em Normal. A medição agora aproveita o conteúdo que o próprio sistema já lê, sem duplicar download. O modo Detalhado apenas amplia o tempo de espera para respostas não consumidas.</div>
+      </div>
       <div class="panel diag-aviso">
-        <strong>Importante:</strong> os registros ficam somente neste computador ou celular por até 7 dias. Esta tela não grava dados no Supabase e não gera Egress adicional.
+        <strong>Centralizado:</strong> os registros são acumulados em lote e enviados ao Supabase. Trocar de computador, limpar cache ou atualizar o sistema não apaga o histórico central.<br>
+        <strong>Medição de dados:</strong> consultas realizadas a partir desta versão registram o volume no momento em que a resposta é consumida. Registros antigos podem continuar exibindo 0 B.
       </div>
-      <div id="diagnosticoTrafegoConteudo">
-        <p class="empty">Carregando diagnóstico...</p>
-      </div>
+      <div id="diagnosticoTrafegoConteudo"><p class="empty">Carregando diagnóstico central...</p></div>
     </section>
 
       <section id="configSection" class="section">
@@ -2360,7 +2359,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/diagnostico-trafego.js?v=20260727-menu-corrigido"></script>
+  <script src="js/diagnostico-trafego.js?v=20260807-egress-real-v1"></script>
   <script src="js/supabase.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/auth.js"></script>
@@ -2371,14 +2370,12 @@
   <script src="js/orcamentos.js"></script>
   <script src="js/financeiro.js"></script>
   <script src="js/rotas.js"></script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="js/mapa.js"></script>
   <script src="js/rua-mobile.js"></script>
   <script src="js/mobile-manutencao.js"></script>
   <script src="js/mobile-eventos.js"></script>
   <script src="js/eventos-mobile-layout.js"></script>
   <script src="js/calendario.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="js/configuracoes.js"></script>
   <script src="js/whatsapp-api.js?v=20260713-preview-compacta"></script>
   <script src="js/whatsapp-lote.js?v=20260714-material-realtime-v2"></script>

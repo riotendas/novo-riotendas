@@ -1732,10 +1732,10 @@ function isEventoRecorrente(evento) {
 }
 
 
-function rtRecorrenciaPeriodoLinhaHtml(e) {
-  if (!e || !isEventoRecorrente(e)) return dataCompactaComDiaRecorrente(e?.data_evento);
+function rtFimPeriodoRecorrenteISO(e) {
+  if (!e || !isEventoRecorrente(e)) return String(e?.data_evento || '').slice(0, 10);
   const inicio = String(e.data_evento || e.recorrencia_inicio || '').slice(0, 10);
-  if (!inicio) return '-';
+  if (!inicio) return '';
   let fim = inicio;
   const tipo = e.recorrencia_tipo || 'mensal';
   if (tipo === 'mensal') fim = addMesISO(inicio, 1);
@@ -1743,6 +1743,14 @@ function rtRecorrenciaPeriodoLinhaHtml(e) {
   else fim = addDiasISO(inicio, Number(e.recorrencia_dias || 30));
   const fimGeral = String(e.recorrencia_fim || '').slice(0, 10);
   if (fimGeral && fim > fimGeral) fim = fimGeral;
+  return fim;
+}
+
+function rtRecorrenciaPeriodoLinhaHtml(e) {
+  if (!e || !isEventoRecorrente(e)) return dataCompactaComDiaRecorrente(e?.data_evento);
+  const inicio = String(e.data_evento || e.recorrencia_inicio || '').slice(0, 10);
+  if (!inicio) return '-';
+  const fim = rtFimPeriodoRecorrenteISO(e) || inicio;
   return `<div class="rec-period-line">${dataCompactaComDiaRecorrente(inicio)}</div><div class="rec-period-line rec-period-end">${dataCompactaComDiaRecorrente(fim)}</div>`;
 }
 
@@ -3875,6 +3883,18 @@ function rtDefinirEstadoBotaoSalvarEvento(salvando) {
   }
 }
 
+function rtPagamentoRecorrenteFoiAlterado(anterior, atual) {
+  if (!anterior || !atual) return false;
+  const numero = valor => Math.round((Number(valor || 0) + Number.EPSILON) * 100) / 100;
+  const texto = valor => String(valor || "").replace(/\r\n/g, "\n").trim();
+  return numero(anterior.valor_total) !== numero(atual.valor_total)
+    || numero(anterior.valor_sinal) !== numero(atual.valor_sinal)
+    || numero(anterior.valor_restante) !== numero(atual.valor_restante)
+    || texto(anterior.forma_pagamento) !== texto(atual.forma_pagamento)
+    || Boolean(anterior.pagamento_quitado) !== Boolean(atual.pagamento_quitado)
+    || Boolean(anterior.pagar_inloco) !== Boolean(atual.pagar_inloco);
+}
+
 async function salvarEventoForm(event) {
   event.preventDefault();
   if (rtEventoSalvamentoEmAndamento) return;
@@ -3947,8 +3967,11 @@ async function salvarEventoForm(event) {
 
   let modoAplicacaoRecorrente = "somente";
   if (existente && isEventoRecorrente(existente)) {
-    modoAplicacaoRecorrente = rtEscolherAplicacaoRecorrencia(existente, "as alterações deste evento recorrente");
-    if (!modoAplicacaoRecorrente) return;
+    const alterouPagamento = rtPagamentoRecorrenteFoiAlterado(existente, evento);
+    if (!alterouPagamento) {
+      modoAplicacaoRecorrente = rtEscolherAplicacaoRecorrencia(existente, "as alterações deste evento recorrente");
+      if (!modoAplicacaoRecorrente) return;
+    }
   }
 
   const salvo = await salvarEventoBanco(evento);
@@ -3985,12 +4008,6 @@ async function salvarEventoForm(event) {
           tendas: rtClonarListaSimples(evento.tendas),
           itens_apoio: rtClonarListaSimples(evento.itens_apoio),
           produtos_extras: rtClonarListaSimples(evento.produtos_extras),
-          valor_total: evento.valor_total,
-          valor_sinal: evento.valor_sinal,
-          valor_restante: evento.valor_restante,
-          forma_pagamento: evento.forma_pagamento,
-          pagar_inloco: evento.pagar_inloco,
-          pagamento_quitado: evento.pagamento_quitado,
           assinatura_status: evento.assinatura_status,
           assinatura_link: evento.assinatura_link,
           assinatura_enviada_em: evento.assinatura_enviada_em,
@@ -4402,15 +4419,56 @@ if (!window.__rtAssinaturaContratoCompactaBind) {
   });
 }
 
+function rtChaveClienteRecorrencia(evento) {
+  const normalizar = valor => String(valor || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\D/g, "")
+    .trim();
+  const normalizarTexto = valor => String(valor || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const documento = normalizar(evento?.documento);
+  const telefone = normalizar(evento?.telefone);
+  const nome = normalizarTexto(evento?.nome);
+  const endereco = normalizarTexto(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(evento) : evento?.endereco);
+
+  if (documento) return `doc:${documento}`;
+  if (telefone) return `tel:${telefone}|end:${endereco}`;
+  return `nome:${nome}|end:${endereco}`;
+}
+
 function rtRecorrenciaUltimaOcorrencia(evento) {
   if (!evento || !isEventoRecorrente(evento)) return false;
-  const grupo = String(evento.recorrencia_grupo_id || "");
   const data = String(evento.data_evento || "").slice(0, 10);
   if (!data) return false;
-  const fim = String(evento.recorrencia_fim || "").slice(0, 10);
-  const grupoEventos = grupo ? eventos.filter(e => String(e.recorrencia_grupo_id || "") === grupo) : [];
-  const ultimaData = grupoEventos.map(e => String(e.data_evento || "").slice(0, 10)).filter(Boolean).sort().pop();
-  return Boolean((ultimaData && data === ultimaData) || (fim && data >= fim));
+
+  const grupo = String(evento.recorrencia_grupo_id || "");
+  const chaveCliente = rtChaveClienteRecorrencia(evento);
+  const relacionados = (eventos || []).filter(e => {
+    if (!isEventoRecorrente(e)) return false;
+    if (String(e.id) === String(evento.id)) return true;
+    if (grupo && String(e.recorrencia_grupo_id || "") === grupo) return true;
+    return rtChaveClienteRecorrencia(e) === chaveCliente;
+  });
+
+  const existePeriodoPosterior = relacionados.some(e => {
+    const outraData = String(e.data_evento || "").slice(0, 10);
+    return outraData && outraData > data;
+  });
+  if (existePeriodoPosterior) return false;
+
+  const ultimaData = relacionados
+    .map(e => String(e.data_evento || "").slice(0, 10))
+    .filter(Boolean)
+    .sort()
+    .pop();
+  return Boolean(ultimaData && data === ultimaData);
 }
 
 function rtRecorrenciaAlertaHtml(evento) {
@@ -4731,8 +4789,17 @@ function renderizarEventos() {
   }
 
   const hojeRec = rtHojeISOEventos();
-  const recorrentesAnteriores = recorrentes.filter(e => String(e.data_evento || "").slice(0, 10) < hojeRec);
-  const recorrentesAtuais = recorrentes.filter(e => String(e.data_evento || "").slice(0, 10) >= hojeRec);
+  // Um recorrente só vira histórico quando o período inteiro terminar.
+  // Enquanto o fim do período for hoje ou uma data futura, ele permanece
+  // na lista principal mesmo quitado, pois ainda pode representar material em campo.
+  const recorrentesAnteriores = recorrentes.filter(e => {
+    const fimPeriodo = rtFimPeriodoRecorrenteISO(e) || String(e.data_evento || "").slice(0, 10);
+    return Boolean(fimPeriodo && fimPeriodo < hojeRec);
+  });
+  const recorrentesAtuais = recorrentes.filter(e => {
+    const fimPeriodo = rtFimPeriodoRecorrenteISO(e) || String(e.data_evento || "").slice(0, 10);
+    return !fimPeriodo || fimPeriodo >= hojeRec;
+  });
   const buscaRecAtiva = rtEventosTemFiltroAtivo() || String(document.getElementById("filtroRecorrentePagamento")?.value || "").trim() !== "";
   const mostrarRecAnteriores = rtRecorrentesAnterioresExpandidos || buscaRecAtiva;
   const recorrentesDevedores = recorrentesAnteriores.filter(rtEventoAnteriorDevedor);

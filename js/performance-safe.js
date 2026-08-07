@@ -1,4 +1,106 @@
 /* =====================================================
+   v19-dev-2026-08-06 - Desempenho global
+   - Deduplica cargas concorrentes de Eventos, Clientes e Produtos.
+   - Evita nova consulta poucos segundos após uma carga concluída.
+   - Carrega Leaflet e XLSX apenas quando suas telas forem abertas.
+===================================================== */
+(function () {
+  if (window.__rtPerformanceGlobalV2) return;
+  window.__rtPerformanceGlobalV2 = true;
+
+  const estado = new Map();
+
+  function deduplicarFuncao(nome, intervaloMs) {
+    const original = window[nome];
+    if (typeof original !== "function" || original.__rtDeduplicada) return;
+
+    async function protegida(...args) {
+      const agora = Date.now();
+      const atual = estado.get(nome) || { promessa: null, ultima: 0, resultado: undefined };
+
+      if (atual.promessa) return atual.promessa;
+      if (!args.some(Boolean) && atual.ultima && agora - atual.ultima < intervaloMs) {
+        return atual.resultado;
+      }
+
+      atual.promessa = Promise.resolve().then(() => original.apply(this, args));
+      estado.set(nome, atual);
+      try {
+        atual.resultado = await atual.promessa;
+        atual.ultima = Date.now();
+        return atual.resultado;
+      } finally {
+        atual.promessa = null;
+        estado.set(nome, atual);
+      }
+    }
+
+    protegida.__rtDeduplicada = true;
+    protegida.__rtOriginal = original;
+    window[nome] = protegida;
+  }
+
+  [
+    ["carregarEventos", 3500],
+    ["carregarClientes", 5000],
+    ["carregarProdutos", 5000],
+    ["sincronizarRotasOperacaoNuvem", 2500],
+    ["sincronizarRotasCarrosNuvem", 2500],
+    ["sincronizarRotasOrdemNuvem", 2500],
+    ["rtNotasSincronizarNuvem", 2500]
+  ].forEach(([nome, tempo]) => deduplicarFuncao(nome, tempo));
+
+  const assets = new Map();
+  function carregarScriptUmaVez(chave, src, teste) {
+    if (typeof teste === "function" && teste()) return Promise.resolve(true);
+    if (assets.has(chave)) return assets.get(chave);
+    const promessa = new Promise((resolve, reject) => {
+      const existente = document.querySelector(`script[data-rt-asset="${chave}"]`);
+      if (existente) {
+        existente.addEventListener("load", () => resolve(true), { once: true });
+        existente.addEventListener("error", reject, { once: true });
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = src;
+      script.async = true;
+      script.dataset.rtAsset = chave;
+      script.onload = () => resolve(true);
+      script.onerror = () => reject(new Error(`Falha ao carregar ${chave}`));
+      document.head.appendChild(script);
+    });
+    assets.set(chave, promessa);
+    return promessa;
+  }
+
+  window.rtGarantirLeaflet = () => carregarScriptUmaVez(
+    "leaflet",
+    "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+    () => typeof window.L !== "undefined"
+  );
+
+  window.rtGarantirXLSX = () => carregarScriptUmaVez(
+    "xlsx",
+    "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js",
+    () => typeof window.XLSX !== "undefined"
+  );
+
+  document.addEventListener("click", (ev) => {
+    const botao = ev.target?.closest?.(".tab-btn[data-section], [data-mobile-open]");
+    const destino = botao?.dataset?.section || botao?.dataset?.mobileOpen || "";
+    if (destino === "mapaSection") {
+      window.rtGarantirLeaflet().then(() => {
+        if (typeof window.renderizarMapaOperacional === "function") window.renderizarMapaOperacional(false);
+      }).catch(err => console.warn("Mapa indisponível:", err));
+    }
+    if (destino === "configSection") {
+      // Antecipação discreta: estará pronto quando o usuário escolher importar/exportar.
+      setTimeout(() => window.rtGarantirXLSX().catch(() => {}), 700);
+    }
+  }, true);
+})();
+
+/* =====================================================
    v19-dev - Otimização segura sem separar HTML
    Mantém index único, mas evita renderizações repetidas.
 ===================================================== */
