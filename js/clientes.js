@@ -110,7 +110,7 @@ function iniciarClientes() {
     document.getElementById(id).addEventListener("input", renderizarClientes);
   });
 
-  carregarClientes();
+  // Dados são carregados somente quando a seção Clientes for aberta.
 }
 
 function abrirNovoCliente() {

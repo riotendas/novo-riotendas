@@ -6926,6 +6926,26 @@ tr.status-bloqueada,tr.status-precisa-limpar,tr.status-precisa-consertar{backgro
   overflow-wrap: anywhere !important;
 }
 
+.logs-header-actions {
+  display: flex !important;
+  gap: 8px !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+}
+
+.logs-sistema-table .log-detalhes {
+  line-height: 1.45 !important;
+}
+
+.log-mudanca {
+  display: inline-block !important;
+  margin: 1px 0 !important;
+}
+
+.log-mudanca.log-add { color: #166534 !important; }
+.log-mudanca.log-remove { color: #b91c1c !important; }
+.log-mudanca.log-change { color: #334155 !important; }
+
 
 .finance-row-inline .finance-inloco-compact {
   width: 112px !important;
@@ -23000,3 +23020,26 @@ body.perfil-administrador #diagnosticoTrafegoSection.active-section {
 
 /* v19-dev 2026-08-06 — diagnóstico central */
 .diag-config-central{display:grid;grid-template-columns:minmax(220px,1fr) minmax(260px,1fr) minmax(280px,1.4fr);gap:14px;align-items:end;margin-bottom:14px}.diag-config-central label{display:flex;flex-direction:column;gap:6px;font-weight:800;color:#334155}.diag-config-central input,.diag-config-central select{min-height:42px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;font:inherit}.diag-modo-ajuda,.diag-central-status{font-size:.9rem;color:#526174}.diag-central-status span{display:block;margin-top:6px}.diag-consultas{margin-top:16px}@media(max-width:900px){.diag-config-central{grid-template-columns:1fr}.diag-acoes select,.diag-acoes button{width:100%}}
+
+
+/* =====================================================
+   v19-dev 2026-08-11 - isolamento definitivo das abas
+   Corrige regras antigas que mantinham Usuários/admin visíveis
+   dentro de Relatórios/Configurações e outras seções.
+===================================================== */
+body .section {
+  display: none !important;
+}
+body .section.active-section,
+body .section.active {
+  display: block !important;
+}
+body.perfil-admin #usuariosSection.section:not(.active-section):not(.active),
+body.perfil-administrador #usuariosSection.section:not(.active-section):not(.active),
+body.perfil-admin .section.admin-only:not(.active-section):not(.active),
+body.perfil-administrador .section.admin-only:not(.active-section):not(.active) {
+  display: none !important;
+}
+body.modo-mobile-operacional .section:not(.active-section):not(.active) {
+  display: none !important;
+}

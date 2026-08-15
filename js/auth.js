@@ -473,9 +473,11 @@ function mostrarAppUsuario(usuario) {
   montarEditorPermissoesPerfil();
   garantirEstruturaUsuariosAdmin();
 
-  if (typeof carregarProdutos === "function") carregarProdutos();
-  if (typeof carregarClientes === "function") carregarClientes();
-  if (typeof carregarEventos === "function") carregarEventos().then(() => { if (typeof renderizarRuaMobile === "function") renderizarRuaMobile(); });
+  // Desempenho: não baixar Produtos, Clientes e Eventos todos de uma vez no login.
+  // A tela ativa solicita apenas o que precisa através do gerenciador lazy.
+  setTimeout(() => {
+    if (typeof window.rtCarregarDadosSecaoAtiva === "function") window.rtCarregarDadosSecaoAtiva();
+  }, 40);
 
   setTimeout(() => {
     if (typeof renderizarUsuariosSistema === "function") renderizarUsuariosSistema();
@@ -972,32 +974,33 @@ function normalizarPermissoesPerfil(permissoes = {}) {
 async function carregarPermissoesPerfilSistema() {
   if (permissoesPerfilSistemaCache) return permissoesPerfilSistemaCache;
 
-  if (typeof supabaseClient !== "undefined" && supabaseClient) {
-    try {
-      const { data, error } = await supabaseClient
-        .from("app_config")
-        .select("valor")
-        .eq("chave", "permissoes_perfil")
-        .maybeSingle();
-
-      if (!error && data?.valor) {
-        permissoesPerfilSistemaCache = normalizarPermissoesPerfil(data.valor);
-        localStorage.setItem("novoRioTendasPermissoesPerfil", JSON.stringify(permissoesPerfilSistemaCache));
-        return permissoesPerfilSistemaCache;
-      }
-    } catch (erro) {
-      console.warn("Não foi possível carregar permissões da nuvem:", erro);
-    }
-  }
-
+  // Performance: aplica primeiro o cache local, sem bloquear a abertura da interface.
   try {
-    permissoesPerfilSistemaCache = normalizarPermissoesPerfil(
-      JSON.parse(localStorage.getItem("novoRioTendasPermissoesPerfil") || "null") || {}
-    );
-  } catch {
-    permissoesPerfilSistemaCache = normalizarPermissoesPerfil({});
-  }
+    const local = JSON.parse(localStorage.getItem("novoRioTendasPermissoesPerfil") || "null");
+    if (local) permissoesPerfilSistemaCache = normalizarPermissoesPerfil(local);
+  } catch {}
+  if (!permissoesPerfilSistemaCache) permissoesPerfilSistemaCache = normalizarPermissoesPerfil({});
 
+  // Atualiza da nuvem em segundo plano apenas uma vez por sessão.
+  if (!window.__rtPermissoesPerfilRefreshAgendado && typeof supabaseClient !== "undefined" && supabaseClient) {
+    window.__rtPermissoesPerfilRefreshAgendado = true;
+    setTimeout(async () => {
+      try {
+        const { data, error } = await supabaseClient
+          .from("app_config")
+          .select("valor")
+          .eq("chave", "permissoes_perfil")
+          .maybeSingle();
+        if (!error && data?.valor) {
+          permissoesPerfilSistemaCache = normalizarPermissoesPerfil(data.valor);
+          localStorage.setItem("novoRioTendasPermissoesPerfil", JSON.stringify(permissoesPerfilSistemaCache));
+          if (typeof aplicarPermissoesUsuario === "function") aplicarPermissoesUsuario();
+        }
+      } catch (erro) {
+        console.warn("Não foi possível atualizar permissões da nuvem em segundo plano:", erro);
+      }
+    }, 3500);
+  }
   return permissoesPerfilSistemaCache;
 }
 

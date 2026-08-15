@@ -1266,7 +1266,7 @@ function carregarModeloDocumentoNoEditor() {
   if (acoesModelo) acoesModelo.style.display = ehAssinatura ? "none" : "flex";
   if (toolbarSpan) toolbarSpan.textContent = ehAssinatura
     ? "Envie, visualize ou remova a assinatura usada nos documentos."
-    : "Associe este documento a um arquivo HTML localizado na pasta raiz do sistema.";
+    : "Envie o modelo HTML para a nuvem. Todos os computadores usarão automaticamente o mesmo arquivo.";
 
   if (ehAssinatura) {
     const config = carregarConfiguracoes();
@@ -1276,10 +1276,9 @@ function carregarModeloDocumentoNoEditor() {
 
   const arquivos = rtObterArquivosDocumentosConfig();
   arquivoInput.value = arquivos[modeloDocumentoAtualConfig] || "";
-  const modoLocal = location.protocol === "file:";
   const painelLocal = document.getElementById("docModeloArquivoLocalPainel");
-  if (painelLocal) painelLocal.style.display = modoLocal ? "block" : "none";
-  atualizarStatusArquivoModeloDocumento(modoLocal ? "Modo local: selecione o arquivo HTML abaixo para testar." : "Aguardando verificação.", modoLocal ? "warning" : "neutral");
+  if (painelLocal) painelLocal.style.display = "block";
+  atualizarStatusArquivoModeloDocumento("Verificando modelo na nuvem...", "neutral");
   atualizarStatusModeloDocumentoLocal();
   testarArquivoModeloDocumentoAtual(false);
 }
@@ -1298,57 +1297,85 @@ function atualizarStatusArquivoModeloDocumento(texto, tipo = "neutral") {
   status.className = `doc-model-file-status ${tipo}`;
 }
 
-function atualizarStatusModeloDocumentoLocal() {
+async function atualizarStatusModeloDocumentoLocal() {
   const status = document.getElementById("docModeloArquivoLocalStatus");
   if (!status || modeloDocumentoAtualConfig === "assinatura") return;
   const arquivo = rtNormalizarNomeArquivoModelo(document.getElementById("docModeloArquivo")?.value);
-  const item = rtObterModeloDocumentoLocal(modeloDocumentoAtualConfig, arquivo);
-  if (!item) {
-    status.textContent = "Nenhum arquivo local carregado para este documento.";
-    status.className = "doc-model-file-status neutral";
-    return;
+  status.textContent = "Verificando modelo central...";
+  status.className = "doc-model-file-status neutral";
+  try {
+    if (typeof window.rtModeloDocumentoCloudInfo === "function") {
+      const info = await window.rtModeloDocumentoCloudInfo(modeloDocumentoAtualConfig, arquivo);
+      if (info) {
+        const dataIso = info.updated_at || info.created_at || null;
+        const data = dataIso ? new Date(dataIso).toLocaleString("pt-BR") : "";
+        status.textContent = `☁ ${arquivo} salvo na nuvem${data ? ` — atualizado em ${data}` : ""}.`;
+        status.className = "doc-model-file-status success";
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn("Não foi possível consultar o modelo na nuvem.", e);
   }
-  const data = item.atualizadoEm ? new Date(item.atualizadoEm).toLocaleString("pt-BR") : "";
-  status.textContent = `✓ ${item.nome} carregado localmente${data ? ` em ${data}` : ""}.`;
-  status.className = "doc-model-file-status success";
+  const cache = typeof window.rtModeloDocumentoCloudObterCache === "function" ? window.rtModeloDocumentoCloudObterCache(modeloDocumentoAtualConfig, arquivo) : null;
+  if (cache?.html) {
+    status.textContent = `⚠ ${arquivo} disponível apenas no cache deste navegador. Envie-o para a nuvem.`;
+    status.className = "doc-model-file-status warning";
+  } else {
+    status.textContent = `Nenhum ${arquivo} encontrado na nuvem.`;
+    status.className = "doc-model-file-status neutral";
+  }
 }
 
-function carregarModeloDocumentoLocalSelecionado(evento) {
+async function carregarModeloDocumentoLocalSelecionado(evento) {
   const arquivo = evento.target.files?.[0];
   if (!arquivo) return;
-  const nomeEsperado = rtNormalizarNomeArquivoModelo(document.getElementById("docModeloArquivo")?.value);
+  const nomeEsperado = rtNormalizarNomeArquivoModelo(document.getElementById("docModeloArquivo")?.value)
+    || (typeof window.rtModeloDocumentoCloudArquivoPadrao === "function" ? window.rtModeloDocumentoCloudArquivoPadrao(modeloDocumentoAtualConfig) : arquivo.name);
   if (!/\.html?$/i.test(arquivo.name)) {
     alert("Selecione um arquivo HTML.");
     evento.target.value = "";
     return;
   }
-  const reader = new FileReader();
-  reader.onload = () => {
-    const html = String(reader.result || "");
-    if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(html)) {
-      alert("O arquivo selecionado não possui variáveis no formato {{cliente}}, {{valor_total}} etc.");
-      return;
-    }
-    const nome = nomeEsperado || arquivo.name;
-    rtSalvarModeloDocumentoLocal(modeloDocumentoAtualConfig, nome, html);
+  atualizarStatusArquivoModeloDocumento(`Enviando ${nomeEsperado} para a nuvem...`, "neutral");
+  try {
+    if (typeof window.rtModeloDocumentoCloudEnviar !== "function") throw new Error("Integração com Supabase Storage não carregada.");
+    await window.rtModeloDocumentoCloudEnviar(modeloDocumentoAtualConfig, arquivo, nomeEsperado);
+    const config = carregarConfiguracoes();
+    const arquivos = rtObterArquivosDocumentosConfig();
+    arquivos[modeloDocumentoAtualConfig] = nomeEsperado;
+    config.modelosArquivosDocumentos = arquivos;
+    salvarConfiguracoes(config);
+    if (document.getElementById("docModeloArquivo")) document.getElementById("docModeloArquivo").value = nomeEsperado;
     try { if (window.rtDocEventoLimparCacheModelosRaiz) window.rtDocEventoLimparCacheModelosRaiz(); } catch (_) {}
     try { if (window.rtOrcLimparCacheModeloExterno) window.rtOrcLimparCacheModeloExterno(); } catch (_) {}
-    atualizarStatusModeloDocumentoLocal();
-    atualizarStatusArquivoModeloDocumento(`✓ ${arquivo.name} carregado para testes locais.`, "success");
-  };
-  reader.onerror = () => alert("Não foi possível ler o arquivo selecionado.");
-  reader.readAsText(arquivo, "UTF-8");
+    atualizarStatusArquivoModeloDocumento(`✓ ${nomeEsperado} enviado para a nuvem. Todos os acessos usarão este modelo.`, "success");
+    await atualizarStatusModeloDocumentoLocal();
+  } catch (erro) {
+    console.error("Erro ao enviar modelo para a nuvem:", erro);
+    atualizarStatusArquivoModeloDocumento(`✗ Não foi possível enviar ${nomeEsperado}.`, "error");
+    alert("Não foi possível enviar o modelo para o Supabase: " + (erro?.message || erro));
+  } finally {
+    evento.target.value = "";
+  }
 }
 
-function removerModeloDocumentoLocalAtual() {
+async function removerModeloDocumentoLocalAtual() {
   if (modeloDocumentoAtualConfig === "assinatura") return;
-  rtRemoverModeloDocumentoLocal(modeloDocumentoAtualConfig);
-  const input = document.getElementById("docModeloArquivoLocal");
-  if (input) input.value = "";
-  try { if (window.rtDocEventoLimparCacheModelosRaiz) window.rtDocEventoLimparCacheModelosRaiz(); } catch (_) {}
-  try { if (window.rtOrcLimparCacheModeloExterno) window.rtOrcLimparCacheModeloExterno(); } catch (_) {}
-  atualizarStatusModeloDocumentoLocal();
-  atualizarStatusArquivoModeloDocumento("Arquivo local removido. Selecione outro para continuar os testes.", "neutral");
+  const arquivo = rtNormalizarNomeArquivoModelo(document.getElementById("docModeloArquivo")?.value);
+  if (!confirm(`Remover ${arquivo} da nuvem? Os computadores deixarão de conseguir gerar este tipo de documento até um novo upload.`)) return;
+  try {
+    if (typeof window.rtModeloDocumentoCloudRemover !== "function") throw new Error("Integração com Supabase Storage não carregada.");
+    await window.rtModeloDocumentoCloudRemover(modeloDocumentoAtualConfig, arquivo);
+    rtRemoverModeloDocumentoLocal(modeloDocumentoAtualConfig);
+    try { if (window.rtDocEventoLimparCacheModelosRaiz) window.rtDocEventoLimparCacheModelosRaiz(); } catch (_) {}
+    try { if (window.rtOrcLimparCacheModeloExterno) window.rtOrcLimparCacheModeloExterno(); } catch (_) {}
+    atualizarStatusArquivoModeloDocumento(`${arquivo} removido da nuvem.`, "neutral");
+    await atualizarStatusModeloDocumentoLocal();
+  } catch (erro) {
+    console.error(erro);
+    alert("Não foi possível remover o modelo: " + (erro?.message || erro));
+  }
 }
 
 async function testarArquivoModeloDocumentoAtual(exibirAlerta = false) {
@@ -1356,38 +1383,22 @@ async function testarArquivoModeloDocumentoAtual(exibirAlerta = false) {
   const input = document.getElementById("docModeloArquivo");
   const arquivo = rtNormalizarNomeArquivoModelo(input?.value);
   if (!arquivo) {
-    atualizarStatusArquivoModeloDocumento("Informe um arquivo HTML válido da pasta raiz.", "error");
+    atualizarStatusArquivoModeloDocumento("Informe um arquivo HTML válido.", "error");
     if (exibirAlerta) alert("Informe um nome de arquivo HTML válido.");
     return false;
   }
-  atualizarStatusArquivoModeloDocumento(`Verificando ${arquivo}...`, "neutral");
+  atualizarStatusArquivoModeloDocumento(`Verificando ${arquivo} na nuvem...`, "neutral");
   try {
-    if (location.protocol === "file:") {
-      const local = rtObterModeloDocumentoLocal(modeloDocumentoAtualConfig, arquivo);
-      if (!local?.html) {
-        atualizarStatusArquivoModeloDocumento(`Modo local: selecione ${arquivo} no campo abaixo.`, "warning");
-        if (exibirAlerta) alert(`Para testar localmente, selecione o arquivo ${arquivo}.`);
-        return false;
-      }
-      if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(local.html)) throw new Error("arquivo local sem variáveis");
-      atualizarStatusArquivoModeloDocumento(`✓ ${local.nome || arquivo} carregado e válido no modo local.`, "success");
-      if (exibirAlerta) alert(`Arquivo ${local.nome || arquivo} carregado localmente e pronto para uso.`);
-      return true;
-    }
-    const resp = await fetch(arquivo, { cache: "no-store" });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const html = await resp.text();
-    if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(html)) {
-      atualizarStatusArquivoModeloDocumento(`⚠ ${arquivo} foi encontrado, mas não possui variáveis {{...}}.`, "warning");
-      if (exibirAlerta) alert("Arquivo encontrado, mas sem variáveis no formato {{cliente}}, {{valor_total}} etc.");
-      return false;
-    }
-    atualizarStatusArquivoModeloDocumento(`✓ ${arquivo} encontrado e válido.`, "success");
-    if (exibirAlerta) alert(`Arquivo ${arquivo} encontrado e pronto para uso.`);
+    if (typeof window.rtModeloDocumentoCloudBaixar !== "function") throw new Error("Integração com Supabase Storage não carregada.");
+    const item = await window.rtModeloDocumentoCloudBaixar(modeloDocumentoAtualConfig, arquivo, { forcar: true, permitirCache: false });
+    if (!item?.html || !/{{\s*[a-zA-Z0-9_]+\s*}}/.test(item.html)) throw new Error("modelo inválido");
+    atualizarStatusArquivoModeloDocumento(`✓ ${arquivo} encontrado na nuvem e válido.`, "success");
+    await atualizarStatusModeloDocumentoLocal();
+    if (exibirAlerta) alert(`${arquivo} está salvo na nuvem e pronto para uso em todos os computadores.`);
     return true;
   } catch (erro) {
-    atualizarStatusArquivoModeloDocumento(`✗ ${arquivo} não foi encontrado na pasta raiz.`, "error");
-    if (exibirAlerta) alert(`Não foi possível localizar ${arquivo} na pasta raiz.`);
+    atualizarStatusArquivoModeloDocumento(`✗ ${arquivo} ainda não está disponível na nuvem.`, "error");
+    if (exibirAlerta) alert(`O modelo ${arquivo} não foi encontrado na nuvem. Use “Enviar / Substituir modelo”.`);
     return false;
   }
 }
@@ -2933,7 +2944,8 @@ function iniciarConfiguracoesUmaVez() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  sincronizarConfiguracoesNuvem();
+  // Usa configuração local na abertura. A nuvem sincroniza ao abrir Configurações,
+  // evitando baixar um app_config grande enquanto o usuário está no Dashboard.
   iniciarConfiguracoesUmaVez();
 
   document.querySelectorAll("[data-section='configSection']").forEach(btn => {

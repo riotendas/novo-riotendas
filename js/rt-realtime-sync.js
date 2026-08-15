@@ -95,12 +95,14 @@
       const calendarioAtivo = secaoAtiva("calendarioSection");
       const financeiroAtivo = secaoAtiva("financeiroSection");
       const dashboardAtivo = secaoAtiva("dashboardSection");
-      const precisaEventos = eventosAtivo || produtosAtivo || rotasAtivo || ruaAtivo || calendarioAtivo || financeiroAtivo || dashboardAtivo;
+      // Dashboard não força download completo a cada mudança de app_config.
+      // Ele atualiza ao abrir ou pelo cache da seção.
+      const precisaEventos = eventosAtivo || produtosAtivo || rotasAtivo || ruaAtivo || calendarioAtivo || financeiroAtivo;
       if (precisaEventos && typeof buscarEventosBanco === "function") {
         const novos = await buscarEventosBanco();
         if (Array.isArray(novos)) eventos = novos;
       }
-      if ((produtosAtivo || dashboardAtivo) && typeof buscarProdutosBanco === "function") {
+      if (produtosAtivo && typeof buscarProdutosBanco === "function") {
         const novos = await buscarProdutosBanco();
         if (Array.isArray(novos)) produtos = novos;
       }
@@ -150,7 +152,7 @@
         .subscribe(status => {
           if (status === "SUBSCRIBED") {
             console.log("RioTendas realtime operacional imediato ativo");
-            sincronizarOperacionalAgora(true);
+            sincronizarOperacionalAgora(false);
           }
         });
     }

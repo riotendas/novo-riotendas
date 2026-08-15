@@ -2507,6 +2507,25 @@ function rtProdutoEventoStatusTexto(produto) {
   return status || "Livre";
 }
 
+function rtProdutoEventoFoiVendido(produto) {
+  const status = rtNormalizarEventoTexto(produto?.status || produto?.situacao || produto?.estado || "");
+  const uso = rtNormalizarEventoTexto(produto?.grau_usabilidade || produto?.usabilidade || "");
+  return status.includes("vendid") || status.includes("baixa") || uso.includes("venda") || uso.includes("baixa");
+}
+
+function rtProdutoAtualDoCadastro(item) {
+  if (!item) return null;
+  const id = String(item.id || "");
+  const codigo = String(item.codigo || "").trim();
+  return (Array.isArray(produtos) ? produtos : []).find(p =>
+    (id && String(p.id || "") === id) || (codigo && String(p.codigo || "").trim() === codigo)
+  ) || null;
+}
+
+function rtProdutoEventoVendidoAtual(item) {
+  return rtProdutoEventoFoiVendido(rtProdutoAtualDoCadastro(item) || item);
+}
+
 function rtMostrarDialogStatusProduto(produto) {
   return new Promise(resolve => {
     let dialog = document.getElementById("rtProdutoRevisarDialog");
@@ -2585,7 +2604,7 @@ function rtDescricaoProdutoEvento(produto) {
 }
 
 function rtProdutoCompatAtalho(produto, tipo) {
-  if (!produto || produtoEventoEstaBloqueado(produto)) return false;
+  if (!produto || produtoEventoEstaBloqueado(produto) || rtProdutoEventoFoiVendido(produto)) return false;
   if ((produto.categoria || produto.tipo) === "Materiais de Apoio") return false;
   const texto = rtNormalizarEventoTexto(rtTextoProdutoEvento(produto));
   const tam = rtNormalizarEventoTexto(produto.tamanho || "");
@@ -2969,6 +2988,7 @@ function popularSelectProdutosEvento() {
   const ids = [...produtosSelecionadosEventoAtual, ...produtosReservaEventoAtual].map(p => String(p.id));
   const disponiveis = (Array.isArray(produtos) ? produtos : [])
     .filter(p => (p.categoria || p.tipo) !== "Materiais de Apoio")
+    .filter(p => !rtProdutoEventoFoiVendido(p))
     .filter(p => !ids.includes(String(p.id)));
   select.innerHTML = `<option value="">Selecione um produto para adicionar</option>` + disponiveis.map(p => {
     const disp = disponibilidadeProdutoParaEvento(p.id);
@@ -2985,6 +3005,12 @@ async function adicionarProdutoSelecionadoAoEvento() {
   if (!id) return;
   const p = produtos.find(x => String(x.id) === String(id));
   if (!p) return;
+  if (rtProdutoEventoFoiVendido(p)) {
+    alert(`O material ${p.codigo || "selecionado"} foi vendido/baixado e não pode ser incluído em novos eventos.`);
+    select.value = "";
+    popularSelectProdutosEvento();
+    return;
+  }
 
   const disponibilidade = disponibilidadeProdutoParaEvento(p.id);
   let usoTransitoConfirmado = false;
@@ -3015,6 +3041,12 @@ async function adicionarProdutoReservaAoEvento() {
   if (!id) { alert("Selecione um produto para adicionar como reserva."); return; }
   const p = produtos.find(x => String(x.id) === String(id));
   if (!p) return;
+  if (rtProdutoEventoFoiVendido(p)) {
+    alert(`O material ${p.codigo || "selecionado"} foi vendido/baixado e não pode ser incluído como reserva em novos eventos.`);
+    if (select) select.value = "";
+    popularSelectProdutosEvento();
+    return;
+  }
   const disponibilidade = disponibilidadeProdutoParaEvento(p.id);
   if (!disponibilidade.livre) {
     alert(`Este produto está indisponível para a data/período selecionado.\n\n${disponibilidade.texto}`);
@@ -3139,6 +3171,7 @@ function renderizarProdutosSelecionadosEvento() {
       const jaSelecionados = new Set(produtosSelecionadosEventoAtual.filter(x => !x.pendente_codigo).map(x => String(x.id)));
       const candidatos = (Array.isArray(produtos) ? produtos : [])
         .filter(prod => !jaSelecionados.has(String(prod.id)))
+        .filter(prod => !rtProdutoEventoFoiVendido(prod))
         .filter(prod => rtEventoProdutoCompatPendente(prod, p))
         .filter(prod => disponibilidadeProdutoParaEvento(prod.id)?.livre);
       const desc = p.descricao_orcamento || [p.categoria || '', p.tamanho || '', p.cor || ''].filter(Boolean).join(' ');
@@ -3154,17 +3187,22 @@ function renderizarProdutosSelecionadosEvento() {
         </div>`;
     }
     const disp = disponibilidadeProdutoParaEvento(p.id);
+    const vendido = rtProdutoEventoVendidoAtual(p);
+    const statusClasse = vendido ? "busy" : (rtProdutoUsoTransitoPendenteEvento(p) ? "warning" : disp.classe);
+    const statusTexto = vendido
+      ? "⚠ VENDIDO / INDISPONÍVEL — substituir antes do evento"
+      : (rtProdutoUsoTransitoPendenteEvento(p) ? '⚠ Uso em trânsito — ' + rtTextoUsoTransitoProduto(p) : disp.texto);
     return `
-      <div class="selected-item evento-produto-selecionado-compacto">
+      <div class="selected-item evento-produto-selecionado-compacto${vendido ? ' produto-vendido-evento' : ''}">
         <span>
           <strong>${p.codigo || "Sem código"}</strong>
           <em>${rtDescricaoProdutoEvento(p)}</em>
-          <small class="availability-badge ${rtProdutoUsoTransitoPendenteEvento(p) ? 'warning' : disp.classe}">${rtProdutoUsoTransitoPendenteEvento(p) ? '⚠ Uso em trânsito — ' + rtTextoUsoTransitoProduto(p) : disp.texto}</small>
+          <small class="availability-badge ${statusClasse}">${statusTexto}</small>
         </span>
         <button type="button" class="btn-outline" data-remove-produto="${p.id}">×</button>
       </div>`;
   }).join("") : `<p class="empty">Nenhum produto com código selecionado.</p>`;
-  const htmlReservas = produtosReservaEventoAtual.length ? produtosReservaEventoAtual.map(p => { const disp = disponibilidadeProdutoParaEvento(p.id); return `<div class="selected-item evento-produto-selecionado-compacto reserva-operacional-item"><span><strong>🔄 Res - ${p.codigo || "-"}</strong><em>${rtDescricaoProdutoEvento(p)}</em><small class="availability-badge ${disp.classe}">${disp.texto}</small></span><button type="button" class="btn-outline" data-remove-reserva="${p.id}">×</button></div>`; }).join("") : "";
+  const htmlReservas = produtosReservaEventoAtual.length ? produtosReservaEventoAtual.map(p => { const disp = disponibilidadeProdutoParaEvento(p.id); const vendido = rtProdutoEventoVendidoAtual(p); return `<div class="selected-item evento-produto-selecionado-compacto reserva-operacional-item${vendido ? ' produto-vendido-evento' : ''}"><span><strong>🔄 Res - ${p.codigo || "-"}</strong><em>${rtDescricaoProdutoEvento(p)}</em><small class="availability-badge ${vendido ? 'busy' : disp.classe}">${vendido ? '⚠ VENDIDO / INDISPONÍVEL — substituir' : disp.texto}</small></span><button type="button" class="btn-outline" data-remove-reserva="${p.id}">×</button></div>`; }).join("") : "";
   area.innerHTML = htmlProdutos + htmlReservas;
   area.querySelectorAll("[data-remove-produto]").forEach(btn => {
     btn.addEventListener("click", () => removerProdutoDoEvento(btn.dataset.removeProduto));
@@ -3905,13 +3943,16 @@ async function salvarEventoForm(event) {
   try {
     calcularRestanteEvento();
 
-  if (!rtValidarRetiradaOuVendaEvento()) return;
-  if (!(await validarProdutosDoEvento())) return;
-  if (!validarApoioDoEvento()) return;
-
   const id = document.getElementById("eventoId").value || gerarId();
   const existente = eventos.find(e => e.id === id);
-  const tipoEvento = document.getElementById("eventoTipoEvento")?.value || "pontual";
+  const tipoEvento = String(document.getElementById("eventoTipoEvento")?.value || "pontual").toLowerCase();
+
+  // Eventos recorrentes representam períodos contínuos e podem permanecer sem uma
+  // data operacional de desmontagem até o encerramento da recorrência. Isso não
+  // deve bloquear lançamentos financeiros nem outras edições do período.
+  if (tipoEvento !== "recorrente" && !rtValidarRetiradaOuVendaEvento()) return;
+  if (!(await validarProdutosDoEvento())) return;
+  if (!validarApoioDoEvento()) return;
 
   const evento = montarEventoRecorrenteBase(id, existente);
 
@@ -4477,12 +4518,46 @@ function rtRecorrenciaAlertaHtml(evento) {
 }
 
 
-// v19-dev: eventos anteriores recolhidos por padrão
-let rtEventosAnterioresExpandidos = false;
-let rtPendenciasFinanceirasAnterioresExpandidas = true;
-let rtMateriaisEmCampoExpandidos = false;
-let rtRecorrentesAnterioresExpandidos = false;
-let rtRecorrentesDevedoresExpandidos = true;
+// v19-dev: estado dos blocos da tela de Eventos.
+// Materiais em campo inicia aberto; os demais, fechados.
+// O último estado escolhido pelo usuário fica salvo neste navegador.
+const RT_EVENTOS_BLOCOS_STORAGE_KEY = "riotendas_eventos_blocos_expandidos_v2";
+
+function rtCarregarEstadoBlocosEventos() {
+  const padrao = {
+    anteriores: false,
+    devedoresAnteriores: true,
+    materiaisEmCampo: true,
+    recorrentesAnteriores: false,
+    devedoresRecorrentes: true
+  };
+  try {
+    const salvo = JSON.parse(localStorage.getItem(RT_EVENTOS_BLOCOS_STORAGE_KEY) || "null");
+    if (!salvo || typeof salvo !== "object") return padrao;
+    return { ...padrao, ...salvo };
+  } catch (_) {
+    return padrao;
+  }
+}
+
+function rtSalvarEstadoBlocosEventos() {
+  try {
+    localStorage.setItem(RT_EVENTOS_BLOCOS_STORAGE_KEY, JSON.stringify({
+      anteriores: Boolean(rtEventosAnterioresExpandidos),
+      devedoresAnteriores: Boolean(rtPendenciasFinanceirasAnterioresExpandidas),
+      materiaisEmCampo: Boolean(rtMateriaisEmCampoExpandidos),
+      recorrentesAnteriores: Boolean(rtRecorrentesAnterioresExpandidos),
+      devedoresRecorrentes: Boolean(rtRecorrentesDevedoresExpandidos)
+    }));
+  } catch (_) {}
+}
+
+const rtEstadoBlocosEventosInicial = rtCarregarEstadoBlocosEventos();
+let rtEventosAnterioresExpandidos = Boolean(rtEstadoBlocosEventosInicial.anteriores);
+let rtPendenciasFinanceirasAnterioresExpandidas = Boolean(rtEstadoBlocosEventosInicial.devedoresAnteriores);
+let rtMateriaisEmCampoExpandidos = Boolean(rtEstadoBlocosEventosInicial.materiaisEmCampo);
+let rtRecorrentesAnterioresExpandidos = Boolean(rtEstadoBlocosEventosInicial.recorrentesAnteriores);
+let rtRecorrentesDevedoresExpandidos = Boolean(rtEstadoBlocosEventosInicial.devedoresRecorrentes);
 let rtEventosPrecisaPosicionarInicial = true;
 
 function rtHojeISOEventos() {
@@ -4551,10 +4626,11 @@ function rtLinhaPendenciasFinanceirasHtml(quantidade, expandido) {
 
 function rtAlternarPendenciasFinanceirasAnteriores() {
   rtPendenciasFinanceirasAnterioresExpandidas = !rtPendenciasFinanceirasAnterioresExpandidas;
+  rtSalvarEstadoBlocosEventos();
   renderizarEventos();
 }
 
-function rtEventoAnteriorComMaterialEmCampo(evento) {
+function rtEventoComMaterialEmCampo(evento) {
   if (!evento) return false;
   if (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)) return false;
 
@@ -4565,15 +4641,23 @@ function rtEventoAnteriorComMaterialEmCampo(evento) {
   );
   if (!possuiMaterial) return false;
 
-  // Usa exatamente a mesma condição que cria a rota de Desmontagem/Retirada:
-  // sem data de desmontagem não existe retorno previsto (ex.: venda), portanto
-  // o evento não deve ser tratado como material aguardando recolhimento.
-  if (!evento.desmontagem) return false;
-
-  // A mesma marcação operacional usada pela Rota/Mobile define quando o material voltou.
+  // Se a operação já foi marcada como recolhida na Rota/Mobile, o material já voltou.
   if (typeof rtEventoOrigemJaRecolhidoEvento === "function" && rtEventoOrigemJaRecolhidoEvento(evento)) return false;
 
-  return true;
+  const hoje = rtHojeISOEventos();
+  // Materiais em campo seguem o intervalo operacional real, e não apenas a data do evento.
+  // Ex.: montagem 10/08, evento 11/08 e desmontagem 12/08 => aparece em campo no dia 11/08.
+  // Se montagem/desmontagem não existirem, a data do evento funciona como fallback seguro.
+  const inicio = rtDataComparavelEvento(evento.montagem || evento.data_evento || "");
+  const fim = rtDataComparavelEvento(evento.desmontagem || evento.data_evento || "");
+  if (!inicio || !fim) return false;
+
+  return inicio <= hoje && hoje <= fim;
+}
+
+// Compatibilidade com chamadas antigas desta versão.
+function rtEventoAnteriorComMaterialEmCampo(evento) {
+  return rtEventoComMaterialEmCampo(evento);
 }
 
 function rtLinhaMateriaisEmCampoHtml(quantidade, expandido) {
@@ -4593,6 +4677,7 @@ function rtLinhaMateriaisEmCampoHtml(quantidade, expandido) {
 
 function rtAlternarMateriaisEmCampo() {
   rtMateriaisEmCampoExpandidos = !rtMateriaisEmCampoExpandidos;
+  rtSalvarEstadoBlocosEventos();
   renderizarEventos();
 }
 
@@ -4658,9 +4743,7 @@ if (!window.__rtEventosPosicaoInicialBind) {
   window.__rtEventosPosicaoInicialBind = true;
   document.addEventListener("DOMContentLoaded", () => {
     document.querySelector('[data-section="eventosSection"]')?.addEventListener("click", () => {
-      rtEventosAnterioresExpandidos = false;
-      rtPendenciasFinanceirasAnterioresExpandidas = true;
-      rtMateriaisEmCampoExpandidos = false;
+      // Mantém o último estado aberto/fechado escolhido para cada bloco.
       rtPrepararPosicaoInicialEventos();
     });
     if (document.getElementById("eventosSection")?.classList.contains("active-section")) {
@@ -4671,6 +4754,7 @@ if (!window.__rtEventosPosicaoInicialBind) {
 
 function rtAlternarEventosAnteriores() {
   rtEventosAnterioresExpandidos = !rtEventosAnterioresExpandidos;
+  rtSalvarEstadoBlocosEventos();
   renderizarEventos();
   setTimeout(rtRolarEventosParaInicioAtual, 0);
 }
@@ -4705,8 +4789,16 @@ function rtLinhaRecorrentesDevedoresHtml(quantidade, expandido) {
   return `<tr class="rt-pendencias-anteriores-controle-row"><td colspan="12"><button type="button" class="rt-pendencias-anteriores-btn" data-rt-recorrentes-devedores><span>${expandido ? '▾' : '▸'}</span><strong>⚠ ${texto}</strong></button></td></tr>`;
 }
 
-function rtAlternarRecorrentesAnteriores() { rtRecorrentesAnterioresExpandidos = !rtRecorrentesAnterioresExpandidos; renderizarEventos(); }
-function rtAlternarRecorrentesDevedores() { rtRecorrentesDevedoresExpandidos = !rtRecorrentesDevedoresExpandidos; renderizarEventos(); }
+function rtAlternarRecorrentesAnteriores() {
+  rtRecorrentesAnterioresExpandidos = !rtRecorrentesAnterioresExpandidos;
+  rtSalvarEstadoBlocosEventos();
+  renderizarEventos();
+}
+function rtAlternarRecorrentesDevedores() {
+  rtRecorrentesDevedoresExpandidos = !rtRecorrentesDevedoresExpandidos;
+  rtSalvarEstadoBlocosEventos();
+  renderizarEventos();
+}
 
 function renderizarEventos() {
   normalizarOrdemEventosGlobal();
@@ -4739,25 +4831,30 @@ function renderizarEventos() {
     tbody.innerHTML = `<tr><td colspan="13" class="empty">Nenhum evento pontual cadastrado.</td></tr>`;
   } else {
     const hojeISO = rtHojeISOEventos();
-    const anteriores = lista.filter(e => String(e.data_evento || "").slice(0, 10) < hojeISO);
-    const atuaisEFuturos = lista.filter(e => String(e.data_evento || "").slice(0, 10) >= hojeISO);
+    // "Materiais em campo" é uma situação operacional própria. Ela pode incluir um evento
+    // de ontem, de hoje ou até futuro cuja montagem já aconteceu, enquanto a desmontagem
+    // ainda não ocorreu. Por isso a classificação é feita antes da divisão por data do evento.
+    const materiaisEmCampo = lista.filter(rtEventoComMaterialEmCampo);
+    const idsMateriaisEmCampo = new Set(materiaisEmCampo.map(e => String(e.id || "")));
+    const listaForaDeCampo = lista.filter(e => !idsMateriaisEmCampo.has(String(e.id || "")));
+    const anteriores = listaForaDeCampo.filter(e => String(e.data_evento || "").slice(0, 10) < hojeISO);
+    const atuaisEFuturos = listaForaDeCampo.filter(e => String(e.data_evento || "").slice(0, 10) >= hojeISO);
     const buscaAtiva = rtEventosTemFiltroAtivo();
     const mostrarAnteriores = rtEventosAnterioresExpandidos || buscaAtiva;
     const devedoresAnteriores = anteriores.filter(rtEventoAnteriorDevedor);
-    const materiaisEmCampo = anteriores.filter(rtEventoAnteriorComMaterialEmCampo);
 
-    // Com o histórico fechado, financeiro e operação aparecem em seções independentes.
-    // Ao expandir todos os anteriores, cada evento volta a aparecer apenas na ordem normal.
+    // Financeiro, materiais em campo e histórico ficam em blocos independentes,
+    // sem duplicar o mesmo evento em mais de uma seção.
     const htmlPendenciasControle = (!mostrarAnteriores && devedoresAnteriores.length)
       ? rtLinhaPendenciasFinanceirasHtml(devedoresAnteriores.length, rtPendenciasFinanceirasAnterioresExpandidas)
       : "";
     const htmlPendencias = (!mostrarAnteriores && rtPendenciasFinanceirasAnterioresExpandidas)
       ? devedoresAnteriores.map(rtLinhaEventoPrincipalHtml).join("")
       : "";
-    const htmlMateriaisControle = (!mostrarAnteriores && materiaisEmCampo.length)
+    const htmlMateriaisControle = materiaisEmCampo.length
       ? rtLinhaMateriaisEmCampoHtml(materiaisEmCampo.length, rtMateriaisEmCampoExpandidos)
       : "";
-    const htmlMateriais = (!mostrarAnteriores && rtMateriaisEmCampoExpandidos)
+    const htmlMateriais = rtMateriaisEmCampoExpandidos
       ? materiaisEmCampo.map(rtLinhaEventoPrincipalHtml).join("")
       : "";
     const htmlAnteriores = mostrarAnteriores ? anteriores.map(rtLinhaEventoPrincipalHtml).join("") : "";
@@ -5173,6 +5270,7 @@ function abrirTrocaRapidaProduto(index) {
 
   const opcoesTroca = (produtos || [])
     .filter(p => {
+      if (rtProdutoEventoFoiVendido(p)) return false;
       if (String(p.id || "") === String(atual.id || "")) return false;
       if (String(p.codigo || "").trim() && String(p.codigo || "").trim() === String(atual.codigo || "").trim()) return false;
       return produtoMesmoModelo(p, atual);
@@ -6620,28 +6718,44 @@ async function rtDocEventoCarregarModeloRaiz(tipo) {
   const chaveCache = `${tipo}:${arquivo}`;
   if (rtDocEventoModelosRaizCache[chaveCache]) return rtDocEventoModelosRaizCache[chaveCache];
 
-  if (location.protocol === 'file:') {
-    let local = null;
-    try {
-      if (typeof window.rtObterModeloDocumentoLocal === 'function') {
-        local = window.rtObterModeloDocumentoLocal(tipo, arquivo);
-      } else {
-        const todos = JSON.parse(localStorage.getItem('rt_modelos_documentos_locais_v1') || '{}');
-        local = todos?.[tipo] || null;
+  // Fonte oficial: Supabase Storage. O cache local serve somente como contingência.
+  try {
+    if (typeof window.rtModeloDocumentoCloudBaixar === 'function') {
+      const cloud = await window.rtModeloDocumentoCloudBaixar(tipo, arquivo, { permitirCache: true });
+      if (cloud?.html) {
+        rtDocEventoModelosRaizCache[chaveCache] = cloud.html;
+        return cloud.html;
       }
-    } catch (_) {}
-    if (!local?.html) throw new Error(`No modo local, selecione o arquivo ${arquivo} em Configurações > Modelos de Documentos.`);
-    if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(local.html)) throw new Error(`${arquivo} não possui variáveis no formato {{cliente}}.`);
+    }
+  } catch (erroCloud) {
+    console.warn('Modelo na nuvem indisponível; tentando contingência local/raiz.', tipo, erroCloud);
+  }
+
+  let local = null;
+  try {
+    if (typeof window.rtObterModeloDocumentoLocal === 'function') local = window.rtObterModeloDocumentoLocal(tipo, arquivo);
+    if (!local && typeof window.rtModeloDocumentoCloudObterCache === 'function') local = window.rtModeloDocumentoCloudObterCache(tipo, arquivo);
+  } catch (_) {}
+  if (local?.html && /{{\s*[a-zA-Z0-9_]+\s*}}/.test(local.html)) {
     rtDocEventoModelosRaizCache[chaveCache] = local.html;
     return local.html;
   }
 
-  const resposta = await fetch(arquivo, { cache: 'no-store' });
-  if (!resposta.ok) throw new Error(`${arquivo} não encontrado (HTTP ${resposta.status}).`);
-  const html = await resposta.text();
-  if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(html)) throw new Error(`${arquivo} não possui variáveis no formato {{cliente}}.`);
-  rtDocEventoModelosRaizCache[chaveCache] = html;
-  return html;
+  // Compatibilidade temporária com instalações antigas que ainda mantêm o HTML na raiz.
+  if (location.protocol !== 'file:') {
+    try {
+      const resposta = await fetch(arquivo, { cache: 'no-store' });
+      if (resposta.ok) {
+        const html = await resposta.text();
+        if (/{{\s*[a-zA-Z0-9_]+\s*}}/.test(html)) {
+          rtDocEventoModelosRaizCache[chaveCache] = html;
+          return html;
+        }
+      }
+    } catch (_) {}
+  }
+
+  throw new Error(`Modelo ${arquivo} não encontrado na nuvem. Envie-o em Configurações > Modelos de Documentos.`);
 }
 
 function rtDocEventoNumeroPrevio(tipo, dataEvento, eventoId) {
@@ -6690,7 +6804,7 @@ async function rtDocEventoAbrir(tipo, opcoes = {}) {
       conteudo = rtDocEventoAplicarModelo(modeloRaiz, d);
     } catch (erro) {
       console.error('Falha ao carregar modelo HTML associado:', erro);
-      alert(`Não foi possível gerar o documento. ${erro.message || erro}\n\nConfira a associação em Configurações > Modelos de Documentos e se o arquivo existe na pasta raiz.`);
+      alert(`Não foi possível gerar o documento. ${erro.message || erro}\n\nConfira em Configurações > Modelos de Documentos se o modelo foi enviado para a nuvem.`);
       return;
     }
   }
@@ -7046,15 +7160,20 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 
 
-/* v19-dev: pasta única de documentos vinculada ao evento */
+/* v19-dev: pasta única de documentos vinculada ao evento — Supabase central + cache local */
 (function(){
   const KEY = 'novoRioTendasDocumentosEventosV1';
   const HIDDEN_KEY = 'novoRioTendasDocumentosEventosOcultosV1';
+  const TABELA = 'eventos_documentos';
   let filtro = 'todos';
+  const centralPorEvento = new Map();
+  const carregados = new Set();
+  const carregando = new Map();
+
   function ler(){ try { const v=JSON.parse(localStorage.getItem(KEY)||'[]'); return Array.isArray(v)?v:[]; } catch(e){ return []; } }
-  function gravar(v){ localStorage.setItem(KEY, JSON.stringify(v)); }
+  function gravar(v){ try{localStorage.setItem(KEY, JSON.stringify(v));}catch(e){} }
   function lerOcultos(){ try { const v=JSON.parse(localStorage.getItem(HIDDEN_KEY)||'[]'); return Array.isArray(v)?v:[]; } catch(e){ return []; } }
-  function gravarOcultos(v){ localStorage.setItem(HIDDEN_KEY, JSON.stringify(Array.from(new Set(v.map(String))))); }
+  function gravarOcultos(v){ try{localStorage.setItem(HIDDEN_KEY, JSON.stringify(Array.from(new Set(v.map(String)))));}catch(e){} }
   function ocultar(chave){ const v=lerOcultos(); if(!v.includes(String(chave))) v.push(String(chave)); gravarOcultos(v); }
   function reexibir(chave){ gravarOcultos(lerOcultos().filter(x=>String(x)!==String(chave))); }
   function esc(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -7062,6 +7181,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function eventoData(){ return String(document.getElementById('eventoData')?.value || '').slice(0,10); }
   function baseData(d){ return /^\d{4}-\d{2}-\d{2}$/.test(String(d||'')) ? String(d).replace(/-/g,'') : new Date().toISOString().slice(0,10).replace(/-/g,''); }
   function statusLabel(s){ return ({em_aberto:'Em aberto',enviado:'Enviado',aprovado:'Aprovado',recusado:'Recusado',vencido:'Vencido',gerado:'Gerado'}[s]||s||'Gerado'); }
+  function usuarioAtual(){ try{return String(window.usuarioLogado?.nome || window.usuarioAtual?.nome || localStorage.getItem('novoRioTendasUsuarioNome') || '').trim();}catch(e){return '';} }
   function orcamentosEvento(id){
     const lista = Array.isArray(window.orcamentos) ? window.orcamentos : (typeof orcamentos !== 'undefined' && Array.isArray(orcamentos) ? orcamentos : []);
     return lista.filter(o=>String(o.evento_id||'')===String(id));
@@ -7072,9 +7192,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${baseData(data)}-${n.match(/(\d{3})$/)?.[1]||'001'}`;
   }
   function documentoNome(tipo,numero){ return `${tipo}-${numero}.pdf`; }
+  function docsCombinados(id){
+    const mapa=new Map();
+    (centralPorEvento.get(String(id))||[]).forEach(d=>mapa.set(String(d.chave),d));
+    ler().filter(d=>String(d.evento_id)===String(id)).forEach(d=>{if(!mapa.has(String(d.chave)))mapa.set(String(d.chave),d);});
+    return Array.from(mapa.values());
+  }
   function proximoNumero(tipo,data,id){
     const base=baseData(data);
-    const docs=ler().filter(d=>String(d.evento_id)===String(id) && d.tipo===tipo && String(d.numero||'').startsWith(base+'-'));
+    const docs=docsCombinados(id).filter(d=>d.tipo===tipo && String(d.numero||'').startsWith(base+'-'));
     const max=docs.reduce((m,d)=>Math.max(m,Number(String(d.numero).split('-').pop())||0),0);
     return `${base}-${String(max+1).padStart(3,'0')}`;
   }
@@ -7083,6 +7209,54 @@ document.addEventListener('DOMContentLoaded', () => {
     if(ors[0]) return normalizarNumero(ors[0].numero, ors[0].data_evento||data);
     const todos=orcamentosEvento(id).sort((a,b)=>String(b.atualizado_em||'').localeCompare(String(a.atualizado_em||'')));
     return todos[0] ? normalizarNumero(todos[0].numero,todos[0].data_evento||data) : '';
+  }
+  function paraBanco(d){
+    return {
+      chave:String(d.chave), tipo:String(d.tipo||''), numero:String(d.numero||''), nome:String(d.nome||''),
+      evento_id:String(d.evento_id||''), cliente_id:String(d.cliente_id||''), cliente_nome:String(d.cliente_nome||''),
+      data_evento:d.data_evento||null, status:String(d.status||'gerado'), orcamento_id:String(d.orcamento_id||''),
+      html:String(d.html||''), criado_em:d.criado_em||new Date().toISOString(), atualizado_em:d.atualizado_em||new Date().toISOString(),
+      atualizado_por:usuarioAtual()||null
+    };
+  }
+  async function persistirCentral(d){
+    if(!window.supabaseClient || !d?.evento_id || !d?.chave) return false;
+    try{
+      const payload=paraBanco(d);
+      const {data,error}=await supabaseClient.from(TABELA).upsert(payload,{onConflict:'chave'}).select('*').single();
+      if(error) throw error;
+      const id=String(d.evento_id), lista=(centralPorEvento.get(id)||[]).slice();
+      const idx=lista.findIndex(x=>String(x.chave)===String(d.chave));
+      if(idx>=0)lista[idx]={...lista[idx],...data}; else lista.push(data);
+      centralPorEvento.set(id,lista);
+      return true;
+    }catch(e){ console.warn('[Documentos] Falha ao salvar no Supabase; mantido no cache local.',e); return false; }
+  }
+  async function migrarLocaisDoEvento(id){
+    const locais=ler().filter(d=>String(d.evento_id)===String(id));
+    if(!locais.length || !window.supabaseClient) return;
+    for(const d of locais){ try{ await persistirCentral(d); }catch(e){} }
+  }
+  async function carregarCentral(id,forcar=false){
+    id=String(id||'').trim(); if(!id || !window.supabaseClient) return [];
+    if(!forcar && carregados.has(id)) return centralPorEvento.get(id)||[];
+    if(carregando.has(id)) return carregando.get(id);
+    const p=(async()=>{
+      try{
+        const {data,error}=await supabaseClient.from(TABELA).select('*').eq('evento_id',id).order('atualizado_em',{ascending:false});
+        if(error) throw error;
+        centralPorEvento.set(id,Array.isArray(data)?data:[]); carregados.add(id);
+        await migrarLocaisDoEvento(id);
+        // recarrega uma vez após migração para refletir o que foi centralizado
+        if(ler().some(d=>String(d.evento_id)===id)){
+          const r=await supabaseClient.from(TABELA).select('*').eq('evento_id',id).order('atualizado_em',{ascending:false});
+          if(!r.error) centralPorEvento.set(id,Array.isArray(r.data)?r.data:[]);
+        }
+        return centralPorEvento.get(id)||[];
+      }catch(e){ console.warn('[Documentos] Tabela central indisponível; usando cache local.',e); return []; }
+      finally{ carregando.delete(id); setTimeout(renderizar,0); }
+    })();
+    carregando.set(id,p); return p;
   }
   function registrar(tipo, dados={}){
     const id=String(dados.evento_id||eventoId()); if(!id) return null;
@@ -7093,95 +7267,74 @@ document.addEventListener('DOMContentLoaded', () => {
     const lista=ler();
     const chave=dados.orcamento_id ? `orcamento:${dados.orcamento_id}` : `${tipo}:${id}:${numero}`;
     let idx=lista.findIndex(d=>d.chave===chave);
-    // Ao gerar um orçamento, ele entra imediatamente como provisório. Quando o banco
-    // devolver o ID definitivo, atualiza esse mesmo item em vez de criar uma duplicata.
     if(idx<0 && tipo==='orcamento' && dados.orcamento_id){
       idx=lista.findIndex(d=>d.tipo==='orcamento' && String(d.evento_id)===id && String(d.numero||'')===String(numero||'') && !d.orcamento_id);
       if(idx>=0) lista[idx].chave=chave;
     }
-    const doc={chave,tipo,numero,nome:documentoNome(tipo,numero),evento_id:id,cliente_id:dados.cliente_id||'',cliente_nome:dados.nome||dados.cliente_nome||'',data_evento:data,status:dados.status||'gerado',orcamento_id:dados.orcamento_id||'',html:dados.html||lista[idx]?.html||'',criado_em:idx>=0?lista[idx].criado_em:new Date().toISOString(),atualizado_em:new Date().toISOString()};
+    const agora=new Date().toISOString();
+    const doc={chave,tipo,numero,nome:documentoNome(tipo,numero),evento_id:id,cliente_id:dados.cliente_id||'',cliente_nome:dados.nome||dados.cliente_nome||'',data_evento:data,status:dados.status||'gerado',orcamento_id:dados.orcamento_id||'',html:dados.html||lista[idx]?.html||'',criado_em:idx>=0?lista[idx].criado_em:agora,atualizado_em:agora};
     if(idx>=0) lista[idx]={...lista[idx],...doc}; else lista.push(doc);
-    gravar(lista); renderizar(); return doc;
+    gravar(lista);
+    const cent=(centralPorEvento.get(id)||[]).slice(); const ci=cent.findIndex(x=>String(x.chave)===String(chave)); if(ci>=0)cent[ci]={...cent[ci],...doc}; else cent.push(doc); centralPorEvento.set(id,cent);
+    persistirCentral(doc).then(()=>renderizar()); renderizar(); return doc;
   }
   function listar(){
     const id=eventoId(); if(!id) return [];
-    const docs=ler().filter(d=>String(d.evento_id)===id);
-    // Guias só aparecem depois que o usuário solicita a geração.
+    if(!carregados.has(id) && !carregando.has(id)) carregarCentral(id);
+    const docs=docsCombinados(id);
     orcamentosEvento(id).forEach(o=>{
-      const numero=normalizarNumero(o.numero,o.data_evento);
-      const chave=`orcamento:${o.id}`;
+      const numero=normalizarNumero(o.numero,o.data_evento); const chave=`orcamento:${o.id}`;
       if(!docs.some(d=>d.chave===chave)) docs.push({chave,tipo:'orcamento',numero,nome:documentoNome('orcamento',numero),evento_id:id,data_evento:o.data_evento,status:o.status,orcamento_id:o.id,criado_em:o.criado_em,atualizado_em:o.atualizado_em});
     });
     return docs.filter(d=>filtro==='todos'||d.tipo===filtro).sort((a,b)=>String(b.atualizado_em||b.criado_em||'').localeCompare(String(a.atualizado_em||a.criado_em||'')));
   }
   async function abrir(doc){
     if(doc.tipo==='orcamento'){
-      let lista=[];
-      try{lista=(typeof orcamentos!=='undefined'&&Array.isArray(orcamentos))?orcamentos:(Array.isArray(window.orcamentos)?window.orcamentos:[]);}catch(e){lista=Array.isArray(window.orcamentos)?window.orcamentos:[];}
+      let lista=[]; try{lista=(typeof orcamentos!=='undefined'&&Array.isArray(orcamentos))?orcamentos:(Array.isArray(window.orcamentos)?window.orcamentos:[]);}catch(e){lista=Array.isArray(window.orcamentos)?window.orcamentos:[];}
       let o=lista.find(x=>String(x.id)===String(doc.orcamento_id));
-      if(!o && typeof carregarOrcamentos==='function'){
-        try{const atualizados=await carregarOrcamentos(true);o=(atualizados||[]).find(x=>String(x.id)===String(doc.orcamento_id));}catch(e){console.warn('Falha ao carregar orçamento do documento:',e);}
-      }
+      if(!o && typeof carregarOrcamentos==='function'){try{const atualizados=await carregarOrcamentos(true);o=(atualizados||[]).find(x=>String(x.id)===String(doc.orcamento_id));}catch(e){console.warn('Falha ao carregar orçamento do documento:',e);}}
       const gerar=window.gerarPdfOrcamento||(typeof gerarPdfOrcamento==='function'?gerarPdfOrcamento:null);
-      if(o&&gerar){gerar(o);return;}
-      alert('Não foi possível carregar este orçamento. Abra a tela de Orçamentos e tente novamente.');return;
+      if(o&&gerar){gerar(o);return;} alert('Não foi possível carregar este orçamento. Abra a tela de Orçamentos e tente novamente.');return;
     }
-    if(typeof rtDocEventoAbrir==='function') {
-      window.__rtDocEventoConteudoSalvo = doc.html || '';
-      window.__rtDocEventoDocumentoSalvoMeta = doc;
-      rtDocEventoAbrir(doc.tipo);
-    }
+    if(typeof rtDocEventoAbrir==='function') { window.__rtDocEventoConteudoSalvo = doc.html || ''; window.__rtDocEventoDocumentoSalvoMeta = doc; rtDocEventoAbrir(doc.tipo); }
   }
   function renderizar(){
     const area=document.getElementById('eventoDocumentosLista'); if(!area) return;
     const id=eventoId();
     if(!id){ area.innerHTML='<p class="empty">Salve o evento para começar a organizar seus documentos.</p>'; return; }
+    if(!carregados.has(id) && carregando.has(id) && !docsCombinados(id).length){ area.innerHTML='<p class="empty">Carregando documentos...</p>'; return; }
     const lista=listar();
     if(!lista.length){ area.innerHTML='<p class="empty">Nenhum documento salvo neste evento.</p>'; return; }
     area.innerHTML=lista.map(d=>`<div class="evento-documento-item"><div class="evento-documento-nome"><strong>${esc(d.nome)}</strong><small>${esc(d.tipo.charAt(0).toUpperCase()+d.tipo.slice(1))} · evento ${esc((d.data_evento||'').split('-').reverse().join('/'))}</small></div><span class="evento-documento-status">${esc(statusLabel(d.status))}</span><div class="evento-documento-acoes"><button type="button" class="btn-outline btn-mini" data-doc-abrir="${esc(d.chave)}">Abrir</button><button type="button" class="btn-outline btn-mini danger" data-doc-apagar="${esc(d.chave)}">Apagar</button></div></div>`).join('');
   }
+  async function apagarCentral(d){
+    if(!window.supabaseClient)return true;
+    try{const {error}=await supabaseClient.from(TABELA).delete().eq('chave',String(d.chave)); if(error)throw error; return true;}catch(e){console.warn('[Documentos] Falha ao apagar no Supabase.',e);return false;}
+  }
   async function tratarCliqueDocumento(ev){
-    const abrirBtn=ev.target.closest('[data-doc-abrir]');
-    const apagarBtn=ev.target.closest('[data-doc-apagar]');
-    const btn=abrirBtn||apagarBtn;if(!btn)return;
-    ev.preventDefault();ev.stopPropagation();
-    const chave=abrirBtn?.dataset.docAbrir||apagarBtn?.dataset.docApagar;
-    const d=listar().find(x=>String(x.chave)===String(chave))||ler().find(x=>String(x.chave)===String(chave));
-    if(!d)return alert('Documento não encontrado. Reabra o evento e tente novamente.');
-    if(abrirBtn){await abrir(d);return;}
-    if(!confirm(`Apagar ${d.nome}?`))return;
+    const abrirBtn=ev.target.closest('[data-doc-abrir]'); const apagarBtn=ev.target.closest('[data-doc-apagar]'); const btn=abrirBtn||apagarBtn;if(!btn)return;
+    ev.preventDefault();ev.stopPropagation(); const chave=abrirBtn?.dataset.docAbrir||apagarBtn?.dataset.docApagar;
+    const d=listar().find(x=>String(x.chave)===String(chave))||ler().find(x=>String(x.chave)===String(chave)); if(!d)return alert('Documento não encontrado. Reabra o evento e tente novamente.');
+    if(abrirBtn){await abrir(d);return;} if(!confirm(`Apagar ${d.nome}?`))return;
     if(d.tipo==='orcamento'&&d.orcamento_id){
-      const excluir=window.rtOrcExcluirIds||(typeof rtOrcExcluirIds==='function'?rtOrcExcluirIds:null);
-      if(!excluir)return alert('Não foi possível acessar a exclusão do orçamento.');
-      const ok=await excluir([d.orcamento_id],{confirmar:false});
-      if(ok!==false){gravar(ler().filter(x=>x.chave!==d.chave));renderizar();}
-    }else{
-      gravar(ler().filter(x=>x.chave!==d.chave));
-      if(d.tipo==='guia') ocultar(d.chave);
-      renderizar();
+      const excluir=window.rtOrcExcluirIds||(typeof rtOrcExcluirIds==='function'?rtOrcExcluirIds:null); if(!excluir)return alert('Não foi possível acessar a exclusão do orçamento.');
+      const ok=await excluir([d.orcamento_id],{confirmar:false}); if(ok===false)return;
     }
+    const okCentral=await apagarCentral(d); if(!okCentral && !confirm('Não foi possível apagar o registro central. Apagar apenas deste computador?'))return;
+    gravar(ler().filter(x=>x.chave!==d.chave)); const id=String(d.evento_id||eventoId()); centralPorEvento.set(id,(centralPorEvento.get(id)||[]).filter(x=>String(x.chave)!==String(d.chave))); if(d.tipo==='guia') ocultar(d.chave); renderizar();
   }
   window.rtEventoDocumentosRestaurarTipo=function(tipo,dados){
-    const id=String(dados?.id||dados?.evento_id||eventoId()||'').trim();
-    if(!id)return;
-    registrar(tipo,{
-      evento_id:id,
-      cliente_id:dados?.cliente_id||'',
-      nome:dados?.nome||'',
-      data_evento:dados?.dataEvento||dados?.data_evento||eventoData(),
-      numero:dados?.numero||dados?.numeroDocumento||dados?.numeroOrcamento||'',
-      status:dados?.status||'gerado',
-      html:dados?.html||''
-    });
-    setTimeout(renderizar,0);
+    const id=String(dados?.id||dados?.evento_id||eventoId()||'').trim(); if(!id)return;
+    registrar(tipo,{evento_id:id,cliente_id:dados?.cliente_id||'',nome:dados?.nome||'',data_evento:dados?.dataEvento||dados?.data_evento||eventoData(),numero:dados?.numero||dados?.numeroDocumento||dados?.numeroOrcamento||'',status:dados?.status||'gerado',html:dados?.html||''}); setTimeout(renderizar,0);
   };
   window.rtEventoDocumentosRegistrarOrcamento=function(o){ if(!o||!o.evento_id)return; registrar('orcamento',{evento_id:o.evento_id,data_evento:o.data_evento,numero:o.numero,status:o.status,orcamento_id:o.id}); };
   window.rtEventoDocumentosRenderizar=renderizar;
+  window.rtEventoDocumentosRecarregar=function(){const id=eventoId();if(id){carregados.delete(id);return carregarCentral(id,true);}return Promise.resolve([]);};
   document.addEventListener('DOMContentLoaded',()=>{
     document.querySelectorAll('[data-doc-evento-filtro]').forEach(b=>b.addEventListener('click',()=>{filtro=b.dataset.docEventoFiltro||'todos';document.querySelectorAll('[data-doc-evento-filtro]').forEach(x=>x.classList.toggle('active',x===b));renderizar();}));
-    const id=document.getElementById('eventoId'); if(id) new MutationObserver(renderizar).observe(id,{attributes:true,attributeFilter:['value']});
+    const id=document.getElementById('eventoId'); if(id) new MutationObserver(()=>{const eid=eventoId();if(eid){carregados.delete(eid);carregarCentral(eid);}renderizar();}).observe(id,{attributes:true,attributeFilter:['value']});
     document.getElementById('eventoData')?.addEventListener('change',renderizar);
-    document.querySelectorAll('[data-editar-evento], #novoEventoBtn').forEach(b=>b.addEventListener('click',()=>setTimeout(renderizar,300)));
+    document.querySelectorAll('[data-editar-evento], #novoEventoBtn').forEach(b=>b.addEventListener('click',()=>setTimeout(()=>{const eid=eventoId();if(eid)carregarCentral(eid);renderizar();},250)));
     const area=document.getElementById('eventoDocumentosLista');if(area&&!area.dataset.rtDocDelegado){area.addEventListener('click',tratarCliqueDocumento);area.dataset.rtDocDelegado='1';}
   });
 })();

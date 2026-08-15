@@ -519,7 +519,7 @@ function iniciarProdutos() {
     fotoAtual = await fileToBase64(file);
   });
 }
-  carregarEventosDisponibilidadeProduto().then(() => renderizarProdutos());
+  // Carregamento de produtos/disponibilidade é feito ao abrir a seção.
 
 
 function atualizarTamanhos() {
@@ -1653,6 +1653,11 @@ function statusExigeAlertaReservaFutura(status) {
   return s === "bloqueada" || s === "bloqueado" || s === "consertar";
 }
 
+function usabilidadeIndicaVendaOuBaixa(valor) {
+  const s = String(valor || "").trim().toLowerCase();
+  return s.includes("venda") || s.includes("baixa");
+}
+
 function eventosFuturosDoProduto(produto) {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
@@ -1689,6 +1694,30 @@ function alertarReservasFuturasProduto(produto, novoStatus) {
     } catch (erro) {
       console.warn("Não foi possível abrir eventos afetados", erro);
     }
+  }
+}
+
+function alertarVendaReservasFuturasProduto(produto, novaUsabilidade) {
+  if (!usabilidadeIndicaVendaOuBaixa(novaUsabilidade)) return;
+  const afetados = eventosFuturosDoProduto(produto);
+  if (!afetados.length) return;
+  const linhas = afetados.slice(0, 10).map(item => {
+    const data = formatarDataCurtaProdutoDisp(item.intervalo?.inicio || item.evento?.montagem || item.evento?.data_evento);
+    return `• ${data} - ${item.evento?.nome || "Cliente"}`;
+  }).join("\n");
+  const extra = afetados.length > 10 ? `\n... e mais ${afetados.length - 10} evento(s).` : "";
+  const msg = `⚠️ MATERIAL VENDIDO / BAIXADO\n\nO produto ${produto.codigo || ""} está reservado em ${afetados.length} evento(s) futuro(s).\n\nEle NÃO será removido desses eventos. Permanecerá visível com alerta para substituição.\n\n${linhas}${extra}`;
+  const ver = confirm(msg + "\n\nDeseja abrir a lista de eventos filtrada por este código para revisar as substituições?");
+  if (ver) {
+    try {
+      if (typeof mostrarSecao === "function") mostrarSecao("eventosSection");
+      const busca = document.getElementById("buscaEvento");
+      if (busca) {
+        busca.value = String(produto.codigo || "");
+        if (typeof renderizarEventos === "function") renderizarEventos();
+        busca.focus();
+      }
+    } catch (erro) { console.warn("Não foi possível abrir eventos afetados", erro); }
   }
 }
 
@@ -1799,6 +1828,7 @@ async function lidarAcaoProduto(event) {
     produto.historico = produto.historico || [];
     produto.historico.push({ data: new Date().toISOString(), colaborador: produto.colaborador, alteracao: `Usabilidade alterada para ${produto.grau_usabilidade}`, observacao: produto.observacao || "-" });
     await salvarProdutoBanco(produto);
+    alertarVendaReservasFuturasProduto(produto, novaUsabilidade);
     invalidarCacheProdutosGlobal();
   await carregarProdutos(true);
   }

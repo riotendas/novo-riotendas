@@ -976,11 +976,9 @@ function iniciarRotas() {
   rotasCarros = carregarRotasCarrosLocal();
   rotasOperacao = carregarRotasOperacaoLocal();
   atualizarFiltroCarrosRotas();
-  sincronizarRotasCarrosNuvem();
-  sincronizarRotasOrdemNuvem();
-  rtNotasSincronizarNuvem(true).catch(() => {});
+  // A sincronização pesada da nuvem acontece somente quando Rotas/Rua for aberta.
+  // Mantemos o realtime preparado, sem disparar quatro SELECTs na inicialização.
   rtNotasIniciarRealtime();
-  sincronizarRotasOperacaoNuvem(true).catch(() => {});
   // Não zerar Entregue/Recolhido automaticamente em ambiente multiusuário.
   // A limpeza deve acontecer apenas pelo botão administrativo.
 

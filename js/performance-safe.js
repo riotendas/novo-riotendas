@@ -1,70 +1,257 @@
 /* =====================================================
-   v19-dev-2026-08-06 - Desempenho global
-   - Deduplica cargas concorrentes de Eventos, Clientes e Produtos.
-   - Evita nova consulta poucos segundos após uma carga concluída.
-   - Carrega Leaflet e XLSX apenas quando suas telas forem abertas.
+   RioTendas v19 - Performance Lazy + Cache v1
+   Objetivos:
+   - tela responde ao clique antes de buscar dados;
+   - evita SELECTs duplicados/simultâneos;
+   - app_config/usuários/rotas usam cache curto em memória;
+   - módulos pesados só carregam ao serem abertos;
+   - mantém a mesma estrutura SPA e todas as funções existentes.
 ===================================================== */
 (function () {
-  if (window.__rtPerformanceGlobalV2) return;
-  window.__rtPerformanceGlobalV2 = true;
+  if (window.__rtPerformanceLazyCacheV1) return;
+  window.__rtPerformanceLazyCacheV1 = true;
 
-  const estado = new Map();
+  const cache = new Map();
+  const emAndamento = new Map();
+  const carregamentoSecao = new Map();
+  const ultimaCargaSecao = new Map();
 
-  function deduplicarFuncao(nome, intervaloMs) {
+  function chaveArgs(nome, args) {
+    let sufixo = "";
+    try { sufixo = JSON.stringify(args || []); } catch { sufixo = String(args?.length || 0); }
+    return `${nome}:${sufixo}`;
+  }
+
+  function envolverCache(nome, ttlMs, opcoes = {}) {
     const original = window[nome];
-    if (typeof original !== "function" || original.__rtDeduplicada) return;
+    if (typeof original !== "function" || original.__rtCacheV1) return;
 
-    async function protegida(...args) {
+    async function otimizada(...args) {
+      const forcar = opcoes.forceArgIndex != null && args[opcoes.forceArgIndex] === true;
+      const key = opcoes.keyByArgs === false ? nome : chaveArgs(nome, args);
       const agora = Date.now();
-      const atual = estado.get(nome) || { promessa: null, ultima: 0, resultado: undefined };
+      const item = cache.get(key);
 
-      if (atual.promessa) return atual.promessa;
-      if (!args.some(Boolean) && atual.ultima && agora - atual.ultima < intervaloMs) {
-        return atual.resultado;
-      }
+      if (!forcar && item && agora - item.ts < ttlMs) return item.valor;
+      if (!forcar && emAndamento.has(key)) return emAndamento.get(key);
 
-      atual.promessa = Promise.resolve().then(() => original.apply(this, args));
-      estado.set(nome, atual);
+      const promessa = Promise.resolve().then(() => original.apply(this, args));
+      emAndamento.set(key, promessa);
       try {
-        atual.resultado = await atual.promessa;
-        atual.ultima = Date.now();
-        return atual.resultado;
+        const valor = await promessa;
+        if (valor !== undefined && valor !== null) cache.set(key, { valor, ts: Date.now() });
+        return valor;
       } finally {
-        atual.promessa = null;
-        estado.set(nome, atual);
+        if (emAndamento.get(key) === promessa) emAndamento.delete(key);
       }
     }
 
-    protegida.__rtDeduplicada = true;
-    protegida.__rtOriginal = original;
-    window[nome] = protegida;
+    otimizada.__rtCacheV1 = true;
+    otimizada.__rtOriginal = original;
+    window[nome] = otimizada;
   }
 
-  [
-    ["carregarEventos", 3500],
-    ["carregarClientes", 5000],
-    ["carregarProdutos", 5000],
-    ["sincronizarRotasOperacaoNuvem", 2500],
-    ["sincronizarRotasCarrosNuvem", 2500],
-    ["sincronizarRotasOrdemNuvem", 2500],
-    ["rtNotasSincronizarNuvem", 2500]
-  ].forEach(([nome, tempo]) => deduplicarFuncao(nome, tempo));
+  function invalidarPorPrefixo(prefixo) {
+    [...cache.keys()].forEach(k => { if (k.startsWith(prefixo)) cache.delete(k); });
+  }
+  window.rtInvalidarCachePerformance = invalidarPorPrefixo;
 
+  // Dados quase estáticos / app_config. TTLs curtos o bastante para operação multiusuário,
+  // mas longos o bastante para eliminar dezenas de SELECTs idênticos em sequência.
+  envolverCache("buscarUsuariosSistemaBanco", 2 * 60 * 1000, { keyByArgs: false });
+  envolverCache("carregarConfiguracoesNuvem", 2 * 60 * 1000, { keyByArgs: false });
+  envolverCache("carregarRotasOperacaoNuvem", 15 * 1000, { keyByArgs: false });
+  envolverCache("carregarRotasCarrosNuvem", 15 * 1000, { keyByArgs: false });
+  envolverCache("carregarRotasOrdemNuvem", 15 * 1000, { keyByArgs: false });
+  envolverCache("rtNotasCarregarNuvem", 20 * 1000, { keyByArgs: false });
+
+  // As funções abaixo já possuem cache próprio; aqui protegemos apenas chamadas concorrentes.
+  envolverCache("carregarEventos", 1500, { keyByArgs: false });
+  envolverCache("carregarClientes", 3000, { keyByArgs: false });
+  envolverCache("carregarProdutos", 3000, { forceArgIndex: 0 });
+  envolverCache("sincronizarRotasOperacaoNuvem", 2500, { keyByArgs: false });
+  envolverCache("sincronizarRotasCarrosNuvem", 2500, { keyByArgs: false });
+  envolverCache("sincronizarRotasOrdemNuvem", 2500, { keyByArgs: false });
+  envolverCache("rtNotasSincronizarNuvem", 2500, { keyByArgs: false });
+
+  // Invalidar caches correspondentes quando houver gravação.
+  [
+    ["salvarConfiguracoesNuvem", "carregarConfiguracoesNuvem"],
+    ["salvarRotasOperacaoNuvem", "carregarRotasOperacaoNuvem"],
+    ["salvarRotasCarrosNuvem", "carregarRotasCarrosNuvem"],
+    ["salvarRotasOrdemNuvem", "carregarRotasOrdemNuvem"],
+    ["salvarUsuarioSistemaBanco", "buscarUsuariosSistemaBanco"],
+    ["excluirUsuarioSistemaBanco", "buscarUsuariosSistemaBanco"]
+  ].forEach(([nomeSalvar, prefixo]) => {
+    const original = window[nomeSalvar];
+    if (typeof original !== "function" || original.__rtInvalidacaoV1) return;
+    const fn = async function(...args) {
+      const r = await original.apply(this, args);
+      invalidarPorPrefixo(prefixo);
+      return r;
+    };
+    fn.__rtInvalidacaoV1 = true;
+    window[nomeSalvar] = fn;
+  });
+
+  function secaoAtiva() {
+    return document.querySelector(".section.active-section, .section.active")?.id || "dashboardSection";
+  }
+
+  function mostrarCarregando(sectionId, texto = "Atualizando dados…") {
+    const sec = document.getElementById(sectionId);
+    if (!sec || sec.querySelector(".rt-performance-loading")) return;
+    const aviso = document.createElement("div");
+    aviso.className = "rt-performance-loading";
+    aviso.textContent = texto;
+    aviso.style.cssText = "position:sticky;top:4px;z-index:20;margin:4px 0 8px;padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.92);box-shadow:0 1px 5px rgba(0,0,0,.12);font-size:12px;width:max-content;max-width:100%;";
+    sec.prepend(aviso);
+  }
+  function ocultarCarregando(sectionId) {
+    document.getElementById(sectionId)?.querySelectorAll(".rt-performance-loading").forEach(el => el.remove());
+  }
+
+  async function carregarOperacional() {
+    const tarefas = [];
+    if (typeof window.sincronizarRotasCarrosNuvem === "function") tarefas.push(window.sincronizarRotasCarrosNuvem());
+    if (typeof window.sincronizarRotasOrdemNuvem === "function") tarefas.push(window.sincronizarRotasOrdemNuvem());
+    if (typeof window.sincronizarRotasOperacaoNuvem === "function") tarefas.push(window.sincronizarRotasOperacaoNuvem(false));
+    if (typeof window.rtNotasSincronizarNuvem === "function") tarefas.push(window.rtNotasSincronizarNuvem(false));
+    await Promise.allSettled(tarefas);
+  }
+
+  async function executarCargaSecao(sectionId) {
+    switch (sectionId) {
+      case "dashboardSection": {
+        // Dashboard usa somente os dois conjuntos necessários, uma vez por cache.
+        const tarefas = [];
+        if (typeof window.carregarEventos === "function") tarefas.push(window.carregarEventos());
+        if (typeof window.carregarProdutos === "function") tarefas.push(window.carregarProdutos());
+        await Promise.allSettled(tarefas);
+        if (typeof window.atualizarDashboard === "function") window.atualizarDashboard(window.produtos || []);
+        if (typeof window.renderizarDashboardEventos === "function") await window.renderizarDashboardEventos();
+        if (!window.__rtDashboardAlertasIniciados && typeof window.iniciarDashboardAlertasPersonalizados === "function") {
+          window.__rtDashboardAlertasIniciados = true;
+          await window.iniciarDashboardAlertasPersonalizados();
+        } else if (typeof window.renderizarDashboardAlertas === "function") {
+          await window.renderizarDashboardAlertas();
+        }
+        break;
+      }
+      case "eventosSection":
+      case "eventosMobileSection":
+      case "calendarioSection": {
+        if (typeof window.carregarEventos === "function") await window.carregarEventos();
+        if (sectionId === "eventosSection" && typeof window.renderizarEventos === "function") window.renderizarEventos();
+        if (sectionId === "eventosMobileSection" && typeof window.renderizarEventosMobile === "function") window.renderizarEventosMobile();
+        if (sectionId === "calendarioSection" && typeof window.renderizarCalendario === "function") window.renderizarCalendario();
+        break;
+      }
+      case "clientesSection":
+        if (typeof window.carregarClientes === "function") await window.carregarClientes();
+        break;
+      case "produtosSection":
+      case "manutencaoMobileSection": {
+        if (typeof window.carregarProdutos === "function") await window.carregarProdutos();
+        if (typeof window.carregarEventosDisponibilidadeProduto === "function") await window.carregarEventosDisponibilidadeProduto();
+        if (sectionId === "produtosSection" && typeof window.renderizarProdutos === "function") window.renderizarProdutos();
+        if (sectionId === "manutencaoMobileSection" && typeof window.renderizarManutencaoMobile === "function") window.renderizarManutencaoMobile();
+        break;
+      }
+      case "rotasSection":
+      case "ruaMobileSection": {
+        await Promise.allSettled([
+          typeof window.carregarEventos === "function" ? window.carregarEventos() : Promise.resolve(),
+          carregarOperacional()
+        ]);
+        if (sectionId === "rotasSection" && typeof window.renderizarRotas === "function") window.renderizarRotas();
+        if (sectionId === "ruaMobileSection" && typeof window.renderizarRuaMobile === "function") window.renderizarRuaMobile();
+        break;
+      }
+      case "configSection": {
+        if (typeof window.sincronizarConfiguracoesNuvem === "function") await window.sincronizarConfiguracoesNuvem();
+        if (typeof window.montarPainelLogsSistema === "function") window.montarPainelLogsSistema();
+        break;
+      }
+      case "usuariosSection":
+        if (typeof window.renderizarUsuariosSistema === "function") await window.renderizarUsuariosSistema();
+        break;
+      default:
+        break;
+    }
+  }
+
+  async function rtCarregarSecaoOtimizada(sectionId, forcar = false) {
+    if (!sectionId) return;
+    const agora = Date.now();
+    const ttlSecao = sectionId === "rotasSection" || sectionId === "ruaMobileSection" ? 10_000 : 45_000;
+    if (!forcar && ultimaCargaSecao.get(sectionId) && agora - ultimaCargaSecao.get(sectionId) < ttlSecao) return;
+    if (carregamentoSecao.has(sectionId)) return carregamentoSecao.get(sectionId);
+
+    mostrarCarregando(sectionId);
+    const p = (async () => {
+      try {
+        await executarCargaSecao(sectionId);
+        ultimaCargaSecao.set(sectionId, Date.now());
+      } catch (err) {
+        console.warn("Carga otimizada da seção falhou:", sectionId, err);
+      } finally {
+        ocultarCarregando(sectionId);
+      }
+    })();
+    carregamentoSecao.set(sectionId, p);
+    try { await p; } finally { carregamentoSecao.delete(sectionId); }
+  }
+
+  window.rtCarregarSecaoOtimizada = rtCarregarSecaoOtimizada;
+  window.rtCarregarDadosSecaoAtiva = () => {
+    const id = secaoAtiva();
+    // Deixa a interface pintar primeiro; rede entra logo depois.
+    setTimeout(() => rtCarregarSecaoOtimizada(id), 60);
+  };
+
+  // Troca visual realmente imediata: a aba muda ainda na fase de captura,
+  // antes de qualquer rotina de rede/renderização ligada ao clique.
+  function rtMostrarSecaoImediata(sectionId) {
+    if (!sectionId) return false;
+    const sec = document.getElementById(sectionId);
+    if (!sec) return false;
+
+    document.querySelectorAll(".section").forEach(s => {
+      if (s !== sec) {
+        s.classList.remove("active", "active-section");
+        // Limpa possíveis displays inline herdados de regras antigas de permissão.
+        if (s.style && s.style.display === "block") s.style.display = "";
+      }
+    });
+    document.querySelectorAll(".tab-btn[data-section]").forEach(b => {
+      b.classList.toggle("active", b.dataset.section === sectionId);
+    });
+    sec.style.display = "";
+    sec.classList.add("active", "active-section");
+    return true;
+  }
+  window.rtMostrarSecaoImediata = rtMostrarSecaoImediata;
+
+  // Dados entram depois do primeiro paint, sem segurar a resposta do botão.
+  document.addEventListener("click", (ev) => {
+    const botao = ev.target?.closest?.(".tab-btn[data-section], [data-mobile-open]");
+    const destino = botao?.dataset?.section || botao?.dataset?.mobileOpen || "";
+    if (!destino) return;
+    rtMostrarSecaoImediata(destino);
+    requestAnimationFrame(() => {
+      setTimeout(() => rtCarregarSecaoOtimizada(destino), 0);
+    });
+  }, true);
+
+  // Assets grandes continuam sob demanda.
   const assets = new Map();
   function carregarScriptUmaVez(chave, src, teste) {
     if (typeof teste === "function" && teste()) return Promise.resolve(true);
     if (assets.has(chave)) return assets.get(chave);
     const promessa = new Promise((resolve, reject) => {
-      const existente = document.querySelector(`script[data-rt-asset="${chave}"]`);
-      if (existente) {
-        existente.addEventListener("load", () => resolve(true), { once: true });
-        existente.addEventListener("error", reject, { once: true });
-        return;
-      }
       const script = document.createElement("script");
-      script.src = src;
-      script.async = true;
-      script.dataset.rtAsset = chave;
+      script.src = src; script.async = true; script.dataset.rtAsset = chave;
       script.onload = () => resolve(true);
       script.onerror = () => reject(new Error(`Falha ao carregar ${chave}`));
       document.head.appendChild(script);
@@ -72,255 +259,21 @@
     assets.set(chave, promessa);
     return promessa;
   }
-
-  window.rtGarantirLeaflet = () => carregarScriptUmaVez(
-    "leaflet",
-    "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
-    () => typeof window.L !== "undefined"
-  );
-
-  window.rtGarantirXLSX = () => carregarScriptUmaVez(
-    "xlsx",
-    "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js",
-    () => typeof window.XLSX !== "undefined"
-  );
+  window.rtGarantirLeaflet = () => carregarScriptUmaVez("leaflet", "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js", () => !!window.L);
+  window.rtGarantirXLSX = () => carregarScriptUmaVez("xlsx", "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js", () => !!window.XLSX);
 
   document.addEventListener("click", (ev) => {
     const botao = ev.target?.closest?.(".tab-btn[data-section], [data-mobile-open]");
     const destino = botao?.dataset?.section || botao?.dataset?.mobileOpen || "";
-    if (destino === "mapaSection") {
-      window.rtGarantirLeaflet().then(() => {
-        if (typeof window.renderizarMapaOperacional === "function") window.renderizarMapaOperacional(false);
-      }).catch(err => console.warn("Mapa indisponível:", err));
-    }
-    if (destino === "configSection") {
-      // Antecipação discreta: estará pronto quando o usuário escolher importar/exportar.
-      setTimeout(() => window.rtGarantirXLSX().catch(() => {}), 700);
-    }
+    if (destino === "mapaSection") setTimeout(() => window.rtGarantirLeaflet().catch(() => {}), 30);
+    if (destino === "configSection") setTimeout(() => window.rtGarantirXLSX().catch(() => {}), 1200);
   }, true);
-})();
-
-/* =====================================================
-   v19-dev - Otimização segura sem separar HTML
-   Mantém index único, mas evita renderizações repetidas.
-===================================================== */
-
-(function () {
-  const timers = {};
-  const ultimaExecucao = {};
-
-  window.debounceRioTendas = function debounceRioTendas(chave, fn, delay = 120) {
-    clearTimeout(timers[chave]);
-    timers[chave] = setTimeout(() => {
-      try { fn(); } catch (erro) { console.warn("Erro debounce:", chave, erro); }
-    }, delay);
-  };
-
-  window.throttleRioTendas = function throttleRioTendas(chave, fn, intervalo = 350) {
-    const agora = Date.now();
-    if (ultimaExecucao[chave] && agora - ultimaExecucao[chave] < intervalo) return;
-
-    ultimaExecucao[chave] = agora;
-    try { fn(); } catch (erro) { console.warn("Erro throttle:", chave, erro); }
-  };
-
-  function atualizarModuloAoAbrir(sectionId) {
-    if (!sectionId) return;
-
-    // Atualizações leves só quando a aba correspondente for aberta.
-    if (sectionId === "produtosSection") {
-      debounceRioTendas("refresh-produtos-aba", async () => {
-        if (typeof carregarEventosDisponibilidadeProduto === "function") {
-          await carregarEventosDisponibilidadeProduto();
-        }
-        if (typeof renderizarProdutos === "function") renderizarProdutos();
-      }, 80);
-    }
-
-    if (sectionId === "eventosSection") {
-      debounceRioTendas("refresh-eventos-aba", async () => {
-        if (typeof carregarEventos === "function") await carregarEventos();
-        if (typeof renderizarEventos === "function") renderizarEventos();
-      }, 80);
-    }
-
-    if (sectionId === "clientesSection") {
-      debounceRioTendas("refresh-clientes-aba", async () => {
-        if (typeof carregarClientes === "function") await carregarClientes();
-        if (typeof renderizarClientes === "function") renderizarClientes();
-      }, 80);
-    }
-
-    if (sectionId === "rotasSection") {
-      debounceRioTendas("refresh-rotas-aba", async () => {
-        if (typeof carregarEventos === "function") await carregarEventos();
-        if (typeof renderizarRotas === "function") renderizarRotas();
-      }, 80);
-    }
-
-    if (sectionId === "configSection") {
-      debounceRioTendas("refresh-config-aba", () => {
-        if (typeof montarPainelLogsSistema === "function") montarPainelLogsSistema();
-        if (typeof renderizarLogsSistema === "function") renderizarLogsSistema();
-      }, 120);
-    }
-  }
 
   document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll(".tab-btn[data-section]").forEach(btn => {
-      btn.addEventListener("click", () => atualizarModuloAoAbrir(btn.dataset.section));
-    });
-  });
-
-  // Evento global já usado por eventos/rotas/produtos.
-  window.addEventListener("riotendas:eventos-atualizados", () => {
-    debounceRioTendas("eventos-atualizados-global", async () => {
-      const produtosAtivo = document.getElementById("produtosSection")?.classList.contains("active") ||
-        document.getElementById("produtosSection")?.classList.contains("active-section");
-
-      const rotasAtivo = document.getElementById("rotasSection")?.classList.contains("active") ||
-        document.getElementById("rotasSection")?.classList.contains("active-section");
-
-      if (produtosAtivo && typeof renderizarProdutos === "function") {
-        if (typeof carregarEventosDisponibilidadeProduto === "function") {
-          await carregarEventosDisponibilidadeProduto();
-        }
-        renderizarProdutos();
-      }
-
-      if (rotasAtivo && typeof renderizarRotas === "function") {
-        renderizarRotas();
-      }
+    // Se já existe sessão, inicia apenas a seção visível, depois do primeiro paint.
+    setTimeout(() => {
+      const app = document.getElementById("appScreen");
+      if (app && !app.classList.contains("hidden")) window.rtCarregarDadosSecaoAtiva();
     }, 120);
   });
-})();
-
-/* =====================================================
-   v19-dev - Navegação rápida entre telas
-   Troca a tela imediatamente e deixa renderizações/sync
-   para depois do clique, evitando sensação de botão lento.
-===================================================== */
-(function(){
-  if (window.__rtNavegacaoRapidaInstalada) return;
-  window.__rtNavegacaoRapidaInstalada = true;
-
-  const timers = {};
-  let ultimaSecao = "";
-
-  function agendar(chave, fn, delay){
-    clearTimeout(timers[chave]);
-    timers[chave] = setTimeout(() => {
-      try { fn(); } catch (err) { console.warn("Navegação rápida:", chave, err); }
-    }, delay || 0);
-  }
-
-  function secaoAtiva(id){
-    const el = document.getElementById(id);
-    return !!(el && (el.classList.contains("active-section") || el.classList.contains("active")));
-  }
-
-  function ativarSecao(sectionId, botao){
-    if (!sectionId) return;
-    const alvo = document.getElementById(sectionId);
-    if (!alvo) return;
-
-    document.querySelectorAll(".tab-btn").forEach(b => {
-      b.classList.toggle("active", b === botao || b.dataset.section === sectionId && botao?.dataset?.section === sectionId && botao.closest('.tabs'));
-    });
-    document.querySelectorAll(".section").forEach(s => s.classList.remove("active-section", "active"));
-    alvo.classList.add("active-section");
-    ultimaSecao = sectionId;
-
-    try { sessionStorage.setItem("riotendas_secao_atual", sectionId); } catch {}
-    window.dispatchEvent(new CustomEvent("riotendas:secao-alterada", { detail: { sectionId } }));
-  }
-
-  function renderLeve(sectionId){
-    // Renderiza apenas a tela que acabou de abrir. Banco/sync pesado fica em segundo plano.
-    if (sectionId === "dashboardSection") {
-      if (typeof atualizarDashboard === "function") atualizarDashboard(typeof produtos !== "undefined" ? produtos : []);
-      return;
-    }
-    if (sectionId === "produtosSection") {
-      if (typeof renderizarProdutos === "function") renderizarProdutos();
-      return;
-    }
-    if (sectionId === "clientesSection") {
-      if (typeof renderizarClientes === "function") renderizarClientes();
-      return;
-    }
-    if (sectionId === "eventosSection") {
-      if (typeof renderizarEventos === "function") renderizarEventos();
-      return;
-    }
-    if (sectionId === "calendarioSection") {
-      if (typeof renderizarCalendario === "function") renderizarCalendario();
-      return;
-    }
-    if (sectionId === "rotasSection") {
-      if (typeof renderizarRotas === "function") renderizarRotas();
-      return;
-    }
-    if (sectionId === "orcamentosSection") {
-      if (typeof renderizarOrcamentos === "function") renderizarOrcamentos();
-      return;
-    }
-    if (sectionId === "financeiroSection") {
-      if (typeof rtFinRenderTudoFase1 === "function") rtFinRenderTudoFase1();
-      else if (typeof rtFinAtualizarResumo === "function") rtFinAtualizarResumo();
-      return;
-    }
-    if (sectionId === "relatoriosSection") {
-      if (typeof renderizarRelatorioChecagem === "function") renderizarRelatorioChecagem();
-      return;
-    }
-    if (sectionId === "usuariosSection") {
-      if (typeof renderizarUsuariosSistema === "function") renderizarUsuariosSistema();
-      return;
-    }
-    if (sectionId === "configSection") {
-      if (typeof renderizarManutencaoPendencias === "function") renderizarManutencaoPendencias();
-      if (typeof montarPainelLogsSistema === "function") montarPainelLogsSistema();
-      return;
-    }
-    if (sectionId === "ruaMobileSection") {
-      if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
-      return;
-    }
-    if (sectionId === "manutencaoMobileSection") {
-      if (typeof renderizarManutencaoMobile === "function") renderizarManutencaoMobile();
-      return;
-    }
-    if (sectionId === "eventosMobileSection") {
-      if (typeof renderizarEventosMobile === "function") renderizarEventosMobile();
-    }
-  }
-
-  function syncLeve(sectionId){
-    if (!sectionId || ultimaSecao !== sectionId || !secaoAtiva(sectionId)) return;
-    // Evita rodar sync no meio de digitação/arraste/modal.
-    if (typeof window.rtUsuarioEditandoOperacional === "function" && window.rtUsuarioEditandoOperacional()) return;
-    if (typeof window.rtSincronizarOperacionalSeguro === "function") {
-      window.rtSincronizarOperacionalSeguro();
-    }
-  }
-
-  function tratarClickNavegacao(ev){
-    const botao = ev.target?.closest?.(".tab-btn[data-section]");
-    if (!botao || botao.disabled) return;
-    const sectionId = botao.dataset.section;
-    if (!sectionId || !document.getElementById(sectionId)) return;
-
-    // Assume o controle para impedir renderizações pesadas duplicadas de outros listeners no mesmo clique.
-    ev.preventDefault();
-    ev.stopImmediatePropagation();
-
-    ativarSecao(sectionId, botao);
-
-    // Dá chance para o navegador pintar a nova tela antes de qualquer trabalho mais caro.
-    agendar("render-" + sectionId, () => renderLeve(sectionId), 25);
-    agendar("sync-" + sectionId, () => syncLeve(sectionId), 350);
-  }
-
-  document.addEventListener("click", tratarClickNavegacao, true);
 })();

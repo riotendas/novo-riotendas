@@ -460,13 +460,10 @@ async function renderizarDashboardEventos() {
 
 // dashboard-render-fix
 document.addEventListener("DOMContentLoaded", () => {
-  setTimeout(renderizarDashboardEventos, 800);
-  setTimeout(renderizarDashboardEventos, 1800);
-  setTimeout(renderizarDashboardEventos, 3000);
-
+  // O gerenciador lazy carrega o Dashboard uma única vez por janela de cache.
   document.querySelectorAll("[data-section='dashboardSection']").forEach(btn => {
     btn.addEventListener("click", () => {
-      setTimeout(renderizarDashboardEventos, 200);
+      if (typeof window.rtCarregarSecaoOtimizada === "function") window.rtCarregarSecaoOtimizada("dashboardSection");
     });
   });
 });
@@ -907,9 +904,13 @@ async function iniciarDashboardAlertasPersonalizados() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  setTimeout(iniciarDashboardAlertasPersonalizados, 1200);
   document.querySelectorAll("[data-section='dashboardSection']").forEach(btn => {
-    btn.addEventListener("click", () => setTimeout(renderizarDashboardAlertas, 350));
+    btn.addEventListener("click", () => {
+      if (typeof window.rtCarregarSecaoOtimizada === "function") window.rtCarregarSecaoOtimizada("dashboardSection");
+    });
   });
-  window.addEventListener("riotendas:eventos-atualizados", () => setTimeout(renderizarDashboardAlertas, 300));
+  window.addEventListener("riotendas:eventos-atualizados", () => {
+    const ativo = document.getElementById("dashboardSection")?.classList.contains("active-section");
+    if (ativo) setTimeout(renderizarDashboardAlertas, 180);
+  });
 });

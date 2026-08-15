@@ -17,28 +17,36 @@ window.rtOrcLimparCacheModeloExterno = rtOrcLimparCacheModeloExterno;
 async function rtOrcCarregarModeloExterno(){
   const arquivo = rtOrcArquivoModeloAssociado();
   try {
-    if (location.protocol === 'file:') {
-      let local = null;
-      try {
-        if (typeof window.rtObterModeloDocumentoLocal === 'function') {
-          local = window.rtObterModeloDocumentoLocal('orcamento', arquivo);
-        } else {
-          const todos = JSON.parse(localStorage.getItem('rt_modelos_documentos_locais_v1') || '{}');
-          local = todos?.orcamento || null;
-        }
-      } catch (_) {}
-      if (!local?.html) throw new Error(`No modo local, selecione o arquivo ${arquivo} em Configurações > Modelos de Documentos.`);
-      if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(local.html)) throw new Error('arquivo local sem variáveis {{...}}');
+    if (typeof window.rtModeloDocumentoCloudBaixar === 'function') {
+      const cloud = await window.rtModeloDocumentoCloudBaixar('orcamento', arquivo, { permitirCache: true });
+      if (cloud?.html) {
+        rtOrcModeloExternoCache = cloud.html;
+        rtOrcModeloExternoArquivo = arquivo;
+        return;
+      }
+    }
+    let local = null;
+    try {
+      if (typeof window.rtObterModeloDocumentoLocal === 'function') local = window.rtObterModeloDocumentoLocal('orcamento', arquivo);
+      if (!local && typeof window.rtModeloDocumentoCloudObterCache === 'function') local = window.rtModeloDocumentoCloudObterCache('orcamento', arquivo);
+    } catch (_) {}
+    if (local?.html && /{{\s*[a-zA-Z0-9_]+\s*}}/.test(local.html)) {
       rtOrcModeloExternoCache = local.html;
       rtOrcModeloExternoArquivo = arquivo;
       return;
     }
-    const resp = await fetch(arquivo, { cache: 'no-store' });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const html = await resp.text();
-    if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(html)) throw new Error('arquivo sem variáveis {{...}}');
-    rtOrcModeloExternoCache = html;
-    rtOrcModeloExternoArquivo = arquivo;
+    if (location.protocol !== 'file:') {
+      const resp = await fetch(arquivo, { cache: 'no-store' });
+      if (resp.ok) {
+        const html = await resp.text();
+        if (/{{\s*[a-zA-Z0-9_]+\s*}}/.test(html)) {
+          rtOrcModeloExternoCache = html;
+          rtOrcModeloExternoArquivo = arquivo;
+          return;
+        }
+      }
+    }
+    throw new Error(`Modelo ${arquivo} não encontrado na nuvem.`);
   } catch(e) {
     rtOrcModeloExternoCache = '';
     rtOrcModeloExternoArquivo = arquivo;
@@ -1136,7 +1144,7 @@ async function gerarPdfOrcamento(o){
   if (!rtOrcModeloExternoCache || rtOrcModeloExternoArquivo !== rtOrcArquivoModeloAssociado()) await rtOrcCarregarModeloExterno();
   const modelo = rtOrcSanitizarModeloOrcamento(rtOrcPrepararModeloObservacoes(rtOrcObterModeloDocumento()));
   if (!modelo) {
-    alert(`Não foi possível carregar o arquivo ${rtOrcArquivoModeloAssociado()}. Confira Configurações > Modelos de Documentos e a pasta raiz.`);
+    alert(`Não foi possível carregar o arquivo ${rtOrcArquivoModeloAssociado()}. Envie o modelo em Configurações > Modelos de Documentos.`);
     return '';
   }
   const corpo = rtOrcSanitizarModeloOrcamento(rtOrcAplicarModelo(modelo, dados));
@@ -1159,6 +1167,14 @@ async function rtSalvarModeloOrcamentoNuvem(){
 }
 </script></body></html>`;
   try { rtOrcDocumentoRegistrar(o, html); } catch(e) { console.warn('Não foi possível registrar o arquivo do orçamento.', e); }
+  try {
+    if (o.evento_id && typeof window.rtEventoDocumentosRestaurarTipo === 'function') {
+      window.rtEventoDocumentosRestaurarTipo('orcamento', {
+        evento_id: o.evento_id, id: o.evento_id, nome: o.nome || '', dataEvento: o.data_evento,
+        numero: o.numero, status: o.status || 'em_aberto', html
+      });
+    }
+  } catch(e) { console.warn('Não foi possível centralizar o documento do orçamento.', e); }
   const w = window.open('', '_blank');
   w.document.write(html); w.document.close();
   return html;

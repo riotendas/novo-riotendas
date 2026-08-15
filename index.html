@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png" />
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#f5d21e" />
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=20260811-nav-instant-v2" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
 <style id="force-recurring-actions">
@@ -1377,7 +1377,7 @@
 
 
       <dialog id="configModalDocumentos" class="modal large-modal config-popup config-popup-documentos">
-        <div class="modal-header"><div><h2>Modelos de Documentos</h2><p>Associe cada documento ao respectivo arquivo HTML localizado na pasta raiz do sistema.</p></div><button type="button" class="modal-close" data-close-config="configModalDocumentos">×</button></div>
+        <div class="modal-header"><div><h2>Modelos de Documentos</h2><p>Envie os modelos HTML para a nuvem. Depois disso, qualquer computador ou usuário autorizado usará automaticamente os mesmos arquivos.</p></div><button type="button" class="modal-close" data-close-config="configModalDocumentos">×</button></div>
         <div class="config-popup-body">
           <div class="doc-model-layout">
             <aside class="doc-model-side">
@@ -1419,23 +1419,23 @@
             <section class="doc-model-editor-wrap">
               <div class="doc-model-toolbar">
                 <strong id="docModeloTituloAtual">Guia de Serviço</strong>
-                <span>Use HTML simples e as variáveis ao lado.</span>
+                <span>Os modelos ficam centralizados no Supabase e não são afetados pelas atualizações do sistema.</span>
               </div>
               <div id="docModeloArquivoPainel" class="doc-model-file-panel">
-                <label>Arquivo HTML associado
-                  <input id="docModeloArquivo" type="text" placeholder="Ex.: modelo-guia.html" autocomplete="off">
+                <label>Nome do modelo na nuvem
+                  <input id="docModeloArquivo" type="text" placeholder="Ex.: modelo-guia.html" autocomplete="off" readonly>
                 </label>
                 <div id="docModeloArquivoStatus" class="doc-model-file-status neutral">Aguardando verificação.</div>
-                <div id="docModeloArquivoLocalPainel" class="doc-model-local-panel" style="display:none">
-                  <strong>Teste local (arquivo aberto pelo computador)</strong>
-                  <p class="small">Selecione o mesmo arquivo HTML da pasta raiz. O conteúdo ficará salvo somente neste navegador para permitir os testes sem servidor local.</p>
-                  <label class="btn-outline doc-model-local-picker">Selecionar arquivo HTML local
+                <div id="docModeloArquivoLocalPainel" class="doc-model-local-panel">
+                  <strong>Modelo centralizado</strong>
+                  <p class="small">Selecione o HTML atualizado. Ele será salvo no Supabase Storage e passará a ser reconhecido automaticamente em todos os computadores, sem precisar entrar nos ZIPs das próximas versões.</p>
+                  <label class="btn-outline doc-model-local-picker">☁ Enviar / Substituir modelo
                     <input id="docModeloArquivoLocal" type="file" accept=".html,text/html" hidden>
                   </label>
-                  <button id="removerModeloDocumentoLocal" class="btn-outline danger" type="button">Remover arquivo local carregado</button>
-                  <div id="docModeloArquivoLocalStatus" class="doc-model-file-status neutral">Nenhum arquivo local carregado.</div>
+                  <button id="removerModeloDocumentoLocal" class="btn-outline danger" type="button">Remover modelo da nuvem</button>
+                  <div id="docModeloArquivoLocalStatus" class="doc-model-file-status neutral">Verificando modelo central...</div>
                 </div>
-                <p class="small">No servidor, o arquivo deve estar na mesma pasta do <strong>index.html</strong>. O sistema usará exatamente o HTML, o CSS e os textos desse arquivo, substituindo somente as variáveis <code>{{...}}</code>.</p>
+                <p class="small">O sistema baixa o modelo da nuvem ao gerar o documento e mantém uma cópia em cache para contingência. A fonte oficial é o Supabase Storage.</p>
               </div>
               <div id="docAssinaturaDigitalPainel" class="assinatura-config-box" style="display:none">
                 <strong>Assinatura Digital</strong>
@@ -1453,10 +1453,10 @@
               </div>
               <div class="config-actions doc-model-actions">
                 <button id="salvarModeloDocumento" type="button">Salvar associação</button>
-                <button id="testarModeloDocumento" class="btn-outline" type="button">Testar / Recarregar</button>
+                <button id="testarModeloDocumento" class="btn-outline" type="button">Testar nuvem</button>
                 <button id="restaurarModeloDocumento" class="btn-outline" type="button">Usar nome padrão</button>
               </div>
-              <small>A associação fica salva nas configurações. Para alterar layout ou texto, edite diretamente o arquivo HTML correspondente na pasta raiz.</small>
+              <small>Para alterar layout ou texto no futuro, edite seu HTML e use “Enviar / Substituir modelo”. A atualização fica disponível para todos sem modificar os arquivos do sistema.</small>
             </section>
           </div>
         </div>
@@ -2361,15 +2361,16 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/diagnostico-trafego.js?v=20260807-egress-real-v1"></script>
   <script src="js/supabase.js"></script>
+  <script src="js/modelos-documentos-cloud.js?v=20260811-cloud-v1"></script>
   <script src="js/utils.js"></script>
-  <script src="js/auth.js"></script>
-  <script src="js/dashboard.js"></script>
-  <script src="js/produtos.js"></script>
-  <script src="js/clientes.js"></script>
-  <script src="js/eventos.js"></script>
+  <script src="js/auth.js?v=20260811-perf-lazy-v1"></script>
+  <script src="js/dashboard.js?v=20260811-perf-lazy-v1"></script>
+  <script src="js/produtos.js?v=20260811-perf-lazy-v1"></script>
+  <script src="js/clientes.js?v=20260811-perf-lazy-v1"></script>
+  <script src="js/eventos.js?v=20260811-perf-lazy-v1"></script>
   <script src="js/orcamentos.js"></script>
   <script src="js/financeiro.js"></script>
-  <script src="js/rotas.js"></script>
+  <script src="js/rotas.js?v=20260811-perf-lazy-v1"></script>
   <script src="js/mapa.js"></script>
   <script src="js/rua-mobile.js"></script>
   <script src="js/mobile-manutencao.js"></script>
@@ -2380,12 +2381,12 @@
   <script src="js/whatsapp-api.js?v=20260713-preview-compacta"></script>
   <script src="js/whatsapp-lote.js?v=20260714-material-realtime-v2"></script>
   <script src="js/relatorios.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=20260811-nav-instant-v2"></script>
   <script src="js/calendario-nav-fix.js"></script>
-  <script src="js/logs.js"></script>
+  <script src="js/logs.js?v=20260811-perf-lazy-v1"></script>
   <script src="js/sync-produtos-disponibilidade.js"></script>
-  <script src="js/rt-realtime-sync.js?v=20260727-fase1-sync-unica"></script>
-  <script src="js/performance-safe.js"></script>
+  <script src="js/rt-realtime-sync.js?v=20260811-perf-lazy-v1"></script>
+  <script src="js/performance-safe.js?v=20260811-nav-instant-v2"></script>
 
   <dialog id="previewImportarEventosDialog" class="modal large-modal import-preview-dialog">
     <div class="modal-header">
