@@ -987,11 +987,16 @@ function iniciarRotas() {
   document.getElementById("rotaMes").value = mesAtual;
   aplicarParametrosRotaLinkSeExistirem();
 
+  let rtRenderRotasTimer = null;
+  const rtAgendarRenderRotas = () => {
+    clearTimeout(rtRenderRotasTimer);
+    rtRenderRotasTimer = setTimeout(() => requestAnimationFrame(renderizarRotas), 80);
+  };
   ["rotaPeriodo", "rotaMes", "rotaData", "rotaTipoFiltro", "rotaCarroFiltro", "rotaStatusFiltro", "rotaBuscaFiltro"].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
-      el.addEventListener("input", renderizarRotas);
-      el.addEventListener("change", renderizarRotas);
+      el.addEventListener("input", rtAgendarRenderRotas);
+      el.addEventListener("change", rtAgendarRenderRotas);
     }
   });
 
@@ -1008,7 +1013,10 @@ function iniciarRotas() {
     layout.classList.toggle("organizador-ativo", ativo);
     btn?.classList.toggle("ativo", ativo);
     if (btn) btn.textContent = ativo ? "Fechar organizador" : "Organizar rotas";
-    renderizarRotas();
+    // Deixa o botão/layou​t pintar antes de montar o painel pesado.
+    if (ativo) requestAnimationFrame(() => setTimeout(() => {
+      try { rtRenderizarPainelOrganizarRotas(filtrarRotas(rtRotasBaseRapida())); } catch(e) { console.warn(e); }
+    }, 0));
   });
 
   document.getElementById("rotasOrganizadorFechar")?.addEventListener("click", () => {
@@ -1019,7 +1027,8 @@ function iniciarRotas() {
     if (btn) btn.textContent = "Organizar rotas";
   });
 
-  setTimeout(renderizarRotas, 400);
+  // Performance V3: não renderizar Rotas escondida na inicialização.
+  // A primeira renderização ocorre ao abrir a seção.
 
   // Fase 1 de Egress: não criar polling próprio em Rotas.
   // app_config (operação, carros e ordem) passa a ser sincronizado somente pelo rt-realtime-sync.js.
@@ -3499,12 +3508,28 @@ function rtSeletorTrocaCarroGrupoHtml(data, carro, classe = "rota-carro-titulo-s
   return `<select class="${classe}" data-rota-trocar-data="${rtHtml(data)}" data-rota-trocar-carro="${rtHtml(carro)}" title="Trocar todos os eventos deste carro mantendo a ordem">${rtOpcoesTrocaCarroGrupoHtml(carro)}</select>`;
 }
 
+
+// Performance V3: cache da transformação eventos -> rotas.
+// Não faz rede; é invalidado quando os eventos locais mudam.
+let rtRotasBasePerfV3 = null;
+let rtRotasBasePerfV3EventosRef = null;
+function rtRotasBaseRapida(){
+  const ref = Array.isArray(eventos) ? eventos : [];
+  if (rtRotasBasePerfV3 && rtRotasBasePerfV3EventosRef === ref) return rtRotasBasePerfV3;
+  rtRotasBasePerfV3 = criarRotasDosEventos();
+  rtRotasBasePerfV3EventosRef = ref;
+  return rtRotasBasePerfV3;
+}
+function rtInvalidarRotasBasePerfV3(){ rtRotasBasePerfV3 = null; rtRotasBasePerfV3EventosRef = null; }
+window.addEventListener("riotendas:eventos-atualizados", rtInvalidarRotasBasePerfV3);
+window.rtInvalidarRotasBasePerfV3 = rtInvalidarRotasBasePerfV3;
+
 function renderizarRotas() {
   aplicarParametrosRotaLinkSeExistirem();
   const container = document.getElementById("rotasConteudo");
   if (!container) return;
 
-  const todas = criarRotasDosEventos();
+  const todas = rtRotasBaseRapida();
   const filtradas = filtrarRotas(todas);
 
   document.getElementById("rotasTotal").textContent = filtradas.length;
@@ -3566,7 +3591,7 @@ function renderizarRotas() {
       const data = btn.dataset.rotaContadorData;
       const carro = btn.dataset.rotaContadorCarro;
 
-      const todas = criarRotasDosEventos();
+      const todas = rtRotasBaseRapida();
       const grupos = agruparPorDataECarro(todas);
       const lista = (grupos[data] && grupos[data][carro])
         ? ordenarRotasPorOrdemManual(grupos[data][carro])
@@ -3581,7 +3606,7 @@ function renderizarRotas() {
       const data = btn.dataset.rotaMapsData;
       const carro = btn.dataset.rotaMapsCarro;
 
-      const todas = criarRotasDosEventos();
+      const todas = rtRotasBaseRapida();
       const grupos = agruparPorDataECarro(todas);
       const lista = (grupos[data] && grupos[data][carro])
         ? ordenarRotasPorOrdemManual(grupos[data][carro])
@@ -3596,7 +3621,7 @@ function renderizarRotas() {
       const data = btn.dataset.rotaNotaData;
       const carro = btn.dataset.rotaNotaCarro;
 
-      const todas = criarRotasDosEventos();
+      const todas = rtRotasBaseRapida();
       const grupos = agruparPorDataECarro(todas);
       const lista = (grupos[data] && grupos[data][carro])
         ? ordenarRotasPorOrdemManual(grupos[data][carro])
@@ -3612,7 +3637,7 @@ function renderizarRotas() {
       const nota = rtNotasCarregar().find(n => n.id === notaId);
       if (!nota) return;
 
-      const todas = criarRotasDosEventos();
+      const todas = rtRotasBaseRapida();
       const grupos = agruparPorDataECarro(todas);
       const lista = (grupos[nota.data] && grupos[nota.data][nota.carro])
         ? ordenarRotasPorOrdemManual(grupos[nota.data][nota.carro])
@@ -3635,7 +3660,7 @@ function renderizarRotas() {
       const data = btn.dataset.rotaData;
       const carro = btn.dataset.rotaCarroGrupo;
 
-      const todas = criarRotasDosEventos();
+      const todas = rtRotasBaseRapida();
       const grupos = agruparPorDataECarro(todas);
 
       const lista = (grupos[data] && grupos[data][carro])
@@ -3857,7 +3882,7 @@ function rtRenderizarPainelOrganizarRotas(rotasFiltradas = []) {
 }
 
 function rtTrocarCarroGrupo(data, carroOrigem, destino) {
-  const todas = criarRotasDosEventos();
+  const todas = rtRotasBaseRapida();
   const grupo = ordenarRotasPorOrdemManual(
     todas.filter(r => r.data === data && ((rotasCarros[String(r.id)] || "Sem carro") === carroOrigem))
   );
@@ -3914,7 +3939,7 @@ function rtSalvarMovimentoOrganizador({ rotaId, data, carroOrigem, carroDestino,
     }
   }
 
-  const todas = criarRotasDosEventos();
+  const todas = rtRotasBaseRapida();
   const normalizarGrupo = (carro) => {
     const grupo = todas.filter(r => r.data === data && ((rotasCarros[String(r.id)] || "Sem carro") === carro));
     const ordenada = ordenarRotasPorOrdemManual(grupo).filter(r => String(r.id) !== id);
@@ -4554,7 +4579,7 @@ function rtColaboradorRotaTextoPdf(rota = {}) {
 }
 
 function imprimirRotaData(data) {
-  const todas = criarRotasDosEventos();
+  const todas = rtRotasBaseRapida();
   const rotasData = todas.filter(r => r.data === data);
 
   if (!rotasData.length) {
@@ -5326,7 +5351,7 @@ function rtMoverNotaRotaParaPosicao(notaId, data, carro, posicao) {
 
 function rtFinalizarMovimentoNotaRota(dragInfo, alvoEl, inserirDepois = false) {
   if (!dragInfo || dragInfo.tipo !== "nota" || !alvoEl) return false;
-  const todas = criarRotasDosEventos();
+  const todas = rtRotasBaseRapida();
   const grupos = agruparPorDataECarro(todas);
   const data = dragInfo.data;
   const carro = dragInfo.carro;
@@ -5410,7 +5435,7 @@ function configurarArrastarOrdemRotas(container) {
         rtFinalizarMovimentoNotaRota(dragInfo, card, inserirDepois);
         return;
       }
-      const todas = criarRotasDosEventos();
+      const todas = rtRotasBaseRapida();
       const grupos = agruparPorDataECarro(todas);
       const lista = (grupos[dragInfo.data] && grupos[dragInfo.data][dragInfo.carro])
         ? ordenarRotasPorOrdemManual(grupos[dragInfo.data][dragInfo.carro])
@@ -5509,7 +5534,7 @@ function configurarArrastarOrdemRotas(container) {
     }
     const rect = alvo.getBoundingClientRect();
     const inserirDepois = touch.clientY > rect.top + rect.height / 2;
-    const todas = criarRotasDosEventos();
+    const todas = rtRotasBaseRapida();
     const grupos = agruparPorDataECarro(todas);
     const lista = (grupos[dragInfo.data] && grupos[dragInfo.data][dragInfo.carro])
       ? ordenarRotasPorOrdemManual(grupos[dragInfo.data][dragInfo.carro])

@@ -9,6 +9,10 @@ let rtFinanceiroResumoMes = String(new Date().getMonth() + 1).padStart(2, "0");
 let rtFinanceiroResumoAno = String(new Date().getFullYear());
 let rtFinanceiroEventosCache = [];
 let rtFinanceiroCarregandoEventos = null;
+let rtFinanceiroStatusCarregando = null;
+let rtFinanceiroStatusUltimaCarga = 0;
+let rtFinanceiroStatusNuvem = [];
+const RT_FIN_STATUS_TTL_MS = 30000;
 let rtFinanceiroExtratoFiltro = localStorage.getItem("rtFinanceiroExtratoFiltro") || "pendentes";
 let rtFinanceiroExtratoBusca = localStorage.getItem("rtFinanceiroExtratoBusca") || "";
 
@@ -22,6 +26,106 @@ function rtFinEventoTemFinanceiroConciliavel(evento) {
     return !!(m && rtFinMetodoPagamentoAuditavel(String(m[2] || "")));
   });
   return temLinhaBanco || Number(evento.sinal || 0) > 0 || Number(evento.valor_pago || 0) > 0 || Number(evento.total_pago || 0) > 0;
+}
+
+function rtFinBooleanoQuitado(valor) {
+  if (valor === true || valor === 1) return true;
+  const t = String(valor ?? "").trim().toLowerCase();
+  return ["true", "1", "sim", "s", "quitado", "pago", "paga"].includes(t);
+}
+
+function rtFinEventoCanceladoSeguro(evento) {
+  if (!evento) return false;
+  try { if (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)) return true; } catch (_) {}
+  const status = String(evento.status_evento || evento.status || evento.situacao_evento || "").trim().toLowerCase();
+  if (["cancelado", "cancelada", "cancelled", "cancel"].includes(status)) return true;
+  const flag = evento.cancelado ?? evento.cancelada ?? evento.excluido;
+  return flag === true || flag === 1 || ["true", "1", "sim", "s"].includes(String(flag ?? "").trim().toLowerCase());
+}
+
+function rtFinEventoQuitado(evento) {
+  if (!evento) return false;
+  if (rtFinBooleanoQuitado(evento.pagamento_quitado)) return true;
+  const status = String(evento.status_pagamento || evento.financeiro_status || evento.status_financeiro || "").trim().toLowerCase();
+  if (["quitado", "pago", "paga"].includes(status)) return true;
+  const total = rtFinValorNumero(evento.valor_total || 0);
+  const restante = rtFinValorNumero(evento.valor_restante || 0);
+  return total > 0.009 && restante <= 0.009;
+}
+
+function rtFinTimestampEvento(valor) {
+  const t = Date.parse(String(valor || ""));
+  return Number.isFinite(t) ? t : 0;
+}
+
+function rtFinEscolherFinanceiroMaisRecente(local, nuvem) {
+  if (!local) return nuvem || null;
+  if (!nuvem) return local;
+  const tl = rtFinTimestampEvento(local.atualizado_em || local.updated_at);
+  const tn = rtFinTimestampEvento(nuvem.atualizado_em || nuvem.updated_at);
+  // Sem timestamp confiável, a nuvem continua sendo a referência.
+  if (!tl || !tn) return tn >= tl ? nuvem : local;
+  return tn >= tl ? nuvem : local;
+}
+
+function rtFinMesclarStatusFinanceiro(listaStatus) {
+  if (!Array.isArray(listaStatus) || !listaStatus.length) return;
+  const porId = new Map(listaStatus.map(e => [String(e.id), e]));
+  const aplicar = (lista) => {
+    if (!Array.isArray(lista)) return;
+    lista.forEach(e => {
+      const nuvem = porId.get(String(e?.id));
+      if (!nuvem) return;
+      const fonte = rtFinEscolherFinanceiroMaisRecente(e, nuvem);
+      if (fonte === e) return; // o evento já carregado é mais novo; não regredir estado financeiro.
+      ["valor_total", "valor_sinal", "valor_restante", "forma_pagamento", "pagamento_quitado", "status_evento", "atualizado_em"].forEach(k => {
+        if (Object.prototype.hasOwnProperty.call(fonte, k)) e[k] = fonte[k];
+      });
+    });
+  };
+  try { aplicar(eventos); } catch(e) {}
+  try { aplicar(window.eventos); } catch(e) {}
+  aplicar(rtFinanceiroEventosCache);
+}
+
+function rtFinEventoMaisRecentePorId(evento) {
+  if (!evento) return evento;
+  const id = String(evento.id ?? "");
+  if (!id) return evento;
+  const candidatos = [evento];
+  try { if (Array.isArray(eventos)) candidatos.push(...eventos.filter(e => String(e?.id) === id)); } catch(e) {}
+  try { if (Array.isArray(window.eventos)) candidatos.push(...window.eventos.filter(e => String(e?.id) === id)); } catch(e) {}
+  try { if (Array.isArray(rtFinanceiroEventosCache)) candidatos.push(...rtFinanceiroEventosCache.filter(e => String(e?.id) === id)); } catch(e) {}
+  return candidatos.reduce((melhor, atual) => {
+    if (!melhor) return atual;
+    return rtFinTimestampEvento(atual?.atualizado_em || atual?.updated_at) >= rtFinTimestampEvento(melhor?.atualizado_em || melhor?.updated_at) ? atual : melhor;
+  }, null) || evento;
+}
+
+async function rtFinAtualizarStatusFinanceiroNuvem(forcar = false) {
+  const agora = Date.now();
+  if (!forcar && (agora - rtFinanceiroStatusUltimaCarga) < RT_FIN_STATUS_TTL_MS) return false;
+  if (rtFinanceiroStatusCarregando) return rtFinanceiroStatusCarregando;
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return false;
+
+  rtFinanceiroStatusCarregando = (async () => {
+    try {
+      const { data, error } = await supabaseClient
+        .from("eventos")
+        .select("id,nome,data_evento,endereco,tipo_evento,recorrencia_grupo_id,valor_total,valor_sinal,valor_restante,forma_pagamento,pagamento_quitado,status_evento,atualizado_em");
+      if (error) throw error;
+      rtFinanceiroStatusNuvem = Array.isArray(data) ? data : [];
+      rtFinMesclarStatusFinanceiro(rtFinanceiroStatusNuvem);
+      rtFinanceiroStatusUltimaCarga = Date.now();
+      return true;
+    } catch (erro) {
+      console.warn("Não foi possível atualizar o status financeiro dos eventos:", erro);
+      return false;
+    } finally {
+      rtFinanceiroStatusCarregando = null;
+    }
+  })();
+  return rtFinanceiroStatusCarregando;
 }
 
 function rtFinEventosLista() {
@@ -2272,6 +2376,24 @@ function rtFinAtualizarResumo() {
     if (!el) return;
     el.textContent = moeda ? rtFinMoeda(val) : String(val);
   };
+  // O card de pendências usa a MESMA fonte/regra de Contas a Receber.
+  // Assim quitados, cancelados e duplicatas não voltam a ser contados no resumo.
+  try {
+    const contasResumo = rtFinContasAReceber();
+    // Contar exatamente as ocorrências financeiras exibidas em Contas a Receber.
+    // Não consolidar por cliente/data: um cliente pode ter dois eventos/contratos
+    // recorrentes distintos no mesmo dia (ex.: Gustavo 01/08). rtFinContasAReceber()
+    // já remove duplicatas históricas inválidas, quitados e cancelados.
+    eventosPendentes = contasResumo.filter(c =>
+      rtFinMesmoMes(c.data, comp.ano, comp.mes) && c.data && c.data < hoje
+    ).length;
+    eventosFuturos = contasResumo.filter(c =>
+      rtFinMesmoMes(c.data, comp.ano, comp.mes) && c.data && c.data >= hoje
+    ).length;
+  } catch (e) {
+    console.warn("[Financeiro] Não foi possível alinhar resumo com Contas a Receber:", e);
+  }
+
   setTxt("finReceitaPrevista", receitaPrevista);
   setTxt("finRecebidoMes", recebido);
   setTxt("finAReceberMes", aReceber);
@@ -2291,9 +2413,85 @@ function rtFinAdicionarDiasISO(dataISO, dias) {
   return `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,"0")}-${String(base.getDate()).padStart(2,"0")}`;
 }
 
+function rtFinNormalizarChaveTexto(valor) {
+  return String(valor || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function rtFinChaveLogicaEvento(evento) {
+  if (!evento) return "";
+  const data = rtFinDataISOEvento(evento);
+  const cliente = rtFinNormalizarChaveTexto(evento.nome || evento.cliente || "");
+  const endereco = rtFinNormalizarChaveTexto(evento.endereco || "");
+  const tipo = rtFinNormalizarChaveTexto(evento.tipo_evento || (evento.recorrente ? "recorrente" : "pontual"));
+  const grupo = String(evento.recorrencia_grupo_id || "").trim();
+  const total = rtFinValorNumero(evento.valor_total || 0).toFixed(2);
+  // A chave identifica o mesmo compromisso mesmo quando existe um registro antigo duplicado.
+  // O grupo de recorrência, quando existe, ajuda a não misturar contratos diferentes.
+  return [data, cliente, endereco, tipo, grupo, total].join("|");
+}
+
+function rtFinChaveQuitacaoEvento(evento) {
+  if (!evento) return "";
+  const data = rtFinDataISOEvento(evento);
+  const cliente = rtFinNormalizarChaveTexto(evento.nome || evento.cliente || "");
+  const tipo = rtFinNormalizarChaveTexto(evento.tipo_evento || (evento.recorrente ? "recorrente" : "pontual"));
+  const grupo = String(evento.recorrencia_grupo_id || "").trim();
+  // Para pontuais, nome + data representam o mesmo compromisso mesmo que um registro
+  // antigo tenha endereço/valor diferente. Isso elimina duplicatas históricas pendentes.
+  if (tipo !== "recorrente") return ["pontual", data, cliente].join("|");
+  // Recorrentes podem ter mais de um contrato do mesmo cliente no mesmo dia.
+  // Quando existe grupo, ele é a identidade mais segura do compromisso.
+  if (grupo) return ["recorrente", grupo, data].join("|");
+  return ["recorrente", data, cliente, String(evento.id || "")].join("|");
+}
+
+function rtFinChavesLogicasQuitadas() {
+  const quitadas = new Set();
+  const fontes = [];
+  try { if (Array.isArray(eventos)) fontes.push(...eventos); } catch (e) {}
+  try { if (Array.isArray(window.eventos)) fontes.push(...window.eventos); } catch (e) {}
+  if (Array.isArray(rtFinanceiroEventosCache)) fontes.push(...rtFinanceiroEventosCache);
+  if (Array.isArray(rtFinanceiroStatusNuvem)) fontes.push(...rtFinanceiroStatusNuvem);
+  fontes.forEach(e => {
+    if (!rtFinEventoQuitado(e)) return;
+    const chave = rtFinChaveQuitacaoEvento(e);
+    if (chave) quitadas.add(chave);
+  });
+  return quitadas;
+}
+
+function rtFinFonteOficialContasAReceber() {
+  // Contas a Receber não pode depender de cache local antigo. Depois da primeira
+  // conferência financeira, a lista enxuta vinda diretamente de public.eventos
+  // passa a ser a fonte oficial desta tela.
+  if (Array.isArray(rtFinanceiroStatusNuvem) && rtFinanceiroStatusNuvem.length) {
+    return rtFinanceiroStatusNuvem;
+  }
+  return rtFinEventosLista();
+}
+
 function rtFinContasAReceber() {
   const contas = [];
-  rtFinEventosLista().forEach(evento => {
+  const chavesQuitadas = rtFinChavesLogicasQuitadas();
+  const pendenciasVistas = new Set();
+  rtFinFonteOficialContasAReceber().forEach(eventoOriginal => {
+    // Usa sempre a versão mais recente conhecida do mesmo evento (realtime/cache/nuvem).
+    const evento = rtFinEventoMaisRecentePorId(eventoOriginal);
+    // Regra financeira central: Quitado tem prioridade absoluta.
+    // Um evento quitado nunca volta para Contas a Receber por causa de campos
+    // históricos de sinal/restante ou forma de pagamento incompleta.
+    // Regras absolutas desta tela: cancelado e quitado nunca são contas a receber.
+    if (rtFinEventoCanceladoSeguro(evento)) return;
+    const quitado = rtFinEventoQuitado(evento);
+    if (quitado) return;
+    // Consolida duplicatas históricas. Para pontuais, se o mesmo cliente/data tiver
+    // uma versão quitada, nenhuma versão antiga pendente volta para a lista.
+    const chaveQuitacao = rtFinChaveQuitacaoEvento(evento);
+    if (chaveQuitacao && chavesQuitadas.has(chaveQuitacao)) return;
+    const chaveLogica = rtFinChaveLogicaEvento(evento);
+
     const data = rtFinDataISOEvento(evento);
     const cliente = evento.nome || evento.cliente || "-";
     const eventoDescricao = evento.tipo_evento || evento.observacao || evento.endereco || "-";
@@ -2302,8 +2500,21 @@ function rtFinContasAReceber() {
     const temRestante = temPgTotal || rtFinEventoTemPagamento(evento, "Restante");
     const sinal = rtFinTipoValor(evento, "Sinal");
     const restante = rtFinTipoValor(evento, "Restante");
-    if (sinal > 0 && !temSinal) contas.push({ data, cliente, tipo: "Sinal", valor: sinal, evento: eventoDescricao, status: "Pendente" });
-    if (restante > 0 && !temRestante) contas.push({ data, cliente, tipo: "Restante", valor: restante, evento: eventoDescricao, status: "Pendente" });
+
+    if (sinal > 0.009 && !temSinal) {
+      const chavePendencia = `${chaveLogica}|sinal|${Number(sinal).toFixed(2)}`;
+      if (!pendenciasVistas.has(chavePendencia)) {
+        pendenciasVistas.add(chavePendencia);
+        contas.push({ data, cliente, tipo: "Sinal", valor: sinal, evento: eventoDescricao, status: "Pendente" });
+      }
+    }
+    if (restante > 0.009 && !temRestante) {
+      const chavePendencia = `${chaveLogica}|restante|${Number(restante).toFixed(2)}`;
+      if (!pendenciasVistas.has(chavePendencia)) {
+        pendenciasVistas.add(chavePendencia);
+        contas.push({ data, cliente, tipo: "Restante", valor: restante, evento: eventoDescricao, status: "Pendente" });
+      }
+    }
   });
   return contas.sort((a,b) => String(a.data || "9999").localeCompare(String(b.data || "9999")) || String(a.cliente).localeCompare(String(b.cliente)));
 }
@@ -2311,6 +2522,7 @@ function rtFinContasAReceber() {
 function rtFinRenderContasAReceber() {
   const tbody = document.getElementById("financeiroReceberTbody");
   if (!tbody) return;
+
   const filtro = document.getElementById("financeiroReceberFiltro")?.value || "todos";
   const hoje = rtFinDataHojeISO();
   const limite7 = rtFinAdicionarDiasISO(hoje, 7);
@@ -2341,6 +2553,14 @@ function rtFinRenderContasAReceber() {
 function rtFinTrocarAba(aba) {
   document.querySelectorAll(".financeiro-tab").forEach(btn => btn.classList.toggle("active", btn.dataset.finTab === aba));
   document.querySelectorAll(".financeiro-tab-panel").forEach(panel => panel.classList.toggle("active", panel.dataset.finPanel === aba));
+  if (aba === "receber") {
+    // Responde imediatamente com a melhor informação disponível e confirma a nuvem
+    // em segundo plano. Não bloqueia a tela com mensagem de carregamento.
+    rtFinRenderContasAReceber();
+    Promise.resolve(rtFinAtualizarStatusFinanceiroNuvem(true))
+      .then(() => rtFinRenderContasAReceber())
+      .catch(() => {});
+  }
 }
 
 window.rtFinRestaurarRetornoEvento = function() {
@@ -2384,11 +2604,21 @@ window.rtFinRestaurarRetornoEvento = function() {
 };
 
 async function rtFinRenderTudoFase1() {
+  // Resumo e auditoria podem aproveitar cache para abrir rápido. Contas a Receber,
+  // porém, só é preenchida após confirmar a situação financeira diretamente na nuvem.
   await rtFinGarantirEventosAtualizados();
   rtFinAtualizarResumo();
-  rtFinRenderContasAReceber();
   rtFinRender();
   rtFinRenderPagamentosNaoLocalizados();
+
+  rtFinRenderContasAReceber();
+  // Confirmação financeira em segundo plano para não atrasar a abertura do Financeiro.
+  Promise.resolve(rtFinAtualizarStatusFinanceiroNuvem(true)).then(() => {
+    rtFinAtualizarResumo();
+    rtFinRenderContasAReceber();
+    rtFinRender();
+    rtFinRenderPagamentosNaoLocalizados();
+  }).catch(() => {});
 }
 
 function rtFinAplicarCompetenciaNosCampos() {
@@ -2429,7 +2659,10 @@ function rtFinConfigurarResumoCompetencia() {
 
 function iniciarFinanceiro() {
   if (!document.getElementById("financeiroSection")) return;
-  document.getElementById("financeiroAtualizarBtn")?.addEventListener("click", rtFinRenderTudoFase1);
+  document.getElementById("financeiroAtualizarBtn")?.addEventListener("click", async () => {
+    rtFinanceiroStatusUltimaCarga = 0;
+    await rtFinRenderTudoFase1();
+  });
   document.getElementById("financeiroLerExtratoBtn")?.addEventListener("click", rtFinLerExtrato);
   document.getElementById("financeiroMostrarCapturaBtn")?.addEventListener("click", rtFinMostrarDiagnosticoExtrato);
   document.getElementById("financeiroSalvarExtratoBtn")?.addEventListener("click", rtFinSalvarExtratoProcessado);
@@ -2462,22 +2695,15 @@ function iniciarFinanceiro() {
   rtFinConfigurarResumoCompetencia();
   document.getElementById("financeiroReceberFiltro")?.addEventListener("change", rtFinRenderContasAReceber);
   const abrirListaResumo = (filtro) => {
-    rtFinTrocarAba("receber");
     const campo = document.getElementById("financeiroReceberFiltro");
     if (campo) campo.value = filtro;
-    rtFinRenderContasAReceber();
+    rtFinTrocarAba("receber");
     document.getElementById("financeiroTabReceber")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   document.getElementById("finEventosPendentesCard")?.addEventListener("click", () => abrirListaResumo("atrasados_mes"));
   document.getElementById("finEventosFuturosCard")?.addEventListener("click", () => abrirListaResumo("futuros_mes"));
-  setTimeout(rtFinRenderTudoFase1, 300);
-  setTimeout(async () => {
-    await rtFinAuditoriaCarregarNuvem();
-    await rtFinCarregarExtratoSalvo();
-    rtFinRenderPagamentosNaoLocalizados();
-  }, 500);
-  setTimeout(rtFinRenderTudoFase1, 1200);
-  setTimeout(rtFinRenderTudoFase1, 2500);
+  // Performance V3: Financeiro fechado não consulta extrato/auditoria nem faz renders repetidos.
+  // A carga é feita sob demanda por performance-safe.js quando a seção é aberta.
 }
 
 document.addEventListener("DOMContentLoaded", iniciarFinanceiro);
@@ -2486,7 +2712,8 @@ document.addEventListener("DOMContentLoaded", iniciarFinanceiro);
   const antigoHook = window.rtDepoisRenderizarEventosLista;
   window.rtDepoisRenderizarEventosLista = function(){
     if (typeof antigoHook === "function") antigoHook();
-    setTimeout(rtFinRenderTudoFase1, 0);
+    const ativo = document.getElementById("financeiroSection")?.classList.contains("active-section");
+    if (ativo) setTimeout(rtFinRenderTudoFase1, 0);
   };
 
   function tentarEnvolverRenderizarEventos(){
@@ -2494,7 +2721,8 @@ document.addEventListener("DOMContentLoaded", iniciarFinanceiro);
     const original = window.renderizarEventos;
     window.renderizarEventos = function(){
       const r = original.apply(this, arguments);
-      setTimeout(rtFinRenderTudoFase1, 0);
+      const ativo = document.getElementById("financeiroSection")?.classList.contains("active-section");
+      if (ativo) setTimeout(rtFinRenderTudoFase1, 0);
       return r;
     };
     window.renderizarEventos.__rtFinResumoHook = true;

@@ -1,4 +1,9 @@
-let produtos = [];
+let produtos = (() => {
+  try {
+    const cache = JSON.parse(localStorage.getItem("novoRioTendasProdutosV1") || "[]");
+    return Array.isArray(cache) ? cache : [];
+  } catch { return []; }
+})();
 let estoqueApoio = [];
 let fotoAtual = "";
 const produtoDetalheCache = new Map();
@@ -474,13 +479,8 @@ function iniciarProdutos() {
   if (filtroUsabilidade) filtroUsabilidade.addEventListener("change", renderizarProdutos);
   document.getElementById("buscaProduto").addEventListener("input", renderizarProdutos);
 
-  // Fase 1 de Egress: a sincronização de app_config é centralizada em rt-realtime-sync.js.
-  // Aqui fazemos apenas a carga inicial, sem criar outro polling concorrente.
-  if (typeof window.rtSincronizarOperacionalAgora === "function") {
-    window.rtSincronizarOperacionalAgora(true).then(() => renderizarProdutos()).catch(() => {});
-  } else if (typeof sincronizarRotasOperacaoNuvem === "function") {
-    sincronizarRotasOperacaoNuvem(false).then(() => renderizarProdutos()).catch(() => {});
-  }
+  // Performance V3: nenhuma sincronização operacional enquanto Produtos estiver fechado.
+  // performance-safe.js carrega/sincroniza quando a seção for realmente aberta.
 
   ["dispProdutoInicio", "dispProdutoFim", "mostrarSomenteDisponiveis"].forEach(id => {
     const campo = document.getElementById(id);

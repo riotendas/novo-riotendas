@@ -79,7 +79,6 @@
       <button class="tab-btn" data-section="orcamentosSection">Orçamentos</button>
       <button class="tab-btn" data-section="financeiroSection">Financeiro</button>
       <button class="tab-btn" data-section="relatoriosSection">Relatórios</button>
-      <button class="tab-btn admin-only" data-section="usuariosSection">Usuários</button>
       <button class="tab-btn admin-only" data-section="diagnosticoTrafegoSection">Diagnóstico</button>
       <button class="tab-btn" data-section="configSection">Configurações</button>
     </nav>
@@ -581,7 +580,7 @@
           <div class="section-header split compact">
             <div>
               <h3>Contas a Receber</h3>
-              <p class="hint">Lista automática de sinal/restante ainda sem pagamento registrado no campo Forma de Pagamento.</p>
+              <p class="hint">Lista somente valores efetivamente em aberto. Eventos marcados como quitados não aparecem aqui.</p>
             </div>
             <div class="filters-bar financeiro-filtros inline">
               <label>Filtro
@@ -1153,7 +1152,7 @@
       </div>
     </section>
 
-    <section id="usuariosSection" class="section">
+    <section id="usuariosSection" class="section" hidden aria-hidden="true" style="display:none!important">
         <div class="section-header">
           <div>
             <h2>Usuários</h2>
@@ -2363,30 +2362,30 @@
   <script src="js/supabase.js"></script>
   <script src="js/modelos-documentos-cloud.js?v=20260811-cloud-v1"></script>
   <script src="js/utils.js"></script>
-  <script src="js/auth.js?v=20260811-perf-lazy-v1"></script>
-  <script src="js/dashboard.js?v=20260811-perf-lazy-v1"></script>
-  <script src="js/produtos.js?v=20260811-perf-lazy-v1"></script>
+  <script src="js/auth.js?v=20260814-perf-v3"></script>
+  <script src="js/dashboard.js?v=20260814-perf-v3"></script>
+  <script src="js/produtos.js?v=20260814-perf-v3"></script>
   <script src="js/clientes.js?v=20260811-perf-lazy-v1"></script>
-  <script src="js/eventos.js?v=20260811-perf-lazy-v1"></script>
+  <script src="js/eventos.js?v=20260814-perf-v3"></script>
   <script src="js/orcamentos.js"></script>
-  <script src="js/financeiro.js"></script>
-  <script src="js/rotas.js?v=20260811-perf-lazy-v1"></script>
+  <script src="js/financeiro.js?v=20260814-perf-v3"></script>
+  <script src="js/rotas.js?v=20260814-perf-v3"></script>
   <script src="js/mapa.js"></script>
-  <script src="js/rua-mobile.js"></script>
+  <script src="js/rua-mobile.js?v=20260814-perf-v3"></script>
   <script src="js/mobile-manutencao.js"></script>
   <script src="js/mobile-eventos.js"></script>
   <script src="js/eventos-mobile-layout.js"></script>
-  <script src="js/calendario.js"></script>
+  <script src="js/calendario.js?v=20260814-perf-v3"></script>
   <script src="js/configuracoes.js"></script>
   <script src="js/whatsapp-api.js?v=20260713-preview-compacta"></script>
   <script src="js/whatsapp-lote.js?v=20260714-material-realtime-v2"></script>
-  <script src="js/relatorios.js"></script>
-  <script src="js/app.js?v=20260811-nav-instant-v2"></script>
-  <script src="js/calendario-nav-fix.js"></script>
+  <script src="js/relatorios.js?v=20260814-perf-v3"></script>
+  <script src="js/app.js?v=20260814-perf-v3"></script>
+  <script src="js/calendario-nav-fix.js?v=20260814-perf-v3"></script>
   <script src="js/logs.js?v=20260811-perf-lazy-v1"></script>
   <script src="js/sync-produtos-disponibilidade.js"></script>
   <script src="js/rt-realtime-sync.js?v=20260811-perf-lazy-v1"></script>
-  <script src="js/performance-safe.js?v=20260811-nav-instant-v2"></script>
+  <script src="js/performance-safe.js?v=20260814-perf-v3"></script>
 
   <dialog id="previewImportarEventosDialog" class="modal large-modal import-preview-dialog">
     <div class="modal-header">

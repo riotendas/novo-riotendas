@@ -23043,3 +23043,19 @@ body.perfil-administrador .section.admin-only:not(.active-section):not(.active) 
 body.modo-mobile-operacional .section:not(.active-section):not(.active) {
   display: none !important;
 }
+
+/* v19-dev-2026-08-14-financeiro-quitacao-nuvem
+   Usuários é administrado somente em Configurações > Usuários. */
+#usuariosSection { display: none !important; }
+
+
+/* v19-dev-2026-08-14-dashboard-financeiro-cards-5 */
+#dashboardSection .dash-manutencao-resumo{
+  grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+}
+@media(max-width:900px){
+  #dashboardSection .dash-manutencao-resumo{grid-template-columns:repeat(3,minmax(0,1fr)) !important;}
+}
+@media(max-width:620px){
+  #dashboardSection .dash-manutencao-resumo{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
+}

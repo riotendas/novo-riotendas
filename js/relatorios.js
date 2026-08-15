@@ -110,5 +110,5 @@ function iniciarRelatorios() {
   }
 
   rtInicioFimRelatorioChecagem();
-  renderizarRelatorioChecagem();
+  // Performance V3: relatório pesado só renderiza quando a aba for aberta.
 }

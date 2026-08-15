@@ -651,7 +651,7 @@ function iniciarUsuariosSistema() {
     });
   }
 
-  setTimeout(renderizarUsuariosSistema, 500);
+  // Performance V3: Usuários só é consultado/renderizado ao abrir a seção.
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -689,92 +689,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 function garantirEstruturaUsuariosAdmin() {
-  const usuario = getUsuarioLogado ? getUsuarioLogado() : null;
-  if (!usuario || usuario.perfil !== "administrador") return;
-
-  let btn = document.querySelector('[data-section="usuariosSection"]');
-
-  if (!btn) {
-    const tabs = document.querySelector(".tabs, nav");
-    if (tabs) {
-      btn = document.createElement("button");
-      btn.className = "tab-btn admin-only";
-      btn.dataset.section = "usuariosSection";
-      btn.type = "button";
-      btn.textContent = "Usuários";
-
-      const configBtn = tabs.querySelector('[data-section="configSection"]');
-      if (configBtn) tabs.insertBefore(btn, configBtn);
-      else tabs.appendChild(btn);
-    }
+  // Usuários agora existe somente dentro de Configurações.
+  // Remove qualquer aba/section principal herdada de versões antigas.
+  document.querySelectorAll('[data-section="usuariosSection"]').forEach(btn => btn.remove());
+  const section = document.getElementById("usuariosSection");
+  if (section) {
+    section.classList.remove("active", "active-section");
+    section.hidden = true;
+    section.setAttribute("aria-hidden", "true");
+    section.style.setProperty("display", "none", "important");
   }
-
-  let section = document.getElementById("usuariosSection");
-
-  if (!section) {
-    section = document.createElement("section");
-    section.id = "usuariosSection";
-    section.className = "section";
-    section.innerHTML = `
-      <div class="section-header">
-        <div>
-          <h2>Usuários</h2>
-          <p>Gerencie usuários, senhas e perfis de acesso.</p>
-        </div>
-        <button id="novoUsuarioBtn" class="btn-primary" type="button">Novo usuário</button>
-      </div>
-
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Nome</th>
-              <th>Usuário</th>
-              <th>Perfil</th>
-              <th>Status</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody id="usuariosTbody"></tbody>
-        </table>
-      </div>
-    `;
-
-    const appScreen = document.getElementById("appScreen") || document.querySelector("main") || document.body;
-    const configSection = document.getElementById("configSection");
-
-    if (configSection && configSection.parentNode) {
-      configSection.parentNode.insertBefore(section, configSection);
-    } else {
-      appScreen.appendChild(section);
-    }
-  }
-
-  if (btn) {
-    btn.style.display = "";
-    btn.hidden = false;
-    btn.disabled = false;
-
-    if (!btn.dataset.usuariosListener) {
-      btn.dataset.usuariosListener = "1";
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-        document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
-
-        btn.classList.add("active");
-        section.classList.add("active");
-        section.style.display = "";
-
-        if (typeof renderizarUsuariosSistema === "function") renderizarUsuariosSistema();
-      });
-    }
-  }
-
-  section.style.display = "";
-  section.hidden = false;
-
-  if (typeof iniciarUsuariosSistema === "function") iniciarUsuariosSistema();
-  if (typeof renderizarUsuariosSistema === "function") renderizarUsuariosSistema();
 }
 
 
@@ -1614,8 +1538,8 @@ function resumoPermissoesUsuario(usuario) {
       document.body.classList.add('modo-mobile-operacional');
       if (!opcoes.semHistorico) window.rtMobilePushState(sectionId);
     }
-    if (sectionId === 'ruaMobileSection' && typeof renderizarRuaMobile === 'function') renderizarRuaMobile();
-    if (sectionId === 'manutencaoMobileSection' && typeof renderizarManutencaoMobile === 'function') renderizarManutencaoMobile();
+    if (sectionId === 'ruaMobileSection' && typeof renderizarRuaMobile === 'function') requestAnimationFrame(() => setTimeout(renderizarRuaMobile, 0));
+    if (sectionId === 'manutencaoMobileSection' && typeof renderizarManutencaoMobile === 'function') requestAnimationFrame(() => setTimeout(renderizarManutencaoMobile, 0));
   };
 
   window.addEventListener('popstate', (ev) => {

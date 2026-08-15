@@ -1,6 +1,46 @@
 // v19-dev: Rua Mobile — primeira versão para equipe externa
 // Usa rotas/eventos já existentes e não cria estrutura nova no Supabase.
 
+
+// Performance V2: criarRotasDosEventos é uma transformação relativamente pesada.
+// Mantemos uma cópia por poucos segundos e invalidamos quando eventos mudarem.
+let ruaMobileRotasBaseCache = null;
+let ruaMobileRotasBaseCacheTs = 0;
+let ruaMobileRotasPorDataCache = new Map();
+function ruaMobileRotasBase() {
+  const agora = Date.now();
+  if (Array.isArray(ruaMobileRotasBaseCache) && (agora - ruaMobileRotasBaseCacheTs) < 15000) {
+    return ruaMobileRotasBaseCache;
+  }
+  const lista = typeof criarRotasDosEventos === "function" ? criarRotasDosEventos() : [];
+  ruaMobileRotasBaseCache = Array.isArray(lista) ? lista : [];
+  ruaMobileRotasPorDataCache = new Map();
+  ruaMobileRotasBaseCache.forEach(rota => {
+    const data = String(rota?.data || "");
+    if (!ruaMobileRotasPorDataCache.has(data)) ruaMobileRotasPorDataCache.set(data, []);
+    ruaMobileRotasPorDataCache.get(data).push(rota);
+  });
+  ruaMobileRotasBaseCacheTs = agora;
+  return ruaMobileRotasBaseCache;
+}
+function ruaMobileInvalidarRotasBase() {
+  ruaMobileRotasBaseCache = null;
+  ruaMobileRotasPorDataCache = new Map();
+  ruaMobileRotasBaseCacheTs = 0;
+}
+window.addEventListener("riotendas:eventos-atualizados", ruaMobileInvalidarRotasBase);
+window.ruaMobileInvalidarRotasBase = ruaMobileInvalidarRotasBase;
+
+let ruaMobileRenderFrame = 0;
+function ruaMobileAgendarRender() {
+  if (ruaMobileRenderFrame) cancelAnimationFrame(ruaMobileRenderFrame);
+  ruaMobileRenderFrame = requestAnimationFrame(() => {
+    ruaMobileRenderFrame = 0;
+    renderizarRuaMobile();
+  });
+}
+window.ruaMobileAgendarRender = ruaMobileAgendarRender;
+
 function ruaMobileHojeISO() {
   if (typeof dataLocalISO === "function") return dataLocalISO(new Date());
   const d = new Date();
@@ -287,7 +327,8 @@ function ruaMobileAlterarData(dias) {
   base.setDate(base.getDate() + Number(dias || 0));
   input.value = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
   ruaMobileAtualizarDiaSemana();
-  renderizarRuaMobile();
+  // Deixa a nova data aparecer no mesmo frame do clique; a lista é recalculada logo depois.
+  ruaMobileAgendarRender();
 }
 
 function ruaMobileRotaEstaPendente(rota) {
@@ -303,7 +344,7 @@ function ruaMobileRotasPendentesPorCarro(carroAlvo) {
   const data = document.getElementById("ruaMobileData")?.value || ruaMobileHojeISO();
   const tipo = document.getElementById("ruaMobileTipo")?.value || "";
   const carro = String(carroAlvo || "").trim();
-  const lista = criarRotasDosEventos().filter(rota => {
+  const lista = ruaMobileRotasBase().filter(rota => {
     const carroRota = String(ruaMobileCarroDaRota(rota) || "Sem carro").trim() || "Sem carro";
     return rota.data === data
       && (!tipo || rota.tipo === tipo)
@@ -681,11 +722,12 @@ function obterRotasRuaMobile() {
   const tipo = document.getElementById("ruaMobileTipo")?.value || "";
   const carro = document.getElementById("ruaMobileCarro")?.value || "";
 
-  const lista = criarRotasDosEventos().filter(rota => {
+  ruaMobileRotasBase();
+  const baseData = ruaMobileRotasPorDataCache.get(data) || [];
+  const lista = baseData.filter(rota => {
     if (typeof rtEventoCancelado === "function" && rtEventoCancelado(rota.evento)) return false;
     const carroRota = ruaMobileCarroDaRota(rota);
-    return rota.data === data
-      && (!tipo || rota.tipo === tipo)
+    return (!tipo || rota.tipo === tipo)
       && (!carro || carroRota === carro);
   });
 
@@ -992,9 +1034,10 @@ function iniciarRuaMobile() {
 
   ["ruaMobileData", "ruaMobileTipo", "ruaMobileCarro"].forEach(id => {
     const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener("input", () => { ruaMobileAtualizarDiaSemana(); renderizarRuaMobile(); });
-      el.addEventListener("change", () => { ruaMobileAtualizarDiaSemana(); renderizarRuaMobile(); });
+    if (el && !el.dataset.rtRuaFiltroV4) {
+      el.dataset.rtRuaFiltroV4 = "1";
+      // 'change' é suficiente e evita render duplo (input + change) no mobile.
+      el.addEventListener("change", () => { ruaMobileAtualizarDiaSemana(); ruaMobileAgendarRender(); });
     }
   });
 
@@ -1002,7 +1045,11 @@ function iniciarRuaMobile() {
   const hojeBtn = document.getElementById("ruaMobileHojeBtn");
   const proximoBtn = document.getElementById("ruaMobileDiaProximoBtn");
   if (anteriorBtn) anteriorBtn.addEventListener("click", () => ruaMobileAlterarData(-1));
-  if (hojeBtn) hojeBtn.addEventListener("click", () => { if (dataInput) dataInput.value = ruaMobileHojeISO(); ruaMobileAtualizarDiaSemana(); renderizarRuaMobile(); });
+  if (hojeBtn) hojeBtn.addEventListener("click", () => {
+    if (dataInput) dataInput.value = ruaMobileHojeISO();
+    ruaMobileAtualizarDiaSemana();
+    ruaMobileAgendarRender();
+  });
   if (proximoBtn) proximoBtn.addEventListener("click", () => ruaMobileAlterarData(1));
 
   const atualizarBtn = document.getElementById("ruaMobileAtualizarBtn");
@@ -1015,7 +1062,10 @@ function iniciarRuaMobile() {
     });
   }
 
+  // Performance V3: não fazer sincronização/render da Rua enquanto ela estiver fechada.
   setTimeout(async () => {
+    const ativa = section.classList.contains("active-section") || section.classList.contains("active");
+    if (!ativa || document.visibilityState !== "visible") return;
     if (typeof sincronizarRotasOperacaoNuvem === "function") await sincronizarRotasOperacaoNuvem(false);
     if (typeof rtNotasSincronizarNuvem === "function") await rtNotasSincronizarNuvem(false);
     renderizarRuaMobile();
@@ -1049,14 +1099,9 @@ function iniciarCentralMobile() {
       document.querySelectorAll('.section').forEach(s => s.classList.remove('active-section'));
       const sec = document.getElementById(destino);
       if (sec) sec.classList.add('active-section');
-      if (destino === 'ruaMobileSection' && typeof renderizarRuaMobile === 'function') {
-        setTimeout(renderizarRuaMobile, 50);
-      }
-      if (destino === 'manutencaoMobileSection' && typeof renderizarManutencaoMobile === 'function') {
-        setTimeout(renderizarManutencaoMobile, 50);
-      }
-      if (destino === 'eventosMobileSection' && typeof renderizarEventosMobile === 'function') {
-        setTimeout(renderizarEventosMobile, 50);
+      // Performance V3: a troca visual acontece aqui; carga/render pesada é agendada pelo gerenciador lazy.
+      if (typeof window.rtCarregarSecaoOtimizada === 'function') {
+        requestAnimationFrame(() => setTimeout(() => window.rtCarregarSecaoOtimizada(destino), 0));
       }
     });
   });

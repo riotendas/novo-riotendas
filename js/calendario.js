@@ -553,6 +553,12 @@ function renderizarCalendario() {
   inicioGrade.setDate(primeiro.getDate() - deslocamentoInicioMes);
 
   const itens = calendarioTodosItens();
+  const itensPorData = new Map();
+  itens.forEach(item => {
+    const chave = item.data || "";
+    if (!itensPorData.has(chave)) itensPorData.set(chave, []);
+    itensPorData.get(chave).push(item);
+  });
   const hojeISO = calendarioISODate(new Date());
 
   document.getElementById("calendarioTituloMes").textContent = calendarioMesAnoTexto(calendarioDataAtual);
@@ -570,7 +576,7 @@ function renderizarCalendario() {
     const iso = calendarioISODate(data);
     const foraMes = data.getMonth() !== mes;
     const selecionado = calendarioDataSelecionada === iso;
-    const itensDia = itens.filter(item => item.data === iso);
+    const itensDia = itensPorData.get(iso) || [];
 
     dias.push(`
       <button type="button" class="calendar-day ${foraMes ? "outside" : ""} ${iso === hojeISO ? "today" : ""} ${selecionado ? "selected" : ""}" data-cal-dia="${iso}">
@@ -604,6 +610,7 @@ function renderizarCalendario() {
   }
 
   renderizarPainelDiaCalendario();
+  requestAnimationFrame(rtAplicarScrollDetalheDiaCalendario);
 }
 
 
@@ -613,6 +620,12 @@ function renderizarCalendarioSemana() {
 
   const inicioSemana = calendarioInicioSemana(calendarioDataAtual);
   const itens = calendarioTodosItens();
+  const itensPorData = new Map();
+  itens.forEach(item => {
+    const chave = item.data || "";
+    if (!itensPorData.has(chave)) itensPorData.set(chave, []);
+    itensPorData.get(chave).push(item);
+  });
   const hojeISO = calendarioISODate(new Date());
   const dias = [];
   const itensSemana = [];
@@ -622,8 +635,7 @@ function renderizarCalendarioSemana() {
     data.setDate(inicioSemana.getDate() + i);
     const iso = calendarioISODate(data);
     const selecionado = calendarioDataSelecionada === iso;
-    const itensDia = itens
-      .filter(item => item.data === iso)
+    const itensDia = [...(itensPorData.get(iso) || [])]
       .sort(rtCalCompararPainelDia);
 
     itensSemana.push(...itensDia);
@@ -664,6 +676,7 @@ function renderizarCalendarioSemana() {
   }
 
   renderizarPainelDiaCalendario();
+  requestAnimationFrame(rtAplicarScrollDetalheDiaCalendario);
 }
 
 
@@ -1090,10 +1103,7 @@ function rtAplicarScrollDetalheDiaCalendario() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', rtAplicarScrollDetalheDiaCalendario);
-document.addEventListener('click', () => setTimeout(rtAplicarScrollDetalheDiaCalendario, 50));
-document.addEventListener('input', () => setTimeout(rtAplicarScrollDetalheDiaCalendario, 50));
-setInterval(rtAplicarScrollDetalheDiaCalendario, 800);
+document.addEventListener('DOMContentLoaded', () => requestAnimationFrame(rtAplicarScrollDetalheDiaCalendario));
 
 // v19-dev: correção robusta da seleção de dias no calendário.
 // Usa delegação em fase de captura para impedir que elementos internos do dia bloqueiem o clique.

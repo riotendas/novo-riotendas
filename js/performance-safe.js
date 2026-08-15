@@ -1,5 +1,5 @@
 /* =====================================================
-   RioTendas v19 - Performance Lazy + Cache v1
+   RioTendas v19 - Performance Lazy + Cache v2
    Objetivos:
    - tela responde ao clique antes de buscar dados;
    - evita SELECTs duplicados/simultâneos;
@@ -8,8 +8,8 @@
    - mantém a mesma estrutura SPA e todas as funções existentes.
 ===================================================== */
 (function () {
-  if (window.__rtPerformanceLazyCacheV1) return;
-  window.__rtPerformanceLazyCacheV1 = true;
+  if (window.__rtPerformanceLazyCacheV2) return;
+  window.__rtPerformanceLazyCacheV2 = true;
 
   const cache = new Map();
   const emAndamento = new Map();
@@ -123,12 +123,22 @@
   async function executarCargaSecao(sectionId) {
     switch (sectionId) {
       case "dashboardSection": {
-        // Dashboard usa somente os dois conjuntos necessários, uma vez por cache.
+        // Stale-while-revalidate: mostra cache local imediatamente e atualiza em segundo plano.
+        try {
+          const pLocal = JSON.parse(localStorage.getItem("novoRioTendasProdutosV1") || "[]");
+          if (typeof window.atualizarDashboard === "function" && Array.isArray(pLocal)) window.atualizarDashboard(pLocal);
+        } catch {}
+        if (typeof window.renderizarDashboardEventos === "function") {
+          try { await window.renderizarDashboardEventos(); } catch {}
+        }
         const tarefas = [];
         if (typeof window.carregarEventos === "function") tarefas.push(window.carregarEventos());
         if (typeof window.carregarProdutos === "function") tarefas.push(window.carregarProdutos());
         await Promise.allSettled(tarefas);
-        if (typeof window.atualizarDashboard === "function") window.atualizarDashboard(window.produtos || []);
+        try {
+          const pAtual = JSON.parse(localStorage.getItem("novoRioTendasProdutosV1") || "[]");
+          if (typeof window.atualizarDashboard === "function" && Array.isArray(pAtual)) window.atualizarDashboard(pAtual);
+        } catch {}
         if (typeof window.renderizarDashboardEventos === "function") await window.renderizarDashboardEventos();
         if (!window.__rtDashboardAlertasIniciados && typeof window.iniciarDashboardAlertasPersonalizados === "function") {
           window.__rtDashboardAlertasIniciados = true;
@@ -141,6 +151,10 @@
       case "eventosSection":
       case "eventosMobileSection":
       case "calendarioSection": {
+        // Primeiro paint usa memória/cache atual; Supabase atualiza em segundo plano.
+        if (sectionId === "eventosSection" && typeof window.renderizarEventos === "function") requestAnimationFrame(() => window.renderizarEventos());
+        if (sectionId === "eventosMobileSection" && typeof window.renderizarEventosMobile === "function") requestAnimationFrame(() => window.renderizarEventosMobile());
+        if (sectionId === "calendarioSection" && typeof window.renderizarCalendario === "function") requestAnimationFrame(() => window.renderizarCalendario());
         if (typeof window.carregarEventos === "function") await window.carregarEventos();
         if (sectionId === "eventosSection" && typeof window.renderizarEventos === "function") window.renderizarEventos();
         if (sectionId === "eventosMobileSection" && typeof window.renderizarEventosMobile === "function") window.renderizarEventosMobile();
@@ -148,22 +162,32 @@
         break;
       }
       case "clientesSection":
+        if (typeof window.renderizarClientes === "function") requestAnimationFrame(() => window.renderizarClientes());
         if (typeof window.carregarClientes === "function") await window.carregarClientes();
+        if (typeof window.renderizarClientes === "function") window.renderizarClientes();
         break;
       case "produtosSection":
       case "manutencaoMobileSection": {
-        if (typeof window.carregarProdutos === "function") await window.carregarProdutos();
-        if (typeof window.carregarEventosDisponibilidadeProduto === "function") await window.carregarEventosDisponibilidadeProduto();
+        if (sectionId === "produtosSection" && typeof window.renderizarProdutos === "function") requestAnimationFrame(() => window.renderizarProdutos());
+        if (sectionId === "manutencaoMobileSection" && typeof window.renderizarManutencaoMobile === "function") requestAnimationFrame(() => window.renderizarManutencaoMobile());
+        const tarefas = [];
+        if (typeof window.carregarProdutos === "function") tarefas.push(window.carregarProdutos());
+        if (typeof window.carregarEventosDisponibilidadeProduto === "function") tarefas.push(window.carregarEventosDisponibilidadeProduto());
+        await Promise.allSettled(tarefas);
         if (sectionId === "produtosSection" && typeof window.renderizarProdutos === "function") window.renderizarProdutos();
         if (sectionId === "manutencaoMobileSection" && typeof window.renderizarManutencaoMobile === "function") window.renderizarManutencaoMobile();
         break;
       }
       case "rotasSection":
       case "ruaMobileSection": {
+        // Mostra imediatamente o último estado conhecido. Rede não bloqueia a abertura da tela.
+        if (sectionId === "rotasSection" && typeof window.renderizarRotas === "function") window.renderizarRotas();
+        if (sectionId === "ruaMobileSection" && typeof window.renderizarRuaMobile === "function") window.renderizarRuaMobile();
         await Promise.allSettled([
           typeof window.carregarEventos === "function" ? window.carregarEventos() : Promise.resolve(),
           carregarOperacional()
         ]);
+        if (typeof window.ruaMobileInvalidarRotasBase === "function") window.ruaMobileInvalidarRotasBase();
         if (sectionId === "rotasSection" && typeof window.renderizarRotas === "function") window.renderizarRotas();
         if (sectionId === "ruaMobileSection" && typeof window.renderizarRuaMobile === "function") window.renderizarRuaMobile();
         break;
@@ -174,7 +198,25 @@
         break;
       }
       case "usuariosSection":
-        if (typeof window.renderizarUsuariosSistema === "function") await window.renderizarUsuariosSistema();
+        // Usuários é administrado somente por Configurações > Usuários.
+        break;
+      case "financeiroSection": {
+        // Mostra primeiro o que já existe em memória; rede entra em paralelo e não bloqueia o clique.
+        if (typeof window.rtFinRenderTudoFase1 === "function") requestAnimationFrame(() => window.rtFinRenderTudoFase1());
+        const tarefas = [];
+        if (typeof window.carregarEventos === "function") tarefas.push(window.carregarEventos());
+        if (typeof window.rtFinAuditoriaCarregarNuvem === "function") tarefas.push(window.rtFinAuditoriaCarregarNuvem());
+        if (typeof window.rtFinCarregarExtratoSalvo === "function") tarefas.push(window.rtFinCarregarExtratoSalvo());
+        await Promise.allSettled(tarefas);
+        if (typeof window.rtFinRenderTudoFase1 === "function") window.rtFinRenderTudoFase1();
+        if (typeof window.rtFinRenderPagamentosNaoLocalizados === "function") window.rtFinRenderPagamentosNaoLocalizados();
+        break;
+      }
+      case "relatoriosSection":
+        if (typeof window.renderizarRelatorioChecagem === "function") window.renderizarRelatorioChecagem();
+        break;
+      case "orcamentosSection":
+        if (typeof window.carregarOrcamentos === "function") await window.carregarOrcamentos();
         break;
       default:
         break;

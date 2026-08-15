@@ -178,7 +178,12 @@ function formatarDataHoraCurta(valor) {
 
 
 
-let eventos = [];
+let eventos = (() => {
+  try {
+    const cache = JSON.parse(localStorage.getItem("novoRioTendasEventosV2") || "[]");
+    return Array.isArray(cache) ? cache : [];
+  } catch { return []; }
+})();
 let produtosSelecionadosEventoAtual = [];
 let produtosReservaEventoAtual = [];
 let produtosExtrasEventoAtual = [];
@@ -699,7 +704,7 @@ async function salvarEventoBanco(evento) {
     valor_sinal: Number(evento.valor_sinal || 0),
     valor_restante: Number(evento.valor_restante || 0),
     forma_pagamento: evento.forma_pagamento || null,
-    pagamento_quitado: Boolean(evento.pagamento_quitado),
+    pagamento_quitado: (typeof rtBooleanoSeguro === "function" ? rtBooleanoSeguro(evento.pagamento_quitado) : evento.pagamento_quitado === true),
     assinatura_status: rtAssinaturaStatusEvento(evento),
     assinatura_link: evento.assinatura_link || null,
     assinatura_enviada_em: evento.assinatura_enviada_em || null,
@@ -2099,7 +2104,7 @@ function abrirEditarEvento(id) {
   const chkInloco = document.getElementById("eventoPagarInloco");
   if (chkInloco) chkInloco.checked = rtEventoPagarInlocoMarcado(e);
   atualizarIconesFormaPagamentoEvento();
-  document.getElementById("eventoPagamentoQuitado").checked = Boolean(e.pagamento_quitado);
+  document.getElementById("eventoPagamentoQuitado").checked = (typeof rtBooleanoSeguro === "function" ? rtBooleanoSeguro(e.pagamento_quitado) : e.pagamento_quitado === true);
   rtAtualizarAssinaturaForm(e.assinatura_status || "nao_enviado", e.assinatura_link || "");
   const tipoEvento = document.getElementById("eventoTipoEvento");
   if (tipoEvento) {
@@ -2123,16 +2128,24 @@ function abrirEditarEvento(id) {
   produtosSelecionadosEventoAtual = Array.isArray(e.tendas) ? [...e.tendas] : [];
   produtosReservaEventoAtual = typeof rtProdutosReservaEvento === "function" ? [...rtProdutosReservaEvento(e)] : [];
   produtosExtrasEventoAtual = typeof rtProdutosExtrasOperacionais === "function" ? [...rtProdutosExtrasOperacionais(e)] : (Array.isArray(e.produtos_extras) ? [...e.produtos_extras] : []);
-  atualizarDatalistClientes();
-  popularSelectProdutosEvento();
-  renderizarProdutosSelecionadosEvento();
-  renderizarExtrasEvento();
-  renderizarApoioEvento(e.itens_apoio || []);
-  atualizarAlertasOperacaoEvento();
 
+  // Abre primeiro: o usuário recebe resposta visual imediata ao clique.
   document.getElementById("eventoModalTitulo").textContent = "Editar evento";
   atualizarVisibilidadeDuplicarEvento(true);
-  document.getElementById("eventoDialog").showModal();
+  const dialogEvento = document.getElementById("eventoDialog");
+  if (dialogEvento && !dialogEvento.open) dialogEvento.showModal();
+
+  // Componentes mais pesados entram no frame seguinte, sem bloquear a abertura.
+  const completarEdicaoEvento = () => {
+    atualizarDatalistClientes();
+    popularSelectProdutosEvento();
+    renderizarProdutosSelecionadosEvento();
+    renderizarExtrasEvento();
+    renderizarApoioEvento(e.itens_apoio || []);
+    atualizarAlertasOperacaoEvento();
+  };
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(completarEdicaoEvento);
+  else setTimeout(completarEdicaoEvento, 0);
 }
 
 function atualizarVisibilidadeDuplicarEvento(visivel) {
@@ -4227,7 +4240,7 @@ function rtDataEventoJaPassou(evento) {
 }
 
 function rtStatusFinanceiroEvento(evento) {
-  if (evento?.pagamento_quitado) {
+  if (typeof rtBooleanoSeguro === "function" ? rtBooleanoSeguro(evento?.pagamento_quitado) : evento?.pagamento_quitado === true) {
     return {
       codigo: 'quitado',
       icone: '✅',
@@ -4237,18 +4250,25 @@ function rtStatusFinanceiroEvento(evento) {
     };
   }
 
-  if (rtDataEventoJaPassou(evento)) {
+  const sinal = Number(evento?.valor_sinal || 0);
+  const restante = Number(evento?.valor_restante || 0);
+
+  // Se a entrega/montagem já foi concluída e ainda existe saldo, destacar agora.
+  // Assim a retirada já chega sinalizada para cobrança sem consulta extra à nuvem.
+  const entregueComSaldo = restante > 0.009
+    && !(typeof rtEventoCancelado === "function" && rtEventoCancelado(evento))
+    && (typeof rtEventoMontagemJaEntregueEvento === "function" && rtEventoMontagemJaEntregueEvento(evento));
+
+  if (entregueComSaldo || rtDataEventoJaPassou(evento)) {
     return {
       codigo: 'pendente',
       icone: '🔴',
       texto: 'Pendente',
-      titulo: 'Pagamento Pendente',
+      titulo: entregueComSaldo ? 'Material entregue / pagamento pendente - cobrar na retirada' : 'Pagamento Pendente',
       linhaClasse: 'payment-pending'
     };
   }
 
-  const sinal = Number(evento?.valor_sinal || 0);
-  const restante = Number(evento?.valor_restante || 0);
   const cobrarPendente = rtEventoPagarInlocoMarcado(evento) || (sinal > 0 && restante > 0);
 
   if (sinal <= 0 && rtEventoPagarInlocoMarcado(evento)) {
@@ -4606,7 +4626,7 @@ function rtEventoAnteriorDevedor(evento) {
   if (!evento) return false;
   if (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)) return false;
   const restante = Number(evento.valor_restante || 0);
-  return !Boolean(evento.pagamento_quitado) && restante > 0.009;
+  return !(typeof rtBooleanoSeguro === "function" ? rtBooleanoSeguro(evento.pagamento_quitado) : evento.pagamento_quitado === true) && restante > 0.009;
 }
 
 function rtLinhaPendenciasFinanceirasHtml(quantidade, expandido) {
@@ -4630,6 +4650,23 @@ function rtAlternarPendenciasFinanceirasAnteriores() {
   renderizarEventos();
 }
 
+function rtEventoMontagemJaEntregueEvento(evento) {
+  if (!evento?.id) return false;
+  try {
+    if (typeof obterOperacaoRota === "function") {
+      const opMontagem = obterOperacaoRota(`${evento.id}-montagem`);
+      const opEntrega = obterOperacaoRota(`${evento.id}-entrega`);
+      const st = String(opMontagem?.status || opEntrega?.status || "").toLowerCase();
+      if (st === "entregue" || st === "efetuado") return true;
+    }
+  } catch {}
+  try {
+    const stEv = String(evento?.status_operacao || evento?.status_rota || evento?.situacao_rota || "").toLowerCase();
+    if (stEv.includes("entreg") || stEv.includes("montad") || stEv.includes("em campo") || stEv.includes("na rua")) return true;
+  } catch {}
+  return false;
+}
+
 function rtEventoComMaterialEmCampo(evento) {
   if (!evento) return false;
   if (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)) return false;
@@ -4645,14 +4682,18 @@ function rtEventoComMaterialEmCampo(evento) {
   if (typeof rtEventoOrigemJaRecolhidoEvento === "function" && rtEventoOrigemJaRecolhidoEvento(evento)) return false;
 
   const hoje = rtHojeISOEventos();
-  // Materiais em campo seguem o intervalo operacional real, e não apenas a data do evento.
-  // Ex.: montagem 10/08, evento 11/08 e desmontagem 12/08 => aparece em campo no dia 11/08.
-  // Se montagem/desmontagem não existirem, a data do evento funciona como fallback seguro.
+  // Materiais em campo seguem o intervalo operacional real.
+  // Regra especial para o dia da montagem/entrega: só considerar "em campo" depois
+  // de a operação ter sido confirmada como entregue/montada. Isso evita que um evento
+  // previsto para hoje apareça como material em campo antes de sair do depósito.
   const inicio = rtDataComparavelEvento(evento.montagem || evento.data_evento || "");
   const fim = rtDataComparavelEvento(evento.desmontagem || evento.data_evento || "");
   if (!inicio || !fim) return false;
+  if (hoje < inicio || hoje > fim) return false;
 
-  return inicio <= hoje && hoje <= fim;
+  if (inicio === hoje && !rtEventoMontagemJaEntregueEvento(evento)) return false;
+
+  return true;
 }
 
 // Compatibilidade com chamadas antigas desta versão.
@@ -4801,6 +4842,19 @@ function rtAlternarRecorrentesDevedores() {
 }
 
 function renderizarEventos() {
+  // Durante um clique/tap em Editar, adia renderizações realtime por alguns ms.
+  // Isso impede a linha de ser destruída entre pointerdown e click/pointerup.
+  const bloqueadoAte = Number(window.__rtEventoInteracaoAtivaAte || 0);
+  if (bloqueadoAte > Date.now()) {
+    if (!window.__rtEventoRenderAdiado) {
+      window.__rtEventoRenderAdiado = true;
+      setTimeout(() => {
+        window.__rtEventoRenderAdiado = false;
+        renderizarEventos();
+      }, Math.max(30, bloqueadoAte - Date.now() + 15));
+    }
+    return;
+  }
   normalizarOrdemEventosGlobal();
 
   const tbody = document.getElementById("eventosTbody");
@@ -4873,7 +4927,7 @@ function renderizarEventos() {
     setTimeout(rtPosicionarEventosNoMeioTermo, 0);
   }
 
-  tbody.querySelectorAll("button[data-action]").forEach(btn => btn.addEventListener("click", lidarAcaoEvento));
+  rtGarantirCliqueImediatoEventos(tbody);
   tbody.querySelector("[data-rt-pendencias-anteriores]")?.addEventListener("click", rtAlternarPendenciasFinanceirasAnteriores);
   tbody.querySelector("[data-rt-materiais-campo]")?.addEventListener("click", rtAlternarMateriaisEmCampo);
   tbody.querySelector("[data-rt-eventos-anteriores]")?.addEventListener("click", rtAlternarEventosAnteriores);
@@ -4912,7 +4966,7 @@ function renderizarEventos() {
     tbodyRec.innerHTML += `<tr><td colspan="12" class="empty">Não há eventos recorrentes a partir de hoje.</td></tr>`;
   }
 
-  tbodyRec.querySelectorAll("button[data-action]").forEach(btn => btn.addEventListener("click", lidarAcaoEvento));
+  rtGarantirCliqueImediatoEventos(tbodyRec);
   tbodyRec.querySelector("[data-rt-recorrentes-anteriores]")?.addEventListener("click", rtAlternarRecorrentesAnteriores);
   tbodyRec.querySelector("[data-rt-recorrentes-devedores]")?.addEventListener("click", rtAlternarRecorrentesDevedores);
   setTimeout(() => { if (typeof rtAplicarQuantidadeRecorrentesPorAltura === "function") rtAplicarQuantidadeRecorrentesPorAltura(); }, 0);
@@ -5145,11 +5199,69 @@ async function rtRemoverAtendimentoExtraRecorrente(id, atendimentoId) {
   if (typeof renderizarRotas === "function") renderizarRotas();
 }
 
+
+let rtEventoUltimaAberturaRapidaId = "";
+let rtEventoUltimaAberturaRapidaEm = 0;
+
+function rtAbrirEditarEventoUmaVez(id) {
+  const chave = String(id || "");
+  if (!chave) return;
+  const agora = Date.now();
+  if (rtEventoUltimaAberturaRapidaId === chave && (agora - rtEventoUltimaAberturaRapidaEm) < 650) return;
+  rtEventoUltimaAberturaRapidaId = chave;
+  rtEventoUltimaAberturaRapidaEm = agora;
+  abrirEditarEvento(chave);
+}
+
+function rtGarantirCliqueImediatoEventos(tbody) {
+  if (!tbody || tbody.dataset.rtCliqueImediato === "1") return;
+  tbody.dataset.rtCliqueImediato = "1";
+  let intencao = null;
+
+  tbody.addEventListener("pointerdown", (ev) => {
+    const btn = ev.target?.closest?.('button[data-action="editar"]');
+    if (!btn || !tbody.contains(btn)) return;
+    intencao = {
+      id: String(btn.dataset.id || ""),
+      pointerId: ev.pointerId,
+      x: ev.clientX,
+      y: ev.clientY,
+      em: Date.now()
+    };
+    // Evita que uma atualização realtime recrie a linha no meio do toque/clique.
+    window.__rtEventoInteracaoAtivaAte = Date.now() + 700;
+  }, true);
+
+  tbody.addEventListener("pointerup", (ev) => {
+    if (!intencao || ev.pointerId !== intencao.pointerId) return;
+    const dx = Math.abs(ev.clientX - intencao.x);
+    const dy = Math.abs(ev.clientY - intencao.y);
+    const dt = Date.now() - intencao.em;
+    const id = intencao.id;
+    intencao = null;
+    if (dx <= 12 && dy <= 12 && dt <= 900 && id) {
+      ev.preventDefault();
+      rtAbrirEditarEventoUmaVez(id);
+    }
+  }, true);
+
+  tbody.addEventListener("pointercancel", () => { intencao = null; }, true);
+
+  // Um único listener delegado sobrevive aos innerHTML/realtime e substitui
+  // centenas de listeners recriados a cada renderização da tabela.
+  tbody.addEventListener("click", (ev) => {
+    const btn = ev.target?.closest?.("button[data-action]");
+    if (!btn || !tbody.contains(btn)) return;
+    ev.preventDefault();
+    lidarAcaoEvento({ currentTarget: btn, target: ev.target, originalEvent: ev });
+  });
+}
+
 async function lidarAcaoEvento(event) {
   const action = event.currentTarget.dataset.action;
   const id = event.currentTarget.dataset.id;
 
-  if (action === "editar") return abrirEditarEvento(id);
+  if (action === "editar") return rtAbrirEditarEventoUmaVez(id);
   if (action === "editar-produtos") return abrirProdutosRapido(id);
   if (action === "atendimento-extra") return criarAtendimentoExtraRecorrente(id);
   if (action === "detalhe") return abrirDetalheEvento(id);
@@ -5902,46 +6014,6 @@ function aplicarScrollListaCombinadaCalendario() {
 document.addEventListener('DOMContentLoaded', aplicarScrollListaCombinadaCalendario);
 
 
-// v19-dev: aplica rolagem no bloco de cards do dia selecionado do calendário
-function rtAplicarScrollDetalheDiaCalendario() {
-  const paineis = Array.from(document.querySelectorAll('section, aside, div'))
-    .filter((el) => {
-      const texto = (el.textContent || '').trim();
-      return /^Dia\s+\d{2}\/\d{2}\/\d{4}/.test(texto);
-    });
-
-  paineis.forEach((painel) => {
-    if (painel.dataset.rtScrollDetalheDia === '1') return;
-
-    const cards = Array.from(painel.children).filter((child) => {
-      const txt = (child.textContent || '').trim();
-      return /^(Evento|Mont\.|Desm\.)/.test(txt);
-    });
-
-    if (cards.length < 1) return;
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'rt-detalhe-dia-scroll-lista';
-    wrapper.style.maxHeight = '665px';
-    wrapper.style.overflowY = 'auto';
-    wrapper.style.overflowX = 'hidden';
-    wrapper.style.paddingRight = '6px';
-    wrapper.style.scrollbarGutter = 'stable';
-
-    cards[0].parentNode.insertBefore(wrapper, cards[0]);
-    cards.forEach((card) => wrapper.appendChild(card));
-
-    painel.style.overflow = 'hidden';
-    painel.dataset.rtScrollDetalheDia = '1';
-  });
-}
-
-document.addEventListener('DOMContentLoaded', rtAplicarScrollDetalheDiaCalendario);
-document.addEventListener('click', () => setTimeout(rtAplicarScrollDetalheDiaCalendario, 50));
-document.addEventListener('input', () => setTimeout(rtAplicarScrollDetalheDiaCalendario, 50));
-setInterval(rtAplicarScrollDetalheDiaCalendario, 800);
-
-
 // v19-dev: correção robusta do seletor de quantidade de eventos
 function rtCorrigirQuantidadeEventosVisiveis() {
   const select = document.getElementById("eventosItensPorPagina");
@@ -5993,11 +6065,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(rtInstalarControleQuantidadeEventos, 100);
 });
 
-document.addEventListener("click", () => {
-  setTimeout(rtInstalarControleQuantidadeEventos, 100);
-});
-
-setInterval(rtInstalarControleQuantidadeEventos, 1200);
 
 
 // v19-dev: ao trocar quantidade, manter o primeiro evento visível como referência
@@ -6074,11 +6141,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(rtInstalarQuantidadeMantendoPrimeiroVisivel, 300);
 });
 
-document.addEventListener("click", () => {
-  setTimeout(rtInstalarQuantidadeMantendoPrimeiroVisivel, 150);
-});
-
-setInterval(rtInstalarQuantidadeMantendoPrimeiroVisivel, 1500);
 
 
 // v19-dev: quantidade de eventos por altura/rolagem, sem esconder linhas
@@ -6161,11 +6223,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(rtInstalarQuantidadeEventosPorAltura, 200);
 });
 
-document.addEventListener("click", () => {
-  setTimeout(rtInstalarQuantidadeEventosPorAltura, 150);
-});
-
-setInterval(rtInstalarQuantidadeEventosPorAltura, 1500);
 
 
 // v19-dev: navegação rápida na tela de eventos e limite visual dos recorrentes
@@ -6327,11 +6384,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(rtInstalarNavegacaoRapidaEventos, 200);
   setTimeout(rtInstalarQuantidadeRecorrentes, 250);
 });
-document.addEventListener("click", () => {
-  setTimeout(rtInstalarNavegacaoRapidaEventos, 100);
-  setTimeout(rtInstalarQuantidadeRecorrentes, 150);
-});
-setInterval(() => { rtInstalarNavegacaoRapidaEventos(); rtInstalarQuantidadeRecorrentes(); }, 1500);
 
 /* v19-dev: geração de documentos editáveis do evento (guia, contrato e recibo) */
 function rtDocEventoTexto(valor) {
@@ -7155,8 +7207,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(window.rtAplicarQuantidadeRecorrentesPorAltura, 80);
   };
   document.addEventListener("DOMContentLoaded", () => setTimeout(window.rtInstalarQuantidadeRecorrentes, 400));
-  document.addEventListener("click", () => setTimeout(window.rtInstalarQuantidadeRecorrentes, 200));
-  setInterval(() => { try { window.rtInstalarQuantidadeRecorrentes(); } catch(e){} }, 1800);
 })();
 
 
@@ -7337,4 +7387,24 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-editar-evento], #novoEventoBtn').forEach(b=>b.addEventListener('click',()=>setTimeout(()=>{const eid=eventoId();if(eid)carregarCentral(eid);renderizar();},250)));
     const area=document.getElementById('eventoDocumentosLista');if(area&&!area.dataset.rtDocDelegado){area.addEventListener('click',tratarCliqueDocumento);area.dataset.rtDocDelegado='1';}
   });
+})();
+
+
+/* Performance V3: evita scanners globais a cada clique/intervalo; instala controles somente após render de Eventos. */
+(function(){
+  if (window.__rtEventosPosRenderPerfV3) return;
+  window.__rtEventosPosRenderPerfV3 = true;
+  const original = window.renderizarEventos;
+  if (typeof original !== 'function') return;
+  window.renderizarEventos = function(...args){
+    const r = original.apply(this, args);
+    requestAnimationFrame(() => {
+      try { if (typeof rtInstalarControleQuantidadeEventos === 'function') rtInstalarControleQuantidadeEventos(); } catch(e){}
+      try { if (typeof rtInstalarQuantidadeMantendoPrimeiroVisivel === 'function') rtInstalarQuantidadeMantendoPrimeiroVisivel(); } catch(e){}
+      try { if (typeof rtInstalarQuantidadeEventosPorAltura === 'function') rtInstalarQuantidadeEventosPorAltura(); } catch(e){}
+      try { if (typeof rtInstalarNavegacaoRapidaEventos === 'function') rtInstalarNavegacaoRapidaEventos(); } catch(e){}
+      try { if (typeof window.rtInstalarQuantidadeRecorrentes === 'function') window.rtInstalarQuantidadeRecorrentes(); else if (typeof rtInstalarQuantidadeRecorrentes === 'function') rtInstalarQuantidadeRecorrentes(); } catch(e){}
+    });
+    return r;
+  };
 })();

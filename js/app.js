@@ -2,16 +2,19 @@ document.addEventListener("DOMContentLoaded", () => {
   iniciarNavegacao();
   iniciarProdutos();
   if (typeof iniciarRelatorios === "function") iniciarRelatorios();
-  iniciarAuth();
+  // auth.js já inicializa autenticação no DOMContentLoaded. Evita chamada dupla e SELECTs repetidos.
 });
 
 function iniciarNavegacao() {
+  // Performance V3: performance-safe.js assume a navegação em fase de captura.
+  // Evita executar a mesma troca de aba duas vezes no mesmo clique.
+  if (window.__rtPerformanceLazyCacheV2) return;
   document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
       document.querySelectorAll(".section").forEach(s => s.classList.remove("active-section"));
       btn.classList.add("active");
-      document.getElementById(btn.dataset.section).classList.add("active-section");
+      document.getElementById(btn.dataset.section)?.classList.add("active-section");
     });
   });
 }
@@ -25,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // v19-dev: controle simples de versão/cache para reduzir app antigo em celulares.
-const RIOTENDAS_APP_VERSION = "v19-dev-2026-08-11-modelos-documentos-nuvem";
+const RIOTENDAS_APP_VERSION = "v19-dev-2026-08-15-materiais-campo-confirmacao-entrega";
 window.RIOTENDAS_APP_VERSION = RIOTENDAS_APP_VERSION;
 
 function iniciarControleVersaoCache() {

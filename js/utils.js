@@ -407,6 +407,17 @@ function rtBairroResumo(dados = {}) {
   });
 })();
 
+// Booleanos antigos podem chegar como texto ("true"/"false").
+// Nunca use Boolean("false"), pois em JavaScript isso resulta em true.
+window.rtBooleanoSeguro = function(valor){
+  if (valor === true || valor === 1) return true;
+  if (valor === false || valor === 0 || valor === null || valor === undefined || valor === "") return false;
+  const t = String(valor).trim().toLowerCase();
+  if (["true","1","sim","s","yes","y","quitado","pago","paga"].includes(t)) return true;
+  if (["false","0","nao","não","n","no","aberto","pendente"].includes(t)) return false;
+  return false;
+};
+
 // v19-dev: status de evento cancelado (não exclui o pedido)
 (function(){
   function normalizarStatusEvento(valor){

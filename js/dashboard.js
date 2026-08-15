@@ -98,6 +98,17 @@ async function garantirEventosDashboard() {
       rtDashboardEventosCache = window.eventos; rtDashboardEventosCacheTs = Date.now(); return window.eventos;
     }
 
+    // Performance V2: pinta o Dashboard imediatamente com o último cache válido.
+    // A sincronização da nuvem continua em segundo plano pelo gerenciador de performance.
+    try {
+      const local = JSON.parse(localStorage.getItem("novoRioTendasEventosV2") || "[]");
+      if (Array.isArray(local) && local.length) {
+        rtDashboardEventosCache = local;
+        rtDashboardEventosCacheTs = Date.now();
+        return local;
+      }
+    } catch {}
+
     if (typeof buscarEventosBanco === "function") {
       const lista = await buscarEventosBanco();
       if (Array.isArray(lista)) {
