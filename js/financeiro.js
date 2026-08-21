@@ -15,6 +15,11 @@ let rtFinanceiroStatusNuvem = [];
 const RT_FIN_STATUS_TTL_MS = 30000;
 let rtFinanceiroExtratoFiltro = localStorage.getItem("rtFinanceiroExtratoFiltro") || "pendentes";
 let rtFinanceiroExtratoBusca = localStorage.getItem("rtFinanceiroExtratoBusca") || "";
+let rtFinanceiroExtratoBuscaTimer = null;
+// Performance: durante a renderização do extrato, a base de opções de associação
+// é calculada uma única vez e reutilizada por todas as linhas.
+let rtFinOpcoesAssociacaoRenderCache = null;
+let rtFinBuscaRenderToken = 0;
 
 function rtFinEventoTemFinanceiroConciliavel(evento) {
   if (!evento) return false;
@@ -783,24 +788,47 @@ function rtFinTotalAssociadoRegistro(registro, excluirLinhaId = "") {
   return Math.max(0, total);
 }
 
-function rtFinOpcoesPagamentoEventos(linhaExtrato = null) {
+function rtFinCriarBaseOpcoesAssociacao() {
   const registros = rtFinExtrairPagamentosBanco();
-  const item = linhaExtrato ? rtFinItemExtratoDeLinhaSalva(linhaExtrato) : null;
-  const atualId = item ? String(item.id || "") : "";
-  const bloqueadosAuditoria = new Set();
-
-  // Pagamentos resolvidos manualmente na auditoria (Outros/Ignorar) não entram na associação.
   const auditoria = rtFinAuditoriaCarregar();
+  const bloqueadosAuditoria = new Set();
   Object.keys(auditoria || {}).forEach(id => {
     const st = String(auditoria[id]?.status || "");
     if (["outro", "ignorado"].includes(st)) bloqueadosAuditoria.add(String(id));
   });
 
-  const opts = registros.map(r => {
+  // Conta quantos pagamentos existem por evento/tipo para preservar o fallback legado.
+  const qtdEventoTipo = new Map();
+  registros.forEach(r => {
+    const k = `${String(r.evento_id || "")}||${String(r.tipo || "").toLowerCase()}`;
+    qtdEventoTipo.set(k, (qtdEventoTipo.get(k) || 0) + 1);
+  });
+
+  // Em vez de, para CADA opção, percorrer TODO o extrato novamente, monta os totais
+  // associados em uma única passagem. Esse era o principal gargalo da busca.
+  const totalPorKey = new Map();
+  const totalLegado = new Map();
+  rtFinanceiroExtratoSalvo.forEach(l => {
+    if (String(l.status || "") !== "associado") return;
+    rtFinAssociacoesLinhaExtrato(l).forEach(a => {
+      const valor = Number(a.valor || 0);
+      const key = String(a.key || "");
+      if (key) totalPorKey.set(key, (totalPorKey.get(key) || 0) + valor);
+      if (a.legacy_only) {
+        const lk = `${String(a.evento_id || "")}||${String(a.tipo_pagamento || "").toLowerCase()}`;
+        totalLegado.set(lk, (totalLegado.get(lk) || 0) + valor);
+      }
+    });
+  });
+
+  return registros.map(r => {
     const key = rtFinRegistroPagamentoKey(r);
+    const tipoNorm = String(r.tipo || "").toLowerCase();
     const legacyKey = `${r.evento_id || ""}||${r.tipo || ""}`;
+    const agrupKey = `${String(r.evento_id || "")}||${tipoNorm}`;
     const valorOriginal = Number(r.valor || 0);
-    const jaAssociado = rtFinTotalAssociadoRegistro(r, atualId);
+    let jaAssociado = Number(totalPorKey.get(key) || 0);
+    if ((qtdEventoTipo.get(agrupKey) || 0) <= 1) jaAssociado += Number(totalLegado.get(agrupKey) || 0);
     const restanteAssociavel = Math.max(0, valorOriginal - jaAssociado);
     return {
       key,
@@ -829,8 +857,15 @@ function rtFinOpcoesPagamentoEventos(linhaExtrato = null) {
       : "";
     return { ...o, label: `${base}${parcial}` };
   });
+}
 
-  opts.forEach(o => { o._score = item ? rtFinPontuarOpcaoPagamentoExtrato(item, o) : 0; });
+function rtFinOpcoesPagamentoEventos(linhaExtrato = null) {
+  const item = linhaExtrato ? rtFinItemExtratoDeLinhaSalva(linhaExtrato) : null;
+  const base = Array.isArray(rtFinOpcoesAssociacaoRenderCache)
+    ? rtFinOpcoesAssociacaoRenderCache
+    : rtFinCriarBaseOpcoesAssociacao();
+  // Clone raso porque _score é específico de cada linha do extrato.
+  const opts = base.map(o => ({ ...o, _score: item ? rtFinPontuarOpcaoPagamentoExtrato(item, o) : 0 }));
   return opts.sort((a,b) => {
     if (item) {
       const scoreDiff = Number(b._score || 0) - Number(a._score || 0);
@@ -1313,11 +1348,19 @@ function rtFinGrupoFiltroExtrato(linha) {
 }
 
 function rtFinLinhaExtratoTextoBusca(linha) {
-  return rtFinNormalizarTextoBusca([
+  if (!linha) return "";
+  const assinatura = String(linha.atualizado_em || linha.criado_em || "") + "|" + String(linha.status || "") + "|" + String(linha.observacao || "");
+  if (linha.__rtBuscaAssinatura === assinatura && typeof linha.__rtBuscaTexto === "string") return linha.__rtBuscaTexto;
+  const texto = rtFinNormalizarTextoBusca([
     linha?.data_lancamento, linha?.descricao, linha?.linha_original,
     linha?.valor, linha?.valor_assinado, linha?.tipo, linha?.status,
-    linha?.cliente_nome, linha?.evento_data, linha?.tipo_pagamento, linha?.observacao, linha?.sugestao_json
+    linha?.cliente_nome, linha?.evento_data, linha?.tipo_pagamento, linha?.observacao
   ].join(" "));
+  try {
+    Object.defineProperty(linha, "__rtBuscaAssinatura", { value: assinatura, writable: true, configurable: true });
+    Object.defineProperty(linha, "__rtBuscaTexto", { value: texto, writable: true, configurable: true });
+  } catch(e) {}
+  return texto;
 }
 
 function rtFinListaExtratoFiltrada() {
@@ -1349,11 +1392,15 @@ function rtFinRenderFiltrosExtratoSalvo() {
   }));
 }
 
-function rtFinRenderExtratoSalvo() {
+function rtFinRenderExtratoSalvo(opcoesRender = {}) {
   const tbody = document.getElementById("financeiroExtratoSalvoTbody");
   if (!tbody) return;
-  rtFinRenderFiltrosExtratoSalvo();
-  rtFinRenderPagamentosNaoLocalizados();
+  const buscaRapida = !!opcoesRender.buscaRapida;
+  // Durante a digitação, não redesenha filtros/auditoria/blocos laterais.
+  if (!buscaRapida) {
+    rtFinRenderFiltrosExtratoSalvo();
+    rtFinRenderPagamentosNaoLocalizados();
+  }
   if (!rtFinanceiroExtratoSalvo.length) {
     tbody.innerHTML = `<tr><td colspan="8" class="empty">Nenhuma linha de extrato salva ainda.</td></tr>`;
     return;
@@ -1363,7 +1410,13 @@ function rtFinRenderExtratoSalvo() {
     tbody.innerHTML = `<tr><td colspan="8" class="empty">Nenhuma linha neste filtro.</td></tr>`;
     return;
   }
-  tbody.innerHTML = linhasRender.map(l => {
+  const termoBuscaAtivo = rtFinNormalizarTextoBusca(rtFinanceiroExtratoBusca || "");
+  // Uma busca muito ampla não deve montar centenas de combos de associação de uma vez.
+  // Exibe os primeiros resultados e refina conforme o usuário continua digitando.
+  const limiteBusca = termoBuscaAtivo ? 60 : linhasRender.length;
+  const linhasVisiveis = linhasRender.slice(0, limiteBusca);
+  rtFinOpcoesAssociacaoRenderCache = rtFinCriarBaseOpcoesAssociacao();
+  tbody.innerHTML = linhasVisiveis.map(l => {
     const id = l.id || l.fingerprint;
     const valor = Number(l.valor_assinado ?? l.valor ?? 0);
     const tipo = l.tipo || "outro";
@@ -1437,6 +1490,10 @@ function rtFinRenderExtratoSalvo() {
       </td>
     </tr>`;
   }).join("");
+  rtFinOpcoesAssociacaoRenderCache = null;
+  if (termoBuscaAtivo && linhasRender.length > linhasVisiveis.length) {
+    tbody.insertAdjacentHTML("beforeend", `<tr><td colspan="8" class="empty">Mostrando ${linhasVisiveis.length} de ${linhasRender.length} resultados. Continue digitando para refinar a busca.</td></tr>`);
+  }
 
   tbody.querySelectorAll("[data-ext-salvar-assoc]").forEach(btn => btn.addEventListener("click", () => rtFinSalvarAssociacaoExtrato(btn.dataset.extSalvarAssoc)));
   tbody.querySelectorAll("select[data-ext-assoc]").forEach(sel => sel.addEventListener("change", () => {
@@ -2671,9 +2728,25 @@ function iniciarFinanceiro() {
   if (buscaExtrato) {
     buscaExtrato.value = rtFinanceiroExtratoBusca || "";
     buscaExtrato.addEventListener("input", () => {
+      // Não reconstrói centenas de linhas e combos a cada tecla. Aguarda a digitação
+      // estabilizar e renderiza uma única vez. Isso evita travar a thread principal.
+      const valor = buscaExtrato.value || "";
+      if (rtFinanceiroExtratoBuscaTimer) clearTimeout(rtFinanceiroExtratoBuscaTimer);
+      const tokenBusca = ++rtFinBuscaRenderToken;
+      rtFinanceiroExtratoBuscaTimer = setTimeout(() => {
+        if (tokenBusca !== rtFinBuscaRenderToken) return;
+        rtFinanceiroExtratoBusca = valor;
+        try { localStorage.setItem("rtFinanceiroExtratoBusca", rtFinanceiroExtratoBusca); } catch(e) {}
+        const render = () => rtFinRenderExtratoSalvo({ buscaRapida: true });
+        if (typeof requestAnimationFrame === "function") requestAnimationFrame(render);
+        else setTimeout(render, 0);
+      }, 250);
+    });
+    buscaExtrato.addEventListener("search", () => {
+      if (rtFinanceiroExtratoBuscaTimer) clearTimeout(rtFinanceiroExtratoBuscaTimer);
       rtFinanceiroExtratoBusca = buscaExtrato.value || "";
       try { localStorage.setItem("rtFinanceiroExtratoBusca", rtFinanceiroExtratoBusca); } catch(e) {}
-      rtFinRenderExtratoSalvo();
+      rtFinRenderExtratoSalvo({ buscaRapida: true });
     });
   }
   document.getElementById("financeiroExtratoTexto")?.addEventListener("paste", rtFinCapturarColagemExtrato);

@@ -32,10 +32,16 @@
         }
       });
 
-      // No celular, deixa Cliente e Dados do evento abertos; o resto fica recolhido para reduzir rolagem.
-      if (isMobile() && index > 1) {
+      // No celular, deixa Cliente, Dados do evento e Financeiro abertos.
+      // Os demais painéis continuam recolhidos para reduzir a rolagem.
+      const tituloPainel = String(title.textContent || "").trim().toLowerCase();
+      const manterAberto = index <= 1 || tituloPainel === "financeiro";
+      if (isMobile() && !manterAberto) {
         panel.classList.add("rt-mobile-collapsed");
         title.setAttribute("aria-expanded", "false");
+      } else if (isMobile() && manterAberto) {
+        panel.classList.remove("rt-mobile-collapsed");
+        title.setAttribute("aria-expanded", "true");
       }
     });
   }

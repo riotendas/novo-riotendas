@@ -23059,3 +23059,88 @@ body.modo-mobile-operacional .section:not(.active-section):not(.active) {
 @media(max-width:620px){
   #dashboardSection .dash-manutencao-resumo{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
 }
+
+
+/* v19-dev-2026-08-20: Financeiro do evento aberto e compacto no mobile */
+@media (max-width: 620px) {
+  #eventoDialog .finance-row-inline > label:not(.finance-payment-field):not(.checkbox-line),
+  #eventoModal .finance-row-inline > label:not(.finance-payment-field):not(.checkbox-line) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: auto 36px auto !important;
+    column-gap: 7px !important;
+    align-items: center !important;
+  }
+  #eventoDialog .finance-row-inline > label:not(.finance-payment-field):not(.checkbox-line) > #eventoValorTotal,
+  #eventoDialog .finance-row-inline > label:not(.finance-payment-field):not(.checkbox-line) > #eventoValorSinal,
+  #eventoDialog .finance-row-inline > label:not(.finance-payment-field):not(.checkbox-line) > #eventoValorSinal2,
+  #eventoDialog .finance-row-inline > label:not(.finance-payment-field):not(.checkbox-line) > #eventoValorRestante,
+  #eventoModal .finance-row-inline > label:not(.finance-payment-field):not(.checkbox-line) > .money-input {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 36px !important;
+    padding: 5px 8px !important;
+    margin: 0 !important;
+  }
+  #eventoDialog .finance-row-inline > label .pagamento-icones,
+  #eventoModal .finance-row-inline > label .pagamento-icones {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    display: inline-flex !important;
+    gap: 4px !important;
+    margin: 0 !important;
+    align-items: center !important;
+    white-space: nowrap !important;
+  }
+  #eventoDialog .finance-row-inline > label .pagamento-icone,
+  #eventoModal .finance-row-inline > label .pagamento-icone {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    padding: 3px !important;
+    margin: 0 !important;
+  }
+  #eventoDialog .finance-row-inline > label .evento-recibo-link,
+  #eventoModal .finance-row-inline > label .evento-recibo-link {
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+    justify-self: start !important;
+    margin-top: 2px !important;
+  }
+  #eventoDialog .finance-row-inline,
+  #eventoModal .finance-row-inline {
+    gap: 7px !important;
+  }
+}
+
+/* v19-dev-2026-08-20: respeitar campos financeiros dinâmicos ocultos no mobile */
+@media (max-width: 620px) {
+  #eventoSinal2Box.hidden,
+  #eventoDialog #eventoSinal2Box.hidden,
+  #eventoModal #eventoSinal2Box.hidden,
+  #eventoDialog .finance-row-inline > label.hidden,
+  #eventoModal .finance-row-inline > label.hidden {
+    display: none !important;
+  }
+}
+
+
+/* v19-dev-2026-08-20: ajuste fino mobile - reservar largura para os 3 icones */
+@media (max-width: 620px) {
+  #eventoDialog .finance-row-inline > label:not(.finance-payment-field):not(.checkbox-line),
+  #eventoModal .finance-row-inline > label:not(.finance-payment-field):not(.checkbox-line) {
+    grid-template-columns: minmax(0, calc(100% - 116px)) 109px !important;
+    column-gap: 7px !important;
+  }
+
+  #eventoDialog .finance-row-inline > label .pagamento-icones,
+  #eventoModal .finance-row-inline > label .pagamento-icones {
+    width: 109px !important;
+    min-width: 109px !important;
+    justify-content: flex-start !important;
+    overflow: visible !important;
+  }
+}

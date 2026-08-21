@@ -1105,10 +1105,18 @@ function iniciarEventos() {
   onEventoSeguro("eventoDesmontagemTipo", "change", () => atualizarCampoHoraFinalOperacao("Desmontagem"));
   onEventoSeguro("btnMontagemDiaAnterior", "click", () => definirOperacaoDiaRelativo("Montagem", -1));
   onEventoSeguro("btnDesmontagemDiaPosterior", "click", () => definirOperacaoDiaRelativo("Desmontagem", 1));
-  onEventoSeguro("adicionarProdutoEvento", "click", adicionarProdutoSelecionadoAoEvento);
+  onEventoSeguro("adicionarProdutoEvento", "click", async () => {
+    await rtGarantirProdutosEventoCarregados();
+    popularSelectProdutosEvento();
+    return adicionarProdutoSelecionadoAoEvento();
+  });
   onEventoSeguro("adicionarReservaEvento", "click", adicionarProdutoReservaAoEvento);
   document.querySelectorAll("[data-produto-atalho]").forEach(btn => {
-    btn.addEventListener("click", () => adicionarProdutoAtalhoEvento(btn.dataset.produtoAtalho));
+    btn.addEventListener("click", async () => {
+      await rtGarantirProdutosEventoCarregados();
+      popularSelectProdutosEvento();
+      adicionarProdutoAtalhoEvento(btn.dataset.produtoAtalho);
+    });
   });
   const btnExtraEvento = document.getElementById("adicionarExtraEvento");
   if (btnExtraEvento) btnExtraEvento.addEventListener("click", adicionarExtraAoEvento);
@@ -2046,6 +2054,9 @@ function abrirNovoEvento() {
   produtosExtrasEventoAtual = [];
   atualizarDatalistClientes();
   popularSelectProdutosEvento();
+  rtGarantirProdutosEventoCarregados().then(() => {
+    if (document.getElementById("eventoDialog")?.open) popularSelectProdutosEvento();
+  });
   renderizarProdutosSelecionadosEvento();
   renderizarExtrasEvento();
   renderizarApoioEvento([]);
@@ -2134,6 +2145,15 @@ function abrirEditarEvento(id) {
   atualizarVisibilidadeDuplicarEvento(true);
   const dialogEvento = document.getElementById("eventoDialog");
   if (dialogEvento && !dialogEvento.open) dialogEvento.showModal();
+
+  // No mobile, a tela de Produtos pode nunca ter sido aberta. Garante a base de materiais
+  // sem bloquear a abertura do modal e sem duplicar consulta quando já existe cache/carga em andamento.
+  rtGarantirProdutosEventoCarregados().then(() => {
+    if (document.getElementById("eventoDialog")?.open) {
+      popularSelectProdutosEvento();
+      renderizarProdutosSelecionadosEvento();
+    }
+  });
 
   // Componentes mais pesados entram no frame seguinte, sem bloquear a abertura.
   const completarEdicaoEvento = () => {
@@ -2993,6 +3013,22 @@ function rtLinhaDisponibilidadeProdutoEvento(produto, disponibilidade, opcoes = 
 function rtProdutoStatusAlugadoOuReservado(produto) {
   const st = rtNormalizarEventoTexto(produto?.status || produto?.situacao || produto?.estado || "");
   return st.includes("alug") || st.includes("reserv");
+}
+
+async function rtGarantirProdutosEventoCarregados() {
+  // No mobile, Produtos pode ainda não ter sido carregado por causa do lazy loading.
+  // Reaproveita o cache/carregamento global existente e só consulta a nuvem se realmente necessário.
+  if (Array.isArray(produtos) && produtos.length) return produtos;
+  try {
+    if (typeof carregarProdutos === "function") {
+      await carregarProdutos(false);
+    } else if (typeof buscarProdutosBanco === "function") {
+      produtos = await buscarProdutosBanco(false);
+    }
+  } catch (e) {
+    console.warn("Não foi possível preparar a lista de produtos do evento:", e);
+  }
+  return Array.isArray(produtos) ? produtos : [];
 }
 
 function popularSelectProdutosEvento() {
@@ -4102,6 +4138,14 @@ function filtrarEventos() {
   const pagamento = document.getElementById("filtroEventoPagamento").value;
   const ocultarCancelados = document.getElementById("ocultarEventosCancelados")?.checked !== false;
 
+  // Se a busca geral corresponder ao nome de algum cliente, prioriza o campo nome.
+  // Isso evita resultados inesperados causados por endereço, observações, colaborador ou produtos.
+  const buscaTemCliente = !!busca && eventos.some(e => {
+    if (isEventoRecorrente(e)) return false;
+    if (ocultarCancelados && typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) return false;
+    return rtNormalizarBuscaEventos(e.nome).includes(busca);
+  });
+
   const filtrados = eventos.filter(e => {
     if (isEventoRecorrente(e)) return false;
     if (ocultarCancelados && typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) return false;
@@ -4109,7 +4153,10 @@ function filtrarEventos() {
     const produtosTxt = [...(e.tendas || []).map(p => `${p.codigo} ${p.categoria} ${p.tamanho}`), ...(e.itens_apoio || []).map(i => `${i.nome} ${i.quantidade}`)].join(" ");
     const texto = rtNormalizarBuscaEventos(`${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${e.bairro || ""} ${e.cidade || ""} ${e.complemento || ""} ${e.referencia_local || e.observacao_cliente || e.observacao || ""} ${e.colaborador || ""} ${produtosTxt}`);
 
-    return (!busca || texto.includes(busca))
+    const nomeBate = rtNormalizarBuscaEventos(e.nome).includes(busca);
+    const buscaBate = !busca || (buscaTemCliente ? nomeBate : texto.includes(busca));
+
+    return buscaBate
       && (!data || e.data_evento === data)
       && (!cliente || rtNormalizarBuscaEventos(e.nome).includes(cliente))
       && (!telefone || rtNormalizarBuscaEventos(e.telefone).includes(telefone))
@@ -4128,6 +4175,12 @@ function filtrarEventosRecorrentes() {
   const pagamento = (document.getElementById("filtroRecorrentePagamento")?.value ?? document.getElementById("filtroEventoPagamento")?.value ?? "");
   const ocultarCancelados = document.getElementById("ocultarEventosCancelados")?.checked !== false;
 
+  const buscaTemCliente = !!busca && eventos.some(e => {
+    if (!isEventoRecorrente(e)) return false;
+    if (ocultarCancelados && typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) return false;
+    return rtNormalizarBuscaEventos(e.nome).includes(busca);
+  });
+
   return eventos.filter(e => {
     if (!isEventoRecorrente(e)) return false;
     if (ocultarCancelados && typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) return false;
@@ -4135,7 +4188,10 @@ function filtrarEventosRecorrentes() {
     const produtosTxt = [...(e.tendas || []).map(p => `${p.codigo} ${p.categoria} ${p.tamanho}`), ...(e.itens_apoio || []).map(i => `${i.nome} ${i.quantidade}`)].join(" ");
     const texto = rtNormalizarBuscaEventos(`${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${e.bairro || ""} ${e.cidade || ""} ${e.complemento || ""} ${e.referencia_local || e.observacao_cliente || e.observacao || ""} ${e.colaborador || ""} ${produtosTxt}`);
 
-    return (!busca || texto.includes(busca))
+    const nomeBate = rtNormalizarBuscaEventos(e.nome).includes(busca);
+    const buscaBate = !busca || (buscaTemCliente ? nomeBate : texto.includes(busca));
+
+    return buscaBate
       && (!data || e.data_evento === data)
       && (!cliente || rtNormalizarBuscaEventos(e.nome).includes(cliente))
       && (!telefone || rtNormalizarBuscaEventos(e.telefone).includes(telefone))
@@ -6860,6 +6916,27 @@ async function rtDocEventoAbrir(tipo, opcoes = {}) {
       return;
     }
   }
+
+  // Persiste o documento no evento assim que ele é gerado, sem depender da janela de impressão.
+  // A janela continua podendo atualizar o HTML editado no momento de Imprimir/PDF.
+  try {
+    if (typeof window.rtEventoDocumentosRestaurarTipo === 'function') {
+      window.rtEventoDocumentosRestaurarTipo(tipo, {
+        id: d.id,
+        evento_id: d.id,
+        nome: d.nome,
+        dataEvento: d.dataEvento,
+        data_evento: d.dataEvento,
+        numero,
+        numeroDocumento: numero,
+        html: conteudo,
+        status: 'gerado'
+      });
+    }
+  } catch (e) {
+    console.warn('[Documentos] Não foi possível registrar imediatamente o documento central.', e);
+  }
+
   const janela = window.open('', '_blank');
   if (!janela) {
     alert('O navegador bloqueou a abertura do documento. Libere pop-ups para este sistema.');
