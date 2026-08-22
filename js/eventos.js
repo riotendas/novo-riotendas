@@ -1107,7 +1107,12 @@ function iniciarEventos() {
   onEventoSeguro("btnDesmontagemDiaPosterior", "click", () => definirOperacaoDiaRelativo("Desmontagem", 1));
   onEventoSeguro("adicionarProdutoEvento", "click", async () => {
     await rtGarantirProdutosEventoCarregados();
-    popularSelectProdutosEvento();
+    // Não repopular o select quando já há um produto escolhido: isso apagava
+    // a seleção imediatamente antes de adicionar e fazia o botão parecer sem ação.
+    const selectProduto = document.getElementById("eventoProdutoSelect");
+    if (selectProduto && selectProduto.options.length <= 1) {
+      popularSelectProdutosEvento();
+    }
     return adicionarProdutoSelecionadoAoEvento();
   });
   onEventoSeguro("adicionarReservaEvento", "click", adicionarProdutoReservaAoEvento);
