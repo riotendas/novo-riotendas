@@ -20,6 +20,13 @@ let rtFinanceiroExtratoBuscaTimer = null;
 // é calculada uma única vez e reutilizada por todas as linhas.
 let rtFinOpcoesAssociacaoRenderCache = null;
 let rtFinBuscaRenderToken = 0;
+const rtFinAgoraExtrato = new Date();
+const rtFinMesAtualISO = `${rtFinAgoraExtrato.getFullYear()}-${String(rtFinAgoraExtrato.getMonth() + 1).padStart(2, "0")}`;
+let rtFinanceiroExtratoMes = localStorage.getItem("rtFinanceiroExtratoMes") || rtFinMesAtualISO;
+let rtFinanceiroExtratoPagina = 1;
+const RT_FIN_EXTRATO_POR_PAGINA = 50;
+let rtFinanceiroAuditoriaPagina = 1;
+const RT_FIN_AUDITORIA_POR_PAGINA = 30;
 
 function rtFinEventoTemFinanceiroConciliavel(evento) {
   if (!evento) return false;
@@ -27,10 +34,16 @@ function rtFinEventoTemFinanceiroConciliavel(evento) {
   const temLinhaBanco = forma.split(/\r?\n|;/).some(linha => {
     const t = String(linha || "").trim();
     if (!t) return false;
-    const m = t.match(/^(Pg\s*Total|Sinal|Restante)\s*-\s*(Pix\s*\/\s*Transf\.\s*\/\s*Dep\.\s*\/\s*Boleto|Pix\s*\/\s*Transfer[eê]ncia|Pix\s*\/\s*Transf\.\s*\/\s*Dep[oó]sito\s*\/\s*Boleto|Dinheiro|Cart[aã]o(?:\s*\/\s*Rede)?|Rede|Dep[oó]sito|Boleto|[^\-]+?)\s*-\s*(.*)$/i);
+    // antigo: Sinal - Pix/... - 19/08
+    // atual:  Sinal - 1500,00 - Pix/... - 19/08 (TED)
+    const m = t.match(/^(Pg\s*Total|Sinal|Restante)\s*-\s*(?:(?:R\$\s*)?[\d.]+,\d{2}\s*-\s*)?([^\-]+?)\s*-\s*(.+)$/i);
     return !!(m && rtFinMetodoPagamentoAuditavel(String(m[2] || "")));
   });
-  return temLinhaBanco || Number(evento.sinal || 0) > 0 || Number(evento.valor_pago || 0) > 0 || Number(evento.total_pago || 0) > 0;
+  const sinal = rtFinValorNumero(evento.valor_sinal ?? evento.sinal ?? evento.valor_entrada ?? 0);
+  const restante = rtFinValorNumero(evento.valor_restante ?? evento.restante ?? evento.saldo ?? 0);
+  const total = rtFinValorNumero(evento.valor_total ?? evento.total ?? evento.valor ?? 0);
+  const pago = rtFinValorNumero(evento.valor_pago ?? evento.total_pago ?? 0);
+  return temLinhaBanco || sinal > 0.009 || pago > 0.009 || (total > 0.009 && restante < total - 0.009);
 }
 
 function rtFinBooleanoQuitado(valor) {
@@ -1216,14 +1229,19 @@ function rtFinExtrairPagamentosAuditaveis() {
   rtFinEventosLista().forEach(evento => {
     const forma = String(evento.forma_pagamento || "");
     forma.split(/\r?\n|;/).map(l => l.trim()).filter(Boolean).forEach(linha => {
-      const m = linha.match(/^(Pg\s*Total|Sinal|Restante)\s*-\s*(Pix\s*\/\s*Transf\.\s*\/\s*Dep\.\s*\/\s*Boleto|Pix\s*\/\s*Transfer[eê]ncia|Pix\s*\/\s*Transf\.\s*\/\s*Dep[oó]sito\s*\/\s*Boleto|Dinheiro|Cart[aã]o(?:\s*\/\s*Rede)?|Rede|Dep[oó]sito|Boleto|[^\-]+?)\s*-\s*(.*)$/i);
+      // Aceita os dois formatos existentes no sistema:
+      // antigo: "Sinal - Pix/Transf./Dep./Boleto - 19/08"
+      // atual:  "Sinal - 1500,00 - Pix/Transf./Dep./Boleto - 19/08 (TED)"
+      // O valor explícito é essencial para eventos com dois ou mais sinais.
+      const m = linha.match(/^(Pg\s*Total|Sinal|Restante)\s*-\s*(?:(R\$\s*)?([\d.]+,\d{2})\s*-\s*)?(Pix\s*\/\s*Transf\.\s*\/\s*Dep\.\s*\/\s*Boleto|Pix\s*\/\s*Transfer[eê]ncia|Pix\s*\/\s*Transf\.\s*\/\s*Dep[oó]sito\s*\/\s*Boleto|Dinheiro|Cart[aã]o(?:\s*\/\s*Rede)?|Rede|Dep[oó]sito|Boleto|[^\-]+?)\s*-\s*(.*)$/i);
       if (!m) return;
-      const metodoRaw = String(m[2] || "").trim();
+      const valorLinha = m[3] ? rtFinValorNumero(m[3]) : 0;
+      const metodoRaw = String(m[4] || "").trim();
       if (!rtFinMetodoPagamentoAuditavel(metodoRaw)) return;
       const tipoRaw = m[1].replace(/\s+/g, " ").trim();
       const tipo = /^pg/i.test(tipoRaw) ? "Pg Total" : tipoRaw.charAt(0).toUpperCase() + tipoRaw.slice(1).toLowerCase();
-      const dataTexto = String(m[3] || "").trim();
-      const detalhes = rtFinExtrairDetalhesLancamento(dataTexto, rtFinTipoValor(evento, tipo));
+      const dataTexto = String(m[5] || "").trim();
+      const detalhes = rtFinExtrairDetalhesLancamento(dataTexto, valorLinha > 0 ? valorLinha : rtFinTipoValor(evento, tipo));
       const dataISO = detalhes.dataISO;
       const valor = detalhes.valor;
       // Lançamentos zerados não representam pagamento e não devem aparecer como pendência.
@@ -1259,19 +1277,25 @@ function rtFinPagamentoEstaLocalizadoNoExtrato(registro) {
 }
 
 function rtFinPagamentosNaoLocalizadosExtrato() {
-  return rtFinExtrairPagamentosAuditaveis().filter(r => !rtFinPagamentoEstaLocalizadoNoExtrato(r));
+  const mes = /^\d{4}-\d{2}$/.test(String(rtFinanceiroExtratoMes || "")) ? rtFinanceiroExtratoMes : rtFinMesAtualISO;
+  // Filtra ANTES de qualquer renderização. Evita montar o histórico inteiro e só depois esconder.
+  return rtFinExtrairPagamentosAuditaveis().filter(r => {
+    if (rtFinPagamentoEstaLocalizadoNoExtrato(r)) return false;
+    return String(r.data_informada || r.data_evento || "").slice(0, 7) === mes;
+  });
 }
 
-function rtFinRenderFiltrosAuditoria() {
+function rtFinRenderFiltrosAuditoria(todosBase = null) {
   const wrap = document.getElementById("financeiroAuditoriaFiltroBtns");
   if (!wrap) return;
-  const todos = rtFinPagamentosNaoLocalizadosExtrato();
+  const todos = Array.isArray(todosBase) ? todosBase : rtFinPagamentosNaoLocalizadosExtrato();
   const counts = { pendentes: 0, cartao: 0, dinheiro: 0, outros: 0, ignorados: 0, todos: todos.length };
   todos.forEach(r => { const g = rtFinAuditoriaGrupo(r); counts[g] = (counts[g] || 0) + 1; });
   const labels = [["pendentes", "Pendentes"], ["cartao", "Cartão/Rede"], ["dinheiro", "Dinheiro"], ["outros", "Outros"], ["ignorados", "Ignorados"], ["todos", "Todos"]];
   wrap.innerHTML = labels.map(([key, label]) => `<button type="button" class="btn-mini ${rtFinanceiroAuditoriaFiltro === key ? "active" : "btn-outline"}" data-audit-filtro="${key}">${label} (${counts[key] || 0})</button>`).join("");
   wrap.querySelectorAll("[data-audit-filtro]").forEach(btn => btn.addEventListener("click", () => {
     rtFinanceiroAuditoriaFiltro = btn.dataset.auditFiltro || "pendentes";
+    rtFinanceiroAuditoriaPagina = 1;
     try { localStorage.setItem("rtFinanceiroAuditoriaFiltro", rtFinanceiroAuditoriaFiltro); } catch(e) {}
     rtFinRenderPagamentosNaoLocalizados();
   }));
@@ -1284,7 +1308,8 @@ function rtFinRenderPagamentosNaoLocalizados() {
   const todos = rtFinPagamentosNaoLocalizadosExtrato();
   const pendentes = todos.filter(r => rtFinAuditoriaGrupo(r) === "pendentes");
   const total = pendentes.reduce((s, r) => s + Number(r.valor || 0), 0);
-  rtFinRenderFiltrosAuditoria();
+  rtFinRenderFiltrosAuditoria(todos);
+  rtFinRenderMesesExtratoSalvo();
   if (resumo) {
     resumo.innerHTML = pendentes.length
       ? `<strong>${pendentes.length}</strong> pagamento(s) ainda não localizado(s) · <strong>${rtFinMoeda(total)}</strong>`
@@ -1301,9 +1326,16 @@ function rtFinRenderPagamentosNaoLocalizados() {
     return String(a.cliente || "").localeCompare(String(b.cliente || ""));
   });
   if (!lista.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">Nenhum pagamento neste filtro.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">Nenhum pagamento neste filtro para o mês selecionado.</td></tr>`;
+    rtFinRenderPaginacaoAuditoria(0);
     return;
   }
+  const totalResultadosAuditoria = lista.length;
+  const totalPaginasAuditoria = Math.max(1, Math.ceil(totalResultadosAuditoria / RT_FIN_AUDITORIA_POR_PAGINA));
+  if (rtFinanceiroAuditoriaPagina > totalPaginasAuditoria) rtFinanceiroAuditoriaPagina = totalPaginasAuditoria;
+  const inicioAuditoria = (rtFinanceiroAuditoriaPagina - 1) * RT_FIN_AUDITORIA_POR_PAGINA;
+  lista = lista.slice(inicioAuditoria, inicioAuditoria + RT_FIN_AUDITORIA_POR_PAGINA);
+  rtFinRenderPaginacaoAuditoria(totalResultadosAuditoria);
   tbody.innerHTML = lista.map(r => {
     const st = rtFinAuditoriaStatus(r.id) || {};
     const grupo = rtFinAuditoriaGrupo(r);
@@ -1337,6 +1369,22 @@ function rtFinRenderPagamentosNaoLocalizados() {
   tbody.querySelectorAll("[data-audit-cliente-info]").forEach(btn => btn.addEventListener("click", () => rtFinAbrirResumoClienteEvento(btn.dataset.auditClienteInfo)));
 }
 
+function rtFinRenderPaginacaoAuditoria(total) {
+  const box = document.getElementById("financeiroAuditoriaPaginacao");
+  if (!box) return;
+  const paginas = Math.max(1, Math.ceil(Number(total || 0) / RT_FIN_AUDITORIA_POR_PAGINA));
+  if (rtFinanceiroAuditoriaPagina > paginas) rtFinanceiroAuditoriaPagina = paginas;
+  if (!total) { box.innerHTML = ""; return; }
+  box.innerHTML = `
+    <button type="button" class="btn-mini btn-outline" data-audit-pag="-1" ${rtFinanceiroAuditoriaPagina <= 1 ? "disabled" : ""}>◀ Anterior</button>
+    <span>Página <strong>${rtFinanceiroAuditoriaPagina}</strong> de <strong>${paginas}</strong> · ${total} resultado(s)</span>
+    <button type="button" class="btn-mini btn-outline" data-audit-pag="1" ${rtFinanceiroAuditoriaPagina >= paginas ? "disabled" : ""}>Próxima ▶</button>`;
+  box.querySelectorAll("[data-audit-pag]").forEach(btn => btn.addEventListener("click", () => {
+    rtFinanceiroAuditoriaPagina = Math.min(paginas, Math.max(1, rtFinanceiroAuditoriaPagina + Number(btn.dataset.auditPag || 0)));
+    rtFinRenderPagamentosNaoLocalizados();
+  }));
+}
+
 function rtFinGrupoFiltroExtrato(linha) {
   const status = String(linha?.status || "pendente");
   const tipo = String(linha?.tipo || "outro");
@@ -1366,9 +1414,52 @@ function rtFinLinhaExtratoTextoBusca(linha) {
 function rtFinListaExtratoFiltrada() {
   const filtro = rtFinanceiroExtratoFiltro || "pendentes";
   const termo = rtFinNormalizarTextoBusca(rtFinanceiroExtratoBusca || "");
+  const mes = String(rtFinanceiroExtratoMes || "");
   let lista = (filtro === "todos") ? rtFinanceiroExtratoSalvo : rtFinanceiroExtratoSalvo.filter(l => rtFinGrupoFiltroExtrato(l) === filtro);
+  if (mes) lista = lista.filter(l => String(l.data_lancamento || l.data || "").slice(0,7) === mes);
   if (termo) lista = lista.filter(l => rtFinLinhaExtratoTextoBusca(l).includes(termo));
   return lista.slice().sort((a,b) => String(a.data_lancamento || "9999").localeCompare(String(b.data_lancamento || "9999")) || String(a.criado_em || "").localeCompare(String(b.criado_em || "")));
+}
+
+function rtFinMesExtratoMover(delta) {
+  const base = /^\d{4}-\d{2}$/.test(String(rtFinanceiroExtratoMes || "")) ? rtFinanceiroExtratoMes : rtFinMesAtualISO;
+  const [ano, mes] = base.split("-").map(Number);
+  const d = new Date(ano, mes - 1 + Number(delta || 0), 1);
+  rtFinanceiroExtratoMes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  rtFinanceiroExtratoPagina = 1;
+  try { localStorage.setItem("rtFinanceiroExtratoMes", rtFinanceiroExtratoMes); } catch(e) {}
+  rtFinRenderMesesExtratoSalvo();
+  rtFinanceiroAuditoriaPagina = 1;
+  rtFinRenderPagamentosNaoLocalizados();
+  rtFinRenderExtratoSalvo({ buscaRapida: true });
+}
+
+function rtFinRenderMesesExtratoSalvo() {
+  const label = document.getElementById("financeiroExtratoMesAtualLabel");
+  const labelAuditoria = document.getElementById("financeiroAuditoriaMesAtualLabel");
+  if (!label && !labelAuditoria) return;
+  if (!/^\d{4}-\d{2}$/.test(String(rtFinanceiroExtratoMes || ""))) rtFinanceiroExtratoMes = rtFinMesAtualISO;
+  const [ano, mes] = rtFinanceiroExtratoMes.split("-");
+  const nomes = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  const textoMes = `${nomes[Number(mes)-1] || mes} / ${String(ano).slice(-2)}`;
+  const tituloMes = `Exibindo lançamentos de ${nomes[Number(mes)-1] || mes} de ${ano}`;
+  if (label) { label.textContent = textoMes; label.title = tituloMes; }
+  if (labelAuditoria) { labelAuditoria.textContent = textoMes; labelAuditoria.title = tituloMes; }
+}
+
+function rtFinRenderPaginacaoExtrato(total) {
+  const box = document.getElementById("financeiroExtratoPaginacao");
+  if (!box) return;
+  const paginas = Math.max(1, Math.ceil(Number(total || 0) / RT_FIN_EXTRATO_POR_PAGINA));
+  if (rtFinanceiroExtratoPagina > paginas) rtFinanceiroExtratoPagina = paginas;
+  box.innerHTML = `
+    <button type="button" class="btn-mini btn-outline" data-ext-pag="-1" ${rtFinanceiroExtratoPagina <= 1 ? "disabled" : ""}>◀ Anterior</button>
+    <span>Página <strong>${rtFinanceiroExtratoPagina}</strong> de <strong>${paginas}</strong> · ${total} resultado(s)</span>
+    <button type="button" class="btn-mini btn-outline" data-ext-pag="1" ${rtFinanceiroExtratoPagina >= paginas ? "disabled" : ""}>Próxima ▶</button>`;
+  box.querySelectorAll("[data-ext-pag]").forEach(btn => btn.addEventListener("click", () => {
+    rtFinanceiroExtratoPagina = Math.min(paginas, Math.max(1, rtFinanceiroExtratoPagina + Number(btn.dataset.extPag || 0)));
+    rtFinRenderExtratoSalvo({ buscaRapida: true });
+  }));
 }
 
 function rtFinRenderFiltrosExtratoSalvo() {
@@ -1387,6 +1478,7 @@ function rtFinRenderFiltrosExtratoSalvo() {
   wrap.innerHTML = labels.map(([key, label]) => `<button type="button" class="btn-mini ${rtFinanceiroExtratoFiltro === key ? "active" : "btn-outline"}" data-ext-filtro="${key}">${label} (${counts[key] || 0})</button>`).join("");
   wrap.querySelectorAll("[data-ext-filtro]").forEach(btn => btn.addEventListener("click", () => {
     rtFinanceiroExtratoFiltro = btn.dataset.extFiltro || "pendentes";
+    rtFinanceiroExtratoPagina = 1;
     try { localStorage.setItem("rtFinanceiroExtratoFiltro", rtFinanceiroExtratoFiltro); } catch(e) {}
     rtFinRenderExtratoSalvo();
   }));
@@ -1399,6 +1491,7 @@ function rtFinRenderExtratoSalvo(opcoesRender = {}) {
   // Durante a digitação, não redesenha filtros/auditoria/blocos laterais.
   if (!buscaRapida) {
     rtFinRenderFiltrosExtratoSalvo();
+    rtFinRenderMesesExtratoSalvo();
     rtFinRenderPagamentosNaoLocalizados();
   }
   if (!rtFinanceiroExtratoSalvo.length) {
@@ -1411,10 +1504,14 @@ function rtFinRenderExtratoSalvo(opcoesRender = {}) {
     return;
   }
   const termoBuscaAtivo = rtFinNormalizarTextoBusca(rtFinanceiroExtratoBusca || "");
-  // Uma busca muito ampla não deve montar centenas de combos de associação de uma vez.
-  // Exibe os primeiros resultados e refina conforme o usuário continua digitando.
-  const limiteBusca = termoBuscaAtivo ? 60 : linhasRender.length;
-  const linhasVisiveis = linhasRender.slice(0, limiteBusca);
+  // Paginação real: nunca monta centenas de combos/selects de associação de uma vez.
+  // A busca continua global sobre os dados carregados, mas só a página atual é renderizada.
+  const totalResultados = linhasRender.length;
+  const totalPaginas = Math.max(1, Math.ceil(totalResultados / RT_FIN_EXTRATO_POR_PAGINA));
+  if (rtFinanceiroExtratoPagina > totalPaginas) rtFinanceiroExtratoPagina = totalPaginas;
+  const inicioPagina = (rtFinanceiroExtratoPagina - 1) * RT_FIN_EXTRATO_POR_PAGINA;
+  const linhasVisiveis = linhasRender.slice(inicioPagina, inicioPagina + RT_FIN_EXTRATO_POR_PAGINA);
+  rtFinRenderPaginacaoExtrato(totalResultados);
   rtFinOpcoesAssociacaoRenderCache = rtFinCriarBaseOpcoesAssociacao();
   tbody.innerHTML = linhasVisiveis.map(l => {
     const id = l.id || l.fingerprint;
@@ -1491,9 +1588,6 @@ function rtFinRenderExtratoSalvo(opcoesRender = {}) {
     </tr>`;
   }).join("");
   rtFinOpcoesAssociacaoRenderCache = null;
-  if (termoBuscaAtivo && linhasRender.length > linhasVisiveis.length) {
-    tbody.insertAdjacentHTML("beforeend", `<tr><td colspan="8" class="empty">Mostrando ${linhasVisiveis.length} de ${linhasRender.length} resultados. Continue digitando para refinar a busca.</td></tr>`);
-  }
 
   tbody.querySelectorAll("[data-ext-salvar-assoc]").forEach(btn => btn.addEventListener("click", () => rtFinSalvarAssociacaoExtrato(btn.dataset.extSalvarAssoc)));
   tbody.querySelectorAll("select[data-ext-assoc]").forEach(sel => sel.addEventListener("change", () => {
@@ -1840,6 +1934,40 @@ function rtFinPrioridadeLinhaExtrato(linha) {
   return 10;
 }
 
+function rtFinAssinaturaConciliacaoExtrato(linha) {
+  if (!linha) return "";
+  const data = linha.data_lancamento || linha.data || rtFinNormalizarData(linha.descricao || linha.linha_original || linha.linha || "") || "sem-data";
+  const valor = Math.abs(Number(linha.valor_assinado ?? linha.valor ?? 0)).toFixed(2);
+  const ignorar = new Set([
+    "entrada","credito","credit","pix","transf","transfer","transferencia","recebido","recebida",
+    "ted","doc","qr","qrs","pgto","pagamento","valor","exibir","ago","jul","jun","mai","abr",
+    "mar","fev","jan","set","out","nov","dez"
+  ]);
+  const base = rtFinNormalizarDescricaoExtratoParaChave(linha.descricao || linha.linha_original || linha.linha || "")
+    .replace(/[^a-z0-9\s]/g, " ");
+  const tokens = base.split(/\s+/)
+    .filter(t => t && t.length >= 3 && !ignorar.has(t) && !/^\\d+$/.test(t))
+    .slice(0, 8);
+  return [data, valor, tokens.join(" ")].join("|");
+}
+
+function rtFinLinhasExtratoEquivalentes(a, b) {
+  if (!a || !b) return false;
+  const da = a.data_lancamento || a.data || "";
+  const db = b.data_lancamento || b.data || "";
+  if (String(da) !== String(db)) return false;
+  const va = Math.abs(Number(a.valor_assinado ?? a.valor ?? 0));
+  const vb = Math.abs(Number(b.valor_assinado ?? b.valor ?? 0));
+  if (!rtFinValoresIguais(va, vb)) return false;
+  const ta = new Set(rtFinAssinaturaConciliacaoExtrato(a).split("|")[2].split(/\s+/).filter(Boolean));
+  const tb = new Set(rtFinAssinaturaConciliacaoExtrato(b).split("|")[2].split(/\s+/).filter(Boolean));
+  if (!ta.size || !tb.size) return false;
+  let comuns = 0;
+  ta.forEach(t => { if (tb.has(t)) comuns++; });
+  const fortes = [...ta].filter(t => tb.has(t) && t.length >= 5);
+  return fortes.length >= 1 || comuns >= 2;
+}
+
 function rtFinDeduplicarExtratoSalvo(lista) {
   const mapa = new Map();
   (Array.isArray(lista) ? lista : []).forEach(l => {
@@ -1853,7 +1981,12 @@ function rtFinDeduplicarExtratoSalvo(lista) {
       mapa.set(key, l);
     }
   });
-  return Array.from(mapa.values());
+  const base = Array.from(mapa.values());
+  const tratados = base.filter(l => ["associado","rendimento","outro","ignorado"].includes(String(l.status || "")));
+  return base.filter(l => {
+    if (String(l.status || "pendente") !== "pendente") return true;
+    return !tratados.some(t => rtFinLinhasExtratoEquivalentes(l, t));
+  });
 }
 
 function rtFinLinhaExtratoFingerprint(item) {
@@ -2736,6 +2869,7 @@ function iniciarFinanceiro() {
       rtFinanceiroExtratoBuscaTimer = setTimeout(() => {
         if (tokenBusca !== rtFinBuscaRenderToken) return;
         rtFinanceiroExtratoBusca = valor;
+        rtFinanceiroExtratoPagina = 1;
         try { localStorage.setItem("rtFinanceiroExtratoBusca", rtFinanceiroExtratoBusca); } catch(e) {}
         const render = () => rtFinRenderExtratoSalvo({ buscaRapida: true });
         if (typeof requestAnimationFrame === "function") requestAnimationFrame(render);
@@ -2745,10 +2879,33 @@ function iniciarFinanceiro() {
     buscaExtrato.addEventListener("search", () => {
       if (rtFinanceiroExtratoBuscaTimer) clearTimeout(rtFinanceiroExtratoBuscaTimer);
       rtFinanceiroExtratoBusca = buscaExtrato.value || "";
+      rtFinanceiroExtratoPagina = 1;
       try { localStorage.setItem("rtFinanceiroExtratoBusca", rtFinanceiroExtratoBusca); } catch(e) {}
       rtFinRenderExtratoSalvo({ buscaRapida: true });
     });
   }
+  document.getElementById("financeiroExtratoMesAnterior")?.addEventListener("click", () => rtFinMesExtratoMover(-1));
+  document.getElementById("financeiroAuditoriaMesAnterior")?.addEventListener("click", () => rtFinMesExtratoMover(-1));
+  document.getElementById("financeiroExtratoMesProximo")?.addEventListener("click", () => rtFinMesExtratoMover(1));
+  document.getElementById("financeiroAuditoriaMesProximo")?.addEventListener("click", () => rtFinMesExtratoMover(1));
+  document.getElementById("financeiroExtratoMesAtualLabel")?.addEventListener("click", () => {
+    rtFinanceiroExtratoMes = rtFinMesAtualISO;
+    rtFinanceiroExtratoPagina = 1;
+    try { localStorage.setItem("rtFinanceiroExtratoMes", rtFinanceiroExtratoMes); } catch(e) {}
+    rtFinRenderMesesExtratoSalvo();
+    rtFinanceiroAuditoriaPagina = 1;
+    rtFinRenderPagamentosNaoLocalizados();
+    rtFinRenderExtratoSalvo({ buscaRapida: true });
+  });
+  document.getElementById("financeiroAuditoriaMesAtualLabel")?.addEventListener("click", () => {
+    rtFinanceiroExtratoMes = rtFinMesAtualISO;
+    rtFinanceiroExtratoPagina = 1;
+    rtFinanceiroAuditoriaPagina = 1;
+    try { localStorage.setItem("rtFinanceiroExtratoMes", rtFinanceiroExtratoMes); } catch(e) {}
+    rtFinRenderMesesExtratoSalvo();
+    rtFinRenderPagamentosNaoLocalizados();
+    rtFinRenderExtratoSalvo({ buscaRapida: true });
+  });
   document.getElementById("financeiroExtratoTexto")?.addEventListener("paste", rtFinCapturarColagemExtrato);
   document.getElementById("financeiroLimparExtratoBtn")?.addEventListener("click", () => {
     const txt = document.getElementById("financeiroExtratoTexto");

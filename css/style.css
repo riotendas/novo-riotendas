@@ -23144,3 +23144,124 @@ body.modo-mobile-operacional .section:not(.active-section):not(.active) {
     overflow: visible !important;
   }
 }
+
+/* v19-dev-2026-08-25: Conferência bancária paginada/por mês */
+.financeiro-extrato-mes { min-width: 155px; max-width: 190px; }
+.financeiro-extrato-paginacao { display:flex; align-items:center; justify-content:center; gap:12px; padding:10px 4px 2px; flex-wrap:wrap; }
+.financeiro-extrato-paginacao span { color:#53657a; font-size:13px; }
+@media (max-width: 760px) {
+  .financeiro-extrato-mes, .financeiro-extrato-busca { width:100%; max-width:none; }
+  .financeiro-extrato-paginacao { position:sticky; bottom:0; background:#fff; padding:8px; border-top:1px solid #d7e0ea; z-index:2; }
+}
+
+
+/* v19-dev-2026-08-25: navegação compacta por mês no extrato salvo */
+.financeiro-extrato-mes-nav{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
+.financeiro-extrato-mes-nav .btn-mini{width:38px;height:38px;padding:0;font-size:22px;line-height:1;}
+.financeiro-extrato-mes-label{height:38px;min-width:145px;padding:0 14px;border:1px solid #0b5b94;border-radius:10px;background:#fff;color:#0b4f82;font-weight:800;cursor:pointer;}
+.financeiro-extrato-mes-label:hover{background:#eef6fc;}
+@media (max-width:620px){.financeiro-extrato-mes-nav{width:100%;justify-content:center}.financeiro-extrato-mes-label{min-width:150px}}
+
+/* v19-dev-2026-08-25: seletor mensal ainda mais compacto */
+.financeiro-extrato-mes-nav{gap:4px;}
+.financeiro-extrato-mes-nav .btn-mini{width:30px;height:28px;font-size:16px;border-radius:8px;}
+.financeiro-extrato-mes-label{height:28px;min-width:104px;padding:0 9px;border-radius:8px;font-size:13px;line-height:26px;}
+@media (max-width:620px){.financeiro-extrato-mes-label{min-width:104px}.financeiro-extrato-mes-nav{width:auto;justify-content:flex-start}}
+
+/* v19-dev-2026-08-25: Dashboard ordenável + progresso da rota */
+.dashboard-main-grid > [data-dashboard-card-id] { cursor: grab; }
+.dashboard-main-grid > [data-dashboard-card-id]:active { cursor: grabbing; }
+.dashboard-main-grid > [data-dashboard-card-id].dash-card-dragging { opacity: .48; transform: scale(.992); }
+.dashboard-main-grid > [data-dashboard-card-id].dash-card-drop-before { box-shadow: inset 4px 0 0 #15598f; }
+.dashboard-rota-progresso-card { min-height: 150px; }
+.dashboard-rota-progresso-wrap { display: grid; gap: 10px; align-content: center; height: calc(100% - 34px); }
+.dashboard-rota-progresso-num { font-size: 38px; line-height: 1; font-weight: 800; color: #0b4f82; }
+.dashboard-rota-progresso-barra { height: 16px; border-radius: 999px; background: #e8eef5; overflow: hidden; border: 1px solid #d3dde9; }
+.dashboard-rota-progresso-barra > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#0b4f82,#2a79b9); transition: width .25s ease; }
+.dashboard-rota-progresso-texto { font-size: 14px; color: #58697b; font-weight: 600; }
+.dashboard-rota-progresso-card.dash-rota-concluida .dashboard-rota-progresso-num { color: #168344; }
+.dashboard-rota-progresso-card.dash-rota-concluida .dashboard-rota-progresso-barra > span { background: #168344; }
+@media (max-width: 720px) {
+  .dashboard-main-grid > [data-dashboard-card-id] { cursor: default; }
+  .dashboard-rota-progresso-num { font-size: 32px; }
+}
+
+
+/* Ciclo de vida de produtos: ativo x vendido/baixado */
+.produto-baixado-badge{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:#f2f4f7;color:#667085;font-weight:700;font-size:12px;border:1px solid #d0d5dd;white-space:nowrap}
+.btn-danger-outline{background:#fff;color:#b42318;border:1px solid #fda29b;border-radius:8px;padding:7px 10px;font-weight:700;cursor:pointer}
+.btn-danger-outline:hover{background:#fff1f0}
+.btn-venda-baixa{border-color:#d97706!important;color:#9a4f00!important}
+\n\n/* v19-dev-2026-08-26: Produtos - filtros em uma unica linha no desktop */\n@media (min-width: 901px) {\n  .produtos-filtros-compactos{\n    display:grid !important;\n    grid-template-columns:\n      minmax(105px,.70fr)\n      minmax(88px,.58fr)\n      minmax(96px,.62fr)\n      minmax(105px,.66fr)\n      minmax(118px,.82fr)\n      minmax(135px,.90fr)\n      minmax(135px,.92fr)\n      minmax(105px,.64fr)\n      minmax(72px,.38fr)\n      38px !important;\n    gap:6px !important;\n    align-items:end !important;\n  }\n  .produtos-filtros-compactos > *{min-width:0 !important;}\n  .produtos-filtros-compactos label:has(#dispProdutoFim){display:block !important;}\n  .produtos-filtros-compactos .produtos-disponiveis-compacto{width:100% !important;}\n}\n
+/* v19-dev-2026-08-27: Produtos - filtros realmente em uma linha sem overflow */
+@media (min-width: 901px) {
+  .produtos-filtros-compactos{
+    display:grid !important;
+    grid-template-columns:
+      minmax(0,1.00fr)
+      minmax(0,.86fr)
+      minmax(0,.94fr)
+      minmax(0,1.00fr)
+      minmax(0,1.30fr)
+      minmax(0,1.12fr)
+      minmax(0,1.12fr)
+      minmax(0,.58fr)
+      minmax(62px,.68fr)
+      34px !important;
+    column-gap:5px !important;
+    row-gap:0 !important;
+    align-items:end !important;
+    width:100% !important;
+    box-sizing:border-box !important;
+  }
+  .produtos-filtros-compactos > *{min-width:0 !important;max-width:100% !important;}
+  .produtos-filtros-compactos label{min-width:0 !important;overflow:hidden;}
+  .produtos-filtros-compactos select,
+  .produtos-filtros-compactos input{width:100% !important;min-width:0 !important;box-sizing:border-box !important;}
+  .produtos-filtros-compactos #dispProdutoInicio,
+  .produtos-filtros-compactos #dispProdutoFim{font-size:11px !important;padding-left:6px !important;padding-right:4px !important;}
+  .produtos-filtros-compactos .produtos-disponiveis-compacto{min-width:62px !important;width:100% !important;padding-left:4px !important;padding-right:4px !important;}
+  .produtos-filtros-compactos #limparDisponibilidadeProdutos{width:34px !important;min-width:34px !important;margin:0 !important;}
+}
+
+
+/* v19-dev-2026-08-31: Produtos - filtros cabem em uma linha sem ultrapassar a seção */
+@media (min-width: 1100px) {
+  .produtos-filtros-compactos{
+    display:grid !important;
+    grid-template-columns:
+      minmax(145px,1.02fr)
+      minmax(105px,.72fr)
+      minmax(115px,.78fr)
+      minmax(125px,.82fr)
+      minmax(145px,.98fr)
+      minmax(150px,1.00fr)
+      minmax(150px,1.00fr)
+      minmax(105px,.66fr)
+      78px
+      32px !important;
+    gap:4px !important;
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
+    overflow:visible !important;
+    box-sizing:border-box !important;
+    align-items:end !important;
+  }
+  .produtos-filtros-compactos > *{min-width:0 !important;max-width:100% !important;box-sizing:border-box !important;}
+  .produtos-filtros-compactos label{min-width:0 !important;overflow:visible !important;font-size:10.5px !important;}
+  .produtos-filtros-compactos select,
+  .produtos-filtros-compactos input{width:100% !important;max-width:100% !important;min-width:0 !important;height:34px !important;font-size:11px !important;padding:5px 6px !important;box-sizing:border-box !important;}
+  .produtos-filtros-compactos input[type="datetime-local"]{font-size:10px !important;padding-left:5px !important;padding-right:2px !important;}
+  .produtos-filtros-compactos .produtos-disponiveis-compacto{width:78px !important;min-width:0 !important;padding:0 3px !important;height:34px !important;align-self:end !important;display:flex !important;align-items:center !important;justify-content:center !important;gap:3px !important;white-space:nowrap !important;}
+  .produtos-filtros-compactos .produtos-disponiveis-compacto input{width:15px !important;height:15px !important;flex:0 0 15px !important;}
+  .produtos-filtros-compactos #limparDisponibilidadeProdutos{width:32px !important;min-width:32px !important;height:34px !important;padding:0 !important;margin:0 !important;align-self:end !important;}
+}
+@media (min-width: 901px) and (max-width: 1099px) {
+  .produtos-filtros-compactos{
+    grid-template-columns:repeat(10,minmax(0,1fr)) !important;
+    gap:3px !important;
+  }
+  .produtos-filtros-compactos select,
+  .produtos-filtros-compactos input{font-size:10px !important;padding:4px !important;}
+}

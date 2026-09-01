@@ -1,6 +1,6 @@
 // v19-dev: sincronização operacional imediata entre usuários + polling de segurança.
 (function () {
-  const RT_SYNC_VERSION = "v19-dev-2026-07-27-fase1-sync-unica";
+  const RT_SYNC_VERSION = "v19-dev-2026-08-25-performance-v5-realtime-cache";
   let iniciado = false;
   let timerDados = null;
   let timerPolling = null;
@@ -21,6 +21,75 @@
     if (secaoAtiva("rotasSection") && typeof renderizarRotas === "function") renderizarRotas();
     if (secaoAtiva("ruaMobileSection") && typeof renderizarRuaMobile === "function") renderizarRuaMobile();
     if (secaoAtiva("produtosSection") && typeof renderizarProdutos === "function") renderizarProdutos();
+  }
+
+
+  // V5: aplica mudanças de Eventos/Produtos recebidas pelo Realtime diretamente
+  // na memória. Evita baixar as tabelas inteiras só para descobrir uma alteração.
+  function rtPatchListaPorId(lista, payload) {
+    const atual = Array.isArray(lista) ? lista.slice() : [];
+    const evento = String(payload?.eventType || payload?.event || '').toUpperCase();
+    const novo = payload?.new || null;
+    const antigo = payload?.old || null;
+    const id = String((novo && novo.id) ?? (antigo && antigo.id) ?? '');
+    if (!id) return atual;
+    const idx = atual.findIndex(x => String(x?.id) === id);
+    if (evento === 'DELETE') {
+      if (idx >= 0) atual.splice(idx, 1);
+      return atual;
+    }
+    if (!novo || typeof novo !== 'object') return atual;
+    if (idx >= 0) atual[idx] = { ...atual[idx], ...novo };
+    else atual.push(novo);
+    return atual;
+  }
+
+  let rtTimerRenderEventosRealtime = null;
+  function rtRenderEventosRealtime() {
+    clearTimeout(rtTimerRenderEventosRealtime);
+    rtTimerRenderEventosRealtime = setTimeout(() => {
+      try { if (secaoAtiva('eventosSection') && typeof renderizarEventos === 'function') renderizarEventos(); } catch {}
+      try { if (secaoAtiva('eventosMobileSection') && typeof renderizarEventosMobile === 'function') renderizarEventosMobile(); } catch {}
+      try { if (secaoAtiva('calendarioSection') && typeof renderizarCalendario === 'function') renderizarCalendario(); } catch {}
+      try { if (secaoAtiva('rotasSection') && typeof renderizarRotas === 'function') renderizarRotas(); } catch {}
+      try { if (secaoAtiva('ruaMobileSection') && typeof renderizarRuaMobile === 'function') renderizarRuaMobile(); } catch {}
+      try { if (secaoAtiva('financeiroSection') && typeof rtFinAtualizarResumo === 'function') rtFinAtualizarResumo(); } catch {}
+      try { if (secaoAtiva('dashboardSection') && typeof renderizarDashboardEventos === 'function') renderizarDashboardEventos(); } catch {}
+    }, 80);
+  }
+
+  function aoMudarEvento(payload) {
+    try {
+      if (typeof eventos !== 'undefined') {
+        eventos = rtPatchListaPorId(eventos, payload);
+        try { localStorage.setItem('novoRioTendasEventosV2', JSON.stringify(eventos)); } catch {}
+        try {
+          if (typeof rtEventosCacheBanco !== 'undefined') rtEventosCacheBanco = eventos.slice();
+          if (typeof rtEventosCacheBancoTs !== 'undefined') rtEventosCacheBancoTs = Date.now();
+        } catch {}
+        rtRenderEventosRealtime();
+      }
+    } catch (err) { console.warn('Falha ao aplicar evento realtime:', err); }
+  }
+
+  let rtTimerRenderProdutosRealtime = null;
+  function aoMudarProduto(payload) {
+    try {
+      if (typeof produtos !== 'undefined') {
+        produtos = rtPatchListaPorId(produtos, payload);
+        try { localStorage.setItem('novoRioTendasProdutosV1', JSON.stringify(produtos)); } catch {}
+        try {
+          if (typeof rtProdutosCacheBanco !== 'undefined') rtProdutosCacheBanco = produtos.slice();
+          if (typeof rtProdutosCacheBancoTs !== 'undefined') rtProdutosCacheBancoTs = Date.now();
+        } catch {}
+        clearTimeout(rtTimerRenderProdutosRealtime);
+        rtTimerRenderProdutosRealtime = setTimeout(() => {
+          try { if (secaoAtiva('produtosSection') && typeof renderizarProdutos === 'function') renderizarProdutos(); } catch {}
+          try { if (secaoAtiva('manutencaoMobileSection') && typeof renderizarManutencaoMobile === 'function') renderizarManutencaoMobile(); } catch {}
+          try { if (secaoAtiva('dashboardSection') && typeof atualizarDashboard === 'function') atualizarDashboard(produtos || []); } catch {}
+        }, 80);
+      }
+    } catch (err) { console.warn('Falha ao aplicar produto realtime:', err); }
   }
 
   function salvarLocal(chave, valor) {
@@ -126,6 +195,16 @@
   function aoMudarAppConfig(payload) {
     const novo = payload && payload.new ? payload.new : {};
     const chave = String(novo.chave || "");
+    // Realtime invalida somente a chave afetada. Assim os TTLs podem ser longos
+    // sem atrasar mudanças feitas por outros usuários.
+    try {
+      if (typeof window.rtInvalidarCachePerformance === "function") {
+        if (chave === "rotas_operacao") window.rtInvalidarCachePerformance("carregarRotasOperacaoNuvem");
+        else if (chave === "rotas_carros") window.rtInvalidarCachePerformance("carregarRotasCarrosNuvem");
+        else if (chave === "rotas_ordem_manual") window.rtInvalidarCachePerformance("carregarRotasOrdemNuvem");
+        else if (chave === "configuracoes") window.rtInvalidarCachePerformance("carregarConfiguracoesNuvem");
+      }
+    } catch {}
     if (chave === "rotas_operacao") aplicarOperacaoRecebida(novo.valor);
     else if (chave === "rotas_carros") aplicarCarrosRecebidos(novo.valor);
     else if (chave === "rotas_ordem_manual") aplicarOrdemRecebida(novo.valor, novo.atualizado_em);
@@ -149,6 +228,8 @@
         // Eventos e produtos não disparam mais recarga completa automática.
         // Isso evita baixar tabelas inteiras a cada pequena alteração e reduz fortemente o Egress.
         .on("postgres_changes", { event: "*", schema: "public", table: "app_config" }, aoMudarAppConfig)
+        .on("postgres_changes", { event: "*", schema: "public", table: "eventos" }, aoMudarEvento)
+        .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, aoMudarProduto)
         .subscribe(status => {
           if (status === "SUBSCRIBED") {
             console.log("RioTendas realtime operacional imediato ativo");

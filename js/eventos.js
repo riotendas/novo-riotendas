@@ -372,7 +372,7 @@ function aplicarTipoHorarioNoFormulario(prefixo, valorSalvo) {
 let rtEventosCacheBanco = null;
 let rtEventosCacheBancoTs = 0;
 let rtEventosBuscaEmAndamento = null;
-const RT_EVENTOS_CACHE_TTL_MS = 90 * 1000;
+const RT_EVENTOS_CACHE_TTL_MS = 10 * 60 * 1000; // V5: realtime mantém o cache fresco entre usuários
 
 function rtInvalidarCacheEventosBanco() {
   rtEventosCacheBanco = null;
@@ -1911,11 +1911,39 @@ function rtAtualizarModoVendaEvento() {
 
 function rtValidarRetiradaOuVendaEvento() {
   if (rtEventoVendaMarcada()) return true;
+
+  const dataEvento = String(document.getElementById("eventoData")?.value || "").trim();
+  const montagem = String(document.getElementById("eventoMontagem")?.value || "").trim();
   const retirada = String(document.getElementById("eventoDesmontagem")?.value || "").trim();
-  if (retirada) return true;
-  alert('Informe a data de desmontagem/retirada. Se os materiais forem vendidos, selecione "Venda" em Tipo de evento.');
-  document.getElementById("eventoDesmontagem")?.focus();
-  return false;
+
+  if (!retirada) {
+    alert('Informe a data de desmontagem/retirada. Se os materiais forem vendidos, selecione "Venda" em Tipo de evento.');
+    document.getElementById("eventoDesmontagem")?.focus();
+    return false;
+  }
+
+  // Proteção contra erro operacional: montagem não pode ocorrer depois do evento.
+  if (dataEvento && montagem && montagem > dataEvento) {
+    alert("A data de montagem não pode ser posterior à data do evento.");
+    document.getElementById("eventoMontagem")?.focus();
+    return false;
+  }
+
+  // A retirada/desmontagem nunca pode ficar antes do próprio evento.
+  if (dataEvento && retirada < dataEvento) {
+    alert("A data de desmontagem/retirada não pode ser anterior à data do evento.");
+    document.getElementById("eventoDesmontagem")?.focus();
+    return false;
+  }
+
+  // Nem antes da montagem, caso uma data de montagem tenha sido informada.
+  if (montagem && retirada < montagem) {
+    alert("A data de desmontagem/retirada não pode ser anterior à data de montagem.");
+    document.getElementById("eventoDesmontagem")?.focus();
+    return false;
+  }
+
+  return true;
 }
 
 function montarEventoRecorrenteBase(id, existente) {
@@ -2546,22 +2574,39 @@ function rtProdutoEventoStatusTexto(produto) {
 }
 
 function rtProdutoEventoFoiVendido(produto) {
-  const status = rtNormalizarEventoTexto(produto?.status || produto?.situacao || produto?.estado || "");
-  const uso = rtNormalizarEventoTexto(produto?.grau_usabilidade || produto?.usabilidade || "");
-  return status.includes("vendid") || status.includes("baixa") || uso.includes("venda") || uso.includes("baixa");
+  // Regra definitiva: status/usabilidade NÃO definem venda.
+  // Um produto só é considerado vendido/baixado quando não existe mais
+  // no cadastro oficial de Produtos. Objetos vindos do próprio cadastro
+  // nunca são bloqueados por textos como "Venda / Baixa".
+  if (!produto) return false;
+  const lista = Array.isArray(produtos) ? produtos : [];
+  if (!lista.length) return false; // catálogo ainda não carregado: não gerar falso positivo
+  const id = String(produto.id || "");
+  const codigo = String(produto.codigo || "").trim();
+  const ativo = p => !(typeof window.rtProdutoArquivado === "function" ? window.rtProdutoArquivado(p) : String(p?.status || "").toLowerCase() === "vendido/baixado");
+  // Com ID gravado no evento, nunca usar apenas o código como substituto: o mesmo código
+  // pode ser reutilizado futuramente por outro material com um novo ID.
+  const existe = id
+    ? lista.some(p => String(p.id || "") === id && ativo(p))
+    : lista.some(p => codigo && String(p.codigo || "").trim() === codigo && ativo(p));
+  return !existe;
 }
 
 function rtProdutoAtualDoCadastro(item) {
   if (!item) return null;
   const id = String(item.id || "");
   const codigo = String(item.codigo || "").trim();
-  return (Array.isArray(produtos) ? produtos : []).find(p =>
-    (id && String(p.id || "") === id) || (codigo && String(p.codigo || "").trim() === codigo)
-  ) || null;
+  const lista = Array.isArray(produtos) ? produtos : [];
+  const ativo = p => !(typeof window.rtProdutoArquivado === "function" ? window.rtProdutoArquivado(p) : String(p?.status || "").toLowerCase() === "vendido/baixado");
+  if (id) return lista.find(p => String(p.id || "") === id && ativo(p)) || null;
+  return lista.find(p => codigo && String(p.codigo || "").trim() === codigo && ativo(p)) || null;
 }
 
 function rtProdutoEventoVendidoAtual(item) {
-  return rtProdutoEventoFoiVendido(rtProdutoAtualDoCadastro(item) || item);
+  if (!item) return false;
+  const lista = Array.isArray(produtos) ? produtos : [];
+  if (!lista.length) return false; // aguarda o catálogo antes de classificar
+  return !rtProdutoAtualDoCadastro(item);
 }
 
 function rtMostrarDialogStatusProduto(produto) {
@@ -2647,10 +2692,9 @@ function rtProdutoCompatAtalho(produto, tipo) {
   const texto = rtNormalizarEventoTexto(rtTextoProdutoEvento(produto));
   const tam = rtNormalizarEventoTexto(produto.tamanho || "");
   const cat = rtNormalizarEventoTexto(produto.categoria || produto.tipo || "");
-  const cor = rtNormalizarEventoTexto(produto.cor || produto.modelo || "");
-  const ehBranco = texto.includes("branc") || cor.includes("branc");
-  if (tipo === "ombrelone") return (texto.includes("ombrelone") || cat.includes("ombrelone")) && ehBranco;
-  if (!ehBranco) return false;
+  // Os atalhos representam categoria/tamanho, não cor. Cristal, branca ou qualquer
+  // outra cor cadastrada deve permanecer elegível.
+  if (tipo === "ombrelone") return texto.includes("ombrelone") || cat.includes("ombrelone");
   if (!texto.includes("tenda") && !cat.includes("tenda")) return false;
   if (tipo === "3x3") return tam.includes("3x3") || texto.includes("3x3");
   if (tipo === "4.5x3") return tam.includes("4 5x3") || tam.includes("4 50x3") || tam.includes("45x3") || texto.includes("4 5x3") || texto.includes("4 50x3") || texto.includes("45x3");
@@ -3042,8 +3086,11 @@ function popularSelectProdutosEvento() {
   const ids = [...produtosSelecionadosEventoAtual, ...produtosReservaEventoAtual].map(p => String(p.id));
   const disponiveis = (Array.isArray(produtos) ? produtos : [])
     .filter(p => (p.categoria || p.tipo) !== "Materiais de Apoio")
-    .filter(p => !rtProdutoEventoFoiVendido(p))
-    .filter(p => !ids.includes(String(p.id)));
+    // O próprio cadastro ativo é a fonte de verdade: não reinterpretar usabilidade/status
+    // como venda. Só excluir registros realmente arquivados pelo ciclo Venda/Baixa.
+    .filter(p => !(typeof window.rtProdutoArquivado === "function" && window.rtProdutoArquivado(p)))
+    .filter(p => !ids.includes(String(p.id)))
+    .sort((a, b) => String(a.codigo || "").localeCompare(String(b.codigo || ""), "pt-BR", { numeric: true }));
   select.innerHTML = `<option value="">Selecione um produto para adicionar</option>` + disponiveis.map(p => {
     const disp = disponibilidadeProdutoParaEvento(p.id);
     return `

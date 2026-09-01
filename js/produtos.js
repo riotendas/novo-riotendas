@@ -11,6 +11,19 @@ const produtoDetalheCache = new Map();
 const storageProdutosKey = "novoRioTendasProdutosV1";
 const storageApoioKey = "novoRioTendasEstoqueApoioV1";
 const storageApoioExcluidosKey = "novoRioTendasEstoqueApoioExcluidosV1";
+const RT_PRODUTO_STATUS_ARQUIVADO = "Vendido/Baixado";
+
+function rtProdutoArquivado(produto) {
+  return String(produto?.status || "").trim().toLowerCase() === RT_PRODUTO_STATUS_ARQUIVADO.toLowerCase();
+}
+
+function rtProdutoAtivo(produto) {
+  return !!produto && !rtProdutoArquivado(produto);
+}
+
+// Disponível globalmente para Eventos/Dashboard/Mobile sem criar outra fonte de verdade.
+window.rtProdutoArquivado = rtProdutoArquivado;
+window.rtProdutoAtivo = rtProdutoAtivo;
 
 function chaveMaterialApoio(nome) {
   return String(nome || "")
@@ -109,10 +122,20 @@ function rtProdutoObsEventoCurta(valor, produto = {}) {
 }
 window.rtProdutoObsEventoCurta = rtProdutoObsEventoCurta;
 
+function rtProdutoObsTabela(produto = {}) {
+  try {
+    const atual = (typeof usoAtualProduto === "function") ? usoAtualProduto(produto) : null;
+    const nomeAtual = String(atual?.evento?.nome || "").trim();
+    if (atual && nomeAtual) return `Evento atual: ${nomeAtual}`;
+  } catch {}
+  return rtProdutoObsEventoCurta(produto?.observacao, produto);
+}
+window.rtProdutoObsTabela = rtProdutoObsTabela;
+
 let rtProdutosCacheBanco = null;
 let rtProdutosCacheBancoTs = 0;
 let rtProdutosBuscaEmAndamento = null;
-const RT_PRODUTOS_CACHE_TTL_MS = 2 * 60 * 1000;
+const RT_PRODUTOS_CACHE_TTL_MS = 15 * 60 * 1000; // V5: alterações chegam via realtime
 function rtInvalidarCacheProdutosBanco(){ rtProdutosCacheBanco = null; rtProdutosCacheBancoTs = 0; }
 window.rtInvalidarCacheProdutosBanco = rtInvalidarCacheProdutosBanco;
 
@@ -461,14 +484,16 @@ function iniciarProdutos() {
   const filtroTamanho = document.getElementById("filtroTamanho");
   const filtroStatus = document.getElementById("filtroStatus");
   const filtroUsabilidade = document.getElementById("filtroUsabilidade");
+  const filtroCiclo = document.getElementById("filtroCicloProduto");
 
-  popularSelect(categoriaSelect, Object.keys(categorias));
-  popularSelect(corSelect, cores);
+  popularSelect(categoriaSelect, Object.keys(categoriasProdutosAtivas()));
+  popularSelect(corSelect, coresProdutosAtivas());
   popularSelect(statusSelect, statusProdutos);
   popularSelect(usabilidadeSelect, grausUsabilidade);
-  popularSelect(filtroCategoria, Object.keys(categorias), "Todas");
+  popularSelect(filtroCategoria, Object.keys(categoriasProdutosAtivas()), "Todas");
   popularSelect(filtroStatus, [...statusProdutos, "Em manutenção"], "Todos");
   if (filtroUsabilidade) popularSelect(filtroUsabilidade, grausUsabilidade, "Todos");
+  if (filtroCiclo && !filtroCiclo.value) filtroCiclo.value = "ativos";
   atualizarTamanhos();
   atualizarFiltroTamanhos();
 
@@ -477,6 +502,7 @@ function iniciarProdutos() {
   filtroTamanho.addEventListener("change", renderizarProdutos);
   filtroStatus.addEventListener("change", renderizarProdutos);
   if (filtroUsabilidade) filtroUsabilidade.addEventListener("change", renderizarProdutos);
+  if (filtroCiclo) filtroCiclo.addEventListener("change", renderizarProdutos);
   document.getElementById("buscaProduto").addEventListener("input", renderizarProdutos);
 
   // Performance V3: nenhuma sincronização operacional enquanto Produtos estiver fechado.
@@ -512,6 +538,10 @@ function iniciarProdutos() {
   document.getElementById("fecharDetalheModal").addEventListener("click", () => document.getElementById("produtoDetalheDialog").close());
   document.getElementById("produtoForm").addEventListener("submit", salvarProdutoForm);
   document.getElementById("duplicarProdutoBtn")?.addEventListener("click", duplicarProdutoAtual);
+  document.getElementById("venderBaixarProdutoBtn")?.addEventListener("click", () => {
+    const id = document.getElementById("produtoId")?.value || "";
+    if (id) arquivarProdutoVendaBaixa(id);
+  });
 
   document.getElementById("produtoFoto").addEventListener("change", async (event) => {
     const file = event.target.files[0];
@@ -522,14 +552,43 @@ function iniciarProdutos() {
   // Carregamento de produtos/disponibilidade é feito ao abrir a seção.
 
 
+function rtAtualizarCategoriasProdutosUI() {
+  const cats = categoriasProdutosAtivas();
+  const coresAtivas = coresProdutosAtivas();
+  const categoriaSelect = document.getElementById("produtoCategoria");
+  const filtroCategoria = document.getElementById("filtroCategoria");
+  const corSelect = document.getElementById("produtoCor");
+
+  const categoriaAtual = categoriaSelect?.value || "";
+  const filtroAtual = filtroCategoria?.value || "";
+  const corAtual = corSelect?.value || "";
+
+  if (categoriaSelect) {
+    popularSelect(categoriaSelect, Object.keys(cats));
+    if (categoriaAtual && Object.prototype.hasOwnProperty.call(cats, categoriaAtual)) categoriaSelect.value = categoriaAtual;
+  }
+  if (filtroCategoria) {
+    popularSelect(filtroCategoria, Object.keys(cats), "Todas");
+    if (filtroAtual && Object.prototype.hasOwnProperty.call(cats, filtroAtual)) filtroCategoria.value = filtroAtual;
+  }
+  if (corSelect) {
+    popularSelect(corSelect, coresAtivas);
+    if (corAtual && coresAtivas.includes(corAtual)) corSelect.value = corAtual;
+  }
+  atualizarTamanhos();
+  atualizarFiltroTamanhos();
+}
+window.rtAtualizarCategoriasProdutosUI = rtAtualizarCategoriasProdutosUI;
+
 function atualizarTamanhos() {
   const categoria = document.getElementById("produtoCategoria").value;
-  popularSelect(document.getElementById("produtoTamanho"), categorias[categoria] || []);
+  popularSelect(document.getElementById("produtoTamanho"), categoriasProdutosAtivas()[categoria] || []);
 }
 
 function atualizarFiltroTamanhos() {
   const categoria = document.getElementById("filtroCategoria").value;
-  const tamanhos = categoria ? categorias[categoria] : [...new Set(Object.values(categorias).flat())];
+  const catsAtivas = categoriasProdutosAtivas();
+  const tamanhos = categoria ? (catsAtivas[categoria] || []) : [...new Set(Object.values(catsAtivas).flat())];
   popularSelect(document.getElementById("filtroTamanho"), tamanhos, "Todos");
 }
 
@@ -537,8 +596,11 @@ function abrirNovoProduto() {
   fotoAtual = "";
   document.getElementById("produtoForm").reset();
   document.getElementById("produtoId").value = "";
+  document.getElementById("produtoStatus").disabled = false;
   document.getElementById("produtoModalTitulo").textContent = "Novo produto";
   document.getElementById("duplicarProdutoBtn").style.display = "none";
+  const vendaBtnNovo = document.getElementById("venderBaixarProdutoBtn");
+  if (vendaBtnNovo) vendaBtnNovo.style.display = "none";
   atualizarTamanhos();
   document.getElementById("produtoUsabilidade").value = "Bom";
   document.getElementById("produtoDialog").showModal();
@@ -555,12 +617,22 @@ function abrirEditarProduto(id) {
   atualizarTamanhos();
   document.getElementById("produtoTamanho").value = produto.tamanho || "";
   document.getElementById("produtoCor").value = produto.cor || "";
-  document.getElementById("produtoStatus").value = produto.status || "Livre";
+  const statusModal = document.getElementById("produtoStatus");
+  statusModal.disabled = rtProdutoArquivado(produto);
+  if (rtProdutoArquivado(produto)) {
+    if (![...statusModal.options].some(o => o.value === RT_PRODUTO_STATUS_ARQUIVADO)) statusModal.add(new Option(RT_PRODUTO_STATUS_ARQUIVADO, RT_PRODUTO_STATUS_ARQUIVADO));
+  }
+  statusModal.value = produto.status || "Livre";
   document.getElementById("produtoUsabilidade").value = produto.grau_usabilidade || "Bom";
   document.getElementById("produtoObservacao").value = produto.observacao || "";
   document.getElementById("fotoPreview").src = fotoAtual || "";
   document.getElementById("produtoModalTitulo").textContent = `Editar ${produto.codigo || "produto"}`;
-  document.getElementById("duplicarProdutoBtn").style.display = "inline-flex";
+  document.getElementById("duplicarProdutoBtn").style.display = rtProdutoArquivado(produto) ? "none" : "inline-flex";
+  const vendaBtn = document.getElementById("venderBaixarProdutoBtn");
+  if (vendaBtn) {
+    vendaBtn.style.display = rtProdutoArquivado(produto) ? "none" : "inline-flex";
+    vendaBtn.textContent = "Registrar venda / baixa";
+  }
   document.getElementById("produtoDialog").showModal();
 }
 
@@ -603,6 +675,8 @@ function duplicarProdutoAtual() {
   document.getElementById("fotoPreview").src = fotoAtual || "";
   document.getElementById("produtoModalTitulo").textContent = `Duplicar produto - novo código ${novoCodigo}`;
   document.getElementById("duplicarProdutoBtn").style.display = "none";
+  const vendaBtnDuplicado = document.getElementById("venderBaixarProdutoBtn");
+  if (vendaBtnDuplicado) vendaBtnDuplicado.style.display = "none";
   document.getElementById("produtoCodigo").focus();
   document.getElementById("produtoCodigo").select();
 }
@@ -621,7 +695,7 @@ function codigoProdutoJaExiste(codigo, idAtual = "") {
   return (Array.isArray(produtos) ? produtos : []).some(p => {
     const mesmoCodigo = String(p.codigo || "").trim().toLowerCase() === codigoNormalizado;
     const outroProduto = String(p.id || "") !== String(idAtual || "");
-    return mesmoCodigo && outroProduto;
+    return mesmoCodigo && outroProduto && rtProdutoAtivo(p);
   });
 }
 
@@ -646,7 +720,7 @@ async function salvarProdutoForm(event) {
     tipo: document.getElementById("produtoCategoria").value,
     tamanho: document.getElementById("produtoTamanho").value,
     cor: document.getElementById("produtoCor").value,
-    status: document.getElementById("produtoStatus").value,
+    status: existente && rtProdutoArquivado(existente) ? RT_PRODUTO_STATUS_ARQUIVADO : document.getElementById("produtoStatus").value,
     grau_usabilidade: document.getElementById("produtoUsabilidade").value,
     observacao: document.getElementById("produtoObservacao").value.trim(),
     foto: fotoAtual,
@@ -998,8 +1072,10 @@ function eventoUsaProdutoParaDisponibilidade(evento, produto) {
 
 function usoAtualProduto(produto) {
   const agora = Date.now();
-  const atuais = getEventosDisponibilidadeProduto()
-    .filter(evento => eventoUsaProdutoParaDisponibilidade(evento, produto))
+  const eventosProduto = getEventosDisponibilidadeProduto()
+    .filter(evento => eventoUsaProdutoParaDisponibilidade(evento, produto));
+
+  const atuais = eventosProduto
     .map(evento => ({ evento, intervalo: intervaloEventoDisponibilidade(evento) }))
     .filter(item => {
       const inicio = rtTimestampLocalOperacional(item.intervalo.inicio);
@@ -1008,7 +1084,28 @@ function usoAtualProduto(produto) {
     })
     .sort((a, b) => rtTimestampLocalOperacional(a.intervalo.fim) - rtTimestampLocalOperacional(b.intervalo.fim));
 
-  return atuais[0] || null;
+  if (atuais.length) return atuais[0];
+
+  // Recorrência ativa: quando o material já está marcado como Alugado e pertence
+  // a uma recorrência cujo período geral está em andamento, ele continua sendo
+  // "Atual" mesmo que a próxima ocorrência/cobrança esteja datada para alguns dias à frente.
+  const statusAlugado = String(produto?.status || "").trim().toLowerCase() === "alugado";
+  if (statusAlugado) {
+    const hoje = new Date(); hoje.setHours(12,0,0,0);
+    const recorrentesAtivas = eventosProduto
+      .filter(evento => typeof isEventoRecorrente === "function" && isEventoRecorrente(evento))
+      .map(evento => {
+        const inicioGeral = dataInicioDiaProdutoDisponibilidade(evento.recorrencia_inicio || evento.data_evento);
+        const fimGeral = dataInicioDiaProdutoDisponibilidade(evento.recorrencia_fim || rtFimPeriodoRecorrenteProdutoDisponibilidade(evento, evento.data_evento));
+        const distancia = Math.abs((dataInicioDiaProdutoDisponibilidade(evento.data_evento)?.getTime() || hoje.getTime()) - hoje.getTime());
+        return { evento, inicioGeral, fimGeral, distancia, intervalo: intervaloEventoDisponibilidade(evento) };
+      })
+      .filter(item => item.inicioGeral && item.fimGeral && item.inicioGeral <= hoje && item.fimGeral >= hoje)
+      .sort((a,b) => a.distancia - b.distancia);
+    if (recorrentesAtivas.length) return recorrentesAtivas[0];
+  }
+
+  return null;
 }
 
 function proximoUsoProduto(produto) {
@@ -1212,6 +1309,7 @@ function filtrarProdutos() {
   const tamanho = document.getElementById("filtroTamanho").value;
   const status = document.getElementById("filtroStatus").value;
   const usabilidade = document.getElementById("filtroUsabilidade")?.value || "";
+  const ciclo = document.getElementById("filtroCicloProduto")?.value || "ativos";
   const busca = document.getElementById("buscaProduto").value.trim().toLowerCase();
   const somenteDisponiveis = document.getElementById("mostrarSomenteDisponiveis")?.checked || false;
 
@@ -1219,7 +1317,9 @@ function filtrarProdutos() {
     const texto = `${p.codigo} ${p.categoria || p.tipo} ${p.tamanho} ${p.cor} ${p.status} ${p.grau_usabilidade || ""} ${p.observacao}`.toLowerCase();
     const disp = disponibilidadePeriodoProduto(p);
 
-    return (!categoria || (p.categoria || p.tipo) === categoria)
+    const passaCiclo = ciclo === "todos" || (ciclo === "baixados" ? rtProdutoArquivado(p) : rtProdutoAtivo(p));
+    return passaCiclo
+      && (!categoria || (p.categoria || p.tipo) === categoria)
       && (!tamanho || p.tamanho === tamanho)
       && (!status || (status === "Em manutenção" ? ["Bloqueada", "Revisar", "Limpar", "Consertar"].includes(p.status) : p.status === status))
       && (!usabilidade || String(p.grau_usabilidade || p.usabilidade || "") === usabilidade)
@@ -1567,8 +1667,8 @@ function renderizarProdutos() {
   const filtrados = filtrarProdutos();
 
   document.getElementById("prodTotal").textContent = filtrados.length;
-  document.getElementById("prodLivres").textContent = filtrados.filter(p => p.status === "Livre").length;
-  document.getElementById("prodProblema").textContent = filtrados.filter(p => p.status !== "Livre").length;
+  document.getElementById("prodLivres").textContent = filtrados.filter(p => rtProdutoAtivo(p) && p.status === "Livre").length;
+  document.getElementById("prodProblema").textContent = filtrados.filter(p => rtProdutoAtivo(p) && p.status !== "Livre").length;
   const prodConferidosEl = document.getElementById("prodConferidos");
   if (prodConferidosEl) prodConferidosEl.textContent = `${filtrados.filter(p => !!p.deposito_check).length} / ${filtrados.length}`;
 
@@ -1589,7 +1689,8 @@ function renderizarProdutos() {
   tbody.innerHTML = ordenados.map(p => {
     const statusOriginal = p.status || "";
     const statusNormalizado = normalizarStatus(statusOriginal);
-    const statusParaSelect = (statusNormalizado === "bloqueado" || statusNormalizado === "bloqueada") ? "Bloqueada" : (statusOriginal || "Livre");
+    const arquivado = rtProdutoArquivado(p);
+    const statusParaSelect = arquivado ? RT_PRODUTO_STATUS_ARQUIVADO : ((statusNormalizado === "bloqueado" || statusNormalizado === "bloqueada") ? "Bloqueada" : (statusOriginal || "Livre"));
     return `
     <tr class="status-${normalizarStatus(statusParaSelect)}">
       <td>${obterFotoProduto(p) ? `<img class="product-img" src="${obterFotoProduto(p)}" alt="">` : `<span class="product-img-placeholder">Sem foto</span>`}</td>
@@ -1598,16 +1699,21 @@ function renderizarProdutos() {
       <td>${p.tamanho || "-"}</td>
       <td>${p.cor || "-"}</td><td>${p.grau_usabilidade || p.usabilidade || "-"}</td>
       <td>
-        <select class="status-select status-${normalizarStatus(statusParaSelect)}" data-action="status" data-id="${p.id}">
-          ${statusProdutos.map(s => `<option value="${s}" ${statusParaSelect === s ? "selected" : ""}>${s}</option>`).join("")}
-        </select>
+        ${arquivado
+          ? `<span class="produto-baixado-badge">Vendido/Baixado</span>`
+          : `<select class="status-select status-${normalizarStatus(statusParaSelect)}" data-action="status" data-id="${p.id}">
+              ${statusProdutos.map(s => `<option value="${s}" ${statusParaSelect === s ? "selected" : ""}>${s}</option>`).join("")}
+            </select>`}
       </td>
-      <td><input data-action="obs" data-id="${p.id}" value="${rtProdutoObsEventoCurta(p.observacao, p).replaceAll('"', '&quot;')}" /></td>
+      <td><input data-action="obs" data-id="${p.id}" value="${rtProdutoObsTabela(p).replaceAll('"', '&quot;')}" /></td>
       <td class="check-cell">${htmlCheckDepositoProduto(p)}</td>
       <td class="availability-cell">${htmlDisponibilidadePeriodoProduto(p)}</td>
       <td class="actions">
         <button data-action="editar" data-id="${p.id}">Editar</button>
-        <button class="btn-outline" data-action="excluir" data-id="${p.id}">Excluir</button>
+        ${arquivado
+          ? `<button class="btn-outline" data-action="reativar" data-id="${p.id}">Reativar</button>
+             <button class="btn-danger-outline" data-action="excluir-definitivo" data-id="${p.id}">Excluir definitivo</button>`
+          : ``}
       </td>
     </tr>
   `;
@@ -1698,27 +1804,85 @@ function alertarReservasFuturasProduto(produto, novoStatus) {
 }
 
 function alertarVendaReservasFuturasProduto(produto, novaUsabilidade) {
-  if (!usabilidadeIndicaVendaOuBaixa(novaUsabilidade)) return;
-  const afetados = eventosFuturosDoProduto(produto);
-  if (!afetados.length) return;
-  const linhas = afetados.slice(0, 10).map(item => {
-    const data = formatarDataCurtaProdutoDisp(item.intervalo?.inicio || item.evento?.montagem || item.evento?.data_evento);
-    return `• ${data} - ${item.evento?.nome || "Cliente"}`;
-  }).join("\n");
-  const extra = afetados.length > 10 ? `\n... e mais ${afetados.length - 10} evento(s).` : "";
-  const msg = `⚠️ MATERIAL VENDIDO / BAIXADO\n\nO produto ${produto.codigo || ""} está reservado em ${afetados.length} evento(s) futuro(s).\n\nEle NÃO será removido desses eventos. Permanecerá visível com alerta para substituição.\n\n${linhas}${extra}`;
-  const ver = confirm(msg + "\n\nDeseja abrir a lista de eventos filtrada por este código para revisar as substituições?");
-  if (ver) {
-    try {
-      if (typeof mostrarSecao === "function") mostrarSecao("eventosSection");
-      const busca = document.getElementById("buscaEvento");
-      if (busca) {
-        busca.value = String(produto.codigo || "");
-        if (typeof renderizarEventos === "function") renderizarEventos();
-        busca.focus();
-      }
-    } catch (erro) { console.warn("Não foi possível abrir eventos afetados", erro); }
+  // "Venda / Baixa" em usabilidade não significa que o item saiu do cadastro.
+  // A proteção de eventos futuros é feita pela ausência real do código em Produtos.
+  return;
+}
+
+async function arquivarProdutoVendaBaixa(id) {
+  const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(id));
+  if (!produto || rtProdutoArquivado(produto)) return;
+
+  const futuros = eventosFuturosDoProduto(produto);
+  const avisoFuturos = futuros.length
+    ? `\n\n⚠ Este material aparece em ${futuros.length} evento(s) futuro(s). Ele continuará registrado nesses eventos, mas será marcado para substituição.`
+    : "";
+  if (!confirm(`Registrar venda/baixa do produto ${produto.codigo || "sem código"}?\n\nEle sairá do cadastro ATIVO e deixará de poder ser usado em novos eventos. O histórico será preservado e o código ficará liberado para um novo material.${avisoFuturos}`)) return;
+
+  const obsVenda = prompt("Observação da venda/baixa (opcional):", "") ?? "";
+  const antes = JSON.parse(JSON.stringify(produto));
+  const colaborador = getColaboradorLogado();
+  const statusAnterior = produto.status || "Livre";
+  produto.status = RT_PRODUTO_STATUS_ARQUIVADO;
+  produto.atualizado_em = new Date().toISOString();
+  produto.colaborador = colaborador;
+  produto.deposito_check = false;
+  produto.historico = Array.isArray(produto.historico) ? produto.historico : [];
+  produto.historico.push({
+    data: produto.atualizado_em,
+    colaborador,
+    alteracao: "Venda / baixa registrada",
+    observacao: `${obsVenda || "Sem observação"} | Status anterior: ${statusAnterior}`
+  });
+
+  const salvo = await salvarProdutoBanco(produto);
+  if (!salvo) return;
+  const idx = produtos.findIndex(p => String(p.id) === String(id));
+  if (idx >= 0) produtos[idx] = salvo;
+  if (typeof registrarLogSistema === "function") registrarLogSistema({ modulo:"Produtos", acao:"Venda/baixa registrada", registro_id:salvo.id, registro_nome:salvo.codigo || "Produto", antes, depois:salvo });
+  fecharProdutoModal();
+  renderizarProdutos();
+  rtAtualizarDashboardProdutosLeve();
+  if (futuros.length) alertarReservasFuturasProduto({ ...salvo, status: "Bloqueada" }, "Vendido/Baixado");
+}
+
+async function reativarProdutoBaixado(id) {
+  const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(id));
+  if (!produto || !rtProdutoArquivado(produto)) return;
+  if (codigoProdutoJaExiste(produto.codigo, produto.id)) {
+    alert(`Não é possível reativar o código ${produto.codigo}, pois já existe outro produto ATIVO com esse código.`);
+    return;
   }
+  if (!confirm(`Reativar o produto ${produto.codigo || "sem código"} no estoque ativo?`)) return;
+  const antes = JSON.parse(JSON.stringify(produto));
+  produto.status = "Livre";
+  produto.atualizado_em = new Date().toISOString();
+  produto.colaborador = getColaboradorLogado();
+  produto.historico = Array.isArray(produto.historico) ? produto.historico : [];
+  produto.historico.push({ data:produto.atualizado_em, colaborador:produto.colaborador, alteracao:"Produto reativado", observacao:"Retornado ao cadastro ativo" });
+  const salvo = await salvarProdutoBanco(produto);
+  if (!salvo) return;
+  const idx = produtos.findIndex(p => String(p.id) === String(id));
+  if (idx >= 0) produtos[idx] = salvo;
+  if (typeof registrarLogSistema === "function") registrarLogSistema({ modulo:"Produtos", acao:"Produto reativado", registro_id:salvo.id, registro_nome:salvo.codigo || "Produto", antes, depois:salvo });
+  renderizarProdutos();
+  rtAtualizarDashboardProdutosLeve();
+}
+
+async function excluirProdutoBaixadoDefinitivo(id) {
+  const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(id));
+  if (!produto || !rtProdutoArquivado(produto)) { alert("A exclusão definitiva só é permitida para produtos já vendidos/baixados."); return; }
+  const qtdEventos = (() => { try { return getEventosDisponibilidadeProduto().filter(ev => eventoUsaProdutoParaDisponibilidade(ev, produto)).length; } catch { return 0; } })();
+  const alerta = qtdEventos ? `\n\nEste produto possui referência em ${qtdEventos} evento(s). As descrições já gravadas nos eventos serão preservadas, mas o cadastro histórico do produto será removido.` : "";
+  if (!confirm(`EXCLUSÃO DEFINITIVA\n\nExcluir permanentemente o produto antigo ${produto.codigo || "sem código"}?${alerta}\n\nUse isto apenas quando não quiser mais manter o histórico do cadastro.`)) return;
+  if (!confirm("Confirma novamente a exclusão definitiva? Esta ação não pode ser desfeita.")) return;
+  const antes = JSON.parse(JSON.stringify(produto));
+  const ok = await excluirProdutoBanco(id);
+  if (!ok) return;
+  produtos = produtos.filter(p => String(p.id) !== String(id));
+  if (typeof registrarLogSistema === "function") registrarLogSistema({ modulo:"Produtos", acao:"Produto baixado excluído definitivamente", registro_id:antes.id, registro_nome:antes.codigo || "Produto", antes, depois:null });
+  renderizarProdutos();
+  rtAtualizarDashboardProdutosLeve();
 }
 
 async function lidarAcaoProduto(event) {
@@ -1739,6 +1903,9 @@ async function lidarAcaoProduto(event) {
 
   if (action === "editar") abrirEditarProduto(id);
   if (action === "detalhe") abrirDetalheProduto(id);
+  if (action === "venda-baixa") { await arquivarProdutoVendaBaixa(id); return; }
+  if (action === "reativar") { await reativarProdutoBaixado(id); return; }
+  if (action === "excluir-definitivo") { await excluirProdutoBaixadoDefinitivo(id); return; }
 
   if (action === "excluir") {
     if (!confirm(`Excluir o produto ${produto.codigo || "sem código"}?`)) return;
@@ -1763,6 +1930,7 @@ async function lidarAcaoProduto(event) {
   }
 
   if (action === "status") {
+    if (rtProdutoArquivado(produto)) return;
     const novoStatus = event.currentTarget.value;
     if ((produto.status || "") === novoStatus) return;
 

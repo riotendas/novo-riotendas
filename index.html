@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png" />
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#f5d21e" />
-  <link rel="stylesheet" href="css/style.css?v=20260811-nav-instant-v2" />
+  <link rel="stylesheet" href="css/style.css?v=20260827-produtos-filtros-fit" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
 <style id="force-recurring-actions">
@@ -89,7 +89,20 @@
         <p>Alertas e acompanhamento operacional.</p>
       </div>
       <div class="dashboard-grid-3 dashboard-main-grid">
-        <div class="panel dashboard-scroll-card">
+        <div class="panel dashboard-scroll-card dashboard-rota-progresso-card" data-dashboard-card-id="rota-hoje" draggable="true" role="button" tabindex="0" title="Abrir a rota de hoje">
+          <div class="panel-title-row">
+            <h3>🚚 Rota de hoje</h3>
+            <span class="dash-mini-badge" id="dashRotaHojeResumo">0/0</span>
+          </div>
+          <div class="dashboard-rota-progresso-wrap">
+            <div class="dashboard-rota-progresso-num" id="dashRotaHojePercentual">0%</div>
+            <div class="dashboard-rota-progresso-barra" aria-label="Progresso da rota do dia">
+              <span id="dashRotaHojeBarra" style="width:0%"></span>
+            </div>
+            <div class="dashboard-rota-progresso-texto" id="dashRotaHojeTexto">Nenhuma etapa programada para hoje.</div>
+          </div>
+        </div>
+        <div class="panel dashboard-scroll-card" data-dashboard-card-id="eventos" draggable="true">
           <div class="panel-title-row">
             <h3>Eventos hoje e futuros</h3>
             <span class="dash-mini-badge" id="dashEventosHojeQtd">0</span>
@@ -99,7 +112,7 @@
           </div>
         </div>
 
-        <div class="panel dashboard-scroll-card">
+        <div class="panel dashboard-scroll-card" data-dashboard-card-id="valores" draggable="true">
           <div class="panel-title-row">
             <h3>Valores vencidos</h3>
             <span class="dash-mini-badge" id="dashEventosFuturosQtd">0</span>
@@ -109,7 +122,7 @@
           </div>
         </div>
 
-        <div class="panel dashboard-scroll-card dashboard-manutencao-card">
+        <div class="panel dashboard-scroll-card dashboard-manutencao-card" data-dashboard-card-id="manutencao" draggable="true">
           <div class="panel-title-row">
             <h3>Produtos em manutenção ou bloqueados</h3>
             <span class="dash-card-gear" title="Resumo de manutenção">⚙</span>
@@ -125,7 +138,7 @@
           <div id="dashboardProdutosProblema" class="compact-list empty">Nenhum produto encontrado.</div>
         </div>
 
-        <div class="panel dashboard-scroll-card">
+        <div class="panel dashboard-scroll-card" data-dashboard-card-id="alertas" draggable="true">
           <div class="panel-title-row">
             <h3>⚠ Alertas de operação</h3>
             <span class="dash-title-actions"><button type="button" class="dash-card-config-btn" data-dash-open-alert-config title="Configurar alertas">⚙</button><span class="dash-mini-badge" id="dashAlertasOperacaoQtd">0</span></span>
@@ -133,7 +146,7 @@
           <div id="dashboardAlertasOperacao" class="dashboard-alert-list empty">Nenhum alerta operacional.</div>
         </div>
 
-        <div class="panel dashboard-scroll-card">
+        <div class="panel dashboard-scroll-card" data-dashboard-card-id="pendencias" draggable="true">
           <div class="panel-title-row">
             <h3>✅ Entrega/retirada pendente</h3>
             <span class="dash-mini-badge" id="dashPendenciasEntregaQtd">0</span>
@@ -141,7 +154,7 @@
           <div id="dashboardPendenciasEntrega" class="dashboard-alert-list empty">Nenhuma pendência operacional.</div>
         </div>
 
-        <div class="panel dashboard-scroll-card">
+        <div class="panel dashboard-scroll-card" data-dashboard-card-id="horario" draggable="true">
           <div class="panel-title-row">
             <h3>⏰ Fora do horário</h3>
             <span class="dash-mini-badge" id="dashForaHorarioQtd">0</span>
@@ -149,7 +162,7 @@
           <div id="dashboardForaHorario" class="dashboard-alert-list empty">Nenhuma operação fora do horário.</div>
         </div>
 
-        <div class="panel dashboard-scroll-card dashboard-stock-card">
+        <div class="panel dashboard-scroll-card dashboard-stock-card" data-dashboard-card-id="estoque" draggable="true">
           <div class="panel-title-row">
             <h3>📦 Estoque futuro</h3>
             <span class="dash-mini-badge" id="dashEstoqueFuturoQtd">0</span>
@@ -196,7 +209,7 @@
       </div>
 
       <div class="filters-bar produtos-filtros-compactos">
-        <label>Categoria
+        <label>Categoria / Modelo
           <select id="filtroCategoria"><option value="">Todas</option></select>
         </label>
         <label>Tamanho
@@ -207,6 +220,13 @@
         </label>
         <label>Usabilidade
           <select id="filtroUsabilidade"><option value="">Todas</option></select>
+        </label>
+        <label>Cadastro
+          <select id="filtroCicloProduto">
+            <option value="ativos" selected>Ativos</option>
+            <option value="baixados">Vendidos/Baixados</option>
+            <option value="todos">Todos</option>
+          </select>
         </label>
         <label>Busca
           <input id="buscaProduto" type="search" placeholder="Código, cor, obs..." />
@@ -238,7 +258,7 @@
             <tr>
               <th>Foto</th>
               <th>Código</th>
-              <th>Categoria</th>
+              <th>Categoria / Modelo</th>
               <th>Tamanho</th>
               <th>Cor</th>
               <th>Usabilidade</th>
@@ -650,7 +670,15 @@
                 <h3>⚠ Pagamentos do sistema não localizados no extrato</h3>
                 <p class="hint">Mostra pagamentos lançados nos eventos por Pix, transferência, depósito, boleto ou cartão/rede que ainda não foram associados a uma linha do extrato salvo.</p>
               </div>
-              <div class="financeiro-auditoria-head-actions"><div id="financeiroPagamentosNaoLocalizadosResumo" class="financeiro-auditoria-resumo">Carregando...</div><div class="financeiro-extrato-filtros" id="financeiroAuditoriaFiltroBtns"></div></div>
+              <div class="financeiro-auditoria-head-actions">
+                <div class="financeiro-extrato-mes-nav" aria-label="Navegar por mês dos pagamentos não localizados">
+                  <button type="button" id="financeiroAuditoriaMesAnterior" class="btn-mini btn-outline" title="Mês anterior" aria-label="Mês anterior">‹</button>
+                  <button type="button" id="financeiroAuditoriaMesAtualLabel" class="financeiro-extrato-mes-label" title="Voltar ao mês atual">Mês atual / 26</button>
+                  <button type="button" id="financeiroAuditoriaMesProximo" class="btn-mini btn-outline" title="Próximo mês" aria-label="Próximo mês">›</button>
+                </div>
+                <div id="financeiroPagamentosNaoLocalizadosResumo" class="financeiro-auditoria-resumo">Carregando...</div>
+                <div class="financeiro-extrato-filtros" id="financeiroAuditoriaFiltroBtns"></div>
+              </div>
             </div>
             <div class="table-wrapper financeiro-table-wrapper financeiro-auditoria-table-wrap">
               <table class="financeiro-table financeiro-auditoria-table">
@@ -670,6 +698,7 @@
                 </tbody>
               </table>
             </div>
+            <div id="financeiroAuditoriaPaginacao" class="financeiro-extrato-paginacao"></div>
           </div>
 
           <div class="financeiro-extrato-salvo-wrap">
@@ -679,7 +708,12 @@
                 <p class="hint">Cada linha importada fica salva. Na coluna Associação, vincule a entrada ao evento/pagamento correto ou marque como rendimento.</p>
               </div>
               <div class="financeiro-extrato-filtros" id="financeiroExtratoFiltroBtns"></div>
-              <input id="financeiroExtratoBuscaSalvos" class="financeiro-extrato-busca" type="search" placeholder="Buscar extrato salvo...">
+              <div class="financeiro-extrato-mes-nav" aria-label="Navegar por mês do extrato salvo">
+                <button type="button" id="financeiroExtratoMesAnterior" class="btn-mini btn-outline" title="Mês anterior" aria-label="Mês anterior">‹</button>
+                <button type="button" id="financeiroExtratoMesAtualLabel" class="financeiro-extrato-mes-label" title="Voltar ao mês atual">Mês atual / 26</button>
+                <button type="button" id="financeiroExtratoMesProximo" class="btn-mini btn-outline" title="Próximo mês" aria-label="Próximo mês">›</button>
+              </div>
+              <input id="financeiroExtratoBuscaSalvos" class="financeiro-extrato-busca" type="search" placeholder="Buscar nome, descrição, valor...">
               <button type="button" id="financeiroRecarregarExtratoSalvoBtn" class="btn-outline">Recarregar salvos</button>
             </div>
             <div class="table-wrapper financeiro-table-wrapper">
@@ -700,6 +734,7 @@
                 </tbody>
               </table>
             </div>
+            <div id="financeiroExtratoPaginacao" class="financeiro-extrato-paginacao"></div>
           </div>
         </div>
 
@@ -1269,12 +1304,6 @@
         <div id="configAtualizarCoordenadasStatus" class="config-geocode-status" style="display:none;"></div>
       </div>
 
-      <div id="configCategoriaProdutosRemovida" class="hidden">
-        <input id="novaCategoriaNome" type="text">
-        <input id="novaCategoriaTamanhos" type="text">
-        <button id="adicionarCategoriaConfig" type="button">Adicionar categoria</button>
-        <div id="listaCategoriasConfig"></div>
-      </div>
 
       <dialog id="configModalUsuarios" class="modal large-modal config-popup">
         <div class="modal-header">
@@ -1287,10 +1316,11 @@
       </dialog>
 
       <dialog id="configModalProdutos" class="modal large-modal config-popup config-produtos-tabs-modal">
-        <div class="modal-header"><div><h2>Produtos</h2><p>Exportar/importar, materiais, cores e fotos em uma tela única.</p></div><button type="button" class="modal-close" data-close-config="configModalProdutos">×</button></div>
+        <div class="modal-header"><div><h2>Produtos</h2><p>Exportar/importar, categorias/modelos, materiais, cores e fotos em uma tela única.</p></div><button type="button" class="modal-close" data-close-config="configModalProdutos">×</button></div>
         <div class="config-popup-body config-produtos-tabs-body">
           <div class="config-produtos-tabs" role="tablist" aria-label="Configurações de produtos">
             <button type="button" class="config-produtos-tab active" data-produtos-config-tab="exportar">Exportar / Importar</button>
+            <button type="button" class="config-produtos-tab" data-produtos-config-tab="categorias">Categorias / Modelos</button>
             <button type="button" class="config-produtos-tab" data-produtos-config-tab="materiais">Materiais de Apoio</button>
             <button type="button" class="config-produtos-tab" data-produtos-config-tab="cores">Cores dos Produtos</button>
             <button type="button" class="config-produtos-tab" data-produtos-config-tab="fotos">Fotos</button>
@@ -1303,6 +1333,16 @@
             <label class="file-button">Importar produtos Excel<input id="importarProdutosExcel" type="file" accept=".xlsx,.xls,.csv"></label>
           </div>
           <small>Colunas: código, categoria, tamanho, cor, status, observação, foto, usabilidade e colaborador.</small>
+            </div>
+            <div class="config-produtos-pane" data-produtos-config-pane="categorias">
+              <h3>Categorias / Modelos</h3>
+              <div class="config-inline-form">
+                <input id="novaCategoriaNome" type="text" placeholder="Ex.: Ombrelone c/ Franja">
+                <input id="novaCategoriaTamanhos" type="text" placeholder="Tamanhos separados por vírgula. Ex.: 2,40">
+                <button id="adicionarCategoriaConfig" type="button">Adicionar categoria/modelo</button>
+              </div>
+              <small>A categoria/modelo define o tipo principal do produto, como Tenda Sanfonada, Tenda Piramidal, Ombrelone ou Ombrelone c/ Franja.</small>
+              <div id="listaCategoriasConfig" class="config-list"></div>
             </div>
             <div class="config-produtos-pane" data-produtos-config-pane="materiais">
               <h3>Materiais de Apoio</h3>
@@ -1337,7 +1377,7 @@
             <div class="config-produtos-pane" data-produtos-config-pane="fotos">
               <h3>Fotos</h3>
           <div class="foto-padrao-form">
-            <label>Categoria<select id="fotoPadraoCategoria"><option value="">Selecione uma categoria</option></select></label>
+            <label>Categoria / Modelo<select id="fotoPadraoCategoria"><option value="">Selecione uma categoria/modelo</option></select></label>
             <label>Tamanho<select id="fotoPadraoTamanho"><option value="">Selecione um tamanho</option></select></label>
             <label>Foto<input id="fotoPadraoArquivo" type="file" accept="image/*"></label>
             <input id="fotoPadraoUrl" type="hidden">
@@ -2035,7 +2075,7 @@
         <label>Código
           <input id="produtoCodigo" type="text" placeholder="Ex: 001" required />
         </label>
-        <label>Categoria
+        <label>Categoria / Modelo
           <select id="produtoCategoria" required></select>
         </label>
         <label>Tamanho
@@ -2064,6 +2104,7 @@
 
       <div class="modal-actions">
         <button type="button" class="btn-outline" id="duplicarProdutoBtn" style="display:none;">Duplicar produto</button>
+        <button type="button" class="btn-outline btn-venda-baixa" id="venderBaixarProdutoBtn" style="display:none;">Registrar venda / baixa</button>
         <button type="button" class="btn-outline" id="cancelarProduto">Cancelar</button>
         <button type="submit">Salvar produto</button>
       </div>
@@ -2360,13 +2401,13 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/diagnostico-trafego.js?v=20260807-egress-real-v1"></script>
   <script src="js/supabase.js"></script>
-  <script src="js/modelos-documentos-cloud.js?v=20260811-cloud-v1"></script>
+  <script src="js/modelos-documentos-cloud.js?v=20260825-perf-v5"></script>
   <script src="js/utils.js"></script>
   <script src="js/auth.js?v=20260814-perf-v3"></script>
   <script src="js/dashboard.js?v=20260814-perf-v3"></script>
-  <script src="js/produtos.js?v=20260814-perf-v3"></script>
+  <script src="js/produtos.js?v=20260825-perf-v5"></script>
   <script src="js/clientes.js?v=20260811-perf-lazy-v1"></script>
-  <script src="js/eventos.js?v=20260814-perf-v3"></script>
+  <script src="js/eventos.js?v=20260825-perf-v5"></script>
   <script src="js/orcamentos.js"></script>
   <script src="js/financeiro.js?v=20260814-perf-v3"></script>
   <script src="js/rotas.js?v=20260814-perf-v3"></script>
@@ -2384,8 +2425,8 @@
   <script src="js/calendario-nav-fix.js?v=20260814-perf-v3"></script>
   <script src="js/logs.js?v=20260811-perf-lazy-v1"></script>
   <script src="js/sync-produtos-disponibilidade.js"></script>
-  <script src="js/rt-realtime-sync.js?v=20260811-perf-lazy-v1"></script>
-  <script src="js/performance-safe.js?v=20260814-perf-v3"></script>
+  <script src="js/rt-realtime-sync.js?v=20260825-perf-v5"></script>
+  <script src="js/performance-safe.js?v=20260825-perf-v5"></script>
 
   <dialog id="previewImportarEventosDialog" class="modal large-modal import-preview-dialog">
     <div class="modal-header">

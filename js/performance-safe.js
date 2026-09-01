@@ -58,12 +58,12 @@
 
   // Dados quase estáticos / app_config. TTLs curtos o bastante para operação multiusuário,
   // mas longos o bastante para eliminar dezenas de SELECTs idênticos em sequência.
-  envolverCache("buscarUsuariosSistemaBanco", 2 * 60 * 1000, { keyByArgs: false });
-  envolverCache("carregarConfiguracoesNuvem", 2 * 60 * 1000, { keyByArgs: false });
-  envolverCache("carregarRotasOperacaoNuvem", 15 * 1000, { keyByArgs: false });
-  envolverCache("carregarRotasCarrosNuvem", 15 * 1000, { keyByArgs: false });
-  envolverCache("carregarRotasOrdemNuvem", 15 * 1000, { keyByArgs: false });
-  envolverCache("rtNotasCarregarNuvem", 20 * 1000, { keyByArgs: false });
+  envolverCache("buscarUsuariosSistemaBanco", 10 * 60 * 1000, { keyByArgs: false });
+  envolverCache("carregarConfiguracoesNuvem", 15 * 60 * 1000, { keyByArgs: false });
+  envolverCache("carregarRotasOperacaoNuvem", 10 * 60 * 1000, { keyByArgs: false });
+  envolverCache("carregarRotasCarrosNuvem", 10 * 60 * 1000, { keyByArgs: false });
+  envolverCache("carregarRotasOrdemNuvem", 10 * 60 * 1000, { keyByArgs: false });
+  envolverCache("rtNotasCarregarNuvem", 5 * 60 * 1000, { keyByArgs: false });
 
   // As funções abaixo já possuem cache próprio; aqui protegemos apenas chamadas concorrentes.
   envolverCache("carregarEventos", 1500, { keyByArgs: false });

@@ -3202,6 +3202,15 @@ function rtNotasSalvar(notas) {
 let rtNotasRealtimeCanal = null;
 let rtNotasRealtimeTimer = null;
 let rtNotasRealtimeAtualizando = false;
+let rtNotasEdicaoManualAte = 0;
+
+function rtNotasMarcarEdicaoManual(ms = 2200) {
+  rtNotasEdicaoManualAte = Math.max(rtNotasEdicaoManualAte || 0, Date.now() + Math.max(600, Number(ms) || 2200));
+}
+
+function rtNotasEdicaoManualRecente() {
+  return !!window.__rtUsuarioArrastandoRota || Date.now() < Number(rtNotasEdicaoManualAte || 0);
+}
 
 function rtNotasSecaoAtiva(id) {
   const el = document.getElementById(id);
@@ -3213,6 +3222,13 @@ function rtNotasUsuarioEditandoNota() {
 }
 
 async function rtNotasAtualizarPorRealtime() {
+  // Nunca deixa o realtime sobrescrever uma posição que o usuário acabou de arrastar.
+  // Após a janela de proteção, a nuvem é sincronizada normalmente para manter multiusuário.
+  if (rtNotasEdicaoManualRecente()) {
+    clearTimeout(rtNotasRealtimeTimer);
+    rtNotasRealtimeTimer = setTimeout(rtNotasAtualizarPorRealtime, 700);
+    return;
+  }
   if (rtNotasRealtimeAtualizando) return;
   rtNotasRealtimeAtualizando = true;
   try {
@@ -3234,7 +3250,7 @@ async function rtNotasAtualizarPorRealtime() {
 
 function rtNotasAgendarAtualizacaoRealtime() {
   clearTimeout(rtNotasRealtimeTimer);
-  rtNotasRealtimeTimer = setTimeout(rtNotasAtualizarPorRealtime, 250);
+  rtNotasRealtimeTimer = setTimeout(rtNotasAtualizarPorRealtime, rtNotasEdicaoManualRecente() ? 750 : 250);
 }
 
 function rtNotasIniciarRealtime() {
@@ -5332,7 +5348,9 @@ function rtMoverNotaRotaPasso(notaId, direcao) {
   const delta = direcao === "up" ? -1 : 1;
   nota.posicao = Math.max(0, Number(nota.posicao || 0) + delta);
   nota.atualizadoEm = new Date().toISOString();
-  rtNotasSalvar(notas);
+  rtNotasMarcarEdicaoManual(2600);
+  rtNotasSalvarLocal(notas);
+  rtNotaSalvarNuvem(nota).then(ok => { if (ok) rtNotasMarcarEdicaoManual(900); }).catch(() => {});
   renderizarRotas();
   if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
 }
@@ -5345,7 +5363,17 @@ function rtMoverNotaRotaParaPosicao(notaId, data, carro, posicao) {
   nota.carro = carro || nota.carro;
   nota.posicao = Math.max(0, Number(posicao) || 0);
   nota.atualizadoEm = new Date().toISOString();
-  rtNotasSalvar(notas);
+
+  // A posição visual vira imediatamente a fonte local e fica protegida do realtime
+  // enquanto a MESMA nota é persistida na nuvem. Evita o efeito de voltar ao topo.
+  rtNotasMarcarEdicaoManual(2600);
+  rtNotasSalvarLocal(notas);
+  rtNotaSalvarNuvem(nota).then(ok => {
+    if (ok) {
+      rtNotasMarcarMigrado();
+      rtNotasMarcarEdicaoManual(900);
+    }
+  }).catch(() => {});
   return true;
 }
 

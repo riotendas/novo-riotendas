@@ -378,6 +378,7 @@ function manutMobileTamanhoCombina(produto = {}) {
 function manutMobileContarTamanho(tamanhoFiltro) {
   const key = manutMobileTamanhoKey(tamanhoFiltro || "");
   return (Array.isArray(produtos) ? produtos : []).filter(produto => {
+    if (typeof window.rtProdutoArquivado === "function" && window.rtProdutoArquivado(produto)) return false;
     if (!manutMobileStatusCombina(produto, manutencaoMobileFiltroAtual || "pendentes")) return false;
     if (!manutMobileUsabilidadeCombina(produto)) return false;
     if (!key) return true;
@@ -663,6 +664,7 @@ function manutMobileProdutosFiltrados() {
   const filtro = manutMobileNormalizar(manutencaoMobileFiltroAtual || "pendentes");
   return lista
     .filter(produto => {
+      if (typeof window.rtProdutoArquivado === "function" && window.rtProdutoArquivado(produto)) return false;
       if (!manutMobileUsabilidadeCombina(produto)) return false;
       if (!manutMobileTamanhoCombina(produto)) return false;
       return manutMobileStatusCombina(produto, filtro);
@@ -672,6 +674,7 @@ function manutMobileProdutosFiltrados() {
 
 function manutMobileContar(statusEsperado) {
   return (Array.isArray(produtos) ? produtos : []).filter(produto => {
+    if (typeof window.rtProdutoArquivado === "function" && window.rtProdutoArquivado(produto)) return false;
     if (!manutMobileUsabilidadeCombina(produto)) return false;
     if (!manutMobileTamanhoCombina(produto)) return false;
     return manutMobileStatusCombina(produto, statusEsperado);
@@ -753,6 +756,7 @@ function manutMobileBuscarProdutosPossiveis(codigo) {
   const termoDigitos = manutMobileDigitos(codigo);
   if (!termoDigitos) return [];
   return (Array.isArray(produtos) ? produtos : []).filter(p => {
+    if (typeof window.rtProdutoArquivado === "function" && window.rtProdutoArquivado(p)) return false;
     const dig = manutMobileDigitos(p.codigo);
     return dig === termoDigitos || dig.endsWith(termoDigitos) || dig.includes(termoDigitos);
   });

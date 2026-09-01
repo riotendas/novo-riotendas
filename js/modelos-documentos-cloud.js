@@ -9,6 +9,9 @@
     orcamento: 'modelo-orcamento.html'
   };
   const mem = {};
+  const emAndamento = new Map();
+  const falhas = new Map();
+  const FALHA_TTL_MS = 10 * 60 * 1000;
 
   function arquivoPadrao(tipo){ return PADRAO[tipo] || ''; }
   function normalizarArquivo(tipo, arquivo){
@@ -43,24 +46,39 @@
   async function baixar(tipo, arquivo='', opcoes={}){
     const alvo = normalizarArquivo(tipo, arquivo);
     if (!alvo) throw new Error('Nome do modelo inválido.');
+    const key = `${tipo}:${alvo}`;
     if (!opcoes.forcar && mem[tipo]?.html && mem[tipo]?.nome === alvo) return mem[tipo];
+    const local = obterCache(tipo, alvo);
+    const falha = falhas.get(key);
+    if (!opcoes.forcar && falha && (Date.now() - falha.ts) < FALHA_TTL_MS) {
+      if (local && opcoes.permitirCache !== false) return local;
+      throw falha.erro;
+    }
+    if (!opcoes.forcar && emAndamento.has(key)) return emAndamento.get(key);
     if (typeof supabaseClient === 'undefined' || !supabaseClient?.storage) {
-      const local = obterCache(tipo, alvo);
       if (local) return local;
       throw new Error('Supabase Storage indisponível.');
     }
-    try {
-      const { data, error } = await supabaseClient.storage.from(BUCKET).download(alvo);
-      if (error) throw error;
-      const html = await data.text();
-      if (!html.trim()) throw new Error('Modelo vazio.');
-      if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(html)) throw new Error('O modelo não possui variáveis {{...}}.');
-      return salvarCache(tipo, alvo, html, new Date().toISOString(), 'nuvem');
-    } catch (erro) {
-      const local = obterCache(tipo, alvo);
-      if (local && opcoes.permitirCache !== false) return local;
-      throw erro;
-    }
+    const promessa = (async () => {
+      try {
+        const { data, error } = await supabaseClient.storage.from(BUCKET).download(alvo);
+        if (error) throw error;
+        const html = await data.text();
+        if (!html.trim()) throw new Error('Modelo vazio.');
+        if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(html)) throw new Error('O modelo não possui variáveis {{...}}.');
+        falhas.delete(key);
+        return salvarCache(tipo, alvo, html, new Date().toISOString(), 'nuvem');
+      } catch (erro) {
+        falhas.set(key, { ts: Date.now(), erro });
+        const cacheAtual = obterCache(tipo, alvo);
+        if (cacheAtual && opcoes.permitirCache !== false) return cacheAtual;
+        throw erro;
+      } finally {
+        emAndamento.delete(key);
+      }
+    })();
+    emAndamento.set(key, promessa);
+    return promessa;
   }
   async function info(tipo, arquivo=''){
     const alvo = normalizarArquivo(tipo, arquivo);
@@ -83,6 +101,7 @@
       cacheControl: '0'
     });
     if (error) throw error;
+    falhas.delete(`${tipo}:${alvo}`);
     salvarCache(tipo, alvo, html, new Date().toISOString(), 'nuvem');
     return { nome: alvo, html };
   }
@@ -91,6 +110,7 @@
     if (typeof supabaseClient === 'undefined' || !supabaseClient?.storage) throw new Error('Supabase Storage indisponível.');
     const { error } = await supabaseClient.storage.from(BUCKET).remove([alvo]);
     if (error) throw error;
+    falhas.delete(`${tipo}:${alvo}`);
     delete mem[tipo];
     const dados = carregarCache(); delete dados[tipo];
     try { localStorage.setItem(CACHE_KEY, JSON.stringify(dados)); } catch(_) {}

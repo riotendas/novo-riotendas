@@ -4,7 +4,7 @@ let rtDashboardEventosCacheTs = 0;
 const RT_DASHBOARD_EVENTOS_TTL_MS = 2 * 60 * 1000;
 
 function atualizarDashboard(produtos = []) {
-  const listaProdutos = Array.isArray(produtos) ? produtos : [];
+  const listaProdutos = (Array.isArray(produtos) ? produtos : []).filter(p => !(typeof window.rtProdutoArquivado === "function" && window.rtProdutoArquivado(p)));
   const total = listaProdutos.length;
   let livres = 0;
   let manutencaoQtd = 0;
@@ -466,6 +466,7 @@ async function renderizarDashboardEventos() {
       else alert("Abra o setor Eventos para visualizar este evento.");
     };
   });
+  if (typeof rtDashAtualizarProgressoRota === "function") rtDashAtualizarProgressoRota(eventosLista);
 }
 
 
@@ -924,4 +925,96 @@ document.addEventListener("DOMContentLoaded", () => {
     const ativo = document.getElementById("dashboardSection")?.classList.contains("active-section");
     if (ativo) setTimeout(renderizarDashboardAlertas, 180);
   });
+});
+
+// v19-dev-2026-08-25: ordem personalizável dos cards e progresso da rota do dia.
+function rtDashUsuarioOrdemKey() {
+  let nome = "usuario";
+  try {
+    nome = String(window.usuarioLogado?.nome || window.usuarioAtual?.nome || localStorage.getItem("novoRioTendasUsuarioNome") || "usuario").trim().toLowerCase() || "usuario";
+  } catch(e) {}
+  return `novoRioTendasDashboardOrdemV1:${nome}`;
+}
+
+function rtDashAplicarOrdemCards() {
+  const grid = document.querySelector(".dashboard-main-grid");
+  if (!grid) return;
+  let ordem = [];
+  try { ordem = JSON.parse(localStorage.getItem(rtDashUsuarioOrdemKey()) || "[]"); } catch(e) {}
+  if (!Array.isArray(ordem) || !ordem.length) return;
+  const cards = new Map([...grid.querySelectorAll(":scope > [data-dashboard-card-id]")].map(el => [el.dataset.dashboardCardId, el]));
+  ordem.forEach(id => { const el = cards.get(id); if (el) grid.appendChild(el); });
+  cards.forEach((el,id) => { if (!ordem.includes(id)) grid.appendChild(el); });
+}
+
+function rtDashSalvarOrdemCards() {
+  const ids = [...document.querySelectorAll(".dashboard-main-grid > [data-dashboard-card-id]")].map(el => el.dataset.dashboardCardId).filter(Boolean);
+  try { localStorage.setItem(rtDashUsuarioOrdemKey(), JSON.stringify(ids)); } catch(e) {}
+}
+
+function rtDashAtivarArrastarCards() {
+  const grid = document.querySelector(".dashboard-main-grid");
+  if (!grid || grid.dataset.dragReady === "1") return;
+  grid.dataset.dragReady = "1";
+  let atual = null;
+  grid.addEventListener("dragstart", ev => {
+    const card = ev.target.closest("[data-dashboard-card-id]");
+    if (!card) return;
+    atual = card;
+    card.classList.add("dash-card-dragging");
+    try { ev.dataTransfer.effectAllowed = "move"; ev.dataTransfer.setData("text/plain", card.dataset.dashboardCardId || ""); } catch(e) {}
+  });
+  grid.addEventListener("dragover", ev => {
+    if (!atual) return;
+    const alvo = ev.target.closest("[data-dashboard-card-id]");
+    if (!alvo || alvo === atual) return;
+    ev.preventDefault();
+    const r = alvo.getBoundingClientRect();
+    const antes = ev.clientY < r.top + r.height/2 || (Math.abs(ev.clientY-(r.top+r.height/2)) < r.height*.2 && ev.clientX < r.left+r.width/2);
+    grid.insertBefore(atual, antes ? alvo : alvo.nextSibling);
+  });
+  grid.addEventListener("dragend", () => {
+    if (atual) atual.classList.remove("dash-card-dragging");
+    atual = null;
+    rtDashSalvarOrdemCards();
+  });
+}
+
+function rtDashAtualizarProgressoRota(eventosLista) {
+  const hoje = dataISOHojeDashboard();
+  const eventosBase = Array.isArray(eventosLista) ? eventosLista : (Array.isArray(window.eventos) ? window.eventos : []);
+  let total = 0, concluidas = 0;
+  eventosBase.forEach(ev => {
+    try {
+      if (typeof rtEventoCancelado === "function" && rtEventoCancelado(ev)) return;
+    } catch(e) {}
+    const mon = rtDashDataHoraEvento(ev, "montagem").data;
+    const des = rtDashDataHoraEvento(ev, "desmontagem").data;
+    if (mon === hoje) { total++; if (rtDashOperacaoConfirmada(ev, "montagem")) concluidas++; }
+    if (des === hoje) { total++; if (rtDashOperacaoConfirmada(ev, "desmontagem")) concluidas++; }
+  });
+  const pct = total ? Math.max(0, Math.min(100, Math.round((concluidas / total) * 100))) : 0;
+  const elPct = document.getElementById("dashRotaHojePercentual");
+  const elBar = document.getElementById("dashRotaHojeBarra");
+  const elTxt = document.getElementById("dashRotaHojeTexto");
+  const elResumo = document.getElementById("dashRotaHojeResumo");
+  const card = document.querySelector('[data-dashboard-card-id="rota-hoje"]');
+  if (elPct) elPct.textContent = `${pct}%`;
+  if (elBar) elBar.style.width = `${pct}%`;
+  if (elResumo) elResumo.textContent = `${concluidas}/${total}`;
+  if (elTxt) elTxt.textContent = total ? (pct === 100 ? `✅ Rota do dia concluída — ${concluidas} de ${total} etapas.` : `${concluidas} de ${total} etapas concluídas.`) : "Nenhuma etapa programada para hoje.";
+  card?.classList.toggle("dash-rota-concluida", total > 0 && pct === 100);
+}
+
+function rtDashAbrirRotaHoje() { rtDashAbrirRotaData(dataISOHojeDashboard()); }
+
+document.addEventListener("DOMContentLoaded", () => {
+  rtDashAplicarOrdemCards();
+  rtDashAtivarArrastarCards();
+  const card = document.querySelector('[data-dashboard-card-id="rota-hoje"]');
+  if (card) {
+    card.addEventListener("click", ev => { if (!ev.target.closest("button,a,input,select,textarea")) rtDashAbrirRotaHoje(); });
+    card.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); rtDashAbrirRotaHoje(); } });
+  }
+  setTimeout(() => rtDashAtualizarProgressoRota(rtDashboardEventosCache || window.eventos || []), 300);
 });

@@ -398,6 +398,14 @@ function aplicarConfiguracoesNoSistema() {
   try {
     if (typeof renderizarRotas === "function") renderizarRotas();
   } catch {}
+
+  try {
+    if (typeof window.rtAtualizarCategoriasProdutosUI === "function") {
+      window.rtAtualizarCategoriasProdutosUI();
+    }
+  } catch (erro) {
+    console.warn("Não foi possível atualizar Categoria / Modelo na tela Produtos.", erro);
+  }
 }
 
 function iniciarAbasProdutosConfig() {
@@ -410,6 +418,7 @@ function iniciarAbasProdutosConfig() {
   const ativar = chave => {
     tabs.forEach(tab => tab.classList.toggle("active", tab.dataset.produtosConfigTab === chave));
     panes.forEach(pane => pane.classList.toggle("active", pane.dataset.produtosConfigPane === chave));
+    if (chave === "categorias") renderizarCategoriasConfig();
     if (chave === "materiais") renderizarMateriaisApoioConfig();
     if (chave === "cores") renderizarCoresConfig();
     if (chave === "fotos") {
@@ -2623,19 +2632,54 @@ function chaveFotoPadrao(categoria, tamanho) {
 }
 
 
+function rtCategoriasModelosConfigUnificados() {
+  const config = carregarConfiguracoes();
+  const unificadas = {};
+
+  const incorporar = origem => {
+    if (!origem || typeof origem !== "object") return;
+    Object.entries(origem).forEach(([categoria, tamanhos]) => {
+      const nome = String(categoria || "").trim();
+      if (!nome) return;
+      const lista = Array.isArray(tamanhos) ? tamanhos : [];
+      unificadas[nome] = Array.from(new Set([...(unificadas[nome] || []), ...lista.map(v => String(v || "").trim()).filter(Boolean)]));
+    });
+  };
+
+  // Fonte oficial + espelhos já carregados na aplicação. Isso evita que Fotos
+  // permaneça presa à lista fixa/antiga após criar uma nova categoria/modelo.
+  incorporar(config.categorias);
+  incorporar(window.categoriasProdutosConfig);
+  try { if (typeof categoriasProdutos !== "undefined") incorporar(categoriasProdutos); } catch {}
+
+  // Também incorpora categorias/tamanhos de produtos já existentes, sem consulta extra.
+  try {
+    const listaProdutos = (typeof produtos !== "undefined" && Array.isArray(produtos)) ? produtos : [];
+    listaProdutos.forEach(produto => {
+      const categoria = String(produto?.categoria || produto?.tipo || "").trim();
+      const tamanho = String(produto?.tamanho || "").trim();
+      if (!categoria) return;
+      if (!unificadas[categoria]) unificadas[categoria] = [];
+      if (tamanho && !unificadas[categoria].includes(tamanho)) unificadas[categoria].push(tamanho);
+    });
+  } catch {}
+
+  return unificadas;
+}
+window.rtCategoriasModelosConfigUnificados = rtCategoriasModelosConfigUnificados;
+
 function preencherSelectsFotoPadrao() {
   const categoriaSelect = document.getElementById("fotoPadraoCategoria");
   const tamanhoSelect = document.getElementById("fotoPadraoTamanho");
 
   if (!categoriaSelect || !tamanhoSelect) return;
 
-  const config = carregarConfiguracoes();
-  const categorias = config.categorias || {};
+  const categorias = rtCategoriasModelosConfigUnificados();
 
   const categoriaAtual = categoriaSelect.value;
 
   categoriaSelect.innerHTML = `
-    <option value="">Selecione uma categoria</option>
+    <option value="">Selecione uma categoria/modelo</option>
     ${Object.keys(categorias).map(categoria => `
       <option value="${categoria}" ${categoriaAtual === categoria ? "selected" : ""}>${categoria}</option>
     `).join("")}
@@ -2650,9 +2694,9 @@ function preencherTamanhosFotoPadrao() {
 
   if (!categoriaSelect || !tamanhoSelect) return;
 
-  const config = carregarConfiguracoes();
   const categoria = categoriaSelect.value;
-  const tamanhos = (config.categorias && config.categorias[categoria]) ? config.categorias[categoria] : [];
+  const categorias = rtCategoriasModelosConfigUnificados();
+  const tamanhos = Array.isArray(categorias[categoria]) ? categorias[categoria] : [];
 
   tamanhoSelect.innerHTML = `
     <option value="">Selecione um tamanho</option>
@@ -2715,7 +2759,7 @@ async function adicionarFotoPadraoConfig() {
   const fotoAtual = hiddenAtual?.value || "";
 
   if (!categoria || !tamanho) {
-    alert("Selecione a categoria e o tamanho.");
+    alert("Selecione a categoria/modelo e o tamanho.");
     return;
   }
 
