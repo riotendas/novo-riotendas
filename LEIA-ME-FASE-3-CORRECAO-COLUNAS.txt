@@ -1,7 +1,0 @@
-RIO TENDAS — FASE 3 CORRIGIDA
-
-Correções:
-- Removida a coluna inexistente html da consulta da tabela orcamentos.
-- Removida a coluna inexistente atualizado_em da consulta da tabela clientes_cadastro.
-- Mantidas as otimizações de cache e consultas inteligentes das Fases 1, 2 e 3.
-- Nenhuma alteração visual ou de regra operacional.
