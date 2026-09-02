@@ -14,7 +14,7 @@ function textoHorarioRota(tipoSalvo, horario, dataISO) {
   const tipo = tipoHorarioBaseRota(tipoSalvo);
   const fim = tipoHorarioFimRota(tipoSalvo);
 
-  if (tipo === "Exatamente") return horario ? `Exatamente às ${horario}` : "Exatamente";
+  if (tipo === "Exatamente") return horario ? `Exat. ${horario}` : "Exat.";
   if (tipo === "A partir de") return horario ? `A partir ${horario}` : "A partir de";
   if (tipo === "Até") return horario ? `Até ${horario}` : "Até";
   if (tipo === "Intervalo") {
@@ -2064,6 +2064,69 @@ async function abrirTrocaProdutoRota(eventoId, produtoIndex) {
   modal.showModal();
 }
 
+
+function rtMesmoProdutoTrocaRecorrente(a, b) {
+  if (!a || !b) return false;
+  const ida = String(a.id || "").trim();
+  const idb = String(b.id || "").trim();
+  if (ida && idb && ida === idb) return true;
+  const ca = String(a.codigo || "").trim();
+  const cb = String(b.codigo || "").trim();
+  return !!(ca && cb && ca === cb);
+}
+
+async function rtPropagarTrocaRecorrenteFuturaRota(eventoBase, produtoAntigo, produtoNovoEvento) {
+  if (!eventoBase || !(typeof isEventoRecorrente === "function" && isEventoRecorrente(eventoBase))) {
+    return { atualizados: 0, falhas: 0 };
+  }
+  const grupo = String(eventoBase.recorrencia_grupo_id || "").trim();
+  if (!grupo) return { atualizados: 0, falhas: 0 };
+
+  const dataBase = String(eventoBase.data_evento || "").slice(0, 10);
+  const futuros = (Array.isArray(eventos) ? eventos : [])
+    .filter(e =>
+      String(e.id) !== String(eventoBase.id) &&
+      String(e.recorrencia_grupo_id || "").trim() === grupo &&
+      String(e.data_evento || "").slice(0, 10) > dataBase
+    )
+    .sort((a, b) => String(a.data_evento || "").localeCompare(String(b.data_evento || "")));
+
+  let atualizados = 0;
+  let falhas = 0;
+  for (const futuro of futuros) {
+    const lista = Array.isArray(futuro.tendas) ? futuro.tendas : [];
+    const indices = [];
+    lista.forEach((p, i) => {
+      if (rtMesmoProdutoTrocaRecorrente(p, produtoAntigo)) indices.push(i);
+    });
+    if (!indices.length) continue;
+
+    indices.forEach(i => {
+      futuro.tendas[i] = {
+        id: produtoNovoEvento.id || "",
+        codigo: produtoNovoEvento.codigo || "",
+        categoria: produtoNovoEvento.categoria || produtoNovoEvento.tipo || "",
+        tipo: produtoNovoEvento.tipo || produtoNovoEvento.categoria || "",
+        tamanho: produtoNovoEvento.tamanho || "",
+        cor: produtoNovoEvento.cor || ""
+      };
+    });
+    futuro.atualizado_em = new Date().toISOString();
+
+    const salvoFuturo = typeof salvarEventoBanco === "function"
+      ? await salvarEventoBanco(futuro)
+      : null;
+    if (salvoFuturo) {
+      const idxFuturo = eventos.findIndex(e => String(e.id) === String(salvoFuturo.id));
+      if (idxFuturo >= 0) eventos[idxFuturo] = salvoFuturo;
+      atualizados += 1;
+    } else {
+      falhas += 1;
+    }
+  }
+  return { atualizados, falhas };
+}
+
 async function confirmarTrocaProdutoRota() {
   const eventoId = document.getElementById("trocaRotaEventoId")?.value;
   const produtoIndexRaw = document.getElementById("trocaRotaProdutoIndex")?.value;
@@ -2228,6 +2291,15 @@ async function confirmarTrocaProdutoRota() {
 
   const idx = eventos.findIndex(e => String(e.id) === String(evento.id));
   if (idx >= 0) eventos[idx] = salvo;
+
+  // Recorrente: aplica a mesma troca desta ocorrência em diante.
+  // Períodos anteriores permanecem intactos como histórico.
+  const propagacaoRecorrente = await rtPropagarTrocaRecorrenteFuturaRota(
+    salvo || evento,
+    produtoAntigoEvento,
+    produtoNovoEvento
+  );
+
   if (salvoPermuta) {
     const idxPermuta = eventos.findIndex(e => String(e.id) === String(salvoPermuta.id));
     if (idxPermuta >= 0) eventos[idxPermuta] = salvoPermuta;
@@ -2257,7 +2329,13 @@ async function confirmarTrocaProdutoRota() {
     });
   }
 
-  alert(`Produto trocado:\n${produtoDescricaoRota(produtoAntigo)}\n→ ${produtoDescricaoRota(novoProduto)}`);
+  const avisoRecorrente = propagacaoRecorrente?.atualizados
+    ? `\n\nRecorrência: troca aplicada também em ${propagacaoRecorrente.atualizados} ocorrência(s) futura(s).`
+    : "";
+  const avisoFalhas = propagacaoRecorrente?.falhas
+    ? `\nAtenção: ${propagacaoRecorrente.falhas} ocorrência(s) futura(s) não puderam ser salvas.`
+    : "";
+  alert(`Produto trocado:\n${produtoDescricaoRota(produtoAntigo)}\n→ ${produtoDescricaoRota(novoProduto)}${avisoRecorrente}${avisoFalhas}`);
 }
 
 function criarRotasDosEventos() {
@@ -2310,7 +2388,7 @@ function criarRotasDosEventos() {
         tipo: item.tipo || "Atendimento extra",
         data: dh.data,
         horario: dh.hora || "",
-        tipoHorario: "Atendimento extra",
+        tipoHorario: item?.operacao_extra ? (item.tipo_horario || "Livre / combinar") : "Atendimento extra",
         cliente: `${(item.tipo || "Atendimento").toUpperCase()} — ${evento.nome || "-"}`,
         telefone: evento.telefone || "-",
         endereco: (typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(evento) : evento.endereco) || "-",

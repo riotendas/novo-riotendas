@@ -187,6 +187,7 @@ let eventos = (() => {
 let produtosSelecionadosEventoAtual = [];
 let produtosReservaEventoAtual = [];
 let produtosExtrasEventoAtual = [];
+let operacoesExtrasEventoAtual = [];
 let produtosRapidoAtual = [];
 let apoioRapidoAtual = [];
 const storageEventosKey = "novoRioTendasEventosV2";
@@ -1105,6 +1106,8 @@ function iniciarEventos() {
   onEventoSeguro("eventoDesmontagemTipo", "change", () => atualizarCampoHoraFinalOperacao("Desmontagem"));
   onEventoSeguro("btnMontagemDiaAnterior", "click", () => definirOperacaoDiaRelativo("Montagem", -1));
   onEventoSeguro("btnDesmontagemDiaPosterior", "click", () => definirOperacaoDiaRelativo("Desmontagem", 1));
+  onEventoSeguro("btnMontagemOutraData", "click", () => rtAbrirOutraDataOperacao("montagem"));
+  onEventoSeguro("btnDesmontagemOutraData", "click", () => rtAbrirOutraDataOperacao("desmontagem"));
   onEventoSeguro("adicionarProdutoEvento", "click", async () => {
     await rtGarantirProdutosEventoCarregados();
     // Não repopular o select quando já há um produto escolhido: isso apagava
@@ -1185,6 +1188,82 @@ function definirOperacaoDiaRelativo(prefixo, deslocamentoDias) {
   atualizarAlertasOperacaoEvento();
 }
 
+
+
+function rtOperacaoExtraTemplate(tipoOperacao, dados = {}) {
+  const tipo = tipoOperacao === "desmontagem" ? "desmontagem" : "montagem";
+  return {
+    id: dados.id || (typeof gerarId === "function" ? gerarId() : `op-${Date.now()}-${Math.random().toString(36).slice(2,7)}`),
+    rt_tipo: "atendimento_extra_recorrente",
+    atendimento_extra_recorrente: true,
+    operacao_extra: true,
+    operacao_tipo: tipo,
+    data: String(dados.data || "").slice(0,10),
+    hora: String(dados.hora || "").slice(0,5),
+    tipo: tipo === "montagem" ? "Montagem extra" : "Desmontagem extra",
+    tipo_horario: dados.tipo_horario || "Livre / combinar",
+    observacao: dados.observacao || "",
+    colaborador: dados.colaborador || (typeof getColaboradorLogado === "function" ? getColaboradorLogado() : ""),
+    carro: dados.carro || ""
+  };
+}
+
+function rtRenderizarOperacoesExtrasEvento() {
+  ["montagem","desmontagem"].forEach(tipo => {
+    const alvo = document.getElementById(tipo === "montagem" ? "eventoMontagemDatasExtras" : "eventoDesmontagemDatasExtras");
+    if (!alvo) return;
+    const lista = (operacoesExtrasEventoAtual || []).filter(x => x?.operacao_extra && x.operacao_tipo === tipo);
+    alvo.innerHTML = lista.map(item => {
+      const dataTxt = item.data && typeof dataBR === "function" ? dataBR(item.data) : (item.data || "-");
+      const horaTxt = item.hora ? ` ${item.hora}` : "";
+      const rotulo = item.tipo_horario || "Livre / combinar";
+      return `<span class="rt-operacao-extra-chip"><strong>${dataTxt}${horaTxt}</strong> · ${rotulo}${item.observacao ? ` · ${escaparHTML(item.observacao)}` : ""}<button type="button" data-remove-operacao-extra="${item.id}" title="Remover">×</button></span>`;
+    }).join("");
+    alvo.querySelectorAll("[data-remove-operacao-extra]").forEach(btn => btn.addEventListener("click", () => {
+      operacoesExtrasEventoAtual = (operacoesExtrasEventoAtual || []).filter(x => String(x.id) !== String(btn.dataset.removeOperacaoExtra));
+      rtRenderizarOperacoesExtrasEvento();
+    }));
+  });
+}
+
+function rtAbrirOutraDataOperacao(tipoOperacao) {
+  const tipo = tipoOperacao === "desmontagem" ? "desmontagem" : "montagem";
+  let dlg = document.getElementById("rtOutraDataOperacaoDialog");
+  if (!dlg) {
+    dlg = document.createElement("dialog");
+    dlg.id = "rtOutraDataOperacaoDialog";
+    dlg.className = "modal rt-outra-data-operacao-dialog";
+    document.body.appendChild(dlg);
+  }
+  const baseData = document.getElementById(tipo === "montagem" ? "eventoMontagem" : "eventoDesmontagem")?.value || document.getElementById("eventoData")?.value || "";
+  const titulo = tipo === "montagem" ? "Outra data de montagem" : "Outra data de desmontagem";
+  dlg.innerHTML = `
+    <div class="modal-content" style="max-width:620px;">
+      <div class="modal-header"><h2>${titulo}</h2><button type="button" class="modal-close" data-rt-op-extra-fechar>×</button></div>
+      <div class="form-row rt-outra-data-grid">
+        <label>Data<input id="rtOpExtraData" type="date" value="${baseData}"></label>
+        <label>Hora<input id="rtOpExtraHora" type="time"></label>
+        <label>Tipo<select id="rtOpExtraTipo"><option>Exatamente</option><option>A partir de</option><option>Até</option><option>Horário comercial</option><option selected>Livre / combinar</option></select></label>
+        <label class="rt-op-extra-obs">Motivo / observação<input id="rtOpExtraObs" type="text" placeholder="Opcional"></label>
+      </div>
+      <div class="modal-actions"><button type="button" class="btn-outline" data-rt-op-extra-fechar>Cancelar</button><button type="button" class="btn-primary" data-rt-op-extra-salvar>Adicionar data</button></div>
+    </div>`;
+  dlg.querySelectorAll("[data-rt-op-extra-fechar]").forEach(b => b.addEventListener("click", () => dlg.close()));
+  dlg.querySelector("[data-rt-op-extra-salvar]")?.addEventListener("click", () => {
+    const data = dlg.querySelector("#rtOpExtraData")?.value || "";
+    if (!data) { alert("Informe a data adicional."); return; }
+    const item = rtOperacaoExtraTemplate(tipo, {
+      data,
+      hora: dlg.querySelector("#rtOpExtraHora")?.value || "",
+      tipo_horario: dlg.querySelector("#rtOpExtraTipo")?.value || "Livre / combinar",
+      observacao: dlg.querySelector("#rtOpExtraObs")?.value.trim() || ""
+    });
+    operacoesExtrasEventoAtual.push(item);
+    rtRenderizarOperacoesExtrasEvento();
+    dlg.close();
+  });
+  if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+}
 
 function dataChaveOperacaoEvento(valor) {
   return String(valor || "").slice(0, 10);
@@ -2085,6 +2164,8 @@ function abrirNovoEvento() {
   produtosSelecionadosEventoAtual = [];
   produtosReservaEventoAtual = [];
   produtosExtrasEventoAtual = [];
+  operacoesExtrasEventoAtual = [];
+  rtRenderizarOperacoesExtrasEvento();
   atualizarDatalistClientes();
   popularSelectProdutosEvento();
   rtGarantirProdutosEventoCarregados().then(() => {
@@ -2172,6 +2253,8 @@ function abrirEditarEvento(id) {
   produtosSelecionadosEventoAtual = Array.isArray(e.tendas) ? [...e.tendas] : [];
   produtosReservaEventoAtual = typeof rtProdutosReservaEvento === "function" ? [...rtProdutosReservaEvento(e)] : [];
   produtosExtrasEventoAtual = typeof rtProdutosExtrasOperacionais === "function" ? [...rtProdutosExtrasOperacionais(e)] : (Array.isArray(e.produtos_extras) ? [...e.produtos_extras] : []);
+  operacoesExtrasEventoAtual = (typeof rtAtendimentosExtrasRecorrente === "function" ? rtAtendimentosExtrasRecorrente(e) : []).filter(item => item?.operacao_extra);
+  rtRenderizarOperacoesExtrasEvento();
 
   // Abre primeiro: o usuário recebe resposta visual imediata ao clique.
   document.getElementById("eventoModalTitulo").textContent = "Editar evento";
@@ -2328,6 +2411,19 @@ function periodosConflitam(inicioA, fimA, inicioB, fimB) {
   if ([ia, fa, ib, fb].some(Number.isNaN)) return false;
 
   return ia <= fb && fa >= ib;
+}
+
+
+function rtIntervalosOperacionaisConflitamSeguro(intervaloA, intervaloB) {
+  if (!intervaloA?.inicio || !intervaloA?.fim || !intervaloB?.inicio || !intervaloB?.fim) return false;
+  const fimA = rtTimestampLocalOperacionalEvento(intervaloA.fim);
+  const inicioB = rtTimestampLocalOperacionalEvento(intervaloB.inicio);
+  const fimB = rtTimestampLocalOperacionalEvento(intervaloB.fim);
+  const inicioA = rtTimestampLocalOperacionalEvento(intervaloA.inicio);
+  if ([fimA,inicioB,fimB,inicioA].some(Number.isNaN)) return false;
+  // Reserva futura só bloqueia quando realmente encosta/sobrepõe o período solicitado.
+  if (inicioB > fimA || inicioA > fimB) return false;
+  return periodosConflitam(intervaloA.inicio, intervaloA.fim, intervaloB.inicio, intervaloB.fim);
 }
 
 function intervaloEventoAtual() {
@@ -2905,7 +3001,8 @@ function produtoEstaDisponivelNoEvento(produto, evento, ignorarIndex = -1) {
     if (rtEventoOrigemJaRecolhidoEvento(outro)) return false;
 
     const intervaloOutro = intervaloDeEventoParaDisponibilidade(outro);
-    return periodosConflitam(intervaloAtual.inicio, intervaloAtual.fim, intervaloOutro.inicio, intervaloOutro.fim);
+    if (rtReservaFuturaClaramenteForaDoPeriodo(intervaloAtual, outro)) return false;
+    return rtIntervalosOperacionaisConflitamSeguro(intervaloAtual, intervaloOutro);
   });
 
   if (conflito) {
@@ -2976,7 +3073,8 @@ function disponibilidadeProdutoParaEvento(produtoId) {
     if (rtEventoOrigemJaRecolhidoEvento(evento)) return false;
 
     const intervalo = intervaloDeEventoParaDisponibilidade(evento);
-    return periodosConflitam(intervaloAtual.inicio, intervaloAtual.fim, intervalo.inicio, intervalo.fim);
+    if (rtReservaFuturaClaramenteForaDoPeriodo(intervaloAtual, evento)) return false;
+    return rtIntervalosOperacionaisConflitamSeguro(intervaloAtual, intervalo);
   });
 
   if (conflito) {
@@ -3631,8 +3729,10 @@ function obterProdutosReservaEvento() {
 function rtEventoMesclarExtrasReservasAtendimentos(existente) {
   const extras = Array.isArray(produtosExtrasEventoAtual) ? produtosExtrasEventoAtual.filter(item => !(typeof rtEhProdutoReservaEvento === "function" && rtEhProdutoReservaEvento(item))) : [];
   const reservas = obterProdutosReservaEvento();
-  const atendimentos = typeof rtAtendimentosExtrasRecorrente === "function" ? rtAtendimentosExtrasRecorrente(existente) : [];
-  return [...extras, ...reservas, ...atendimentos];
+  const atendimentosExistentes = typeof rtAtendimentosExtrasRecorrente === "function" ? rtAtendimentosExtrasRecorrente(existente) : [];
+  const atendimentos = atendimentosExistentes.filter(item => !item?.operacao_extra);
+  const operacoesExtras = Array.isArray(operacoesExtrasEventoAtual) ? operacoesExtrasEventoAtual : [];
+  return [...extras, ...reservas, ...atendimentos, ...operacoesExtras];
 }
 
 function obterProdutosSelecionadosEvento() {
@@ -5476,6 +5576,34 @@ function statusProdutoBloqueiaTrocaRapida(produto) {
   ].some(palavra => status.includes(palavra));
 }
 
+function rtStatusProdutoBloqueioRealTrocaRapida(produto) {
+  const status = String(produto?.status || "").toLowerCase().trim()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (status.includes("alugad") || status.includes("reservad") || status.includes("ocupad")) return false;
+  return status.includes("manut") || status.includes("bloque") || status.includes("consert");
+}
+
+function rtEventoMontagemEntregueParaDisponibilidade(evento) {
+  if (!evento?.id) return false;
+  try {
+    if (typeof obterOperacaoRota === "function") {
+      const op = obterOperacaoRota(`${evento.id}-montagem`);
+      if (String(op?.status || "").toLowerCase() === "entregue") return true;
+    }
+  } catch {}
+  const st = String(evento?.status_operacao || evento?.status_rota || evento?.situacao_rota || "").toLowerCase();
+  return st.includes("entreg") || st.includes("montad");
+}
+
+function rtReservaFuturaClaramenteForaDoPeriodo(intervaloAtual, eventoFuturo) {
+  if (!intervaloAtual?.fim || !eventoFuturo?.data_evento) return false;
+  if (rtEventoMontagemEntregueParaDisponibilidade(eventoFuturo)) return false;
+  const fimAtual = rtTimestampLocalOperacionalEvento(intervaloAtual.fim);
+  const dataEvento = rtTimestampLocalOperacionalEvento(`${String(eventoFuturo.data_evento).slice(0,10)}T00:00`);
+  if (!Number.isFinite(fimAtual) || !Number.isFinite(dataEvento)) return false;
+  return dataEvento > (fimAtual + 24 * 60 * 60 * 1000);
+}
+
 function textoStatusProdutoTrocaRapida(produto) {
   const statusOriginal = String(produto?.status || "").trim();
   if (!statusOriginal) return "Ocupada";
@@ -5498,9 +5626,13 @@ function abrirTrocaRapidaProduto(index) {
     .map(p => {
       const disponibilidade = produtoEstaDisponivelNoEvento(p, evento, index);
       const statusPermiteTransito = rtProdutoStatusAlugadoOuReservado(p) && disponibilidade.permiteUsoTransito;
-      const bloqueadoPorStatus = statusProdutoBloqueiaTrocaRapida(p) && !statusPermiteTransito;
+      const bloqueadoPorStatus = rtStatusProdutoBloqueioRealTrocaRapida(p) && !statusPermiteTransito;
       const transito = !bloqueadoPorStatus && !disponibilidade.livre && disponibilidade.permiteUsoTransito;
       const livre = (disponibilidade.livre || transito) && !bloqueadoPorStatus;
+      const permutaInfo = (!livre && !bloqueadoPorStatus && typeof rtPermutaPossivelTrocaRota === "function")
+        ? rtPermutaPossivelTrocaRota(p, evento, atual)
+        : null;
+      const permuta = !!permutaInfo;
 
       let texto = "Disponível";
       let classe = "free";
@@ -5523,9 +5655,11 @@ function abrirTrocaRapidaProduto(index) {
         produto: p,
         livre,
         transito,
+        permuta,
+        permutaInfo,
         disponibilidade,
         texto: transito ? rtLinhaDisponibilidadeProdutoEvento(p, disponibilidade, { transito: true }) : texto,
-        classe: transito ? "warning" : classe
+        classe: (transito || permuta) ? "warning" : classe
       };
     });
 
@@ -5534,7 +5668,7 @@ function abrirTrocaRapidaProduto(index) {
     return;
   }
 
-  const opcoesLivres = opcoesTroca.filter(item => item.livre);
+  const opcoesLivres = opcoesTroca.filter(item => item.livre || item.permuta);
 
   let dialog = document.getElementById("trocaRapidaProdutoDialog");
 
@@ -5561,7 +5695,7 @@ function abrirTrocaRapidaProduto(index) {
       <select id="trocaRapidaProdutoSelect">
         <option value="">Selecione um produto compatível disponível</option>
         ${opcoesTroca.map(item => `
-          <option value="${item.produto.id}" ${item.livre ? "" : "disabled"}>
+          <option value="${item.produto.id}" ${(item.livre || item.permuta) ? "" : "disabled"}>
             ${descricaoProdutoCompacta(item.produto)} — ${item.texto}
           </option>
         `).join("")}
@@ -5572,14 +5706,14 @@ function abrirTrocaRapidaProduto(index) {
       ${opcoesTroca.map(item => `
         <button
           type="button"
-          class="troca-rapida-opcao ${item.livre ? "" : "troca-rapida-opcao-bloqueada"}"
+          class="troca-rapida-opcao ${(item.livre || item.permuta) ? "" : "troca-rapida-opcao-bloqueada"}"
           data-troca-produto-id="${item.produto.id}"
-          ${item.livre ? "" : "disabled"}
+          ${(item.livre || item.permuta) ? "" : "disabled"}
           title="${item.texto}"
         >
           <strong>${item.produto.codigo || "-"}</strong>
           <span>${[item.produto.categoria || item.produto.tipo, item.produto.tamanho, item.produto.cor].filter(Boolean).join(" ")}</span>
-          <em class="troca-rapida-status ${item.classe === "warning" ? "warning" : (item.livre ? "ok" : "bloqueado")}">${item.texto}</em>
+          <em class="troca-rapida-status ${item.classe === "warning" ? "warning" : (item.livre ? "ok" : "bloqueado")}">${item.permuta ? "⚠ Conflito — Permutar" : item.texto}</em>
         </button>
       `).join("")}
     </div>
@@ -5600,17 +5734,37 @@ function abrirTrocaRapidaProduto(index) {
       return;
     }
 
-    if (!itemEscolhido.livre) {
+    const novoProduto = itemEscolhido.produto;
+    let aplicarPermuta = false;
+    let permutaInfo = itemEscolhido.permutaInfo || null;
+
+    if (!itemEscolhido.livre && itemEscolhido.permuta) {
+      if (typeof confirmarPermutaProdutoRota !== "function") {
+        alert(itemEscolhido.texto || "Este produto não está disponível para este evento.");
+        return;
+      }
+      permutaInfo = permutaInfo || (typeof rtPermutaPossivelTrocaRota === "function" ? rtPermutaPossivelTrocaRota(novoProduto, evento, atual) : null);
+      if (!permutaInfo) {
+        alert(itemEscolhido.texto || "Não foi possível preparar a permuta para este produto.");
+        return;
+      }
+      const acao = await confirmarPermutaProdutoRota(permutaInfo, novoProduto);
+      if (acao === "outra") {
+        const sel = dialog.querySelector("#trocaRapidaProdutoSelect");
+        if (sel) { sel.value = ""; sel.focus(); }
+        return;
+      }
+      if (acao !== "permutar") return;
+      aplicarPermuta = true;
+    } else if (!itemEscolhido.livre) {
       alert(itemEscolhido.texto || "Este produto não está disponível para este evento.");
       return;
     }
 
-    const novoProduto = itemEscolhido.produto;
-
     const validacao = produtoEstaDisponivelNoEvento(novoProduto, evento, index);
     let usoTransitoConfirmado = false;
-    if ((!validacao.livre || statusProdutoBloqueiaTrocaRapida(novoProduto))) {
-      if (!statusProdutoBloqueiaTrocaRapida(novoProduto) && validacao.permiteUsoTransito && rtConfirmarUsoEmTransito(novoProduto, validacao, evento)) {
+    if (!aplicarPermuta && (!validacao.livre || rtStatusProdutoBloqueioRealTrocaRapida(novoProduto))) {
+      if (!rtStatusProdutoBloqueioRealTrocaRapida(novoProduto) && validacao.permiteUsoTransito && rtConfirmarUsoEmTransito(novoProduto, validacao, evento)) {
         usoTransitoConfirmado = true;
       } else {
         alert(validacao.texto || textoStatusProdutoTrocaRapida(novoProduto) || "Este produto não está disponível para este evento.");
@@ -5631,11 +5785,32 @@ function abrirTrocaRapidaProduto(index) {
       cor: novoProduto.cor || ""
     };
     rtAplicarUsoEmTransitoProduto(itemNovoRapido, usoTransitoConfirmado ? validacao : null);
+
+    if (aplicarPermuta && permutaInfo?.conflito && Number.isFinite(permutaInfo.idxProdutoConflito)) {
+      const itemAntigoEvento = {
+        id: atual.id || "", codigo: atual.codigo || "", categoria: atual.categoria || atual.tipo || "",
+        tipo: atual.tipo || atual.categoria || "", tamanho: atual.tamanho || "", cor: atual.cor || ""
+      };
+      const conflitoAntes = permutaInfo.conflito;
+      conflitoAntes.tendas = Array.isArray(conflitoAntes.tendas) ? [...conflitoAntes.tendas] : [];
+      conflitoAntes.tendas[permutaInfo.idxProdutoConflito] = itemAntigoEvento;
+      conflitoAntes.atualizado_em = new Date().toISOString();
+
+      const salvoConflito = typeof salvarEventoBanco === "function" ? await salvarEventoBanco(conflitoAntes) : null;
+      if (!salvoConflito) {
+        alert("Não foi possível salvar a permuta no evento futuro. Nenhuma troca foi aplicada.");
+        return;
+      }
+      const idxConflito = eventos.findIndex(e => String(e.id) === String(salvoConflito.id));
+      if (idxConflito >= 0) eventos[idxConflito] = salvoConflito;
+    }
+
     produtosRapidoAtual[index] = itemNovoRapido;
 
     dialog.close();
     popularSelectProdutosRapido();
     renderizarProdutosRapido();
+    window.dispatchEvent(new CustomEvent("riotendas:eventos-atualizados"));
   }
 
   dialog.querySelector(".troca-rapida-fechar").addEventListener("click", () => dialog.close());
