@@ -281,6 +281,41 @@ function textoHorarioOperacao(tipoSalvo, datetimeValor) {
   return `${tipo} ${dataTxt}`;
 }
 
+
+function rtAtualizarModoVendaServicoEvento() {
+  const tipoEl = document.getElementById("eventoTipoEvento");
+  const vendaServico = String(tipoEl?.value || "").toLowerCase() === "venda";
+  const linhaDesm = document.getElementById("eventoLinhaDesmontagem");
+  const rotuloMont = document.getElementById("eventoRotuloMontagem");
+  const btnDiaAnterior = document.getElementById("btnMontagemDiaAnterior");
+
+  if (linhaDesm) linhaDesm.style.display = vendaServico ? "none" : "";
+  if (rotuloMont) rotuloMont.textContent = vendaServico ? "Dia da venda / serviço" : "Montagem";
+  if (btnDiaAnterior) btnDiaAnterior.style.display = vendaServico ? "none" : "";
+
+  if (vendaServico) {
+    const dataEvento = document.getElementById("eventoData")?.value || "";
+    const montagem = document.getElementById("eventoMontagem");
+    if (montagem && !montagem.value && dataEvento) montagem.value = dataEvento;
+
+    // Venda/serviço é uma única operação: não carrega retirada/desmontagem.
+    const desm = document.getElementById("eventoDesmontagem");
+    const desmHora = document.getElementById("eventoDesmontagemHora");
+    const desmFim = document.getElementById("eventoDesmontagemFim");
+    if (desm) desm.value = "";
+    if (desmHora) desmHora.value = "";
+    if (desmFim) desmFim.value = "";
+  }
+}
+
+function rtInstalarModoVendaServicoEvento() {
+  const tipoEl = document.getElementById("eventoTipoEvento");
+  if (!tipoEl || tipoEl.dataset.vendaServicoLigado === "1") return;
+  tipoEl.dataset.vendaServicoLigado = "1";
+  tipoEl.addEventListener("change", rtAtualizarModoVendaServicoEvento);
+  rtAtualizarModoVendaServicoEvento();
+}
+
 function preencherSelectsHorarioEvento() {
   const ids = ["eventoHoraInicio", "eventoHoraTermino", "eventoMontagemHora", "eventoDesmontagemHora", "eventoMontagemFim", "eventoDesmontagemFim"];
   const opcoes = ['<option value="">Livre</option>'];
@@ -298,6 +333,7 @@ function preencherSelectsHorarioEvento() {
     el.value = valorAtual;
     el.dataset.horariosCarregados = "1";
   });
+  rtInstalarModoVendaServicoEvento();
 }
 
 function separarDataHoraEvento(valor) {
@@ -1059,6 +1095,7 @@ function iniciarEventos() {
     btn.dataset.rtEventosHojeBind = "1";
   });
   preencherSelectsHorarioEvento();
+  rtInstalarAutocompleteClientesEventoLazy();
 
   onEventoSeguro("novoEventoBtn", "click", abrirNovoEvento);
   onEventoSeguro("fecharEventoModal", "click", fecharEventoModal);
@@ -1200,6 +1237,7 @@ function rtOperacaoExtraTemplate(tipoOperacao, dados = {}) {
     operacao_tipo: tipo,
     data: String(dados.data || "").slice(0,10),
     hora: String(dados.hora || "").slice(0,5),
+    hora_final: String(dados.hora_final || "").slice(0,5),
     tipo: tipo === "montagem" ? "Montagem extra" : "Desmontagem extra",
     tipo_horario: dados.tipo_horario || "Livre / combinar",
     observacao: dados.observacao || "",
@@ -1212,13 +1250,89 @@ function rtRenderizarOperacoesExtrasEvento() {
   ["montagem","desmontagem"].forEach(tipo => {
     const alvo = document.getElementById(tipo === "montagem" ? "eventoMontagemDatasExtras" : "eventoDesmontagemDatasExtras");
     if (!alvo) return;
+
     const lista = (operacoesExtrasEventoAtual || []).filter(x => x?.operacao_extra && x.operacao_tipo === tipo);
+    const opcoesTipo = ["A partir de","Até","Exatamente","Intervalo","Horário comercial","Livre / combinar"];
+
     alvo.innerHTML = lista.map(item => {
-      const dataTxt = item.data && typeof dataBR === "function" ? dataBR(item.data) : (item.data || "-");
-      const horaTxt = item.hora ? ` ${item.hora}` : "";
-      const rotulo = item.tipo_horario || "Livre / combinar";
-      return `<span class="rt-operacao-extra-chip"><strong>${dataTxt}${horaTxt}</strong> · ${rotulo}${item.observacao ? ` · ${escaparHTML(item.observacao)}` : ""}<button type="button" data-remove-operacao-extra="${item.id}" title="Remover">×</button></span>`;
+      const tipoHorario = item.tipo_horario || "Livre / combinar";
+      const mostrarFim = tipoHorario === "Intervalo";
+      const horaAtual = String(item.hora || "").slice(0,5);
+      const horaFimAtual = String(item.hora_final || "").slice(0,5);
+
+      const opcoesHora = [
+        '<option value="">Livre</option>',
+        ...Array.from({length:48}, (_,i) => {
+          const h = String(Math.floor(i/2)).padStart(2,"0");
+          const min = i%2 ? "30" : "00";
+          const v = `${h}:${min}`;
+          return `<option value="${v}"${v === horaAtual ? " selected" : ""}>${v}</option>`;
+        })
+      ].join("");
+
+      const opcoesHoraFim = [
+        '<option value="">Livre</option>',
+        ...Array.from({length:48}, (_,i) => {
+          const h = String(Math.floor(i/2)).padStart(2,"0");
+          const min = i%2 ? "30" : "00";
+          const v = `${h}:${min}`;
+          return `<option value="${v}"${v === horaFimAtual ? " selected" : ""}>${v}</option>`;
+        })
+      ].join("");
+
+      return `
+        <div class="form-row event-operation-row event-operation-row-fast rt-operacao-extra-linha" data-operacao-extra-id="${item.id}">
+          <label>Data extra
+            <span class="date-time-pair">
+              <input type="date" data-op-extra-campo="data" value="${escaparHTML(item.data || "")}">
+              <select data-op-extra-campo="hora" class="time-list-select">${opcoesHora}</select>
+            </span>
+          </label>
+
+          <span class="rt-op-extra-spacer" aria-hidden="true"></span>
+
+          <label>Tipo
+            <select data-op-extra-campo="tipo_horario">
+              ${opcoesTipo.map(op => `<option value="${op}"${op === tipoHorario ? " selected" : ""}>${op}</option>`).join("")}
+            </select>
+          </label>
+
+          <div class="rt-op-extra-acoes">
+            <label class="campo-hora-final rt-op-extra-fim"${mostrarFim ? "" : ' style="display:none;"'}>Hora final
+              <select data-op-extra-campo="hora_final" class="time-list-select">${opcoesHoraFim}</select>
+            </label>
+            <button type="button" class="btn-mini-fast rt-outra-data-btn rt-op-extra-remover" data-remove-operacao-extra="${item.id}" title="Remover data extra" aria-label="Remover data extra">×</button>
+          </div>
+        </div>`;
     }).join("");
+
+    alvo.querySelectorAll("[data-operacao-extra-id]").forEach(linha => {
+      const id = String(linha.dataset.operacaoExtraId || "");
+      const localizar = () => (operacoesExtrasEventoAtual || []).find(x => String(x.id) === id);
+
+      linha.querySelectorAll("[data-op-extra-campo]").forEach(campo => {
+        campo.addEventListener("change", () => {
+          const item = localizar();
+          if (!item) return;
+          const chave = campo.dataset.opExtraCampo;
+          item[chave] = String(campo.value || "");
+
+          if (chave === "tipo_horario") {
+            const fim = linha.querySelector(".rt-op-extra-fim");
+            if (fim) {
+              const intervalo = campo.value === "Intervalo";
+              fim.style.display = intervalo ? "" : "none";
+              if (!intervalo) {
+                item.hora_final = "";
+                const selectFim = fim.querySelector('[data-op-extra-campo="hora_final"]');
+                if (selectFim) selectFim.value = "";
+              }
+            }
+          }
+        });
+      });
+    });
+
     alvo.querySelectorAll("[data-remove-operacao-extra]").forEach(btn => btn.addEventListener("click", () => {
       operacoesExtrasEventoAtual = (operacoesExtrasEventoAtual || []).filter(x => String(x.id) !== String(btn.dataset.removeOperacaoExtra));
       rtRenderizarOperacoesExtrasEvento();
@@ -1502,6 +1616,56 @@ function rtEventoSelecionarEnderecoCadastrado() {
   document.getElementById("eventoCidade").value = cliente.cidade || "";
   document.getElementById("eventoComplemento").value = cliente.complemento || "";
   rtEventoSetEnderecoStatus("", "neutro");
+}
+
+
+let rtClientesEventoCargaEmAndamento = null;
+
+async function rtGarantirClientesEventoCarregados(forcar = false) {
+  // A Performance Safe deixou Clientes em lazy-load. Eventos, porém, precisa
+  // da mesma base para nome/CPF/telefone/endereço mesmo sem abrir a aba Clientes.
+  if (!forcar && Array.isArray(clientes) && clientes.length) {
+    atualizarDatalistClientes();
+    return clientes;
+  }
+
+  if (!forcar && rtClientesEventoCargaEmAndamento) {
+    return rtClientesEventoCargaEmAndamento;
+  }
+
+  rtClientesEventoCargaEmAndamento = (async () => {
+    try {
+      if (typeof buscarClientesBanco === "function") {
+        const lista = await buscarClientesBanco(!!forcar);
+        if (Array.isArray(lista)) clientes = lista;
+      } else if (typeof carregarClientes === "function") {
+        // Fallback legado. Evita falhar em versões onde buscarClientesBanco
+        // não esteja exposta diretamente.
+        await carregarClientes();
+      }
+      atualizarDatalistClientes();
+      return Array.isArray(clientes) ? clientes : [];
+    } catch (erro) {
+      console.warn("Não foi possível preparar autocomplete de clientes no evento:", erro);
+      return Array.isArray(clientes) ? clientes : [];
+    } finally {
+      rtClientesEventoCargaEmAndamento = null;
+    }
+  })();
+
+  return rtClientesEventoCargaEmAndamento;
+}
+
+function rtInstalarAutocompleteClientesEventoLazy() {
+  const ids = ["eventoBuscaCliente", "eventoDocumento", "eventoTelefone", "eventoEndereco"];
+  ids.forEach(id => {
+    const campo = document.getElementById(id);
+    if (!campo || campo.dataset.rtClientesLazy === "1") return;
+    const preparar = () => { rtGarantirClientesEventoCarregados(); };
+    campo.addEventListener("focus", preparar, { passive: true });
+    campo.addEventListener("pointerdown", preparar, { passive: true });
+    campo.dataset.rtClientesLazy = "1";
+  });
 }
 
 function atualizarDatalistClientes() {
@@ -2166,7 +2330,10 @@ function abrirNovoEvento() {
   produtosExtrasEventoAtual = [];
   operacoesExtrasEventoAtual = [];
   rtRenderizarOperacoesExtrasEvento();
-  atualizarDatalistClientes();
+  // Abre imediatamente e prepara os clientes em paralelo para os autocompletes.
+  rtGarantirClientesEventoCarregados().then(() => {
+    if (document.getElementById("eventoDialog")?.open) atualizarDatalistClientes();
+  });
   popularSelectProdutosEvento();
   rtGarantirProdutosEventoCarregados().then(() => {
     if (document.getElementById("eventoDialog")?.open) popularSelectProdutosEvento();
@@ -2272,6 +2439,10 @@ function abrirEditarEvento(id) {
   });
 
   // Componentes mais pesados entram no frame seguinte, sem bloquear a abertura.
+  rtGarantirClientesEventoCarregados().then(() => {
+    if (document.getElementById("eventoDialog")?.open) atualizarDatalistClientes();
+  });
+
   const completarEdicaoEvento = () => {
     atualizarDatalistClientes();
     popularSelectProdutosEvento();
@@ -7712,3 +7883,9 @@ document.addEventListener('DOMContentLoaded', () => {
     return r;
   };
 })();
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  setTimeout(rtInstalarModoVendaServicoEvento, 0);
+  setTimeout(rtAtualizarModoVendaServicoEvento, 100);
+});

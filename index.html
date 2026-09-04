@@ -1825,13 +1825,13 @@
               <select id="eventoTipoEvento">
                 <option value="pontual">Pontual</option>
                 <option value="recorrente">Recorrente</option>
-                <option value="venda">Venda</option>
+                <option value="venda">Venda / Serviço</option>
               </select>
             </label>
           </div>
 
-          <div class="form-row event-operation-row event-operation-row-fast">
-            <label>Montagem
+          <div id="eventoLinhaMontagem" class="form-row event-operation-row event-operation-row-fast">
+            <label><span id="eventoRotuloMontagem">Montagem</span>
               <span class="date-time-pair"><input id="eventoMontagem" type="date"><select id="eventoMontagemHora" class="time-list-select"></select></span>
             </label>
             <button type="button" id="btnMontagemDiaAnterior" class="btn-mini-fast" title="Usar dia anterior ao evento e horário livre">Dia anterior</button>
@@ -1853,7 +1853,7 @@
           </div>
           <div id="eventoMontagemDatasExtras" class="rt-operacoes-extras-lista"></div>
 
-          <div class="form-row event-operation-row event-operation-row-fast">
+          <div id="eventoLinhaDesmontagem" class="form-row event-operation-row event-operation-row-fast">
             <label>Desmontagem
               <span class="date-time-pair"><input id="eventoDesmontagem" type="date"><select id="eventoDesmontagemHora" class="time-list-select"></select></span>
             </label>

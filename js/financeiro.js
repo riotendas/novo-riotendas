@@ -630,49 +630,128 @@ async function rtFinSalvarExtratoProcessado() {
     alert("Processe o extrato antes de salvar.");
     return;
   }
-  const payloads = rtFinanceiroExtratoLinhas.map(rtFinGerarPayloadExtrato);
+
+  const payloadsOriginais = rtFinanceiroExtratoLinhas.map(rtFinGerarPayloadExtrato);
+
+  // Deduplica também dentro do próprio bloco colado. Isso evita que duas linhas
+  // literalmente iguais do mesmo bloco disputem a mesma constraint.
+  const vistosNoLote = new Set();
+  const payloads = [];
+  let repetidasNoLote = 0;
+  payloadsOriginais.forEach(p => {
+    const chave = p.fingerprint || rtFinAssinaturaExtratoRobusta(p);
+    if (chave && vistosNoLote.has(chave)) {
+      repetidasNoLote += 1;
+      return;
+    }
+    if (chave) vistosNoLote.add(chave);
+    payloads.push(p);
+  });
+
   try {
-    let novas = payloads;
-    let repetidas = 0;
+    let novasSalvas = 0;
+    let repetidas = repetidasNoLote;
+    let falhas = 0;
+
     if (rtFinSupabaseDisponivel()) {
-      const fingerprints = payloads.map(p => p.fingerprint).filter(Boolean);
-      if (fingerprints.length) {
-        const { data: existentes, error: erroBusca } = await supabaseClient
-          .from("extrato_bancario_linhas")
-          .select("fingerprint,data_lancamento,descricao,linha_original,valor,valor_assinado,status,criado_em,atualizado_em")
-          .limit(5000);
-        if (erroBusca) throw erroBusca;
-        const jaExisteFingerprint = new Set((existentes || []).map(x => x.fingerprint).filter(Boolean));
-        const jaExisteRobusto = new Set((existentes || []).map(x => rtFinAssinaturaExtratoRobusta(x)).filter(Boolean));
-        repetidas = payloads.filter(p => jaExisteFingerprint.has(p.fingerprint) || jaExisteRobusto.has(rtFinAssinaturaExtratoRobusta(p))).length;
-        novas = payloads.filter(p => !jaExisteFingerprint.has(p.fingerprint) && !jaExisteRobusto.has(rtFinAssinaturaExtratoRobusta(p)));
-      }
-      if (novas.length) {
+      const { data: existentes, error: erroBusca } = await supabaseClient
+        .from("extrato_bancario_linhas")
+        .select("fingerprint,data_lancamento,descricao,linha_original,valor,valor_assinado,status,criado_em,atualizado_em")
+        .limit(5000);
+
+      if (erroBusca) throw erroBusca;
+
+      const existentesLista = existentes || [];
+      const jaExisteFingerprint = new Set(existentesLista.map(x => x.fingerprint).filter(Boolean));
+      const jaExisteRobusto = new Set(existentesLista.map(x => rtFinAssinaturaExtratoRobusta(x)).filter(Boolean));
+
+      const candidatas = payloads.filter(p => {
+        const fp = p.fingerprint;
+        const robusta = rtFinAssinaturaExtratoRobusta(p);
+        if ((fp && jaExisteFingerprint.has(fp)) || (robusta && jaExisteRobusto.has(robusta))) {
+          repetidas += 1;
+          return false;
+        }
+        return true;
+      });
+
+      // Salva uma a uma de forma tolerante a concorrência. Se outro computador
+      // inserir a mesma linha entre a consulta e o insert, o erro 23505 é tratado
+      // apenas como "já existente", sem abortar as demais linhas.
+      for (const p of candidatas) {
         const { error } = await supabaseClient
           .from("extrato_bancario_linhas")
-          .insert(novas);
-        if (error) throw error;
+          .insert(p);
+
+        if (!error) {
+          novasSalvas += 1;
+          if (p.fingerprint) jaExisteFingerprint.add(p.fingerprint);
+          const robusta = rtFinAssinaturaExtratoRobusta(p);
+          if (robusta) jaExisteRobusto.add(robusta);
+          continue;
+        }
+
+        const msg = String(error.message || error.details || error || "");
+        const code = String(error.code || "");
+        const duplicada = code === "23505" || /duplicate key|unique constraint|fingerprint_key/i.test(msg);
+        if (duplicada) {
+          repetidas += 1;
+          continue;
+        }
+
+        falhas += 1;
+        console.error("Falha ao salvar linha do extrato:", error, p);
       }
     } else {
       const atuais = rtFinExtratoLocalCarregar();
       payloads.forEach(p => {
-        const idx = atuais.findIndex(x => x.fingerprint === p.fingerprint);
-        if (idx >= 0) { repetidas += 1; return; }
-        atuais.push({ ...p, id: `local_${Date.now()}_${Math.random().toString(36).slice(2)}`, criado_em: new Date().toISOString() });
+        const robusta = rtFinAssinaturaExtratoRobusta(p);
+        const idx = atuais.findIndex(x =>
+          (p.fingerprint && x.fingerprint === p.fingerprint) ||
+          (robusta && rtFinAssinaturaExtratoRobusta(x) === robusta)
+        );
+        if (idx >= 0) {
+          repetidas += 1;
+          return;
+        }
+        atuais.push({
+          ...p,
+          id: `local_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          criado_em: new Date().toISOString()
+        });
+        novasSalvas += 1;
       });
       rtFinExtratoLocalSalvar(atuais);
     }
-    alert(`${payloads.length} linha(s) processada(s).\n${payloads.length - repetidas} nova(s) salva(s).\n${repetidas} repetida(s) ignorada(s).`);
-    rtFinanceiroExtratoLinhas = [];
-    const txt = document.getElementById("financeiroExtratoTexto");
-    if (txt) txt.value = "";
-    const diag = document.getElementById("financeiroExtratoDiagnostico");
-    if (diag) { diag.className = "financeiro-extrato-diagnostico empty oculto"; diag.textContent = "Diagnóstico oculto."; diag.style.display = "none"; }
+
+    const total = payloadsOriginais.length;
+    let resumo = `${total} linha(s) processada(s).\n${novasSalvas} nova(s) salva(s).\n${repetidas} já existente(s)/repetida(s) ignorada(s).`;
+    if (falhas) resumo += `\n${falhas} linha(s) não puderam ser salvas e foram mantidas para nova tentativa.`;
+    alert(resumo);
+
+    // Só limpa o texto se não houve falhas reais. Duplicidade não é falha.
+    if (!falhas) {
+      rtFinanceiroExtratoLinhas = [];
+      const campo = document.getElementById("financeiroExtratoTexto");
+      if (campo) campo.value = "";
+      const diag = document.getElementById("financeiroExtratoDiagnostico");
+      if (diag) {
+        diag.className = "financeiro-extrato-diagnostico empty oculto";
+        diag.textContent = "Diagnóstico oculto.";
+        diag.style.display = "none";
+      }
+    }
+
     rtFinRenderExtrato();
     await rtFinCarregarExtratoSalvo();
   } catch (err) {
     console.error(err);
-    alert(`Não foi possível salvar o extrato. Confira se o SQL do Supabase foi executado.\n\n${err.message || err}`);
+    const msg = String(err?.message || err || "");
+    if (/duplicate key|unique constraint|fingerprint_key/i.test(msg)) {
+      alert("O extrato contém linha(s) que já estavam salvas. As duplicadas foram ignoradas; processe novamente para salvar apenas eventuais linhas novas.");
+    } else {
+      alert(`Não foi possível salvar o extrato.\n\n${msg}`);
+    }
   }
 }
 
@@ -1416,8 +1495,16 @@ function rtFinListaExtratoFiltrada() {
   const termo = rtFinNormalizarTextoBusca(rtFinanceiroExtratoBusca || "");
   const mes = String(rtFinanceiroExtratoMes || "");
   let lista = (filtro === "todos") ? rtFinanceiroExtratoSalvo : rtFinanceiroExtratoSalvo.filter(l => rtFinGrupoFiltroExtrato(l) === filtro);
-  if (mes) lista = lista.filter(l => String(l.data_lancamento || l.data || "").slice(0,7) === mes);
-  if (termo) lista = lista.filter(l => rtFinLinhaExtratoTextoBusca(l).includes(termo));
+
+  // Sem busca: mantém o mês selecionado para a tela continuar leve.
+  // Com busca: pesquisa GLOBALMENTE em todo o extrato carregado, ignorando o mês.
+  if (!termo && mes) {
+    lista = lista.filter(l => String(l.data_lancamento || l.data || "").slice(0,7) === mes);
+  }
+  if (termo) {
+    lista = lista.filter(l => rtFinLinhaExtratoTextoBusca(l).includes(termo));
+  }
+
   return lista.slice().sort((a,b) => String(a.data_lancamento || "9999").localeCompare(String(b.data_lancamento || "9999")) || String(a.criado_em || "").localeCompare(String(b.criado_em || "")));
 }
 
@@ -1500,7 +1587,7 @@ function rtFinRenderExtratoSalvo(opcoesRender = {}) {
   }
   const linhasRender = rtFinListaExtratoFiltrada();
   if (!linhasRender.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">Nenhuma linha neste filtro.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">${rtFinanceiroExtratoBusca ? "Nenhum resultado encontrado em todo o extrato salvo." : "Nenhuma linha neste filtro para o mês selecionado."}</td></tr>`;
     return;
   }
   const termoBuscaAtivo = rtFinNormalizarTextoBusca(rtFinanceiroExtratoBusca || "");

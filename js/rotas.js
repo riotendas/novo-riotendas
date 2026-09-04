@@ -2724,6 +2724,7 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
   const cadeiras = {};
   const laterais = {};
   const outros = {};
+  const extras = {};
 
   let pontosTendas = 0;
   let totalMesas = 0;
@@ -2808,10 +2809,33 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
       processarItem(item);
     });
     (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).forEach(item => processarItem(item));
-    [
-      ...(evento.itens_apoio || []),
-      ...(typeof rtProdutosExtrasOperacionais === "function" ? rtProdutosExtrasOperacionais(evento) : (evento.produtos_extras || []))
-    ].forEach(item => processarItem(item));
+    (evento.itens_apoio || []).forEach(item => processarItem(item));
+
+    const extrasEvento = (typeof rtProdutosExtrasOperacionais === "function"
+      ? rtProdutosExtrasOperacionais(evento)
+      : (evento.produtos_extras || []));
+
+    extrasEvento.forEach(item => {
+      // Continua entrando normalmente no cálculo de carga/pontos.
+      processarItem(item);
+
+      // E passa a aparecer explicitamente no contador, inclusive no mobile.
+      const qtd = rtQuantidadeItem(item);
+      const texto = [item?.nome, item?.descricao, item?.categoria, item?.tipo]
+        .filter(Boolean).join(" ").trim();
+      if (!texto) return;
+
+      let rotulo = texto
+        .replace(/\blateral\b/ig, "Lat")
+        .replace(/\bcristal\b/ig, "Crist")
+        .replace(/\bbranca?\b/ig, "Br")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      // Remove quantidade inicial para não duplicar "1 01 LAT..."
+      rotulo = rotulo.replace(/^0*\d+\s*[xX-]?\s*/, "").trim();
+      rtAdicionarContagemMapa(extras, rotulo, qtd);
+    });
   });
 
   const linhaDetalhada = [
@@ -2833,6 +2857,12 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
   const linhas = [];
 
   if (linhaDetalhada) linhas.push(linhaDetalhada);
+
+  const linhaExtras = rtFormatoContagemMapa(extras).join(" • ");
+  if (linhaExtras) {
+    if (linhas.length) linhas[0] = `${linhas[0]} • ${linhaExtras}`;
+    else linhas.push(linhaExtras);
+  }
 
   const configCargaFinal = rtCargaOperacionalConfigAtual();
   const capacidades = configCargaFinal.capacidadeVeiculos || {};
@@ -3009,7 +3039,12 @@ function rtAbrirContadorCarro(listaRotas = [], carro = "Carro") {
       <h3>Material de montagem</h3>
       <div class="rota-contador-resumo">
         ${contagem.length ? `<div class="rota-contador-linha-principal">${contagem[0]}</div>` : ""}
-        ${contagem.slice(1).map(item => `<div class="rota-contador-linha-secundaria">${item}</div>`).join("")}
+        ${contagem.slice(1).map(item => {
+          const classe = String(item || "").startsWith("Extras:")
+            ? "rota-contador-linha-principal rota-contador-linha-extras"
+            : "rota-contador-linha-secundaria";
+          return `<div class="${classe}">${item}</div>`;
+        }).join("")}
       </div>
       <h3>Mini resumo da rota</h3>
       <div class="rota-contador-lista">
