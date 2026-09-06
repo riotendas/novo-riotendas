@@ -1755,10 +1755,18 @@
               <input id="eventoTelefone" type="search" list="clientesTelefoneDatalist" autocomplete="off">
               <datalist id="clientesTelefoneDatalist"></datalist>
             </label>
+            <div class="evento-contato-add-inline">
+              <button type="button" id="eventoAdicionarContato" class="btn-outline btn-mini evento-contato-add-btn" title="Adicionar contato" aria-label="Adicionar contato">+</button>
+            </div>
             <label>E-mail
               <input id="eventoEmail" type="email">
             </label>
           </div>
+
+          <div class="evento-contatos-adicionais-wrap">
+            <div id="eventoContatosAdicionais" class="evento-contatos-adicionais"></div>
+          </div>
+
           <div class="cliente-linha-endereco">
             <label class="evento-endereco-wide">Endereço
               <input id="eventoEndereco" type="search" list="clientesEnderecoDatalist" tabindex="60" placeholder="Digite ou selecione um endereço cadastrado" autocomplete="off">
@@ -2603,6 +2611,23 @@ Essa ação não poderá ser desfeita.')) return;
   }, true);
 })();
 </script>
+
+
+  <dialog id="eventoContatosDialog" class="evento-contatos-dialog">
+    <div class="evento-contatos-dialog-card">
+      <div class="evento-contatos-dialog-header">
+        <div>
+          <h3 id="eventoContatosDialogTitulo">Contatos</h3>
+          <p id="eventoContatosDialogCliente" class="hint"></p>
+        </div>
+        <button type="button" id="fecharEventoContatosDialog" class="btn-outline btn-mini" aria-label="Fechar">×</button>
+      </div>
+      <div id="eventoContatosDialogLista" class="evento-contatos-dialog-lista"></div>
+      <div class="evento-contatos-dialog-footer">
+        <button type="button" id="fecharEventoContatosDialogRodape" class="btn-outline">Fechar</button>
+      </div>
+    </div>
+  </dialog>
 
 </body>
 </html>

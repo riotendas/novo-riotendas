@@ -2389,7 +2389,8 @@ function criarRotasDosEventos() {
         data: dh.data,
         horario: dh.hora || "",
         tipoHorario: item?.operacao_extra ? (item.tipo_horario || "Livre / combinar") : "Atendimento extra",
-        cliente: `${(item.tipo || "Atendimento").toUpperCase()} — ${evento.nome || "-"}`,
+        cliente: evento.nome || "-",
+        operacaoExtraLabel: item.tipo || "Atendimento extra",
         telefone: evento.telefone || "-",
         endereco: (typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(evento) : evento.endereco) || "-",
         materiais: (String(item.tipo || "").toLowerCase().includes("troca") && item.tenda_entrar)
@@ -2416,6 +2417,7 @@ function rtTextoBuscaRota(rota) {
     Array.isArray(rota?.materiais) ? rota.materiais.join(" ") : rota?.materiais,
     evento.nome,
     evento.telefone,
+    ...(Array.isArray(evento.contatos_adicionais) ? evento.contatos_adicionais.map(c => `${c?.nome || ""} ${c?.tipo || ""} ${c?.telefone || ""}`) : []),
     evento.endereco,
     evento.bairro,
     evento.cidade,
@@ -4509,7 +4511,11 @@ async function atualizarHorarioRotaEvento(rotaId, novoValor) {
 
 
 function limparTelefoneRota(telefone) {
-  return String(telefone || "").replace(/\D/g, "");
+  if (typeof rtTelefoneNormalizarNacional === "function") return rtTelefoneNormalizarNacional(telefone);
+  let n = String(telefone || "").replace(/\D/g, "");
+  if ((n.length === 8 || n.length === 9)) n = "21" + n;
+  if ((n.length === 12 || n.length === 13) && n.startsWith("55")) n = n.slice(2);
+  return n;
 }
 
 function googleMapsSearchUrl(endereco) {
@@ -4608,7 +4614,7 @@ function renderizarCardRota(rota, index = 0, total = 0) {
         </div>
         <div class="rota-col">
           <span>Telefone</span>
-          <strong>${rota.telefone}</strong>
+          <strong>${typeof rtTelefoneEventoHtml === "function" ? rtTelefoneEventoHtml(evento) : rota.telefone}</strong>
         </div>
         <div class="rota-col rota-endereco">
           <span>Endereço</span>
@@ -5052,7 +5058,7 @@ function imprimirRotaData(data) {
 
                   <div class="col">
                     <span>Telefone</span>
-                    <strong>${rota.telefone}</strong>
+                    <strong>${typeof rtTelefoneEventoHtml === "function" ? rtTelefoneEventoHtml(evento) : rota.telefone}</strong>
                   </div>
 
                   <div class="col">

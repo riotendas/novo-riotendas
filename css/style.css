@@ -23584,3 +23584,659 @@ body.modo-mobile-operacional .section:not(.active-section):not(.active) {
   flex-basis:46px !important;
   border:1px solid #cbd5e1 !important;
 }
+
+
+/* Contatos adicionais do evento */
+.evento-contatos-adicionais-wrap{
+  margin-top:6px;
+}
+.evento-contatos-adicionais-topo{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:30px;
+}
+.evento-contatos-adicionais{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  margin-top:6px;
+}
+.evento-contato-adicional-linha{
+  display:grid;
+  grid-template-columns:minmax(130px,1fr) minmax(145px,.9fr) minmax(145px,1fr) 38px;
+  gap:6px;
+  align-items:center;
+}
+.evento-contato-adicional-linha input,
+.evento-contato-adicional-linha select{
+  min-width:0;
+}
+.evento-contatos-indicador{
+  border:0;
+  background:transparent;
+  color:#2563eb;
+  font-weight:700;
+  cursor:pointer;
+  padding:0 2px;
+  margin-left:3px;
+  font-size:.82em;
+}
+@media(max-width:700px){
+  .evento-contatos-adicionais-topo .hint{display:none;}
+  .evento-contato-adicional-linha{
+    grid-template-columns:1fr 1fr;
+  }
+  .evento-contato-adicional-linha [data-contato-campo="telefone"]{
+    grid-column:1;
+  }
+  .evento-contato-adicional-linha [data-remover-contato]{
+    grid-column:2;
+    justify-self:end;
+  }
+}
+
+
+/* + contato compacto entre Telefone e E-mail */
+.cliente-linha-principal:has(.evento-contato-add-inline),
+.cliente-linha-dados:has(.evento-contato-add-inline){
+  align-items:end;
+}
+
+.evento-contato-add-inline{
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  width:30px;
+  min-width:30px;
+  padding-bottom:2px;
+}
+
+.evento-contato-add-btn{
+  width:28px;
+  min-width:28px;
+  height:28px;
+  padding:0;
+  border-radius:7px;
+  font-size:18px;
+  line-height:1;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.evento-contatos-adicionais-wrap{
+  margin-top:4px;
+}
+
+.evento-contatos-adicionais:empty{
+  display:none;
+  margin:0;
+}
+
+@media(max-width:700px){
+  .evento-contato-add-inline{
+    width:28px;
+    min-width:28px;
+  }
+  .evento-contato-add-btn{
+    width:26px;
+    min-width:26px;
+    height:26px;
+    font-size:17px;
+  }
+}
+
+
+/* Dados do cliente: Cliente | CPF/CNPJ | Telefone | + | E-mail em UMA linha */
+#eventoForm .cliente-linha-dados,
+#eventoForm .cliente-linha-principal{
+  display:grid !important;
+  grid-template-columns:minmax(260px,2.05fr) minmax(150px,1.05fr) minmax(145px,.9fr) 34px minmax(190px,1.3fr) !important;
+  gap:12px !important;
+  align-items:end !important;
+  width:100% !important;
+}
+
+#eventoForm .cliente-linha-dados > label,
+#eventoForm .cliente-linha-principal > label{
+  min-width:0 !important;
+  width:auto !important;
+  margin:0 !important;
+}
+
+#eventoForm .evento-contato-add-inline{
+  width:34px !important;
+  min-width:34px !important;
+  height:38px !important;
+  padding:0 !important;
+  margin:0 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  align-self:end !important;
+}
+
+#eventoForm .evento-contato-add-btn{
+  width:34px !important;
+  min-width:34px !important;
+  height:38px !important;
+  padding:0 !important;
+  margin:0 !important;
+  border-radius:8px !important;
+  line-height:1 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+}
+
+/* Em desktop não permite o E-mail cair para a linha seguinte */
+@media(min-width:701px){
+  #eventoForm .cliente-linha-dados,
+  #eventoForm .cliente-linha-principal{
+    grid-auto-flow:column !important;
+  }
+}
+
+/* Mobile continua podendo quebrar para não estourar a tela */
+@media(max-width:700px){
+  #eventoForm .cliente-linha-dados,
+  #eventoForm .cliente-linha-principal{
+    grid-template-columns:1fr 1fr !important;
+    grid-auto-flow:row !important;
+  }
+}
+
+
+/* Layout final dos dados do cliente */
+#eventoForm .cliente-linha-principal{
+  display:grid !important;
+  grid-template-columns:minmax(270px,2fr) minmax(150px,.92fr) minmax(180px,1.12fr) 28px minmax(190px,1.18fr) !important;
+  gap:10px !important;
+  align-items:end !important;
+  width:100% !important;
+}
+
+#eventoForm .cliente-linha-principal > label{
+  min-width:0 !important;
+  width:auto !important;
+  margin:0 !important;
+}
+
+#eventoForm .evento-contato-add-inline{
+  width:28px !important;
+  min-width:28px !important;
+  height:38px !important;
+  padding:0 !important;
+  margin:0 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  align-self:end !important;
+}
+
+#eventoForm .evento-contato-add-btn{
+  width:28px !important;
+  min-width:28px !important;
+  height:30px !important;
+  padding:0 !important;
+  margin:0 0 4px 0 !important;
+  border-radius:7px !important;
+  font-size:15px !important;
+  line-height:1 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+}
+
+/* Contatos extras seguem o mesmo padrão visual dos campos principais */
+#eventoForm .evento-contatos-adicionais-wrap{
+  margin:6px 0 0 0 !important;
+  width:100%;
+}
+
+#eventoForm .evento-contatos-adicionais{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  width:100%;
+  margin:0 !important;
+}
+
+#eventoForm .evento-contato-adicional-linha{
+  display:grid !important;
+  grid-template-columns:minmax(250px,1.12fr) minmax(220px,1fr) minmax(260px,1.18fr) 36px !important;
+  gap:10px !important;
+  align-items:end !important;
+  width:100% !important;
+}
+
+#eventoForm .evento-contato-adicional-linha > label{
+  display:flex !important;
+  flex-direction:column !important;
+  gap:5px !important;
+  min-width:0 !important;
+  margin:0 !important;
+  font-weight:600;
+}
+
+#eventoForm .evento-contato-adicional-linha input,
+#eventoForm .evento-contato-adicional-linha select{
+  width:100% !important;
+  min-width:0 !important;
+  box-sizing:border-box !important;
+}
+
+#eventoForm .evento-contato-remover-btn{
+  width:36px !important;
+  min-width:36px !important;
+  height:30px !important;
+  padding:0 !important;
+  margin:0 0 4px 0 !important;
+  border-radius:7px !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  line-height:1 !important;
+}
+
+/* Desktop: sempre uma única linha para Cliente/CPF/Telefone/+/E-mail */
+@media(min-width:701px){
+  #eventoForm .cliente-linha-principal{
+    grid-auto-flow:column !important;
+  }
+}
+
+/* Mobile continua responsivo */
+@media(max-width:700px){
+  #eventoForm .cliente-linha-principal{
+    grid-template-columns:1fr 1fr !important;
+    grid-auto-flow:row !important;
+  }
+  #eventoForm .evento-contato-adicional-linha{
+    grid-template-columns:1fr 1fr !important;
+  }
+  #eventoForm .evento-contato-remover-btn{
+    justify-self:end !important;
+  }
+}
+
+
+/* Refinamento final do bloco de contatos */
+#eventoForm .cliente-linha-principal{
+  /* ocupa melhor a largura: Telefone e E-mail ganham o espaço antes vazio */
+  grid-template-columns:
+    minmax(270px,1.90fr)
+    minmax(150px,.90fr)
+    minmax(205px,1.22fr)
+    26px
+    minmax(225px,1.36fr) !important;
+  gap:8px !important;
+}
+
+#eventoForm .evento-contato-add-inline{
+  width:26px !important;
+  min-width:26px !important;
+}
+
+#eventoForm .evento-contato-add-btn{
+  width:26px !important;
+  min-width:26px !important;
+  height:28px !important;
+  font-size:14px !important;
+  margin-bottom:5px !important;
+}
+
+/* Mesma tipografia dos labels do restante de Dados do cliente */
+#eventoForm .evento-contato-adicional-linha > label{
+  font-size:inherit !important;
+  font-weight:inherit !important;
+  line-height:inherit !important;
+  gap:5px !important;
+}
+
+/* Um pouco mais de respiro entre os contatos adicionais e Endereço/Bairro/etc. */
+#eventoForm .evento-contatos-adicionais-wrap{
+  margin-top:8px !important;
+  margin-bottom:12px !important;
+}
+
+#eventoForm .evento-contato-adicional-linha{
+  margin-bottom:2px !important;
+}
+
+
+/* Ajuste solicitado: tipografia idêntica + melhor aproveitamento horizontal */
+#eventoForm .evento-contato-adicional-linha > label{
+  font-family:inherit !important;
+  font-size:14px !important;
+  font-weight:700 !important;
+  line-height:1.2 !important;
+  color:inherit !important;
+}
+
+/* mesma tipografia dos títulos Cliente / CPF-CNPJ / Telefone / E-mail */
+#eventoForm .cliente-linha-principal > label{
+  font-size:14px !important;
+  font-weight:700 !important;
+  line-height:1.2 !important;
+}
+
+/* Linha superior: amplia Cliente e Telefone, reduz o vão após o +, sem ultrapassar a largura */
+#eventoForm .cliente-linha-principal{
+  grid-template-columns:
+    minmax(320px,2.20fr)
+    minmax(155px,.92fr)
+    minmax(235px,1.34fr)
+    24px
+    minmax(205px,1.18fr) !important;
+  column-gap:8px !important;
+  row-gap:0 !important;
+  width:100% !important;
+  box-sizing:border-box !important;
+}
+
+/* aproxima o E-mail do botão + */
+#eventoForm .evento-contato-add-inline{
+  width:24px !important;
+  min-width:24px !important;
+  margin-right:-2px !important;
+}
+
+#eventoForm .evento-contato-add-btn{
+  width:24px !important;
+  min-width:24px !important;
+  height:28px !important;
+  font-size:14px !important;
+}
+
+/* Evita que qualquer campo empurre a linha para fora */
+#eventoForm .cliente-linha-principal > label,
+#eventoForm .cliente-linha-principal input,
+#eventoForm .cliente-linha-principal select{
+  min-width:0 !important;
+  max-width:100% !important;
+  box-sizing:border-box !important;
+}
+
+
+/* Correção: usar EXATAMENTE a tipografia padrão já existente no formulário */
+#eventoForm .evento-contato-adicional-linha > label,
+#eventoForm .cliente-linha-principal > label{
+  font-family:inherit !important;
+  font-size:12px !important;
+  font-weight:700 !important;
+  line-height:normal !important;
+  color:#374151 !important;
+}
+
+
+/* Ajuste horizontal: elimina o vão entre + e E-mail aproveitando a largura total */
+@media(min-width:701px){
+  #eventoForm .cliente-linha-principal{
+    grid-template-columns:
+      minmax(0,2.45fr)
+      minmax(0,1.18fr)
+      minmax(0,1.48fr)
+      26px
+      minmax(0,1.48fr) !important;
+    column-gap:8px !important;
+    width:100% !important;
+  }
+
+  #eventoForm .evento-contato-add-inline{
+    width:26px !important;
+    min-width:26px !important;
+    margin:0 !important;
+  }
+
+  #eventoForm .evento-contato-add-btn{
+    width:26px !important;
+    min-width:26px !important;
+  }
+}
+
+
+/* 2026-09-04 — correção real do vão entre + e E-mail.
+   Seletor mais específico que as regras antigas do layout de cliente. */
+@media (min-width: 901px){
+  #eventoDialog #eventoForm .cliente-grid-isolado .cliente-linha-principal{
+    display:grid !important;
+    grid-template-columns:
+      minmax(0,2.35fr)
+      minmax(0,1.12fr)
+      minmax(0,1.42fr)
+      26px
+      minmax(0,1.43fr) !important;
+    gap:8px !important;
+    align-items:end !important;
+    width:100% !important;
+    margin-bottom:8px !important;
+    box-sizing:border-box !important;
+  }
+
+  #eventoDialog #eventoForm .cliente-grid-isolado .cliente-linha-principal > label{
+    grid-column:auto !important;
+    grid-row:auto !important;
+    width:100% !important;
+    min-width:0 !important;
+    max-width:none !important;
+    margin:0 !important;
+  }
+
+  #eventoDialog #eventoForm .cliente-grid-isolado .cliente-linha-principal > .evento-nome-interno{
+    display:none !important;
+  }
+
+  #eventoDialog #eventoForm .cliente-grid-isolado .evento-contato-add-inline{
+    width:26px !important;
+    min-width:26px !important;
+    max-width:26px !important;
+    margin:0 !important;
+    padding:0 !important;
+    align-self:end !important;
+  }
+
+  #eventoDialog #eventoForm .cliente-grid-isolado .evento-contato-add-btn{
+    width:26px !important;
+    min-width:26px !important;
+    max-width:26px !important;
+    height:28px !important;
+    margin:0 0 4px 0 !important;
+    padding:0 !important;
+  }
+}
+
+
+/* Indicador discreto de contatos adicionais */
+.evento-contatos-indicador{
+  border:0 !important;
+  background:transparent !important;
+  color:#1d5f96 !important;
+  text-decoration:underline !important;
+  text-underline-offset:2px;
+  font-size:11px !important;
+  font-weight:600 !important;
+  padding:0 1px !important;
+  margin-left:3px !important;
+  cursor:pointer;
+}
+
+/* Janela própria de contatos */
+.evento-contatos-dialog{
+  border:0;
+  padding:0;
+  border-radius:14px;
+  width:min(520px,calc(100vw - 24px));
+  max-width:520px;
+  box-shadow:0 18px 55px rgba(15,23,42,.24);
+}
+
+.evento-contatos-dialog::backdrop{
+  background:rgba(15,23,42,.46);
+}
+
+.evento-contatos-dialog-card{
+  padding:16px;
+  background:#fff;
+}
+
+.evento-contatos-dialog-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  border-bottom:1px solid #e5e7eb;
+  padding-bottom:10px;
+  margin-bottom:10px;
+}
+
+.evento-contatos-dialog-header h3{
+  margin:0;
+  color:#0f4f82;
+}
+
+.evento-contatos-dialog-header p{
+  margin:3px 0 0;
+}
+
+.evento-contatos-dialog-lista{
+  display:flex;
+  flex-direction:column;
+  gap:9px;
+}
+
+.evento-contato-dialog-item{
+  border:1px solid #dbe3ec;
+  border-radius:10px;
+  padding:9px 10px;
+  background:#fff;
+}
+
+.evento-contato-dialog-meta{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  margin-bottom:6px;
+  font-size:12px;
+}
+
+.evento-contato-dialog-meta strong{
+  color:#374151;
+}
+
+.evento-contato-dialog-meta span{
+  color:#64748b;
+}
+
+.evento-contato-dialog-numero{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:7px;
+  align-items:center;
+}
+
+.evento-contato-dialog-numero input{
+  width:100%;
+  min-width:0;
+  height:36px;
+  box-sizing:border-box;
+  font-size:15px;
+  font-weight:600;
+  background:#fff;
+  cursor:text;
+  user-select:text;
+}
+
+.evento-contato-dialog-footer{
+  display:flex;
+  justify-content:flex-end;
+  margin-top:12px;
+  padding-top:10px;
+  border-top:1px solid #e5e7eb;
+}
+
+
+/* Indicador "mais" ainda mais discreto */
+.evento-contatos-indicador{
+  font-size:9px !important;
+  line-height:1 !important;
+  font-weight:600 !important;
+  margin-left:2px !important;
+  padding:0 !important;
+  vertical-align:baseline !important;
+}
+
+
+/* Modal de contatos: seleção/cópia sem fechar */
+#eventoContatosDialog .evento-contatos-dialog-card,
+#eventoContatosDialog .evento-contato-dialog-numero,
+#eventoContatosDialog .evento-contato-dialog-numero input{
+  user-select:text;
+}
+
+
+/* Ajuste seguro do indicador "mais" */
+button.evento-contatos-indicador[data-evento-contatos]{
+  font-size:8px !important;
+  line-height:1 !important;
+  font-weight:600 !important;
+  padding:0 !important;
+  margin-left:2px !important;
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  text-decoration:underline !important;
+  text-underline-offset:1px !important;
+  min-width:0 !important;
+  width:auto !important;
+  height:auto !important;
+}
+
+
+/* Correção visual isolada: "mais" pequeno sem alterar renderização/listeners */
+html body .evento-contatos-indicador,
+html body button.evento-contatos-indicador,
+html body [data-evento-contatos].evento-contatos-indicador{
+  display:inline-block !important;
+  width:auto !important;
+  min-width:0 !important;
+  max-width:none !important;
+  height:auto !important;
+  min-height:0 !important;
+  padding:0 !important;
+  margin:0 0 0 2px !important;
+  border:0 !important;
+  border-radius:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  font-family:Arial,sans-serif !important;
+  font-size:8px !important;
+  font-weight:400 !important;
+  line-height:8px !important;
+  color:#145a8d !important;
+  text-decoration:underline !important;
+  text-underline-offset:1px !important;
+  vertical-align:baseline !important;
+  cursor:pointer !important;
+  transform:scale(.82) !important;
+  transform-origin:left center !important;
+}
+
+/* O próprio campo do telefone funciona como área de cópia */
+#eventoContatosDialog input[data-telefone-copiavel]{
+  cursor:pointer !important;
+  user-select:text !important;
+  -webkit-user-select:text !important;
+}
+
+
+/* Ajuste fino: "mais" um pouco maior, mantendo o clique já corrigido */
+html body .evento-contatos-indicador,
+html body button.evento-contatos-indicador,
+html body [data-evento-contatos].evento-contatos-indicador{
+  font-size:10px !important;
+  line-height:10px !important;
+  transform:scale(.92) !important;
+  transform-origin:left center !important;
+}

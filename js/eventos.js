@@ -430,7 +430,7 @@ async function buscarEventosBanco(forcarAtualizacao = false) {
   rtEventosBuscaEmAndamento = (async () => {
     const { data, error } = await supabaseClient
       .from("eventos")
-      .select("id,nome,documento,telefone,cliente_email,endereco,bairro,cidade,complemento,latitude,longitude,geocode_status,geocode_at,cliente_observacao,data_evento,hora_evento,hora_inicio,hora_termino,montagem_tipo,montagem,desmontagem_tipo,desmontagem,tendas,itens_apoio,produtos_extras,valor_total,valor_sinal,valor_restante,forma_pagamento,pagamento_quitado,assinatura_status,assinatura_link,assinatura_enviada_em,assinatura_realizada_em,status_evento,colaborador,criado_em,atualizado_em,tipo_evento,recorrente,recorrencia_grupo_id,recorrencia_tipo,recorrencia_dias,recorrencia_inicio,recorrencia_fim,recorrencia_ordem")
+      .select("id,nome,documento,telefone,contatos_adicionais,cliente_email,endereco,bairro,cidade,complemento,latitude,longitude,geocode_status,geocode_at,cliente_observacao,data_evento,hora_evento,hora_inicio,hora_termino,montagem_tipo,montagem,desmontagem_tipo,desmontagem,tendas,itens_apoio,produtos_extras,valor_total,valor_sinal,valor_restante,forma_pagamento,pagamento_quitado,assinatura_status,assinatura_link,assinatura_enviada_em,assinatura_realizada_em,status_evento,colaborador,criado_em,atualizado_em,tipo_evento,recorrente,recorrencia_grupo_id,recorrencia_tipo,recorrencia_dias,recorrencia_inicio,recorrencia_fim,recorrencia_ordem")
       .order("data_evento", { ascending: true });
 
     if (error) {
@@ -715,7 +715,8 @@ async function salvarEventoBanco(evento) {
     id: evento.id,
     nome: evento.nome || "",
     documento: evento.documento || null,
-    telefone: evento.telefone || null,
+    telefone: rtTelefoneFormatar(evento.telefone || "") || null,
+    contatos_adicionais: rtContatosAdicionaisNormalizar(evento.contatos_adicionais),
     cliente_email: evento.cliente_email || evento.email || null,
     endereco: evento.endereco || null,
     bairro: evento.bairro || null,
@@ -1096,6 +1097,10 @@ function iniciarEventos() {
   });
   preencherSelectsHorarioEvento();
   rtInstalarAutocompleteClientesEventoLazy();
+  if (!window.__rtIndicadoresContatosInstalados) {
+    rtInstalarIndicadoresContatosEventos();
+    window.__rtIndicadoresContatosInstalados = true;
+  }
 
   onEventoSeguro("novoEventoBtn", "click", abrirNovoEvento);
   onEventoSeguro("fecharEventoModal", "click", fecharEventoModal);
@@ -1130,9 +1135,14 @@ function iniciarEventos() {
   onEventoSeguro("eventoDocumento", "input", () => rtEventoLimparClienteAoEsvaziarCampoRelacionado("eventoDocumento"));
   onEventoSeguro("eventoDocumento", "search", () => rtEventoLimparClienteAoEsvaziarCampoRelacionado("eventoDocumento"));
   onEventoSeguro("eventoTelefone", "change", () => rtEventoSelecionarClientePorCampo("telefone"));
+  onEventoSeguro("eventoTelefone", "blur", () => {
+    const campo = document.getElementById("eventoTelefone");
+    if (campo?.value) campo.value = rtTelefoneFormatar(campo.value);
+  });
   onEventoSeguro("eventoTelefone", "input", () => rtEventoLimparClienteAoEsvaziarCampoRelacionado("eventoTelefone"));
   onEventoSeguro("eventoTelefone", "search", () => rtEventoLimparClienteAoEsvaziarCampoRelacionado("eventoTelefone"));
   onEventoSeguro("eventoEndereco", "change", rtEventoSelecionarEnderecoCadastrado);
+  onEventoSeguro("eventoAdicionarContato", "click", rtAdicionarContatoAdicionalEvento);
   const eventoFormClienteUnico = document.getElementById("eventoForm");
   if (eventoFormClienteUnico && eventoFormClienteUnico.dataset.rtClienteUnicoBind !== "1") {
     eventoFormClienteUnico.addEventListener("submit", rtEventoSincronizarCampoClienteUnico, true);
@@ -1513,7 +1523,7 @@ function rtEventoPreencherDadosCliente(cliente) {
   }
   document.getElementById("eventoNome").value = cliente.nome || "";
   document.getElementById("eventoDocumento").value = cliente.documento || "";
-  document.getElementById("eventoTelefone").value = cliente.telefone || "";
+  document.getElementById("eventoTelefone").value = rtTelefoneFormatar(cliente.telefone || "");
   document.getElementById("eventoEmail").value = cliente.email || "";
   document.getElementById("eventoEndereco").value = cliente.endereco || "";
   document.getElementById("eventoBairro").value = cliente.bairro || "";
@@ -1523,12 +1533,304 @@ function rtEventoPreencherDadosCliente(cliente) {
   document.getElementById("eventoClienteObservacao").value = cliente.observacao_cliente || "";
 }
 
+
+const RT_DDD_PADRAO = "21";
+let rtEventoContatosAdicionaisAtual = [];
+
+function rtTelefoneSomenteDigitos(valor) {
+  return String(valor || "").replace(/\D/g, "");
+}
+
+function rtTelefoneNormalizarNacional(valor, dddPadrao = RT_DDD_PADRAO) {
+  let digitos = rtTelefoneSomenteDigitos(valor);
+  if (!digitos) return "";
+
+  // +55 / 55 já informado
+  if ((digitos.length === 12 || digitos.length === 13) && digitos.startsWith("55")) {
+    digitos = digitos.slice(2);
+  }
+
+  // Sem DDD: assume Rio de Janeiro (21)
+  if (digitos.length === 8 || digitos.length === 9) {
+    digitos = String(dddPadrao || "21") + digitos;
+  }
+
+  // Se ainda não estiver no padrão DDD+número, preserva os dígitos para não inventar dados.
+  if (digitos.length !== 10 && digitos.length !== 11) return digitos;
+  return digitos;
+}
+
+function rtTelefoneFormatar(valor) {
+  const n = rtTelefoneNormalizarNacional(valor);
+  if (!n) return "";
+  if (n.length === 11) return `(${n.slice(0,2)}) ${n.slice(2,7)}-${n.slice(7)}`;
+  if (n.length === 10) return `(${n.slice(0,2)}) ${n.slice(2,6)}-${n.slice(6)}`;
+  return n;
+}
+
+function rtTelefoneWhatsApp(valor) {
+  const n = rtTelefoneNormalizarNacional(valor);
+  return (n.length === 10 || n.length === 11) ? `55${n}` : n;
+}
+
+function rtContatosAdicionaisNormalizar(lista) {
+  let origem = lista;
+  if (typeof origem === "string") {
+    try { origem = JSON.parse(origem); } catch { origem = []; }
+  }
+  if (!Array.isArray(origem)) return [];
+  return origem.map((c, i) => ({
+    id: String(c?.id || `contato_${i}_${Date.now()}`),
+    nome: String(c?.nome || "").trim(),
+    tipo: String(c?.tipo || "Outro").trim() || "Outro",
+    telefone: rtTelefoneFormatar(c?.telefone || "")
+  })).filter(c => c.nome || c.telefone);
+}
+
+function rtRenderizarContatosAdicionaisEvento() {
+  const box = document.getElementById("eventoContatosAdicionais");
+  if (!box) return;
+  const tipos = ["Contato no local", "Financeiro", "Responsável", "Outro"];
+
+  box.innerHTML = rtEventoContatosAdicionaisAtual.map((c, i) => `
+    <div class="evento-contato-adicional-linha" data-contato-index="${i}">
+      <label>Nome
+        <input type="text" data-contato-campo="nome" value="${rtEventoEscHtml(c.nome || "")}" placeholder="Ex: João Silva">
+      </label>
+      <label>Tipo de contato
+        <select data-contato-campo="tipo">
+          ${tipos.map(t => `<option value="${t}"${t === c.tipo ? " selected" : ""}>${t}</option>`).join("")}
+        </select>
+      </label>
+      <label>Telefone
+        <input type="tel" inputmode="tel" data-contato-campo="telefone" value="${rtEventoEscHtml(c.telefone || "")}" placeholder="Ex: (21) 99999-9999">
+      </label>
+      <button type="button" class="btn-outline btn-mini evento-contato-remover-btn" data-remover-contato="${i}" title="Remover contato" aria-label="Remover contato">×</button>
+    </div>
+  `).join("");
+
+  box.querySelectorAll("[data-contato-index]").forEach(linha => {
+    const i = Number(linha.dataset.contatoIndex);
+    linha.querySelectorAll("[data-contato-campo]").forEach(campo => {
+      campo.addEventListener("input", () => {
+        const item = rtEventoContatosAdicionaisAtual[i];
+        if (!item) return;
+        item[campo.dataset.contatoCampo] = campo.value;
+      });
+      if (campo.dataset.contatoCampo === "telefone") {
+        campo.addEventListener("blur", () => {
+          const item = rtEventoContatosAdicionaisAtual[i];
+          if (!item) return;
+          item.telefone = rtTelefoneFormatar(campo.value);
+          campo.value = item.telefone;
+        });
+      }
+    });
+  });
+
+  box.querySelectorAll("[data-remover-contato]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.removerContato);
+      rtEventoContatosAdicionaisAtual.splice(i, 1);
+      rtRenderizarContatosAdicionaisEvento();
+    });
+  });
+}
+
+function rtAdicionarContatoAdicionalEvento() {
+  rtEventoContatosAdicionaisAtual.push({
+    id: `contato_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+    nome: "",
+    tipo: "Contato no local",
+    telefone: ""
+  });
+  rtRenderizarContatosAdicionaisEvento();
+  const box = document.getElementById("eventoContatosAdicionais");
+  box?.querySelector(".evento-contato-adicional-linha:last-child input")?.focus();
+}
+
+function rtContatosAdicionaisEventoAtual() {
+  return rtEventoContatosAdicionaisAtual
+    .map(c => ({
+      id: c.id,
+      nome: String(c.nome || "").trim(),
+      tipo: String(c.tipo || "Outro").trim() || "Outro",
+      telefone: rtTelefoneFormatar(c.telefone || "")
+    }))
+    .filter(c => c.nome || c.telefone);
+}
+
+function rtTelefoneEventoHtml(evento) {
+  const principal = rtTelefoneFormatar(evento?.telefone || "") || "-";
+  const adicionais = rtContatosAdicionaisNormalizar(evento?.contatos_adicionais);
+  if (!adicionais.length) return principal;
+  return `${principal} <button type="button" class="evento-contatos-indicador" data-evento-contatos="${evento?.id || ""}" title="Ver contatos adicionais">mais</button>`;
+}
+
+function rtCopiarTextoContato(texto, botao) {
+  const valor = String(texto || "").trim();
+  if (!valor) return;
+
+  const finalizar = () => {
+    if (!botao) return;
+    const original = botao.textContent;
+    botao.textContent = "Copiado";
+    setTimeout(() => { botao.textContent = original || "Copiar"; }, 1100);
+  };
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(valor).then(finalizar).catch(() => {
+      const area = document.createElement("textarea");
+      area.value = valor;
+      document.body.appendChild(area);
+      area.select();
+      try { document.execCommand("copy"); } catch {}
+      area.remove();
+      finalizar();
+    });
+    return;
+  }
+
+  const area = document.createElement("textarea");
+  area.value = valor;
+  document.body.appendChild(area);
+  area.select();
+  try { document.execCommand("copy"); } catch {}
+  area.remove();
+  finalizar();
+}
+
+function rtMostrarContatosAdicionaisEvento(eventoId) {
+  const evento = (Array.isArray(eventos) ? eventos : []).find(e => String(e.id) === String(eventoId));
+  if (!evento) return;
+
+  const principal = rtTelefoneFormatar(evento.telefone || "");
+  const adicionais = rtContatosAdicionaisNormalizar(evento.contatos_adicionais);
+  if (!principal && !adicionais.length) return;
+
+  const dialog = document.getElementById("eventoContatosDialog");
+  const lista = document.getElementById("eventoContatosDialogLista");
+  const cliente = document.getElementById("eventoContatosDialogCliente");
+  if (!dialog || !lista) return;
+
+  if (cliente) cliente.textContent = evento.nome || "";
+
+  const contatos = [];
+  if (principal) contatos.push({
+    tipo: "Principal",
+    nome: evento.nome || "",
+    telefone: principal
+  });
+  adicionais.forEach(c => contatos.push(c));
+
+  lista.innerHTML = contatos.map((c, i) => `
+    <div class="evento-contato-dialog-item">
+      <div class="evento-contato-dialog-meta">
+        <strong>${rtEventoEscHtml(c.tipo || "Contato")}</strong>
+        ${c.nome && c.nome !== evento.nome ? `<span>${rtEventoEscHtml(c.nome)}</span>` : ""}
+      </div>
+      <div class="evento-contato-dialog-numero">
+        <input type="text" readonly value="${rtEventoEscHtml(c.telefone || "")}" aria-label="Telefone" data-telefone-copiavel="${i}" title="Clique para copiar">
+        <button type="button" class="btn-outline btn-mini" data-copiar-contato="${i}">Copiar</button>
+      </div>
+    </div>
+  `).join("");
+
+  lista.querySelectorAll(".evento-contato-dialog-numero input").forEach(input => {
+    ["pointerdown", "mousedown", "mouseup", "click"].forEach(tipo => {
+      input.addEventListener(tipo, ev => {
+        ev.stopPropagation();
+      });
+    });
+    input.addEventListener("click", () => {
+      try {
+        input.focus({ preventScroll: true });
+        input.select();
+        input.setSelectionRange(0, input.value.length);
+      } catch {}
+    });
+  });
+
+  lista.querySelectorAll("[data-telefone-copiavel]").forEach(input => {
+    input.addEventListener("click", ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const i = Number(input.dataset.telefoneCopiavel);
+      rtCopiarTextoContato(contatos[i]?.telefone || "", null);
+      try {
+        input.focus({ preventScroll: true });
+        input.select();
+      } catch {}
+    });
+  });
+
+  lista.querySelectorAll("[data-copiar-contato]").forEach(btn => {
+    btn.addEventListener("click", ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const i = Number(btn.dataset.copiarContato);
+      rtCopiarTextoContato(contatos[i]?.telefone || "", btn);
+    });
+  });
+
+  if (!dialog.open) dialog.showModal();
+}
+
+function rtInstalarIndicadoresContatosEventos() {
+  // Primeiro clique: abre no pointerdown do próprio "mais", antes do clique da linha.
+  // Não altera os listeners gerais de Eventos/Rotas.
+  document.addEventListener("pointerdown", ev => {
+    const btn = ev.target?.closest?.("[data-evento-contatos]");
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    rtMostrarContatosAdicionaisEvento(btn.dataset.eventoContatos);
+  }, true);
+
+  document.addEventListener("click", ev => {
+    const btn = ev.target?.closest?.("[data-evento-contatos]");
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (typeof ev.stopImmediatePropagation === "function") ev.stopImmediatePropagation();
+    if (!document.getElementById("eventoContatosDialog")?.open) {
+      rtMostrarContatosAdicionaisEvento(btn.dataset.eventoContatos);
+    }
+  }, true);
+
+  const cardContatos = document.querySelector("#eventoContatosDialog .evento-contatos-dialog-card");
+  ["pointerdown", "mousedown", "mouseup", "click"].forEach(tipo => {
+    cardContatos?.addEventListener(tipo, ev => {
+      ev.stopPropagation();
+    });
+  });
+
+  const fechar = () => document.getElementById("eventoContatosDialog")?.close();
+  document.getElementById("fecharEventoContatosDialog")?.addEventListener("click", fechar);
+  document.getElementById("fecharEventoContatosDialogRodape")?.addEventListener("click", fechar);
+
+  document.getElementById("eventoContatosDialog")?.addEventListener("click", ev => {
+    if (ev.target !== ev.currentTarget) return;
+    const rect = ev.currentTarget.getBoundingClientRect();
+    const clicouDentro =
+      ev.clientX >= rect.left &&
+      ev.clientX <= rect.right &&
+      ev.clientY >= rect.top &&
+      ev.clientY <= rect.bottom;
+    if (!clicouDentro) ev.currentTarget.close();
+  });
+}
+
 function rtEventoSelecionarClientePorCampo(tipo) {
   if (!Array.isArray(clientes)) return;
   const campo = document.getElementById(tipo === "documento" ? "eventoDocumento" : "eventoTelefone");
-  const valor = rtEventoSomenteDigitos(campo?.value);
+  const valorBruto = campo?.value;
+  const valor = tipo === "telefone" ? rtTelefoneNormalizarNacional(valorBruto) : rtEventoSomenteDigitos(valorBruto);
   if (!valor) return;
-  const cliente = clientes.find(c => rtEventoSomenteDigitos(c?.[tipo]) === valor) || null;
+  const cliente = clientes.find(c => {
+    const alvo = tipo === "telefone" ? rtTelefoneNormalizarNacional(c?.telefone) : rtEventoSomenteDigitos(c?.[tipo]);
+    return alvo === valor;
+  }) || null;
   if (cliente) rtEventoPreencherDadosCliente(cliente);
 }
 
@@ -2194,7 +2496,8 @@ function montarEventoRecorrenteBase(id, existente) {
     id,
     nome: document.getElementById("eventoNome").value.trim(),
     documento: document.getElementById("eventoDocumento").value.trim(),
-    telefone: document.getElementById("eventoTelefone").value.trim(),
+    telefone: rtTelefoneFormatar(document.getElementById("eventoTelefone").value.trim()),
+    contatos_adicionais: rtContatosAdicionaisEventoAtual(),
     cliente_email: document.getElementById("eventoEmail")?.value.trim() || "",
     endereco: document.getElementById("eventoEndereco").value.trim(),
     bairro: document.getElementById("eventoBairro")?.value.trim() || "",
@@ -2329,6 +2632,8 @@ function abrirNovoEvento() {
   produtosReservaEventoAtual = [];
   produtosExtrasEventoAtual = [];
   operacoesExtrasEventoAtual = [];
+  rtEventoContatosAdicionaisAtual = [];
+  rtRenderizarContatosAdicionaisEvento();
   rtRenderizarOperacoesExtrasEvento();
   // Abre imediatamente e prepara os clientes em paralelo para os autocompletes.
   rtGarantirClientesEventoCarregados().then(() => {
@@ -2355,7 +2660,9 @@ function abrirEditarEvento(id) {
   document.getElementById("eventoBuscaCliente").value = e.nome || "";
   document.getElementById("eventoNome").value = e.nome || "";
   document.getElementById("eventoDocumento").value = e.documento || "";
-  document.getElementById("eventoTelefone").value = e.telefone || "";
+  document.getElementById("eventoTelefone").value = rtTelefoneFormatar(e.telefone || "");
+  rtEventoContatosAdicionaisAtual = rtContatosAdicionaisNormalizar(e.contatos_adicionais);
+  rtRenderizarContatosAdicionaisEvento();
   document.getElementById("eventoEmail").value = e.cliente_email || e.email || "";
   document.getElementById("eventoEndereco").value = e.endereco || "";
   document.getElementById("eventoBairro").value = e.bairro || "";
@@ -4415,6 +4722,7 @@ async function salvarEventoForm(event) {
           nome: evento.nome,
           documento: evento.documento,
           telefone: evento.telefone,
+          contatos_adicionais: rtContatosAdicionaisNormalizar(evento.contatos_adicionais),
           endereco: (typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(evento) : evento.endereco),
           montagem_tipo: evento.montagem_tipo,
           desmontagem_tipo: evento.desmontagem_tipo,
@@ -4474,7 +4782,8 @@ function filtrarEventos() {
     if (ocultarCancelados && typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) return false;
 
     const produtosTxt = [...(e.tendas || []).map(p => `${p.codigo} ${p.categoria} ${p.tamanho}`), ...(e.itens_apoio || []).map(i => `${i.nome} ${i.quantidade}`)].join(" ");
-    const texto = rtNormalizarBuscaEventos(`${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${e.bairro || ""} ${e.cidade || ""} ${e.complemento || ""} ${e.referencia_local || e.observacao_cliente || e.observacao || ""} ${e.colaborador || ""} ${produtosTxt}`);
+    const contatosTxt = rtContatosAdicionaisNormalizar(e.contatos_adicionais).map(c => `${c.nome} ${c.tipo} ${c.telefone}`).join(" ");
+    const texto = rtNormalizarBuscaEventos(`${e.nome || ""} ${e.telefone || ""} ${contatosTxt} ${e.endereco || ""} ${e.bairro || ""} ${e.cidade || ""} ${e.complemento || ""} ${e.referencia_local || e.observacao_cliente || e.observacao || ""} ${e.colaborador || ""} ${produtosTxt}`);
 
     const nomeBate = rtNormalizarBuscaEventos(e.nome).includes(busca);
     const buscaBate = !busca || (buscaTemCliente ? nomeBate : texto.includes(busca));
@@ -4482,7 +4791,7 @@ function filtrarEventos() {
     return buscaBate
       && (!data || e.data_evento === data)
       && (!cliente || rtNormalizarBuscaEventos(e.nome).includes(cliente))
-      && (!telefone || rtNormalizarBuscaEventos(e.telefone).includes(telefone))
+      && (!telefone || rtNormalizarBuscaEventos(`${e.telefone || ""} ${rtContatosAdicionaisNormalizar(e.contatos_adicionais).map(c => c.telefone).join(" ")}`).includes(telefone))
       && (!pagamento || (pagamento === "quitado" ? e.pagamento_quitado : !e.pagamento_quitado));
   });
 
@@ -4509,7 +4818,8 @@ function filtrarEventosRecorrentes() {
     if (ocultarCancelados && typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) return false;
 
     const produtosTxt = [...(e.tendas || []).map(p => `${p.codigo} ${p.categoria} ${p.tamanho}`), ...(e.itens_apoio || []).map(i => `${i.nome} ${i.quantidade}`)].join(" ");
-    const texto = rtNormalizarBuscaEventos(`${e.nome || ""} ${e.telefone || ""} ${e.endereco || ""} ${e.bairro || ""} ${e.cidade || ""} ${e.complemento || ""} ${e.referencia_local || e.observacao_cliente || e.observacao || ""} ${e.colaborador || ""} ${produtosTxt}`);
+    const contatosTxt = rtContatosAdicionaisNormalizar(e.contatos_adicionais).map(c => `${c.nome} ${c.tipo} ${c.telefone}`).join(" ");
+    const texto = rtNormalizarBuscaEventos(`${e.nome || ""} ${e.telefone || ""} ${contatosTxt} ${e.endereco || ""} ${e.bairro || ""} ${e.cidade || ""} ${e.complemento || ""} ${e.referencia_local || e.observacao_cliente || e.observacao || ""} ${e.colaborador || ""} ${produtosTxt}`);
 
     const nomeBate = rtNormalizarBuscaEventos(e.nome).includes(busca);
     const buscaBate = !busca || (buscaTemCliente ? nomeBate : texto.includes(busca));
@@ -4517,7 +4827,7 @@ function filtrarEventosRecorrentes() {
     return buscaBate
       && (!data || e.data_evento === data)
       && (!cliente || rtNormalizarBuscaEventos(e.nome).includes(cliente))
-      && (!telefone || rtNormalizarBuscaEventos(e.telefone).includes(telefone))
+      && (!telefone || rtNormalizarBuscaEventos(`${e.telefone || ""} ${rtContatosAdicionaisNormalizar(e.contatos_adicionais).map(c => c.telefone).join(" ")}`).includes(telefone))
       && (!pagamento || (pagamento === "quitado" ? e.pagamento_quitado : !e.pagamento_quitado));
   }).sort((a, b) => String(a.data_evento || "").localeCompare(String(b.data_evento || "")));
 }
@@ -4980,7 +5290,7 @@ function rtLinhaEventoPrincipalHtml(e) {
         </td>
         <td class="mont-desm-cell">${montagemDesmontagemCompacta(e)}</td>
         <td><button class="code-link" data-action="editar" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '<span class="evento-cancelado-badge">Cancelado</span> ' : ''}${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
-        <td>${e.telefone || "-"}</td>
+        <td>${rtTelefoneEventoHtml(e)}</td>
         <td><div class="cell-scroll cell-endereco">${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(e) : e.endereco) || "-"}</div></td>
         <td>
           <div class="cell-scroll cell-produtos">
@@ -5186,7 +5496,7 @@ function rtLinhaEventoRecorrenteHtml(e) {
       <td>${periodoRecorrenciaTexto(e)}</td>
       <td>${recorrenciaLabel(e.recorrencia_tipo, e.recorrencia_dias)}</td>
       <td><button class="code-link" data-action="editar" data-id="${e.id}">${(typeof rtEventoCancelado === "function" && rtEventoCancelado(e)) ? '<span class="evento-cancelado-badge">Cancelado</span> ' : ''}${rtRecorrenciaAlertaHtml(e)}${typeof rtEventoAlertaHtml === "function" ? rtEventoAlertaHtml(e) : ""}${e.nome || "-"}</button></td>
-      <td>${e.telefone || "-"}</td>
+      <td>${rtTelefoneEventoHtml(e)}</td>
       <td><div class="cell-scroll cell-endereco">${(typeof rtEnderecoCompleto === "function" ? rtEnderecoCompleto(e) : e.endereco) || "-"}</div></td>
       <td><div class="cell-scroll cell-produtos"><button class="product-list-button" data-action="editar-produtos" data-id="${e.id}">${resumoProdutosEvento(e)}</button></div></td>
       <td>${dinheiro(e.valor_total)}</td>
@@ -6392,7 +6702,7 @@ function abrirDetalheEvento(id) {
       </div>
       <div class="info-box linha-telefone">
         <span>Telefone</span>
-        <strong>${e.telefone || "-"}</strong>
+        <strong>${rtTelefoneEventoHtml(e)}</strong>
       </div>
 
       <div class="info-box linha-endereco">
