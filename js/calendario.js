@@ -344,7 +344,27 @@ function rtCalResumoMateriaisEvento(evento) {
   const siglas = [];
 
   listas.flat().forEach(item => {
+    // Metadados operacionais não são materiais e não podem gerar siglas no mini resumo.
+    const ehRegistroOperacional = !!(
+      item?.uso_transito ||
+      item?.usoEmTransito ||
+      item?.atendimento_extra_recorrente ||
+      item?.operacao_extra ||
+      item?.rt_tipo === "atendimento_extra_recorrente" ||
+      item?.origem_evento_id
+    );
+    if (ehRegistroOperacional && !(item?.codigo || item?.produto_id || item?.id)) return;
+
     const chave = rtCalChaveMaterialResumo(item);
+
+    // "outros" sem descrição de material real não deve virar uma letra acidental (ex.: E).
+    if (chave === "outros") {
+      const textoMaterial = [item?.nome, item?.descricao, item?.material, item?.categoria, item?.tipo]
+        .filter(Boolean).join(" ");
+      const operacional = /transit|atendimento|montagem|desmontagem|operacao|extra recorrente/i.test(textoMaterial);
+      if (operacional) return;
+    }
+
     const regra = rtCalRegraResumoMaterial(chave);
     if (regra.modo === "ocultar") return;
 
