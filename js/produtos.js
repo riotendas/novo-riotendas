@@ -319,9 +319,26 @@ function buscarEstoqueApoioLocal() {
   return estoque;
 }
 
-async function buscarEstoqueApoioBanco() {
+let rtEstoqueApoioCacheBanco = null;
+let rtEstoqueApoioCacheTs = 0;
+let rtEstoqueApoioEmAndamento = null;
+const RT_ESTOQUE_APOIO_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function rtInvalidarCacheEstoqueApoio() {
+  rtEstoqueApoioCacheBanco = null;
+  rtEstoqueApoioCacheTs = 0;
+}
+window.rtInvalidarCacheEstoqueApoio = rtInvalidarCacheEstoqueApoio;
+
+async function buscarEstoqueApoioBanco(forcarAtualizacao = false) {
   if (!supabaseClient) return buscarEstoqueApoioLocal();
 
+  if (!forcarAtualizacao && rtEstoqueApoioCacheBanco && (Date.now() - rtEstoqueApoioCacheTs) < RT_ESTOQUE_APOIO_CACHE_TTL_MS) {
+    return rtEstoqueApoioCacheBanco;
+  }
+  if (!forcarAtualizacao && rtEstoqueApoioEmAndamento) return rtEstoqueApoioEmAndamento;
+
+  rtEstoqueApoioEmAndamento = (async () => {
   const { data, error } = await supabaseClient
     .from("estoque_apoio")
     .select("*") // tabela pequena; evita falha por diferenças de esquema entre ambientes
@@ -377,7 +394,21 @@ async function buscarEstoqueApoioBanco() {
     return buscarEstoqueApoioLocal();
   }
 
-  return criados || [];
+  rtEstoqueApoioCacheBanco = criados || [];
+  rtEstoqueApoioCacheTs = Date.now();
+  return rtEstoqueApoioCacheBanco;
+  })();
+
+  try {
+    const resultado = await rtEstoqueApoioEmAndamento;
+    if (Array.isArray(resultado)) {
+      rtEstoqueApoioCacheBanco = resultado;
+      rtEstoqueApoioCacheTs = Date.now();
+    }
+    return resultado;
+  } finally {
+    rtEstoqueApoioEmAndamento = null;
+  }
 }
 
 async function salvarItemApoioBanco(item) {
@@ -410,6 +441,7 @@ async function salvarItemApoioBanco(item) {
     return item;
   }
 
+  rtInvalidarCacheEstoqueApoio();
   return data;
 }
 

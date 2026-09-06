@@ -11,7 +11,34 @@
   const mem = {};
   const emAndamento = new Map();
   const falhas = new Map();
-  const FALHA_TTL_MS = 10 * 60 * 1000;
+  const FALHA_CACHE_KEY = 'rt_modelos_documentos_falhas_v2';
+  const FALHA_TTL_MS = 12 * 60 * 60 * 1000;
+
+  function carregarFalhasPersistidas(){
+    try {
+      const obj = JSON.parse(localStorage.getItem(FALHA_CACHE_KEY) || '{}');
+      return obj && typeof obj === 'object' ? obj : {};
+    } catch(_) { return {}; }
+  }
+  function falhaPersistida(key){
+    const item = carregarFalhasPersistidas()[key];
+    if (!item || !item.ts || (Date.now() - Number(item.ts)) >= FALHA_TTL_MS) return null;
+    return item;
+  }
+  function salvarFalhaPersistida(key){
+    try {
+      const obj = carregarFalhasPersistidas();
+      obj[key] = { ts: Date.now() };
+      localStorage.setItem(FALHA_CACHE_KEY, JSON.stringify(obj));
+    } catch(_) {}
+  }
+  function limparFalhaPersistida(key){
+    try {
+      const obj = carregarFalhasPersistidas();
+      delete obj[key];
+      localStorage.setItem(FALHA_CACHE_KEY, JSON.stringify(obj));
+    } catch(_) {}
+  }
 
   function arquivoPadrao(tipo){ return PADRAO[tipo] || ''; }
   function normalizarArquivo(tipo, arquivo){
@@ -50,6 +77,11 @@
     if (!opcoes.forcar && mem[tipo]?.html && mem[tipo]?.nome === alvo) return mem[tipo];
     const local = obterCache(tipo, alvo);
     const falha = falhas.get(key);
+    const falhaLocal = falhaPersistida(key);
+    if (!opcoes.forcar && falhaLocal) {
+      if (local && opcoes.permitirCache !== false) return local;
+      throw new Error('Modelo temporariamente indisponível no Storage.');
+    }
     if (!opcoes.forcar && falha && (Date.now() - falha.ts) < FALHA_TTL_MS) {
       if (local && opcoes.permitirCache !== false) return local;
       throw falha.erro;
@@ -67,9 +99,11 @@
         if (!html.trim()) throw new Error('Modelo vazio.');
         if (!/{{\s*[a-zA-Z0-9_]+\s*}}/.test(html)) throw new Error('O modelo não possui variáveis {{...}}.');
         falhas.delete(key);
+        limparFalhaPersistida(key);
         return salvarCache(tipo, alvo, html, new Date().toISOString(), 'nuvem');
       } catch (erro) {
         falhas.set(key, { ts: Date.now(), erro });
+        salvarFalhaPersistida(key);
         const cacheAtual = obterCache(tipo, alvo);
         if (cacheAtual && opcoes.permitirCache !== false) return cacheAtual;
         throw erro;
@@ -102,6 +136,7 @@
     });
     if (error) throw error;
     falhas.delete(`${tipo}:${alvo}`);
+    limparFalhaPersistida(`${tipo}:${alvo}`);
     salvarCache(tipo, alvo, html, new Date().toISOString(), 'nuvem');
     return { nome: alvo, html };
   }
@@ -111,6 +146,7 @@
     const { error } = await supabaseClient.storage.from(BUCKET).remove([alvo]);
     if (error) throw error;
     falhas.delete(`${tipo}:${alvo}`);
+    limparFalhaPersistida(`${tipo}:${alvo}`);
     delete mem[tipo];
     const dados = carregarCache(); delete dados[tipo];
     try { localStorage.setItem(CACHE_KEY, JSON.stringify(dados)); } catch(_) {}

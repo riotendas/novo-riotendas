@@ -204,6 +204,13 @@
         else if (chave === "rotas_ordem_manual") window.rtInvalidarCachePerformance("carregarRotasOrdemNuvem");
         else if (chave === "configuracoes") window.rtInvalidarCachePerformance("carregarConfiguracoesNuvem");
       }
+      if (chave === "configuracoes" && typeof window.rtInvalidarConfigNuvemCache === "function") {
+        window.rtInvalidarConfigNuvemCache();
+      }
+      if (typeof window.rtInvalidarRotasAppConfigCache === "function" &&
+          ["rotas_operacao","rotas_carros","rotas_ordem_manual"].includes(chave)) {
+        window.rtInvalidarRotasAppConfigCache(chave);
+      }
     } catch {}
     if (chave === "rotas_operacao") aplicarOperacaoRecebida(novo.valor);
     else if (chave === "rotas_carros") aplicarCarrosRecebidos(novo.valor);

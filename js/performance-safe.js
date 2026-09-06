@@ -63,7 +63,8 @@
   envolverCache("carregarRotasOperacaoNuvem", 10 * 60 * 1000, { keyByArgs: false });
   envolverCache("carregarRotasCarrosNuvem", 10 * 60 * 1000, { keyByArgs: false });
   envolverCache("carregarRotasOrdemNuvem", 10 * 60 * 1000, { keyByArgs: false });
-  envolverCache("rtNotasCarregarNuvem", 5 * 60 * 1000, { keyByArgs: false });
+  envolverCache("rtNotasCarregarNuvem", 10 * 60 * 1000, { keyByArgs: false });
+  envolverCache("carregarOrcamentos", 5 * 60 * 1000, { forceArgIndex: 0 });
 
   // As funções abaixo já possuem cache próprio; aqui protegemos apenas chamadas concorrentes.
   envolverCache("carregarEventos", 1500, { keyByArgs: false });

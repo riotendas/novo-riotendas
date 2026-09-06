@@ -68,6 +68,59 @@ function classeHorarioEspecialRota(tipoSalvo, horario) {
 let rotasCarros = {};
 const storageRotasCarrosKey = "novoRioTendasRotasCarrosV1";
 
+// Performance V6: cache direto das chaves operacionais do app_config.
+// Realtime continua sendo a fonte de invalidação entre usuários.
+const rtRotasAppConfigCache = new Map();
+const rtRotasAppConfigEmAndamento = new Map();
+const RT_ROTAS_APPCONFIG_TTL_MS = 10 * 60 * 1000;
+
+function rtInvalidarRotasAppConfigCache(chave = "") {
+  if (!chave) {
+    rtRotasAppConfigCache.clear();
+    return;
+  }
+  rtRotasAppConfigCache.delete(String(chave));
+}
+window.rtInvalidarRotasAppConfigCache = rtInvalidarRotasAppConfigCache;
+
+async function rtBuscarRotasAppConfig(chave, incluirAtualizadoEm = false, forcar = false) {
+  if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
+  const key = String(chave || "");
+  const cache = rtRotasAppConfigCache.get(key);
+  if (!forcar && cache && (Date.now() - cache.ts) < RT_ROTAS_APPCONFIG_TTL_MS) return cache.valor;
+  if (!forcar && rtRotasAppConfigEmAndamento.has(key)) return rtRotasAppConfigEmAndamento.get(key);
+
+  const promessa = (async () => {
+    try {
+      const campos = incluirAtualizadoEm ? "valor, atualizado_em" : "valor";
+      const { data, error } = await supabaseClient
+        .from("app_config")
+        .select(campos)
+        .eq("chave", key)
+        .maybeSingle();
+      if (error) throw error;
+
+      const valor = incluirAtualizadoEm
+        ? (!data?.valor || typeof data.valor !== "object" ? null : {
+            valor: data.valor,
+            atualizadoEm: data.atualizado_em ? new Date(data.atualizado_em).getTime() : 0
+          })
+        : (data?.valor || null);
+
+      rtRotasAppConfigCache.set(key, { valor, ts: Date.now() });
+      return valor;
+    } catch (erro) {
+      console.warn(`Erro ao carregar ${key} das rotas na nuvem:`, erro);
+      return cache?.valor || null;
+    } finally {
+      rtRotasAppConfigEmAndamento.delete(key);
+    }
+  })();
+
+  rtRotasAppConfigEmAndamento.set(key, promessa);
+  return promessa;
+}
+
 
 // v19-dev: controle operacional de rotas (entregue/recolhido/revisar)
 let rotasOperacao = {};
@@ -83,26 +136,8 @@ function salvarRotasOperacaoLocal() {
   return salvarRotasOperacaoNuvem();
 }
 
-async function carregarRotasOperacaoNuvem() {
-  if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
-
-  try {
-    const { data, error } = await supabaseClient
-      .from("app_config")
-      .select("valor")
-      .eq("chave", "rotas_operacao")
-      .maybeSingle();
-
-    if (error) {
-      console.warn("Não foi possível carregar operação das rotas na nuvem:", error);
-      return null;
-    }
-
-    return data?.valor || null;
-  } catch (erro) {
-    console.warn("Erro ao carregar operação das rotas na nuvem:", erro);
-    return null;
-  }
+async function carregarRotasOperacaoNuvem(forcarAtualizacao = false) {
+  return rtBuscarRotasAppConfig("rotas_operacao", false, forcarAtualizacao);
 }
 
 function rtRotasOperacaoMesclar(local = {}, nuvem = {}) {
@@ -148,6 +183,7 @@ async function salvarRotasOperacaoNuvem() {
       console.warn("Não foi possível salvar operação das rotas na nuvem:", error);
       return false;
     }
+    rtInvalidarRotasAppConfigCache("rotas_operacao");
     return true;
   } catch (erro) {
     console.warn("Erro ao salvar operação das rotas na nuvem:", erro);
@@ -711,26 +747,8 @@ async function marcarOperacaoRota(rotaId, acao) {
 }
 
 
-async function carregarRotasCarrosNuvem() {
-  if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
-
-  try {
-    const { data, error } = await supabaseClient
-      .from("app_config")
-      .select("valor")
-      .eq("chave", "rotas_carros")
-      .maybeSingle();
-
-    if (error) {
-      console.warn("Não foi possível carregar carros das rotas na nuvem:", error);
-      return null;
-    }
-
-    return data?.valor || null;
-  } catch (erro) {
-    console.warn("Erro ao carregar carros das rotas na nuvem:", erro);
-    return null;
-  }
+async function carregarRotasCarrosNuvem(forcarAtualizacao = false) {
+  return rtBuscarRotasAppConfig("rotas_carros", false, forcarAtualizacao);
 }
 
 async function salvarRotasCarrosNuvem() {
@@ -746,6 +764,7 @@ async function salvarRotasCarrosNuvem() {
       }, { onConflict: "chave" });
 
     if (error) console.warn("Não foi possível salvar carros das rotas na nuvem:", error);
+    else rtInvalidarRotasAppConfigCache("rotas_carros");
   } catch (erro) {
     console.warn("Erro ao salvar carros das rotas na nuvem:", erro);
   }
@@ -787,30 +806,8 @@ function rtSetTimestampOrdemLocal(timestamp = Date.now()) {
   return timestamp;
 }
 
-async function carregarRotasOrdemNuvem() {
-  if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
-
-  try {
-    const { data, error } = await supabaseClient
-      .from("app_config")
-      .select("valor, atualizado_em")
-      .eq("chave", "rotas_ordem_manual")
-      .maybeSingle();
-
-    if (error) {
-      console.warn("Não foi possível carregar ordem das rotas na nuvem:", error);
-      return null;
-    }
-
-    if (!data?.valor || typeof data.valor !== "object") return null;
-    return {
-      valor: data.valor,
-      atualizadoEm: data.atualizado_em ? new Date(data.atualizado_em).getTime() : 0
-    };
-  } catch (erro) {
-    console.warn("Erro ao carregar ordem das rotas na nuvem:", erro);
-    return null;
-  }
+async function carregarRotasOrdemNuvem(forcarAtualizacao = false) {
+  return rtBuscarRotasAppConfig("rotas_ordem_manual", true, forcarAtualizacao);
 }
 
 async function salvarRotasOrdemNuvem(timestamp = rtTimestampOrdemLocal() || Date.now()) {
@@ -830,6 +827,7 @@ async function salvarRotasOrdemNuvem(timestamp = rtTimestampOrdemLocal() || Date
       console.warn("Não foi possível salvar ordem das rotas na nuvem:", error);
       return false;
     }
+    rtInvalidarRotasAppConfigCache("rotas_ordem_manual");
     return true;
   } catch (erro) {
     console.warn("Erro ao salvar ordem das rotas na nuvem:", erro);
@@ -3366,24 +3364,43 @@ function rtNotasJaMigrado() {
   try { return localStorage.getItem(RT_ROTAS_NOTAS_MIGRADO_KEY) === "1"; } catch { return false; }
 }
 
-async function rtNotasCarregarNuvem() {
+let rtNotasNuvemCache = null;
+let rtNotasNuvemCacheTs = 0;
+let rtNotasNuvemEmAndamento = null;
+const RT_NOTAS_NUVEM_TTL_MS = 5 * 60 * 1000;
+
+function rtNotasInvalidarCacheNuvem() {
+  rtNotasNuvemCache = null;
+  rtNotasNuvemCacheTs = 0;
+}
+
+async function rtNotasCarregarNuvem(forcarAtualizacao = false) {
   if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
-  try {
-    const { data, error } = await supabaseClient
-      .from("notas_rota")
-      .select("id,data_rota,carro,texto,endereco,ordem,criado_por,criado_em,atualizado_em")
-      .order("data_rota", { ascending: true })
-      .order("carro", { ascending: true })
-      .order("ordem", { ascending: true });
-    if (error) {
-      console.warn("Erro ao carregar notas_rota:", error);
-      return null;
-    }
-    return (data || []).map(rtNotaNormalizarRegistro).filter(Boolean);
-  } catch (erro) {
-    console.warn("Erro ao carregar notas_rota:", erro);
-    return null;
+  if (!forcarAtualizacao && rtNotasNuvemCache && (Date.now() - rtNotasNuvemCacheTs) < RT_NOTAS_NUVEM_TTL_MS) {
+    return rtNotasNuvemCache;
   }
+  if (!forcarAtualizacao && rtNotasNuvemEmAndamento) return rtNotasNuvemEmAndamento;
+
+  rtNotasNuvemEmAndamento = (async () => {
+    try {
+      const { data, error } = await supabaseClient
+        .from("notas_rota")
+        .select("id,data_rota,carro,texto,endereco,ordem,criado_por,criado_em,atualizado_em")
+        .order("data_rota", { ascending: true })
+        .order("carro", { ascending: true })
+        .order("ordem", { ascending: true });
+      if (error) throw error;
+      rtNotasNuvemCache = (data || []).map(rtNotaNormalizarRegistro).filter(Boolean);
+      rtNotasNuvemCacheTs = Date.now();
+      return rtNotasNuvemCache;
+    } catch (erro) {
+      console.warn("Erro ao carregar notas_rota:", erro);
+      return rtNotasNuvemCache;
+    }
+  })();
+
+  try { return await rtNotasNuvemEmAndamento; }
+  finally { rtNotasNuvemEmAndamento = null; }
 }
 
 async function rtNotaSalvarNuvem(nota) {
@@ -3403,6 +3420,7 @@ async function rtNotaSalvarNuvem(nota) {
       alert("Não foi possível salvar a nota na nuvem. Erro: " + (error.message || JSON.stringify(error)));
       return false;
     }
+    rtNotasInvalidarCacheNuvem();
     return true;
   } catch (erro) {
     console.error("Falha ao salvar nota no Supabase:", erro);
@@ -3422,6 +3440,7 @@ async function rtNotasSalvarNuvem(notas) {
       console.error("Falha ao salvar notas no Supabase:", error);
       return false;
     }
+    rtNotasInvalidarCacheNuvem();
     return true;
   } catch (erro) {
     console.error("Falha ao salvar notas no Supabase:", erro);
@@ -3438,6 +3457,7 @@ async function rtNotaExcluirNuvem(notaId) {
       alert("Não foi possível excluir a nota na nuvem. Erro: " + (error.message || JSON.stringify(error)));
       return false;
     }
+    rtNotasInvalidarCacheNuvem();
     return true;
   } catch (erro) {
     console.error("Falha ao excluir nota no Supabase:", erro);
@@ -3546,6 +3566,7 @@ async function rtNotasAtualizarPorRealtime() {
 }
 
 function rtNotasAgendarAtualizacaoRealtime() {
+  rtNotasInvalidarCacheNuvem();
   clearTimeout(rtNotasRealtimeTimer);
   rtNotasRealtimeTimer = setTimeout(rtNotasAtualizarPorRealtime, rtNotasEdicaoManualRecente() ? 750 : 250);
 }

@@ -271,26 +271,49 @@ function carregarConfiguracoes() {
 }
 
 
-async function carregarConfiguracoesNuvem() {
+let rtConfigNuvemCache = null;
+let rtConfigNuvemCacheTs = 0;
+let rtConfigNuvemEmAndamento = null;
+const RT_CONFIG_NUVEM_TTL_MS = 15 * 60 * 1000;
+
+function rtInvalidarConfigNuvemCache() {
+  rtConfigNuvemCache = null;
+  rtConfigNuvemCacheTs = 0;
+}
+window.rtInvalidarConfigNuvemCache = rtInvalidarConfigNuvemCache;
+
+async function carregarConfiguracoesNuvem(forcarAtualizacao = false) {
   if (typeof supabaseClient === "undefined" || !supabaseClient) return null;
 
-  try {
-    const { data, error } = await supabaseClient
-      .from("app_config")
-      .select("valor")
-      .eq("chave", "configuracoes")
-      .maybeSingle();
-
-    if (error) {
-      console.warn("Não foi possível carregar configurações da nuvem:", error);
-      return null;
-    }
-
-    return data?.valor || null;
-  } catch (erro) {
-    console.warn("Erro ao carregar configurações da nuvem:", erro);
-    return null;
+  if (!forcarAtualizacao && rtConfigNuvemCache && (Date.now() - rtConfigNuvemCacheTs) < RT_CONFIG_NUVEM_TTL_MS) {
+    return rtConfigNuvemCache;
   }
+  if (!forcarAtualizacao && rtConfigNuvemEmAndamento) return rtConfigNuvemEmAndamento;
+
+  rtConfigNuvemEmAndamento = (async () => {
+    try {
+      const { data, error } = await supabaseClient
+        .from("app_config")
+        .select("valor")
+        .eq("chave", "configuracoes")
+        .maybeSingle();
+
+      if (error) {
+        console.warn("Não foi possível carregar configurações da nuvem:", error);
+        return rtConfigNuvemCache;
+      }
+
+      rtConfigNuvemCache = data?.valor || null;
+      rtConfigNuvemCacheTs = Date.now();
+      return rtConfigNuvemCache;
+    } catch (erro) {
+      console.warn("Erro ao carregar configurações da nuvem:", erro);
+      return rtConfigNuvemCache;
+    }
+  })();
+
+  try { return await rtConfigNuvemEmAndamento; }
+  finally { rtConfigNuvemEmAndamento = null; }
 }
 
 async function salvarConfiguracoesNuvem(config) {
@@ -305,7 +328,12 @@ async function salvarConfiguracoesNuvem(config) {
         atualizado_em: new Date().toISOString()
       }, { onConflict: "chave" });
 
-    if (error) console.warn("Não foi possível salvar configurações na nuvem:", error);
+    if (error) {
+      console.warn("Não foi possível salvar configurações na nuvem:", error);
+    } else {
+      rtConfigNuvemCache = config;
+      rtConfigNuvemCacheTs = Date.now();
+    }
   } catch (erro) {
     console.warn("Erro ao salvar configurações na nuvem:", erro);
   }

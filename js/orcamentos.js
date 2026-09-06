@@ -147,7 +147,7 @@ function preencherSelectsHorarioOrcamento(){
 
 let rtOrcamentosCacheTs = 0;
 let rtOrcamentosBuscaEmAndamento = null;
-const RT_ORCAMENTOS_CACHE_TTL_MS = 2 * 60 * 1000;
+const RT_ORCAMENTOS_CACHE_TTL_MS = 5 * 60 * 1000;
 function rtInvalidarCacheOrcamentos(){ rtOrcamentosCacheTs = 0; }
 window.rtInvalidarCacheOrcamentos = rtInvalidarCacheOrcamentos;
 
