@@ -193,6 +193,7 @@ function configPadrao() {
         tenda_8x8: 2.5,
         tenda_10x10: 3,
         ombrelone: 0.5,
+        ombrelone_franja: 0.5,
         mesa_plastica: 0.10,
         mesa_madeira: 0.15,
         cadeira_plastica: 0.05,
@@ -212,6 +213,7 @@ function configPadrao() {
         tenda_8x8: { modo: "carga", sigla: "" },
         tenda_10x10: { modo: "carga", sigla: "" },
         ombrelone: { modo: "sigla", sigla: "OMB" },
+        ombrelone_franja: { modo: "sigla", sigla: "OMBFR" },
         mesa_plastica: { modo: "letra", sigla: "M" },
         mesa_madeira: { modo: "letra", sigla: "M" },
         cadeira_plastica: { modo: "letra", sigla: "C" },
@@ -2806,6 +2808,7 @@ const rtCargaOperacionalItensConfig = [
   ["tenda_8x8", "Tenda 8x8"],
   ["tenda_10x10", "Tenda 10x10"],
   ["ombrelone", "Ombrelone"],
+  ["ombrelone_franja", "Ombrelone c/ Franja"],
   ["mesa_plastica", "Mesa Plástica"],
   ["mesa_madeira", "Mesa Madeira"],
   ["cadeira_plastica", "Cadeira Plástica"],
@@ -2836,8 +2839,8 @@ function renderizarCargaOperacionalConfig() {
     const resumoItens = carga.resumoItens || {};
     pontosBox.innerHTML = rtCargaOperacionalItensConfig.map(([chave, label]) => {
       const regraResumo = resumoItens[chave] || {};
-      const modo = regraResumo.modo || (chave.startsWith("tenda_") ? "carga" : (chave === "ombrelone" ? "sigla" : "letra"));
-      const sigla = regraResumo.sigla || (chave === "ombrelone" ? "OMB" : label.slice(0, 1).toUpperCase());
+      const modo = regraResumo.modo || (chave.startsWith("tenda_") ? "carga" : ((chave === "ombrelone" || chave === "ombrelone_franja") ? "sigla" : "letra"));
+      const sigla = regraResumo.sigla || (chave === "ombrelone" ? "OMB" : (chave === "ombrelone_franja" ? "OMBFR" : label.slice(0, 1).toUpperCase()));
       return `
         <label class="carga-operacional-linha carga-operacional-linha-resumo">
           <span>${label}</span>

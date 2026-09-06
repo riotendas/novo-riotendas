@@ -254,7 +254,7 @@ function rtCalCargaConfigAtual() {
     pontosItens: {
       tenda_3x3: 0.5, tenda_4_5x3: 1, tenda_4x4: 1, tenda_5x5: 1.5,
       tenda_6x3: 1, tenda_6x6: 2, tenda_8x8: 2.5, tenda_10x10: 3,
-      ombrelone: 0.5, mesa_plastica: 0.10, mesa_madeira: 0.15,
+      ombrelone: 0.5, ombrelone_franja: 0.5, mesa_plastica: 0.10, mesa_madeira: 0.15,
       cadeira_plastica: 0.05, cadeira_madeira: 0.08, caixa_190: 0.30,
       caixa_360: 0.50, lateral: 0.10, outros: 0
     },
@@ -293,7 +293,7 @@ function rtCalQuantidadeItem(item) {
 
 function rtCalTipoApoio(item) {
   const txt = rtCalNormalizar([item?.tipo, item?.categoria, item?.nome, item?.descricao, item?.material].filter(Boolean).join(" "));
-  if (txt.includes("ombrel")) return "ombrelone";
+  if (txt.includes("ombrel")) return txt.includes("franja") ? "ombrelone_franja" : "ombrelone";
   if (txt.includes("mesa")) return txt.includes("madeira") ? "mesa_madeira" : "mesa_plastica";
   if (txt.includes("cadeira") || txt.includes("banco") || txt.includes("banqueta")) return txt.includes("madeira") ? "cadeira_madeira" : "cadeira_plastica";
   if (txt.includes("190")) return "caixa_190";
@@ -309,7 +309,7 @@ function rtCalResumoConfigItem(chave) {
 
 function rtCalChaveMaterialResumo(item) {
   const txt = rtCalNormalizar([item?.tipo, item?.categoria, item?.nome, item?.descricao, item?.material, item?.tamanho, item?.medida, item?.codigo].filter(Boolean).join(" "));
-  if (txt.includes("ombrel")) return "ombrelone";
+  if (txt.includes("ombrel")) return txt.includes("franja") ? "ombrelone_franja" : "ombrelone";
 
   const tamanho = rtCalTamanhoProduto(item);
   const ehTenda = tamanho || txt.includes("tenda") || txt.includes("piramidal") || txt.includes("sanfonada");
@@ -321,8 +321,9 @@ function rtCalChaveMaterialResumo(item) {
 function rtCalRegraResumoMaterial(chave) {
   const carga = rtCalCargaConfigAtual();
   const regra = (carga.resumoItens || {})[chave] || {};
-  const modoPadrao = chave.startsWith("tenda_") ? "carga" : (chave === "ombrelone" ? "sigla" : "letra");
-  const siglaPadrao = chave === "ombrelone" ? "OMB" : "";
+  const ehOmbrelone = chave === "ombrelone" || chave === "ombrelone_franja";
+  const modoPadrao = chave.startsWith("tenda_") ? "carga" : (ehOmbrelone ? "sigla" : "letra");
+  const siglaPadrao = chave === "ombrelone_franja" ? "OMBFR" : (chave === "ombrelone" ? "OMB" : "");
   return {
     modo: regra.modo || modoPadrao,
     sigla: String(regra.sigla || siglaPadrao || "").trim().toUpperCase()
@@ -331,6 +332,7 @@ function rtCalRegraResumoMaterial(chave) {
 
 function rtCalSiglaPadraoMaterial(item, chave) {
   const nome = String(item?.nome || item?.descricao || item?.material || item?.categoria || chave || "").trim();
+  if (chave === "ombrelone_franja") return "OMBFR";
   if (chave === "ombrelone") return "OMB";
   return nome.slice(0, 1).toUpperCase();
 }

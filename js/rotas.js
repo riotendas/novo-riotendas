@@ -1167,30 +1167,22 @@ function montarListaMateriais(evento) {
 function montarMateriaisRotaDetalhados(evento) {
   const materiais = [];
 
-  let temUsoTransito = false;
   (evento.tendas || []).forEach((p, index) => {
-    if (rtProdutoUsoTransitoPendenteParaCarga(p)) {
-      temUsoTransito = true;
-      return;
-    }
     const nome = [p.codigo, p.categoria, p.tamanho, p.cor].filter(Boolean).join(" - ");
 
     materiais.push({
       tipo: "produto",
       index,
       id: p.id,
+      codigo: p.codigo || "",
       categoria: p.categoria || p.tipo || "",
       tamanho: p.tamanho || "",
-      texto: nome || "Produto com código"
+      texto: String(nome || "Produto com código")
+        .replace(/Tenda\s+Sanfonada/gi, "Tenda Sanf."),
+      produtoOriginal: p,
+      transitoPendente: rtProdutoUsoTransitoPendenteParaCarga(p)
     });
   });
-
-  if (temUsoTransito) {
-    materiais.push({
-      tipo: "aviso",
-      texto: "⚠ Uso em trânsito"
-    });
-  }
 
   (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).forEach((p, index) => {
     const nome = typeof rtProdutoReservaParaTexto === "function" ? rtProdutoReservaParaTexto(p) : `Reserva - ${[p.codigo, p.categoria || p.tipo, p.tamanho, p.cor].filter(Boolean).join(" - ")}`;
@@ -1214,6 +1206,53 @@ function montarMateriaisRotaDetalhados(evento) {
   });
 
   return materiais;
+}
+
+
+function rtInfoTransitoProdutoNaRota(rota, produto) {
+  if (!rota || !produto || rotaEhDesmontagem(rota)) return null;
+
+  const eventoDestino = rota.evento || {};
+  const destinoId = String(eventoDestino.id || rota.evento_id || "");
+  const chave = rtChaveProdutoTransitoRota(produto);
+  if (!destinoId || !chave) return null;
+
+  try {
+    const todasRotas = typeof criarRotasDosEventos === "function" ? criarRotasDosEventos() : [];
+    const mapa = rtMapaMateriaisTransitoCarro(todasRotas);
+    return (mapa.detalhes || []).find(d =>
+      String(d?.chave || "") === chave &&
+      String(d?.destinoEvento?.id || d?.destinoRota?.evento_id || "") === destinoId
+    ) || null;
+  } catch (erro) {
+    return null;
+  }
+}
+
+function rtInfoAvisoTransitoProdutoRota(rota, produto) {
+  if (!rtProdutoUsoTransitoPendenteParaCarga(produto)) return null;
+
+  const info = rtInfoTransitoProdutoNaRota(rota, produto);
+
+  if (info) {
+    const origem = info.origemEvento?.nome || info.origemRota?.cliente || "outro cliente";
+    return {
+      texto: "⚠ Em trânsito",
+      titulo: `Retirar de ${origem}`
+    };
+  }
+
+  if (rtProdutoUsoTransitoPendenteParaCarga(produto)) {
+    const origem = produto.origem_evento_nome
+      || String(produto.origem_transito_texto || "").replace(/^Retirar de\s*/i, "")
+      || "outro cliente";
+    return {
+      texto: "⚠ Em trânsito",
+      titulo: `Retirar de ${origem}`
+    };
+  }
+
+  return null;
 }
 
 function renderizarMateriaisRotaClicaveis(rota) {
@@ -1247,16 +1286,24 @@ function renderizarMateriaisRotaClicaveis(rota) {
       return `<span>${item.texto}</span>`;
     }
 
+    const produtoOriginal = item.produtoOriginal
+      || (Array.isArray(evento.tendas) ? evento.tendas[item.index] : null)
+      || item;
+    const avisoTransito = rtInfoAvisoTransitoProdutoRota(rota, produtoOriginal);
+
     return `
-      <button
-        type="button"
-        class="rota-material-click"
-        title="Clique para substituir este produto"
-        data-rota-trocar-produto="1"
-        data-evento-id="${evento.id || rota.evento_id || ""}"
-        data-produto-index="${item.index}"
-        data-produto-id="${item.id || ""}"
-      >${item.texto}</button>
+      <span class="rota-material-item-com-transito">
+        <button
+          type="button"
+          class="rota-material-click"
+          title="Clique para substituir este produto"
+          data-rota-trocar-produto="1"
+          data-evento-id="${evento.id || rota.evento_id || ""}"
+          data-produto-index="${item.index}"
+          data-produto-id="${item.id || ""}"
+        >${item.texto}</button>
+        ${avisoTransito ? `<small class="rota-material-transito-aviso" title="${String(avisoTransito.titulo || "").replace(/"/g, "&quot;")}">${avisoTransito.texto}</small>` : ""}
+      </span>
     `;
   }).join("");
 }
@@ -2648,6 +2695,7 @@ function rtCargaOperacionalConfigAtual() {
       tenda_8x8: 2.5,
       tenda_10x10: 3,
       ombrelone: 0.5,
+      ombrelone_franja: 0.5,
       mesa_plastica: 0.10,
       mesa_madeira: 0.15,
       cadeira_plastica: 0.05,
@@ -2691,7 +2739,7 @@ function rtChaveApoioCarga(tipoApoio, subtipo = "", texto = "") {
     return "cadeira_plastica";
   }
 
-  if (tipoApoio === "omb") return "ombrelone";
+  if (tipoApoio === "omb") return n.includes("franja") ? "ombrelone_franja" : "ombrelone";
   if (tipoApoio === "caixa") {
     if (n.includes("190") || n.includes("pequena") || n.includes("peq")) return "caixa_190";
     if (n.includes("360") || n.includes("grande") || n.includes("gde")) return "caixa_360";
@@ -2720,7 +2768,130 @@ function rtFormatoContagemMapa(mapa) {
     .map(([chave, qtd]) => `${rtNumeroCurto(qtd)} ${chave}`);
 }
 
+
+function rtChaveProdutoTransitoRota(item) {
+  const id = String(item?.id || item?.produto_id || "").trim();
+  if (id) return `id:${id}`;
+  const codigo = String(item?.codigo || item?.produto_codigo || "").trim();
+  return codigo ? `codigo:${codigo}` : "";
+}
+
+function rtMomentoRotaParaTransito(rota) {
+  const data = String(rota?.data || rota?.evento?.data_evento || "").slice(0, 10);
+  if (!data) return Number.POSITIVE_INFINITY;
+  const hora = String(rota?.horario || "").match(/^\d{1,2}:\d{2}/)?.[0] || "12:00";
+  const ts = new Date(`${data}T${hora.length === 4 ? "0" + hora : hora}:00`).getTime();
+  return Number.isFinite(ts) ? ts : Number.POSITIVE_INFINITY;
+}
+
+function rtMapaMateriaisTransitoCarro(listaRotas = []) {
+  const rotas = Array.isArray(listaRotas) ? listaRotas : [];
+  const desmontagensPorProduto = new Map();
+
+  rotas.forEach((rota, indice) => {
+    if (!rotaEhDesmontagem(rota)) return;
+    const evento = rota?.evento || {};
+    (evento.tendas || []).forEach(item => {
+      const chave = rtChaveProdutoTransitoRota(item);
+      if (!chave) return;
+      if (!desmontagensPorProduto.has(chave)) desmontagensPorProduto.set(chave, []);
+      desmontagensPorProduto.get(chave).push({
+        rota,
+        indice,
+        momento: rtMomentoRotaParaTransito(rota),
+        evento,
+        item
+      });
+    });
+  });
+
+  const porDestino = new Map();
+  const detalhes = [];
+
+  rotas.forEach((rotaDestino, indiceDestino) => {
+    if (rotaEhDesmontagem(rotaDestino)) return;
+    const eventoDestino = rotaDestino?.evento || {};
+    const destinoId = String(eventoDestino.id || rotaDestino.evento_id || rotaDestino.id || indiceDestino);
+    const momentoDestino = rtMomentoRotaParaTransito(rotaDestino);
+
+    (eventoDestino.tendas || []).forEach(item => {
+      const chave = rtChaveProdutoTransitoRota(item);
+      if (!chave) return;
+
+      let origem = null;
+
+      // 1) Preferência: metadado de trânsito já salvo pelo sistema.
+      if (item?.uso_transito || item?.usoEmTransito) {
+        const origemId = String(item.origem_evento_id || "");
+        if (origemId && !rtEventoOrigemJaRecolhidoRota(origemId)) {
+          origem = rotas
+            .map((r, idx) => ({ rota:r, indice:idx, momento:rtMomentoRotaParaTransito(r), evento:r?.evento || {} }))
+            .find(x => rotaEhDesmontagem(x.rota) && String(x.evento.id || x.rota.evento_id || "") === origemId) || null;
+        }
+      }
+
+      // Sem inferência por coincidência de código: trânsito só vale quando confirmado no item.
+      
+
+      if (!origem) return;
+
+      if (!porDestino.has(destinoId)) porDestino.set(destinoId, new Set());
+      porDestino.get(destinoId).add(chave);
+
+      detalhes.push({
+        chave,
+        item,
+        origemEvento: origem.evento || {},
+        destinoEvento: eventoDestino,
+        origemRota: origem.rota || null,
+        destinoRota: rotaDestino
+      });
+    });
+  });
+
+  return { porDestino, detalhes };
+}
+
+function rtResumoMateriaisTransitoCarro(detalhes = []) {
+  if (!Array.isArray(detalhes) || !detalhes.length) return [];
+
+  const grupos = new Map();
+
+  detalhes.forEach(d => {
+    const origem = d.origemEvento?.nome || d.origemRota?.cliente || "outro cliente";
+    const destino = d.destinoEvento?.nome || d.destinoRota?.cliente || "destino";
+    const grupoChave = `${String(origem)}||${String(destino)}`;
+
+    if (!grupos.has(grupoChave)) {
+      grupos.set(grupoChave, {
+        origem,
+        destino,
+        itens: [],
+        contagem: {}
+      });
+    }
+
+    const g = grupos.get(grupoChave);
+    g.itens.push(d.item);
+
+    const tamanho = rtTamanhoProduto(d.item);
+    const cor = rtCorMaterialResumo(d.item);
+    const rotulo = `${tamanho || "Tenda"}${cor ? " " + cor : ""}`;
+    rtAdicionarContagemMapa(g.contagem, rotulo, rtQuantidadeItem(d.item));
+  });
+
+  return Array.from(grupos.values()).map(g => {
+    const resumo = rtFormatoContagemMapa(g.contagem).join(" • ");
+    const codigos = g.itens
+      .map(i => String(i?.codigo || "").trim())
+      .filter(Boolean)
+      .join(", ");
+    return `⚠ Em trânsito: ${resumo} — retirar de ${g.origem} → usar em ${g.destino}${codigos ? ` (${codigos})` : ""}`;
+  });
+}
+
 function rtResumoCargaCarro(listaRotas = [], carro = "") {
+  const transitoCarro = rtMapaMateriaisTransitoCarro(listaRotas);
   const tendas = {};
   const mesas = {};
   const cadeiras = {};
@@ -2790,16 +2961,20 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
     }
 
     if (tipoApoio === "omb") {
+      const textoOmb = rtNormalizarTexto([item?.nome, item?.descricao, item?.categoria, item?.tipo, item?.material, textoExtra].filter(Boolean).join(" "));
+      const comFranja = textoOmb.includes("franja");
       const corOmb = rtCorOmbreloneResumo(item, textoExtra);
-      rtAdicionarContagemMapa(outros, `Omb${corOmb ? " " + corOmb : ""}`, qtd);
+      rtAdicionarContagemMapa(outros, `${comFranja ? "Omb Fr" : "Omb"}${corOmb ? " " + corOmb : ""}`, qtd);
       totalOmbrelones += qtd;
-      cargaPts += rtPontosOperacionaisPorChave("ombrelone", qtd);
+      cargaPts += rtPontosOperacionaisPorChave(comFranja ? "ombrelone_franja" : "ombrelone", qtd);
     }
   }
 
-  (listaRotas || []).forEach(rota => {
+  (listaRotas || []).forEach((rota, indiceRota) => {
     if (rotaEhDesmontagem(rota)) return;
     const evento = rota.evento || {};
+    const destinoId = String(evento.id || rota.evento_id || rota.id || indiceRota);
+    const chavesTransitoDestino = transitoCarro.porDestino.get(destinoId) || new Set();
 
     if (rota.atendimentoExtra && String(rota.atendimentoExtra.tipo || "").toLowerCase().includes("troca")) {
       rtTendasNovasAtendimento(rota).forEach(txt => processarItem({ descricao: txt, tamanho: txt }, txt));
@@ -2807,7 +2982,8 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
     }
 
     (evento.tendas || []).forEach(item => {
-      if (rtProdutoUsoTransitoPendenteParaCarga(item)) return;
+      const chave = rtChaveProdutoTransitoRota(item);
+      if (rtProdutoUsoTransitoPendenteParaCarga(item) || (chave && chavesTransitoDestino.has(chave))) return;
       processarItem(item);
     });
     (typeof rtProdutosReservaEvento === "function" ? rtProdutosReservaEvento(evento) : []).forEach(item => processarItem(item));
@@ -2865,6 +3041,9 @@ function rtResumoCargaCarro(listaRotas = [], carro = "") {
     if (linhas.length) linhas[0] = `${linhas[0]} • ${linhaExtras}`;
     else linhas.push(linhaExtras);
   }
+
+  const linhasTransito = rtResumoMateriaisTransitoCarro(transitoCarro.detalhes);
+  linhasTransito.forEach(texto => linhas.push(texto));
 
   const configCargaFinal = rtCargaOperacionalConfigAtual();
   const capacidades = configCargaFinal.capacidadeVeiculos || {};
@@ -3042,9 +3221,12 @@ function rtAbrirContadorCarro(listaRotas = [], carro = "Carro") {
       <div class="rota-contador-resumo">
         ${contagem.length ? `<div class="rota-contador-linha-principal">${contagem[0]}</div>` : ""}
         ${contagem.slice(1).map(item => {
-          const classe = String(item || "").startsWith("Extras:")
+          const textoItem = String(item || "");
+          const classe = textoItem.startsWith("Extras:")
             ? "rota-contador-linha-principal rota-contador-linha-extras"
-            : "rota-contador-linha-secundaria";
+            : (textoItem.startsWith("⚠ Em trânsito:")
+              ? "rota-contador-linha-transito"
+              : "rota-contador-linha-secundaria");
           return `<div class="${classe}">${item}</div>`;
         }).join("")}
       </div>

@@ -24240,3 +24240,152 @@ html body [data-evento-contatos].evento-contatos-indicador{
   transform:scale(.92) !important;
   transform-origin:left center !important;
 }
+
+
+/* Contador do carro — material obtido durante a rota */
+.rota-contador-linha-transito{
+  margin-top:6px;
+  padding:7px 9px;
+  border:1px solid #f0c36a;
+  border-radius:8px;
+  background:#fff8e8;
+  color:#7a4b00;
+  font-size:12px;
+  font-weight:600;
+  line-height:1.25;
+}
+
+
+/* Rota — aviso de trânsito junto de cada tenda */
+.rota-material-item-com-transito{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  flex-wrap:wrap;
+  margin-right:4px;
+}
+
+.rota-material-transito-aviso{
+  display:inline;
+  font-size:10px;
+  line-height:1.1;
+  font-weight:700;
+  color:#b26a00;
+  white-space:nowrap;
+}
+
+@media(max-width:700px){
+  .rota-material-transito-aviso{
+    font-size:9px;
+    white-space:normal;
+  }
+}
+
+
+/* Aviso compacto de material em trânsito */
+.rota-material-transito-aviso{
+  font-size:9px !important;
+  line-height:1 !important;
+  font-weight:700 !important;
+  color:#b26a00 !important;
+  white-space:nowrap !important;
+  cursor:help !important;
+  margin-left:2px !important;
+}
+
+
+/* Ajuste: material com trânsito volta ao layout compacto original */
+.rota-material-item-com-transito{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:4px !important;
+  flex-wrap:nowrap !important;
+  margin:0 4px 4px 0 !important;
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  width:auto !important;
+  min-width:0 !important;
+  max-width:none !important;
+  vertical-align:middle !important;
+}
+
+.rota-material-item-com-transito > .rota-material-click{
+  margin:0 !important;
+}
+
+.rota-material-item-com-transito > .rota-material-transito-aviso{
+  margin:0 !important;
+  padding:0 !important;
+  background:transparent !important;
+  border:0 !important;
+}
+
+/* Evita que o container de materiais aplique aparência de chip ao wrapper */
+.rota-materiais-lista > div > .rota-material-item-com-transito{
+  background:transparent !important;
+  border:0 !important;
+  padding:0 !important;
+  box-shadow:none !important;
+}
+
+
+/* Rotas — todos os materiais com o mesmo chip compacto */
+#rotasSection .rota-materiais-lista > div > span:not(.rota-material-item-com-transito),
+#rotasSection .rota-materiais-lista .rota-material-click{
+  display:inline-flex !important;
+  align-items:center !important;
+  width:auto !important;
+  min-width:0 !important;
+  max-width:max-content !important;
+  height:auto !important;
+  min-height:0 !important;
+  padding:2px 7px !important;
+  margin:1px 3px 1px 0 !important;
+  border:1px solid #d9eaf8 !important;
+  border-radius:8px !important;
+  background:#eef7ff !important;
+  box-shadow:none !important;
+  font-family:inherit !important;
+  font-size:11px !important;
+  font-weight:400 !important;
+  line-height:1.05 !important;
+  color:inherit !important;
+  white-space:nowrap !important;
+  box-sizing:border-box !important;
+}
+
+/* Produto clicável não pode ficar maior por ser botão */
+#rotasSection button.rota-material-click{
+  appearance:none !important;
+  -webkit-appearance:none !important;
+  cursor:pointer !important;
+}
+
+/* Lápis menor para não aumentar a altura/largura do chip */
+#rotasSection .rota-material-click::after{
+  content:" ✎" !important;
+  font-size:8px !important;
+  line-height:1 !important;
+  margin-left:2px !important;
+  opacity:.55 !important;
+}
+
+/* Wrapper de produto em trânsito continua invisível */
+#rotasSection .rota-material-item-com-transito{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:3px !important;
+  margin:1px 3px 1px 0 !important;
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+
+/* Evita margem dupla no chip que está dentro do wrapper */
+#rotasSection .rota-material-item-com-transito > .rota-material-click{
+  margin:0 !important;
+}
