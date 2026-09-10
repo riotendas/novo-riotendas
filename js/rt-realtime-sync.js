@@ -104,7 +104,17 @@
       : valor;
     if (typeof rotasOperacao !== "undefined") rotasOperacao = atual;
     salvarLocal("novoRioTendasRotasOperacaoV1", atual);
-    if (JSON.stringify(atual) !== anterior) renderOperacional();
+    if (JSON.stringify(atual) !== anterior) {
+      renderOperacional();
+
+      // Atualiza os cards/pendências do Dashboard usando o estado já recebido
+      // pelo Realtime. Não faz SELECT adicional no Supabase.
+      try {
+        if (typeof window.rtDashAtualizarOperacaoSemRede === "function") {
+          window.rtDashAtualizarOperacaoSemRede();
+        }
+      } catch {}
+    }
   }
 
   function aplicarCarrosRecebidos(valor) {
@@ -120,9 +130,15 @@
 
   function aplicarOrdemRecebida(valor, atualizadoEm) {
     if (!valor || typeof valor !== "object") return;
-    if (typeof rtEdicaoManualRecenteOrdemRotas === "function" && rtEdicaoManualRecenteOrdemRotas()) return;
     const remotoTs = atualizadoEm ? new Date(atualizadoEm).getTime() : Date.now();
     const localTs = typeof rtTimestampOrdemLocal === "function" ? rtTimestampOrdemLocal() : 0;
+
+    // Mudança remota comprovadamente mais nova sempre vence.
+    // Edição local recente só bloqueia eco/versão antiga.
+    if (typeof rtEdicaoManualRecenteOrdemRotas === "function" &&
+        rtEdicaoManualRecenteOrdemRotas() &&
+        remotoTs <= localTs) return;
+
     if (remotoTs && localTs && remotoTs < localTs) return;
     const atual = typeof rotasOrdemManual !== "undefined" ? (rotasOrdemManual || {}) : {};
     const mesclado = { ...atual, ...valor };
@@ -131,6 +147,21 @@
     salvarLocal("rotas_ordem_manual", mesclado);
     if (typeof rtSetTimestampOrdemLocal === "function") rtSetTimestampOrdemLocal(remotoTs || Date.now());
     renderOperacional();
+  }
+
+  async function sincronizarOrdemRotasImediata() {
+    try {
+      // Primeiro reconcilia eventual pendência offline.
+      if (typeof atualizarOrdemRotasDaNuvemSeNecessario === "function") {
+        await atualizarOrdemRotasDaNuvemSeNecessario();
+      }
+
+      if (typeof carregarRotasOrdemNuvem !== "function") return;
+      const nuvem = await carregarRotasOrdemNuvem(true);
+      if (nuvem?.valor) aplicarOrdemRecebida(nuvem.valor, nuvem.atualizadoEm);
+    } catch (err) {
+      console.warn("Falha ao sincronizar ordem das rotas imediatamente:", err);
+    }
   }
 
   async function sincronizarOperacionalAgora(forcar = false) {
@@ -240,18 +271,26 @@
         .subscribe(status => {
           if (status === "SUBSCRIBED") {
             console.log("RioTendas realtime operacional imediato ativo");
+            sincronizarOrdemRotasImediata();
             sincronizarOperacionalAgora(false);
           }
         });
     }
     iniciarPolling();
-    window.addEventListener("focus", () => sincronizarOperacionalAgora(false));
+    window.addEventListener("focus", () => {
+      sincronizarOrdemRotasImediata();
+      sincronizarOperacionalAgora(false);
+    });
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") sincronizarOperacionalAgora(false);
+      if (document.visibilityState === "visible") {
+        sincronizarOrdemRotasImediata();
+        sincronizarOperacionalAgora(false);
+      }
     });
   }
 
   document.addEventListener("DOMContentLoaded", iniciar);
   window.rtSincronizarOperacionalSeguro = () => atualizarDadosGerais();
   window.rtSincronizarOperacionalAgora = sincronizarOperacionalAgora;
+  window.rtSincronizarOrdemRotasImediata = sincronizarOrdemRotasImediata;
 })();

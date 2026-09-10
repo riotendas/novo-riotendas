@@ -281,7 +281,10 @@
           <h2>Clientes</h2>
           <p>Cadastro, filtros e consulta de clientes.</p>
         </div>
-        <button id="novoClienteBtn">Novo cliente</button>
+        <div class="clientes-header-actions">
+          <button type="button" id="clientesDuplicadosBtn" class="btn-outline">Mesclar duplicados</button>
+          <button id="novoClienteBtn">Novo cliente</button>
+        </div>
       </div>
 
       <div class="filters-grid">
@@ -868,21 +871,35 @@
       </div>
 
       <div class="filters-grid">
-        <label>Período
-          <select id="rotaPeriodo">
+        <div class="rota-nav-rapida" aria-label="Navegação rápida das rotas">
+          <div class="rota-data-rapida">
+            <span class="rota-nav-label">Data inicial</span>
+            <div class="rota-data-controles">
+              <button type="button" id="rotaDiaAnteriorBtn" class="rota-data-seta" title="Voltar 1 dia">‹</button>
+              <button type="button" id="rotaDataExibicaoBtn" class="rota-data-exibicao" title="Clique para escolher uma data">07/09/2026 · SEG</button>
+              <button type="button" id="rotaDiaSeguinteBtn" class="rota-data-seta" title="Avançar 1 dia">›</button>
+            </div>
+          </div>
+          <div class="rota-periodos-rapidos">
+            <span class="rota-nav-label">Período</span>
+            <div class="rota-periodos-botoes">
+              <button type="button" class="rota-periodo-btn" data-periodo="data">Hoje</button>
+              <button type="button" class="rota-periodo-btn" data-periodo="7">7 dias</button>
+              <button type="button" class="rota-periodo-btn" data-periodo="15">15 dias</button>
+              <button type="button" class="rota-periodo-btn" data-periodo="30">30 dias</button>
+              <button type="button" class="rota-periodo-btn" data-periodo="mes">Mês</button>
+            </div>
+          </div>
+          <select id="rotaPeriodo" class="rota-nav-campo-original" aria-hidden="true" tabindex="-1">
             <option value="30" selected>Próximos 30 dias</option>
             <option value="7">Próximos 7 dias</option>
             <option value="15">Próximos 15 dias</option>
             <option value="mes">Mês selecionado</option>
             <option value="data">Data específica</option>
           </select>
-        </label>
-        <label>Mês
-          <input id="rotaMes" type="month">
-        </label>
-        <label>Data específica
-          <input id="rotaData" type="date">
-        </label>
+          <input id="rotaMes" class="rota-nav-campo-original" type="month" aria-hidden="true" tabindex="-1">
+          <input id="rotaData" class="rota-nav-campo-original rota-data-picker-real" type="date" tabindex="-1" aria-label="Escolher data das rotas">
+        </div>
         <label>Tipo
           <select id="rotaTipoFiltro">
             <option value="">Montagens e desmontagens</option>

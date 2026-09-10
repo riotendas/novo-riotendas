@@ -124,8 +124,25 @@ window.rtProdutoObsEventoCurta = rtProdutoObsEventoCurta;
 
 function rtProdutoObsTabela(produto = {}) {
   try {
+    const status = String(produto?.status || "").trim().toLowerCase();
+
+    if (status === "livre") {
+      // Ao liberar o produto, encerra também a referência visual ao último evento.
+      // A próxima reserva continua sendo exibida normalmente em Disponibilidade.
+      return "";
+    }
+
+    if (status === "revisar") {
+      const ultimo = (typeof ultimoUsoProduto === "function") ? ultimoUsoProduto(produto) : null;
+      const nomeUltimo = String(ultimo?.evento?.nome || ultimo?.evento?.cliente || "").trim();
+      if (nomeUltimo) return `Último evento: ${nomeUltimo}`;
+
+      const obs = rtProdutoObsEventoCurta(produto?.observacao, produto);
+      return obs.replace(/^Evento atual:/i, "Último evento:").replace(/^Evento:/i, "Último evento:");
+    }
+
     const atual = (typeof usoAtualProduto === "function") ? usoAtualProduto(produto) : null;
-    const nomeAtual = String(atual?.evento?.nome || "").trim();
+    const nomeAtual = String(atual?.evento?.nome || atual?.evento?.cliente || "").trim();
     if (atual && nomeAtual) return `Evento atual: ${nomeAtual}`;
   } catch {}
   return rtProdutoObsEventoCurta(produto?.observacao, produto);
@@ -1102,7 +1119,44 @@ function eventoUsaProdutoParaDisponibilidade(evento, produto) {
   });
 }
 
+function ultimoUsoProduto(produto) {
+  try {
+    const eventosProduto = getEventosDisponibilidadeProduto()
+      .filter(evento => eventoUsaProdutoParaDisponibilidade(evento, produto))
+      .map(evento => {
+        const intervalo = intervaloEventoDisponibilidade(evento);
+        const fim = rtTimestampLocalOperacional(intervalo?.fim);
+        const inicio = rtTimestampLocalOperacional(intervalo?.inicio);
+        const opId = evento?.id ? `${evento.id}-desmontagem` : "";
+        const operacao = opId && typeof rotasOperacao !== "undefined" ? rotasOperacao?.[opId] : null;
+        const recolhido = String(operacao?.status || "").toLowerCase() === "recolhido";
+        const opTs = operacao?.data ? new Date(operacao.data).getTime() : 0;
+        return { evento, intervalo, fim, inicio, recolhido, opTs };
+      })
+      .filter(item => !Number.isNaN(item.fim) || !Number.isNaN(item.inicio))
+      .sort((a, b) => {
+        // Recolhimentos confirmados têm prioridade como último uso real.
+        if (a.recolhido !== b.recolhido) return a.recolhido ? -1 : 1;
+        const ta = a.opTs || (!Number.isNaN(a.fim) ? a.fim : a.inicio);
+        const tb = b.opTs || (!Number.isNaN(b.fim) ? b.fim : b.inicio);
+        return tb - ta;
+      });
+
+    return eventosProduto[0] || null;
+  } catch {
+    return null;
+  }
+}
+window.ultimoUsoProduto = ultimoUsoProduto;
+
 function usoAtualProduto(produto) {
+  const statusProduto = String(produto?.status || "").trim().toLowerCase();
+
+  // O status cadastral é a autoridade para o estado físico atual:
+  // Revisar/Livre não podem continuar aparecendo como "Alugado" apenas
+  // porque ainda existe um evento antigo cujo intervalo inclui a data de hoje.
+  if (statusProduto !== "alugado") return null;
+
   const agora = Date.now();
   const eventosProduto = getEventosDisponibilidadeProduto()
     .filter(evento => eventoUsaProdutoParaDisponibilidade(evento, produto));
@@ -1198,6 +1252,26 @@ function disponibilidadePeriodoProduto(produto) {
   const periodo = periodoProdutoSelecionado();
 
   if (!periodo) {
+    const statusAtual = String(produto?.status || "").trim().toLowerCase();
+
+    if (statusAtual === "revisar") {
+      const ultimo = typeof ultimoUsoProduto === "function" ? ultimoUsoProduto(produto) : null;
+      const nomeUltimo = String(ultimo?.evento?.nome || ultimo?.evento?.cliente || "").trim();
+      const proximo = proximoUsoProduto(produto);
+
+      const partes = [];
+      if (nomeUltimo) partes.push(`Último: ${nomeUltimo}`);
+      if (proximo?.evento) {
+        partes.push(`Próx: ${proximo.evento.nome || proximo.evento.cliente || "Cliente"} — ${formatarDataHoraProdutoDisp(proximo.intervalo.inicio)}`);
+      }
+
+      return {
+        classe: "bloqueado",
+        texto: "Revisar",
+        detalhe: partes.join(" · ") || "Aguardando revisão"
+      };
+    }
+
     const atual = usoAtualProduto(produto);
     if (atual) {
       return {
@@ -1208,6 +1282,9 @@ function disponibilidadePeriodoProduto(produto) {
       };
     }
 
+    // Se o operador colocou o produto como Livre, ele não pode voltar a
+    // aparecer como Alugado por causa de um evento anterior. A partir daqui,
+    // mostramos somente pendência/uso futuro real.
     const pendenteEntrega = pendenciaEntregaProduto(produto);
 
     if (pendenteEntrega) {
@@ -1840,6 +1917,55 @@ function alertarVendaReservasFuturasProduto(produto, novaUsabilidade) {
   // A proteção de eventos futuros é feita pela ausência real do código em Produtos.
   return;
 }
+
+async function rtArquivarProdutoVendaBaixaOperacional(produtoOuId, evento = null, origem = "Rota") {
+  const produto = typeof produtoOuId === "object"
+    ? produtoOuId
+    : (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(produtoOuId));
+
+  if (!produto || rtProdutoArquivado(produto)) return produto || null;
+
+  const antes = JSON.parse(JSON.stringify(produto));
+  const colaborador = typeof getColaboradorLogado === "function" ? getColaboradorLogado() : (produto.colaborador || "");
+  const agora = new Date().toISOString();
+  const statusAnterior = produto.status || "Livre";
+  const nomeEvento = evento?.nome || evento?.cliente || "Venda / Serviço";
+
+  produto.status = RT_PRODUTO_STATUS_ARQUIVADO;
+  produto.atualizado_em = agora;
+  produto.colaborador = colaborador;
+  produto.deposito_check = false;
+  produto.historico = Array.isArray(produto.historico) ? produto.historico : [];
+  produto.historico.push({
+    data: agora,
+    colaborador,
+    alteracao: "Venda / baixa registrada pela operação",
+    observacao: `Evento: ${nomeEvento} | Origem: ${origem} | Status anterior: ${statusAnterior}`
+  });
+
+  const salvo = await salvarProdutoBanco(produto);
+  if (!salvo) return null;
+
+  const idx = Array.isArray(produtos) ? produtos.findIndex(p => String(p.id) === String(salvo.id)) : -1;
+  if (idx >= 0) produtos[idx] = salvo;
+
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Produtos",
+      acao: "Venda/baixa registrada pela rota",
+      registro_id: salvo.id,
+      registro_nome: salvo.codigo || "Produto",
+      antes,
+      depois: salvo,
+      detalhes: `Produto baixado após confirmação no evento ${nomeEvento}`
+    });
+  }
+
+  if (typeof invalidarCacheProdutosGlobal === "function") invalidarCacheProdutosGlobal();
+  if (typeof renderizarProdutos === "function") renderizarProdutos();
+  return salvo;
+}
+window.rtArquivarProdutoVendaBaixaOperacional = rtArquivarProdutoVendaBaixaOperacional;
 
 async function arquivarProdutoVendaBaixa(id) {
   const produto = (Array.isArray(produtos) ? produtos : []).find(p => String(p.id) === String(id));

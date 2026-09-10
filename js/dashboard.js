@@ -20,7 +20,14 @@ function atualizarDashboard(produtos = []) {
   });
 
   const problema = produtosProblema.length;
-  const cacheKey = `${total}|${livres}|${problema}|${produtosProblema.map(p => `${p.id || p.codigo}:${p.status}:${p.observacao || ""}`).join(";")}`;
+  const obsDashboardProduto = (p) => {
+    try {
+      if (typeof window.rtProdutoObsTabela === "function") return window.rtProdutoObsTabela(p) || "-";
+      if (typeof rtProdutoObsTabela === "function") return rtProdutoObsTabela(p) || "-";
+    } catch {}
+    return p.observacao || "-";
+  };
+  const cacheKey = `${total}|${livres}|${problema}|${produtosProblema.map(p => `${p.id || p.codigo}:${p.status}:${obsDashboardProduto(p)}`).join(";")}`;
 
   const totalEl = document.getElementById("dashTotalProdutos");
   const livresEl = document.getElementById("dashLivres");
@@ -53,7 +60,7 @@ function atualizarDashboard(produtos = []) {
       <strong>${p.codigo || "Sem código"}</strong>
       <span>${p.categoria || "-"} ${p.tamanho || ""}</span>
       <span class="dash-produto-status">${p.status || "-"}</span>
-      <span class="dash-produto-obs">${p.observacao || "-"}</span>
+      <span class="dash-produto-obs">${obsDashboardProduto(p)}</span>
     </div>
   `).join("");
 }
@@ -574,12 +581,52 @@ function rtDashOperacaoConfirmada(evento, tipo) {
   return false;
 }
 
+function rtDashAtualizarOperacaoSemRede() {
+  try {
+    // Reaproveita a lista de eventos já carregada na memória.
+    // Ao renovar o timestamp do cache, renderizarDashboardAlertas NÃO faz SELECT no Supabase.
+    const listaAtual = (typeof eventos !== "undefined" && Array.isArray(eventos))
+      ? eventos
+      : (Array.isArray(window.eventos) ? window.eventos : (rtDashboardEventosCache || []));
+
+    if (Array.isArray(listaAtual)) {
+      rtDashboardEventosCache = listaAtual;
+      rtDashboardEventosCacheTs = Date.now();
+    }
+
+    if (typeof renderizarDashboardAlertas === "function") {
+      Promise.resolve(renderizarDashboardAlertas()).catch(() => {});
+    }
+    if (typeof rtDashAtualizarProgressoRota === "function") {
+      rtDashAtualizarProgressoRota(listaAtual || []);
+    }
+  } catch (erro) {
+    console.warn("Dashboard: falha na atualização operacional local:", erro);
+  }
+}
+window.rtDashAtualizarOperacaoSemRede = rtDashAtualizarOperacaoSemRede;
+
 function rtDashAbrirRotaData(data, rotaId = "") {
   try {
-    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-    document.querySelectorAll(".section").forEach(s => s.classList.remove("active-section"));
-    document.querySelector("[data-section='rotasSection']")?.classList.add("active");
-    document.getElementById("rotasSection")?.classList.add("active-section");
+    // Usa a mesma troca de seção do Performance V6 quando disponível.
+    // Isso remove tanto "active" quanto "active-section" do Dashboard.
+    if (typeof window.rtMostrarSecaoImediata === "function") {
+      window.rtMostrarSecaoImediata("rotasSection");
+    } else {
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".section").forEach(s => s.classList.remove("active", "active-section"));
+      document.querySelector("[data-section='rotasSection']")?.classList.add("active");
+      document.getElementById("rotasSection")?.classList.add("active", "active-section");
+    }
+
+    // Ao entrar pela Dashboard, posiciona a tela no início das Rotas, sem deixar
+    // o usuário visualmente "embaixo" do Dashboard anterior.
+    requestAnimationFrame(() => {
+      try {
+        const sec = document.getElementById("rotasSection");
+        if (sec) sec.scrollIntoView({ behavior: "auto", block: "start" });
+      } catch {}
+    });
 
     const periodo = document.getElementById("rotaPeriodo");
     if (periodo) {

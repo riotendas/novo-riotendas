@@ -133,6 +133,15 @@ function carregarRotasOperacaoLocal() {
 
 function salvarRotasOperacaoLocal() {
   localStorage.setItem(storageRotasOperacaoKey, JSON.stringify(rotasOperacao || {}));
+
+  // Feedback imediato no Dashboard usando somente memória/localStorage.
+  // Não consulta Eventos nem Produtos no Supabase.
+  try {
+    if (typeof window.rtDashAtualizarOperacaoSemRede === "function") {
+      window.rtDashAtualizarOperacaoSemRede();
+    }
+  } catch {}
+
   return salvarRotasOperacaoNuvem();
 }
 
@@ -654,6 +663,74 @@ function avancarListagemRotasSeDiaConcluido() {
   }
 }
 
+function rtEventoEhVendaServicoRota(evento) {
+  return String(evento?.tipo_evento || "").trim().toLowerCase() === "venda";
+}
+
+function rtProdutosComCodigoDaRota(rota) {
+  const evento = rota?.evento || {};
+  const itens = Array.isArray(evento.tendas) ? evento.tendas : [];
+  const vistos = new Set();
+  return itens.map(item => {
+    const id = String(item?.id || "");
+    const codigo = String(item?.codigo || "").trim();
+    const p = (Array.isArray(produtos) ? produtos : []).find(x =>
+      (id && String(x.id || "") === id) ||
+      (codigo && String(x.codigo || "").trim() === codigo)
+    );
+    return p || item;
+  }).filter(p => {
+    const codigo = String(p?.codigo || "").trim();
+    const chave = String(p?.id || codigo);
+    if (!codigo || !chave || vistos.has(chave)) return false;
+    vistos.add(chave);
+    return !(typeof rtProdutoArquivado === "function" && rtProdutoArquivado(p));
+  });
+}
+
+async function rtConfirmarBaixaVendaServicoRota(rota) {
+  const evento = rota?.evento || {};
+  if (!rtEventoEhVendaServicoRota(evento)) return [];
+
+  const candidatos = rtProdutosComCodigoDaRota(rota);
+  if (!candidatos.length) return [];
+
+  const baixados = [];
+  for (const produto of candidatos) {
+    const codigo = String(produto?.codigo || "").trim();
+    if (!codigo) continue;
+
+    let avisoFuturo = "";
+    try {
+      if (typeof eventosFuturosDoProduto === "function") {
+        const futuros = eventosFuturosDoProduto(produto);
+        if (Array.isArray(futuros) && futuros.length) {
+          avisoFuturo = `\n\n⚠ Atenção: este produto ainda aparece em ${futuros.length} evento(s) futuro(s). Esses eventos continuarão no histórico e precisarão de substituição.`;
+        }
+      }
+    } catch {}
+
+    const baixar = confirm(
+      `VENDA / SERVIÇO\n\n` +
+      `O produto ${codigo} foi VENDIDO e deve sair definitivamente do estoque ativo?` +
+      avisoFuturo +
+      `\n\nOK = Baixar como Vendido/Baixado\nCancelar = Manter no estoque`
+    );
+
+    if (!baixar) continue;
+
+    if (typeof window.rtArquivarProdutoVendaBaixaOperacional === "function") {
+      const salvo = await window.rtArquivarProdutoVendaBaixaOperacional(produto, evento, "Entrega da rota");
+      if (salvo) baixados.push({
+        id: salvo.id,
+        codigo: salvo.codigo || codigo,
+        statusNovo: "Vendido/Baixado"
+      });
+    }
+  }
+  return baixados;
+}
+
 async function marcarOperacaoRota(rotaId, acao) {
   const rota = criarRotasDosEventos().find(r => String(r.id) === String(rotaId));
   if (!rota) {
@@ -678,6 +755,14 @@ async function marcarOperacaoRota(rotaId, acao) {
 
     await salvarRotasOperacaoLocal();
 
+    // Em Venda / Serviço não presumimos que todo material foi vendido.
+    // Perguntamos item por item e só baixamos os produtos explicitamente confirmados.
+    const produtosBaixadosVenda = await rtConfirmarBaixaVendaServicoRota(rota);
+    if (produtosBaixadosVenda.length) {
+      rotasOperacao[rota.id].produtos_vendidos_baixados = produtosBaixadosVenda;
+      await salvarRotasOperacaoLocal();
+    }
+
     if (typeof registrarLogSistema === "function") {
       registrarLogSistema({
         modulo: "Rotas",
@@ -685,7 +770,10 @@ async function marcarOperacaoRota(rotaId, acao) {
         registro_id: rota.evento_id,
         registro_nome: rota.cliente || "Evento",
         depois: rotasOperacao[rota.id],
-        detalhes: `Montagem marcada como entregue na rota ${rota.id}`
+        detalhes: `Montagem marcada como entregue na rota ${rota.id}` +
+          (produtosBaixadosVenda.length
+            ? ` | ${produtosBaixadosVenda.length} produto(s) confirmado(s) como Vendido/Baixado`
+            : "")
       });
     }
 
@@ -697,13 +785,79 @@ async function marcarOperacaoRota(rotaId, acao) {
 
   if (acao === "efetuado") {
     rotasOperacao[rota.id] = { status: "efetuado", data: agora, colaborador, evento_id: rota.evento_id, tipo: rota.tipo };
-    await salvarRotasOperacaoLocal();
-    if (typeof registrarLogSistema === "function") {
-      registrarLogSistema({ modulo: "Rotas", acao: "Atendimento efetuado", registro_id: rota.evento_id, registro_nome: rota.cliente || "Evento", depois: rotasOperacao[rota.id], detalhes: `Atendimento extra efetuado na rota ${rota.id}` });
+
+    // Desmontagem extra concluída também encerra a desmontagem principal anterior
+    // do MESMO evento. Isso evita deixar "Retirada Pendente" depois que o material
+    // já foi efetivamente recolhido em uma data adicional.
+    let baixouDesmontagemPrincipal = false;
+    let produtosRevisarPrincipal = [];
+    const extra = rota?.atendimentoExtra;
+    const ehDesmontagemExtra = Boolean(
+      extra?.operacao_extra &&
+      String(extra?.operacao_tipo || "").toLowerCase() === "desmontagem"
+    );
+
+    if (ehDesmontagemExtra && rota?.evento?.desmontagem) {
+      const idPrincipal = `${rota.evento_id}-desmontagem`;
+      const rotaPrincipal = criarRotasDosEventos().find(r => String(r.id) === String(idPrincipal));
+
+      const tsPrincipal = rotaPrincipal
+        ? new Date(`${rotaPrincipal.data}T${rotaPrincipal.horario || "00:00"}`).getTime()
+        : new Date(rota.evento.desmontagem).getTime();
+      const tsExtra = new Date(`${rota.data}T${rota.horario || "23:59"}`).getTime();
+
+      // Somente baixa a principal se ela não estiver no futuro em relação à extra.
+      if ((!Number.isFinite(tsPrincipal) || !Number.isFinite(tsExtra) || tsPrincipal <= tsExtra) &&
+          String(obterOperacaoRotaBruta(idPrincipal)?.status || "").toLowerCase() !== "recolhido") {
+        rotasOperacao[idPrincipal] = {
+          status: "recolhido",
+          data: agora,
+          colaborador,
+          evento_id: rota.evento_id,
+          tipo: "Desmontagem",
+          baixa_automatica: true,
+          origem_rota_id: rota.id
+        };
+
+        // Como a retirada real aconteceu na desmontagem extra, os produtos também
+        // precisam seguir o mesmo fluxo normal de uma retirada: Revisar.
+        try {
+          produtosRevisarPrincipal = await alterarStatusProdutosEventoRota(
+            rotaPrincipal || rota,
+            "Revisar",
+            "Recolhido em desmontagem extra"
+          );
+          rotasOperacao[idPrincipal].produtos = produtosRevisarPrincipal;
+        } catch (erro) {
+          console.warn("Não foi possível enviar produtos para Revisar após desmontagem extra:", erro);
+        }
+
+        baixouDesmontagemPrincipal = true;
+      }
     }
+
+    await salvarRotasOperacaoLocal();
+
+    if (typeof registrarLogSistema === "function") {
+      registrarLogSistema({
+        modulo: "Rotas",
+        acao: "Atendimento efetuado",
+        registro_id: rota.evento_id,
+        registro_nome: rota.cliente || "Evento",
+        depois: rotasOperacao[rota.id],
+        detalhes: baixouDesmontagemPrincipal
+          ? `Desmontagem extra efetuada na rota ${rota.id}. Desmontagem principal anterior baixada automaticamente como Recolhido. Produtos enviados para Revisar: ${produtosRevisarPrincipal.length}`
+          : `Atendimento extra efetuado na rota ${rota.id}`
+      });
+    }
+
+    if (baixouDesmontagemPrincipal && typeof carregarProdutos === "function") {
+      try { await carregarProdutos(true); } catch {}
+    }
+
     const avancouDia = avancarListagemRotasSeDiaConcluido();
     renderizarRotas();
-    if (avancouDia && typeof renderizarRuaMobile === "function") renderizarRuaMobile();
+    if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
     return;
   }
 
@@ -722,6 +876,37 @@ async function marcarOperacaoRota(rotaId, acao) {
     const alteradosRevisar = await alterarStatusProdutosEventoRota(rota, "Revisar", "Recolhido na desmontagem");
     const qtdRevisar = alteradosRevisar.length;
     rotasOperacao[rota.id].produtos = alteradosRevisar;
+
+    // Se esta é uma desmontagem extra, a retirada real também encerra a
+    // desmontagem principal anterior do mesmo evento.
+    const extraRecolhido = rota?.atendimentoExtra;
+    const ehDesmontagemExtraRecolhida = Boolean(
+      extraRecolhido?.operacao_extra &&
+      String(extraRecolhido?.operacao_tipo || "").toLowerCase() === "desmontagem"
+    );
+    if (ehDesmontagemExtraRecolhida && rota?.evento?.desmontagem) {
+      const idPrincipal = `${rota.evento_id}-desmontagem`;
+      const rotaPrincipal = criarRotasDosEventos().find(r => String(r.id) === String(idPrincipal));
+      const tsPrincipal = rotaPrincipal
+        ? new Date(`${rotaPrincipal.data}T${rotaPrincipal.horario || "00:00"}`).getTime()
+        : new Date(rota.evento.desmontagem).getTime();
+      const tsExtra = new Date(`${rota.data}T${rota.horario || "23:59"}`).getTime();
+
+      if ((!Number.isFinite(tsPrincipal) || !Number.isFinite(tsExtra) || tsPrincipal <= tsExtra) &&
+          String(obterOperacaoRotaBruta(idPrincipal)?.status || "").toLowerCase() !== "recolhido") {
+        rotasOperacao[idPrincipal] = {
+          status: "recolhido",
+          data: agora,
+          colaborador,
+          evento_id: rota.evento_id,
+          tipo: "Desmontagem",
+          baixa_automatica: true,
+          origem_rota_id: rota.id,
+          produtos: alteradosRevisar
+        };
+      }
+    }
+
     await salvarRotasOperacaoLocal();
 
     if (typeof registrarLogSistema === "function") {
@@ -909,14 +1094,38 @@ async function atualizarOrdemRotasDaNuvemSeNecessario() {
     try {
       const pendente = JSON.parse(pendenteRaw);
       if (pendente?.valor && typeof pendente.valor === "object") {
+        const pendenteTs = Number(pendente.atualizadoEm || 0) || 0;
+
+        // Segurança offline: antes de reenviar uma ordem pendente,
+        // consulta apenas rotas_ordem_manual ignorando cache.
+        const nuvemAtual = await carregarRotasOrdemNuvem(true);
+        const nuvemTs = Number(nuvemAtual?.atualizadoEm || 0) || 0;
+
+        if (nuvemAtual?.valor && nuvemTs > pendenteTs) {
+          // A nuvem já possui uma ordem mais recente: descarta a pendência antiga.
+          rotasOrdemManual = { ...rotasOrdemManual, ...nuvemAtual.valor };
+          localStorage.setItem(storageRotasOrdemKey, JSON.stringify(rotasOrdemManual));
+          rtSetTimestampOrdemLocal(nuvemTs);
+          localStorage.removeItem(storageRotasOrdemPendenteKey);
+
+          if (document.getElementById("rotasSection")?.classList.contains("active-section")) renderizarRotas();
+          if (typeof renderizarRuaMobile === "function" &&
+              document.getElementById("ruaMobileSection")?.classList.contains("active-section")) {
+            renderizarRuaMobile();
+          }
+          return;
+        }
+
+        // A pendência local só sobe se não existir versão mais nova na nuvem.
         rotasOrdemManual = pendente.valor;
         localStorage.setItem(storageRotasOrdemKey, JSON.stringify(rotasOrdemManual));
-        rtSetTimestampOrdemLocal(pendente.atualizadoEm || Date.now());
-        const salvou = await salvarRotasOrdemNuvem(pendente.atualizadoEm || rtTimestampOrdemLocal());
+        rtSetTimestampOrdemLocal(pendenteTs || Date.now());
+
+        const salvou = await salvarRotasOrdemNuvem(pendenteTs || rtTimestampOrdemLocal());
         if (salvou) localStorage.removeItem(storageRotasOrdemPendenteKey);
       }
     } catch (erro) {
-      console.warn("Não foi possível reenviar ordem pendente:", erro);
+      console.warn("Não foi possível reconciliar ordem pendente:", erro);
     }
     return;
   }
@@ -983,7 +1192,70 @@ function iniciarRotas() {
   const hoje = new Date();
   const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
   document.getElementById("rotaMes").value = mesAtual;
+  if (!document.getElementById("rotaData").value) {
+    document.getElementById("rotaData").value = dataLocalISO(hoje);
+  }
   aplicarParametrosRotaLinkSeExistirem();
+
+  const rtAtualizarNavRapidaRotas = () => {
+    const periodoEl = document.getElementById("rotaPeriodo");
+    const dataEl = document.getElementById("rotaData");
+    const mesEl = document.getElementById("rotaMes");
+    const periodoAtual = periodoEl?.value || "30";
+    const dataAtual = dataEl?.value || dataLocalISO(new Date());
+
+    document.querySelectorAll("#rotasSection .rota-periodo-btn").forEach(btn => {
+      btn.classList.toggle("ativo", btn.dataset.periodo === periodoAtual);
+    });
+
+    const [a, m, d] = dataAtual.split("-").map(Number);
+    const dt = new Date(a, (m || 1) - 1, d || 1);
+    const dias = ["DOM","SEG","TER","QUA","QUI","SEX","SÁB"];
+    const exibicao = document.getElementById("rotaDataExibicaoBtn");
+    if (exibicao) exibicao.textContent = `${String(d).padStart(2,"0")}/${String(m).padStart(2,"0")}/${a} · ${dias[dt.getDay()]}`;
+
+    if (mesEl && dataAtual) mesEl.value = dataAtual.slice(0, 7);
+  };
+
+  const rtMudarDataRotas = (dias) => {
+    const dataEl = document.getElementById("rotaData");
+    if (!dataEl) return;
+    const base = dataEl.value || dataLocalISO(new Date());
+    const [a, m, d] = base.split("-").map(Number);
+    const dt = new Date(a, (m || 1) - 1, d || 1);
+    dt.setDate(dt.getDate() + dias);
+    dataEl.value = dataLocalISO(dt);
+    rtAtualizarNavRapidaRotas();
+    dataEl.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
+  document.querySelectorAll("#rotasSection .rota-periodo-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const periodoEl = document.getElementById("rotaPeriodo");
+      const dataEl = document.getElementById("rotaData");
+      if (!periodoEl || !dataEl) return;
+
+      if (btn.dataset.periodo === "data") {
+        dataEl.value = dataLocalISO(new Date());
+      }
+      periodoEl.value = btn.dataset.periodo;
+      rtAtualizarNavRapidaRotas();
+      periodoEl.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  });
+
+  document.getElementById("rotaDiaAnteriorBtn")?.addEventListener("click", () => rtMudarDataRotas(-1));
+  document.getElementById("rotaDiaSeguinteBtn")?.addEventListener("click", () => rtMudarDataRotas(1));
+
+  const rtAbrirCalendarioRotas = () => {
+    const dataEl = document.getElementById("rotaData");
+    if (!dataEl) return;
+    try { dataEl.showPicker(); } catch { dataEl.click(); }
+  };
+  document.getElementById("rotaDataExibicaoBtn")?.addEventListener("click", rtAbrirCalendarioRotas);
+  document.getElementById("rotaData")?.addEventListener("change", rtAtualizarNavRapidaRotas);
+  document.getElementById("rotaPeriodo")?.addEventListener("change", rtAtualizarNavRapidaRotas);
+  rtAtualizarNavRapidaRotas();
 
   let rtRenderRotasTimer = null;
   const rtAgendarRenderRotas = () => {
@@ -1637,9 +1909,6 @@ function rtPermutaPossivelTrocaRota(produtoNovo, eventoAtual, produtoAntigo) {
   if (rtEventoMontagemEntregueRota(conflito)) return null;
   if (!rtProdutoMesmoTipoTrocaRota(produtoNovo, produtoAntigo)) return null;
 
-  const antigoLivreParaConflito = produtoDisponivelParaTrocaRota(produtoAntigo, conflito, [eventoAtual.id, conflito.id]);
-  if (!antigoLivreParaConflito.livre) return null;
-
   const idxProdutoConflito = Array.isArray(conflito.tendas)
     ? conflito.tendas.findIndex(item => {
         const idItem = String(item?.id || "");
@@ -1649,12 +1918,43 @@ function rtPermutaPossivelTrocaRota(produtoNovo, eventoAtual, produtoAntigo) {
         return (idItem && idNovo && idItem === idNovo) || (codItem && codNovo && codItem === codNovo);
       })
     : -1;
-
   if (idxProdutoConflito < 0) return null;
+
+  const antigoLivreParaConflito = produtoDisponivelParaTrocaRota(produtoAntigo, conflito, [eventoAtual.id, conflito.id]);
+  if (antigoLivreParaConflito.livre) {
+    return {
+      conflito,
+      idxProdutoConflito,
+      produtoParaConflito: produtoAntigo,
+      alternativasParaConflito: [],
+      texto: "Reservada para evento futuro"
+    };
+  }
+
+  // Se o produto atual não puder assumir a reserva futura, procura outra unidade
+  // compatível realmente livre. Assim a reserva existente nunca é simplesmente removida.
+  const idsEvAtual = new Set((eventoAtual?.tendas || []).map(x => String(x?.id || "")).filter(Boolean));
+  const codEvAtual = new Set((eventoAtual?.tendas || []).map(x => String(x?.codigo || "").trim()).filter(Boolean));
+  const alternativas = (Array.isArray(produtos) ? produtos : [])
+    .filter(p => {
+      if (!p || !p.id) return false;
+      if (String(p.id) === String(produtoNovo.id || "") || String(p.id) === String(produtoAntigo.id || "")) return false;
+      if (idsEvAtual.has(String(p.id || ""))) return false;
+      if (String(p.codigo || "").trim() && codEvAtual.has(String(p.codigo || "").trim())) return false;
+      if (!rtProdutoMesmoTipoTrocaRota(p, produtoNovo)) return false;
+      const status = String(p.status || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (status.includes("bloque") || status.includes("consert")) return false;
+      return !!produtoDisponivelParaTrocaRota(p, conflito, [eventoAtual.id, conflito.id]).livre;
+    })
+    .sort((a,b) => String(a.codigo || "").localeCompare(String(b.codigo || ""), "pt-BR", {numeric:true}));
+
+  if (!alternativas.length) return null;
 
   return {
     conflito,
     idxProdutoConflito,
+    produtoParaConflito: null,
+    alternativasParaConflito: alternativas,
     texto: "Reservada para evento futuro"
   };
 }
@@ -1854,7 +2154,30 @@ function confirmarPermutaProdutoRota(permutaInfo = null, produtoNovo = null) {
     const nome = conflito?.nome || conflito?.cliente || "outro evento";
     const data = conflito?.data_evento ? formatarDataRota(conflito.data_evento) : "data não informada";
     const cod = produtoNovo?.codigo || "Produto";
-    alerta.innerHTML = `⚠ ${cod} está reservada para ${nome} - ${data}.<br>Você pode substituir no próximo evento, escolher outra agora ou cancelar.`;
+    const alternativas = Array.isArray(permutaInfo?.alternativasParaConflito) ? permutaInfo.alternativasParaConflito : [];
+    const direta = permutaInfo?.produtoParaConflito && !alternativas.length;
+    const codSub = permutaInfo?.produtoParaConflito?.codigo || "";
+    alerta.innerHTML = direta
+      ? `⚠ ${cod} está reservada para ${nome} - ${data}.<br><strong>Permutar:</strong> ${codSub} assume a reserva de ${nome}.`
+      : `⚠ ${cod} está reservada para ${nome} - ${data}.<br><strong>A permuta direta não é possível.</strong> O produto atual não pode assumir essa reserva com segurança.<br>Se quiser continuar, escolha abaixo qual unidade compatível ficará com ${nome}. <strong>Nenhuma terceira unidade será escolhida automaticamente.</strong>`;
+
+    let seletor = modal.querySelector("#rotaPermutaSubstitutoFuturo");
+    if (alternativas.length) {
+      if (!seletor) {
+        seletor = document.createElement("select");
+        seletor.id = "rotaPermutaSubstitutoFuturo";
+        seletor.style.width = "100%";
+        seletor.style.marginTop = "10px";
+        alerta.insertAdjacentElement("afterend", seletor);
+      }
+      seletor.innerHTML = `<option value="">-- Escolha a unidade que ficará com ${nome} --</option>` +
+        alternativas.map(p => `<option value="${p.id}">${produtoDescricaoRota(p)}</option>`).join("");
+      seletor.value = "";
+      seletor.style.display = "";
+    } else if (seletor) {
+      seletor.style.display = "none";
+      seletor.innerHTML = "";
+    }
   }
   return new Promise(resolve => {
     const limpar = () => {
@@ -1868,7 +2191,19 @@ function confirmarPermutaProdutoRota(permutaInfo = null, produtoNovo = null) {
     };
     const onClick = ev => {
       const acao = ev.currentTarget?.dataset?.permutaAcao;
-      if (acao === "permutar") return fechar("permutar");
+      if (acao === "permutar") {
+        const seletor = modal.querySelector("#rotaPermutaSubstitutoFuturo");
+        if (seletor && seletor.style.display !== "none") {
+          if (!seletor.value) {
+            alert("Escolha qual unidade ficará com o evento que já possui a reserva.");
+            return;
+          }
+          const escolhido = (permutaInfo?.alternativasParaConflito || []).find(p => String(p.id) === String(seletor.value));
+          if (!escolhido) return;
+          permutaInfo.produtoParaConflito = escolhido;
+        }
+        return fechar("permutar");
+      }
       if (acao === "outra") return fechar("outra");
       return fechar("cancelar");
     };
@@ -2284,6 +2619,38 @@ async function confirmarTrocaProdutoRota() {
     }
   }
 
+  const eventoJaEntregueAntesTroca = typeof rtEventoMontagemEntregueRota === "function"
+    ? rtEventoMontagemEntregueRota(evento)
+    : false;
+
+  if (aplicarPermuta && permutaInfo?.conflito) {
+    const produtoReserva = permutaInfo.produtoParaConflito || produtoAntigo;
+    const nomeAtual = evento.cliente || evento.nome || "Evento atual";
+    const nomeReserva = permutaInfo.conflito.cliente || permutaInfo.conflito.nome || "Evento reservado";
+    const codAntigo = produtoAntigo.codigo || "";
+    const codNovo = novoProduto.codigo || "";
+    const codReserva = produtoReserva.codigo || "";
+
+    const confirmaResultado = confirm(
+      `CONFIRMAR PERMUTA\n\n` +
+      `${nomeAtual}: ${codAntigo} → ${codNovo}\n` +
+      `${nomeReserva}: ${codNovo} → ${codReserva}\n\n` +
+      `Confirma exatamente esta alteração?`
+    );
+    if (!confirmaResultado) return;
+
+    if (eventoJaEntregueAntesTroca) {
+      const confirmaFisica = confirm(
+        `ATENÇÃO: este evento já foi ENTREGUE.\n\n` +
+        `Confirme somente se a troca aconteceu fisicamente:\n\n` +
+        `• ${codNovo} ficou com ${nomeAtual}\n` +
+        `• ${codAntigo} retornou para a RioTendas\n\n` +
+        `Ao confirmar, ${codAntigo} será colocado em REVISAR.`
+      );
+      if (!confirmaFisica) return;
+    }
+  }
+
   const produtoNovoEvento = {
     id: novoProduto.id,
     codigo: novoProduto.codigo || "",
@@ -2309,7 +2676,16 @@ async function confirmarTrocaProdutoRota() {
   evento.tendas[produtoIndex] = produtoNovoEvento;
 
   if (aplicarPermuta && permutaInfo?.conflito && Number.isFinite(permutaInfo.idxProdutoConflito)) {
-    permutaInfo.conflito.tendas[permutaInfo.idxProdutoConflito] = produtoAntigoEvento;
+    const produtoReserva = permutaInfo.produtoParaConflito || produtoAntigo;
+    const produtoReservaEvento = {
+      id: produtoReserva.id || "",
+      codigo: produtoReserva.codigo || "",
+      categoria: produtoReserva.categoria || produtoReserva.tipo || "",
+      tipo: produtoReserva.tipo || produtoReserva.categoria || "",
+      tamanho: produtoReserva.tamanho || "",
+      cor: produtoReserva.cor || ""
+    };
+    permutaInfo.conflito.tendas[permutaInfo.idxProdutoConflito] = produtoReservaEvento;
     permutaInfo.conflito.atualizado_em = new Date().toISOString();
     // Preserva o colaborador original do evento conflitante.
   }
@@ -2350,6 +2726,32 @@ async function confirmarTrocaProdutoRota() {
     if (idxPermuta >= 0) eventos[idxPermuta] = salvoPermuta;
   }
 
+  // Se o evento já estava entregue, a troca confirmada representa movimentação física:
+  // o produto antigo voltou para a base e precisa entrar em Revisar.
+  if (aplicarPermuta && eventoJaEntregueAntesTroca) {
+    try {
+      const cadastroAntigo = (Array.isArray(produtos) ? produtos : []).find(p =>
+        String(p.id || "") === String(produtoAntigo.id || "") ||
+        (String(p.codigo || "").trim() &&
+         String(p.codigo || "").trim() === String(produtoAntigo.codigo || "").trim())
+      );
+      if (cadastroAntigo) {
+        cadastroAntigo.status = "Revisar";
+        cadastroAntigo.observacao = cadastroAntigo.observacao || "";
+        if (typeof salvarProdutoBanco === "function") {
+          const produtoSalvo = await salvarProdutoBanco(cadastroAntigo);
+          if (produtoSalvo) {
+            const ip = produtos.findIndex(p => String(p.id) === String(produtoSalvo.id));
+            if (ip >= 0) produtos[ip] = produtoSalvo;
+          }
+        }
+      }
+    } catch (erro) {
+      console.warn("Permuta física salva, mas falhou ao enviar o produto retornado para Revisar:", erro);
+      alert("A permuta foi salva, mas confira o status do material que retornou à base.");
+    }
+  }
+
   document.getElementById("rotaTrocaProdutoDialog")?.close();
 
   if (typeof carregarEventos === "function") await carregarEventos();
@@ -2363,7 +2765,9 @@ async function confirmarTrocaProdutoRota() {
   if (typeof registrarLogSistema === "function") {
     registrarLogSistema({
       modulo: "Rotas",
-      acao: aplicarPermuta ? "Troca rápida com permuta" : "Troca rápida de produto",
+      acao: aplicarPermuta
+        ? (eventoJaEntregueAntesTroca ? "Permuta física após entrega" : "Troca rápida com permuta")
+        : "Troca rápida de produto",
       registro_id: evento.id,
       registro_nome: evento.nome || "Evento",
       antes: produtoAntigo,
@@ -2427,10 +2831,15 @@ function criarRotasDosEventos() {
     atendimentos.forEach(item => {
       const dh = typeof rtDataHoraAtendimentoExtra === "function" ? rtDataHoraAtendimentoExtra(item) : { data: item.data, hora: item.hora };
       if (!dh.data) return;
+      const operacaoExtraTipo = String(item?.operacao_tipo || "").toLowerCase();
+      const tipoRotaExtra = item?.operacao_extra
+        ? (operacaoExtraTipo === "desmontagem" ? "Desmontagem" : (operacaoExtraTipo === "montagem" ? "Montagem" : (item.tipo || "Atendimento extra")))
+        : (item.tipo || "Atendimento extra");
+
       rotas.push({
         id: `${evento.id}-atendimento-${item.id || dh.data}`,
         evento_id: evento.id,
-        tipo: item.tipo || "Atendimento extra",
+        tipo: tipoRotaExtra,
         data: dh.data,
         horario: dh.hora || "",
         tipoHorario: item?.operacao_extra ? (item.tipo_horario || "Livre / combinar") : "Atendimento extra",
@@ -2510,9 +2919,17 @@ function filtrarRotas(rotas) {
     .trim();
 
   const hoje = dataLocalISO(new Date());
-  const limite7 = somarDiasDataISO(7);
-  const limite15 = somarDiasDataISO(15);
-  const limite30 = somarDiasDataISO(30);
+  const inicioPeriodo = data || hoje;
+  const somarDiasBase = (dataISO, dias) => {
+    const [a, m, d] = String(dataISO || hoje).split("-").map(Number);
+    const dt = new Date(a, (m || 1) - 1, d || 1);
+    dt.setDate(dt.getDate() + dias);
+    return dataLocalISO(dt);
+  };
+  // 7/15/30 dias incluem a data inicial: ex. 07/09 + 7 dias => 07 a 13/09.
+  const limite7 = somarDiasBase(inicioPeriodo, 6);
+  const limite15 = somarDiasBase(inicioPeriodo, 14);
+  const limite30 = somarDiasBase(inicioPeriodo, 29);
 
   return rotas.filter(rota => {
     const carroRota = rotasCarros[rota.id] || "Sem carro";
@@ -2520,11 +2937,11 @@ function filtrarRotas(rotas) {
     let passaPeriodo = true;
 
     if (periodo === "7") {
-      passaPeriodo = rota.data >= hoje && rota.data <= limite7;
+      passaPeriodo = rota.data >= inicioPeriodo && rota.data <= limite7;
     } else if (periodo === "15") {
-      passaPeriodo = rota.data >= hoje && rota.data <= limite15;
+      passaPeriodo = rota.data >= inicioPeriodo && rota.data <= limite15;
     } else if (periodo === "30") {
-      passaPeriodo = rota.data >= hoje && rota.data <= limite30;
+      passaPeriodo = rota.data >= inicioPeriodo && rota.data <= limite30;
     } else if (periodo === "mes") {
       passaPeriodo = !mes || rota.data.startsWith(mes);
     } else if (periodo === "data") {
@@ -3420,7 +3837,16 @@ async function rtNotaSalvarNuvem(nota) {
       alert("Não foi possível salvar a nota na nuvem. Erro: " + (error.message || JSON.stringify(error)));
       return false;
     }
-    rtNotasInvalidarCacheNuvem();
+    // Mantém o cache coerente com o registro que acabou de ser confirmado.
+    // Não invalida para evitar que um SELECT concorrente antigo apague visualmente a nota.
+    try {
+      const cache = Array.isArray(rtNotasNuvemCache) ? [...rtNotasNuvemCache] : rtNotasCarregar();
+      const idx = cache.findIndex(x => String(x.id) === String(n.id));
+      if (idx >= 0) cache[idx] = n;
+      else cache.push(n);
+      rtNotasNuvemCache = cache.map(rtNotaNormalizarRegistro).filter(Boolean);
+      rtNotasNuvemCacheTs = Date.now();
+    } catch {}
     return true;
   } catch (erro) {
     console.error("Falha ao salvar nota no Supabase:", erro);
@@ -3457,7 +3883,11 @@ async function rtNotaExcluirNuvem(notaId) {
       alert("Não foi possível excluir a nota na nuvem. Erro: " + (error.message || JSON.stringify(error)));
       return false;
     }
-    rtNotasInvalidarCacheNuvem();
+    try {
+      const cache = Array.isArray(rtNotasNuvemCache) ? rtNotasNuvemCache : rtNotasCarregar();
+      rtNotasNuvemCache = cache.filter(x => String(x.id) !== String(notaId));
+      rtNotasNuvemCacheTs = Date.now();
+    } catch {}
     return true;
   } catch (erro) {
     console.error("Falha ao excluir nota no Supabase:", erro);
@@ -3565,10 +3995,44 @@ async function rtNotasAtualizarPorRealtime() {
   }
 }
 
-function rtNotasAgendarAtualizacaoRealtime() {
-  rtNotasInvalidarCacheNuvem();
-  clearTimeout(rtNotasRealtimeTimer);
-  rtNotasRealtimeTimer = setTimeout(rtNotasAtualizarPorRealtime, rtNotasEdicaoManualRecente() ? 750 : 250);
+function rtNotasAplicarPayloadRealtime(payload) {
+  try {
+    const tipo = String(payload?.eventType || "").toUpperCase();
+    const novo = payload?.new || null;
+    const antigo = payload?.old || null;
+    const id = String(novo?.id || antigo?.id || "").trim();
+    if (!id) return;
+
+    let lista = rtNotasCarregar();
+
+    if (tipo === "DELETE") {
+      lista = lista.filter(n => String(n.id) !== id);
+    } else if (novo) {
+      const normal = rtNotaNormalizarRegistro(novo);
+      if (!normal) return;
+      const idx = lista.findIndex(n => String(n.id) === id);
+      if (idx >= 0) lista[idx] = normal;
+      else lista.push(normal);
+    }
+
+    rtNotasSalvarLocal(lista);
+    rtNotasNuvemCache = lista.map(rtNotaNormalizarRegistro).filter(Boolean);
+    rtNotasNuvemCacheTs = Date.now();
+
+    // Não interrompe a edição/arraste em andamento; apenas mantém o cache correto.
+    if (rtNotasUsuarioEditandoNota() || rtNotasEdicaoManualRecente()) return;
+
+    if (rtNotasSecaoAtiva("rotasSection") && typeof renderizarRotas === "function") renderizarRotas();
+    if (rtNotasSecaoAtiva("ruaMobileSection") && typeof renderizarRuaMobile === "function") renderizarRuaMobile();
+  } catch (erro) {
+    console.warn("Erro ao aplicar nota por Realtime:", erro);
+  }
+}
+
+function rtNotasAgendarAtualizacaoRealtime(payload) {
+  // O payload já contém a alteração. Aplicá-lo diretamente evita um SELECT completo
+  // e elimina a corrida que fazia a nota aparecer, sumir e voltar só após F5.
+  rtNotasAplicarPayloadRealtime(payload);
 }
 
 function rtNotasIniciarRealtime() {
@@ -3679,13 +4143,9 @@ function rtAbrirNotaRota(data, carro, listaRotas = [], notaId = "") {
   }
 
   const lista = Array.isArray(listaRotas) ? listaRotas : [];
-  const posAtual = existente ? Number(existente.posicao || 0) : 0;
-  const opcoes = [`<option value="0"${posAtual === 0 ? " selected" : ""}>Início da rota</option>`]
-    .concat(lista.map((rota, idx) => {
-      const val = idx + 1;
-      const label = `Depois de ${rtNomeCurtoRota(rota, idx)}`;
-      return `<option value="${val}"${posAtual === val ? " selected" : ""}>${rtHtml(label)}</option>`;
-    })).join("");
+  // Nota nova entra no final daquele carro/data. Depois o operador move pelo Organizador.
+  // Ao editar uma nota existente, preservamos a posição atual.
+  const posAtual = existente ? Number(existente.posicao || 0) : lista.length;
 
   dialog.innerHTML = `
     <div class="modal-header">
@@ -3700,8 +4160,6 @@ function rtAbrirNotaRota(data, carro, listaRotas = [], notaId = "") {
       <input type="text" id="rotaNotaTexto" placeholder="Ex.: Segunda viagem" value="${rtHtml(existente?.texto || "")}" />
       <label>Endereço opcional</label>
       <input type="text" id="rotaNotaEndereco" placeholder="Preencher só se entrar na rota" value="${rtHtml(existente?.endereco || "")}" />
-      <label>Posição</label>
-      <select id="rotaNotaPosicao">${opcoes}</select>
       <div class="modal-actions">
         <button type="button" class="btn-outline" data-rota-nota-fechar>Cancelar</button>
         <button type="button" class="btn-primary" data-rota-nota-salvar>Salvar</button>
@@ -3714,7 +4172,7 @@ function rtAbrirNotaRota(data, carro, listaRotas = [], notaId = "") {
   dialog.querySelector("[data-rota-nota-salvar]")?.addEventListener("click", async () => {
     const texto = dialog.querySelector("#rotaNotaTexto")?.value?.trim() || "";
     const endereco = dialog.querySelector("#rotaNotaEndereco")?.value?.trim() || "";
-    const posicao = Number(dialog.querySelector("#rotaNotaPosicao")?.value || 0);
+    const posicao = posAtual;
     if (!texto && !endereco) {
       alert("Informe uma nota ou endereço.");
       return;
@@ -3755,9 +4213,17 @@ function rtAbrirNotaRota(data, carro, listaRotas = [], notaId = "") {
     const ok = await rtNotaSalvarNuvem(notaFinal);
     if (!ok) return;
     rtNotasMarcarMigrado();
+
+    // O cache passa a espelhar exatamente a lista local final.
+    try {
+      rtNotasNuvemCache = (Array.isArray(notas) ? notas : [])
+        .map(rtNotaNormalizarRegistro)
+        .filter(Boolean);
+      rtNotasNuvemCacheTs = Date.now();
+    } catch {}
+
     fechar();
-    await rtNotasSincronizarNuvem(false);
-    renderizarRotas();
+    if (typeof renderizarRotas === "function") renderizarRotas();
     if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
   });
 
@@ -3771,14 +4237,32 @@ async function rtExcluirNotaRota(notaId) {
   const nota = notas.find(n => String(n.id) === String(notaId));
   if (!nota) return;
   if (!confirm(`Excluir a nota "${nota.texto || nota.endereco || "sem texto"}"?`)) return;
+
+  // Some da tela imediatamente, sem esperar uma nova leitura do Supabase.
   const restantes = notas.filter(n => String(n.id) !== String(notaId));
   rtNotasSalvarLocal(restantes);
+  try {
+    rtNotasNuvemCache = restantes.map(rtNotaNormalizarRegistro).filter(Boolean);
+    rtNotasNuvemCacheTs = Date.now();
+  } catch {}
+
+  if (typeof renderizarRotas === "function") renderizarRotas();
+  if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
+
   const ok = await rtNotaExcluirNuvem(notaId);
-  if (!ok) return;
+  if (!ok) {
+    // Se a nuvem rejeitar a exclusão, restaura a nota e avisa visualmente.
+    const restauradas = [...restantes, nota];
+    rtNotasSalvarLocal(restauradas);
+    try {
+      rtNotasNuvemCache = restauradas.map(rtNotaNormalizarRegistro).filter(Boolean);
+      rtNotasNuvemCacheTs = Date.now();
+    } catch {}
+    if (typeof renderizarRotas === "function") renderizarRotas();
+    if (typeof renderizarRuaMobile === "function") renderizarRuaMobile();
+    return;
+  }
   rtNotasMarcarMigrado();
-  await rtNotasSincronizarNuvem(false);
-  renderizarRotas();
-  if (typeof renderizarRuaMobile === 'function') renderizarRuaMobile();
 }
 
 function rtGoogleMapsUrlRotasComExtras(listaRotas, extras = []) {
@@ -5531,7 +6015,8 @@ function salvarRotasOrdemManual() {
   localStorage.setItem(storageRotasOrdemKey, JSON.stringify(rotasOrdemManual));
   localStorage.setItem(storageRotasOrdemPendenteKey, JSON.stringify({
     atualizadoEm,
-    valor: rotasOrdemManual || {}
+    valor: rotasOrdemManual || {},
+    criadoEm: Date.now()
   }));
 
   return salvarRotasOrdemNuvem(atualizadoEm).then(salvou => {

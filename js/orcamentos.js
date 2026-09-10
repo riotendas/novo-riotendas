@@ -14,6 +14,57 @@ function rtOrcArquivoModeloAssociado(){
 }
 function rtOrcLimparCacheModeloExterno(){ rtOrcModeloExternoCache=''; rtOrcModeloExternoArquivo=''; }
 window.rtOrcLimparCacheModeloExterno = rtOrcLimparCacheModeloExterno;
+
+function rtOrcModeloInternoFallback() {
+  return `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Orçamento RioTendas</title>
+<style>
+  body{font-family:Arial,sans-serif;color:#1f2937;margin:32px}
+  h1{color:#0f4f82;margin:0 0 8px}
+  .topo{border-bottom:2px solid #0f4f82;padding-bottom:10px;margin-bottom:18px}
+  .linha{margin:5px 0}
+  table{width:100%;border-collapse:collapse;margin-top:16px}
+  th,td{border:1px solid #d1d5db;padding:8px;text-align:left}
+  th{background:#eef6fc}
+  .totais{margin-top:18px;max-width:360px;margin-left:auto}
+  .totais div{display:flex;justify-content:space-between;padding:4px 0}
+  .obs{margin-top:20px;white-space:pre-wrap}
+  .rodape{margin-top:28px;font-size:12px;color:#6b7280}
+</style>
+</head>
+<body>
+  <div class="topo">
+    <h1>RioTendas</h1>
+    <div>Orçamento nº {{numero}}</div>
+  </div>
+  <div class="linha"><strong>Cliente:</strong> {{nome}}</div>
+  <div class="linha"><strong>Telefone:</strong> {{telefone}}</div>
+  <div class="linha"><strong>Endereço:</strong> {{endereco}}</div>
+  <div class="linha"><strong>Data do evento:</strong> {{data_evento}}</div>
+
+  <table>
+    <thead><tr><th>Materiais / Serviços</th><th>Valor</th></tr></thead>
+    <tbody>{{materiais_linhas}}</tbody>
+  </table>
+
+  <div class="totais">
+    <div><span>Materiais</span><strong>{{valor_materiais}}</strong></div>
+    <div><span>Frete/Montagem</span><strong>{{valor_frete_montagem}}</strong></div>
+    <div><span>Desconto</span><strong>{{valor_desconto}}</strong></div>
+    <div><span>Total</span><strong>{{valor_total}}</strong></div>
+    <div><span>Sinal</span><strong>{{valor_sinal}}</strong></div>
+    <div><span>Restante</span><strong>{{valor_restante}}</strong></div>
+  </div>
+
+  <div class="obs">{{observacoes}}</div>
+  <div class="rodape">Documento gerado pelo sistema RioTendas.</div>
+</body>
+</html>`;
+}
 async function rtOrcCarregarModeloExterno(){
   const arquivo = rtOrcArquivoModeloAssociado();
   try {
@@ -48,9 +99,9 @@ async function rtOrcCarregarModeloExterno(){
     }
     throw new Error(`Modelo ${arquivo} não encontrado na nuvem.`);
   } catch(e) {
-    rtOrcModeloExternoCache = '';
-    rtOrcModeloExternoArquivo = arquivo;
-    console.error(`Modelo HTML ${arquivo} não pôde ser carregado.`, e);
+    rtOrcModeloExternoCache = rtOrcModeloInternoFallback();
+    rtOrcModeloExternoArquivo = "__fallback_interno__";
+    console.warn(`Modelo HTML ${arquivo} não pôde ser carregado. Usando modelo interno de contingência.`, e);
   }
 }
 
@@ -151,6 +202,38 @@ const RT_ORCAMENTOS_CACHE_TTL_MS = 5 * 60 * 1000;
 function rtInvalidarCacheOrcamentos(){ rtOrcamentosCacheTs = 0; }
 window.rtInvalidarCacheOrcamentos = rtInvalidarCacheOrcamentos;
 
+
+function rtAplicarOrcamentoSalvoLocal(orcamento) {
+  if (!orcamento || !orcamento.id) return;
+
+  try {
+    if (!Array.isArray(orcamentos)) orcamentos = [];
+
+    const normalizado = {
+      ...orcamento,
+      materiais: Array.isArray(orcamento.materiais) ? orcamento.materiais : []
+    };
+
+    const idx = orcamentos.findIndex(o => String(o.id) === String(normalizado.id));
+    if (idx >= 0) orcamentos[idx] = { ...orcamentos[idx], ...normalizado };
+    else orcamentos.unshift(normalizado);
+
+    // Mantém o cache direto do módulo coerente com a lista recém-alterada.
+    if (typeof rtOrcamentosCache !== "undefined") rtOrcamentosCache = orcamentos.slice();
+    if (typeof rtOrcamentosCacheTs !== "undefined") rtOrcamentosCacheTs = Date.now();
+
+    try {
+      localStorage.setItem(storageOrcamentosKey, JSON.stringify(orcamentos));
+    } catch {}
+
+    // Atualização visual imediata sem SELECT adicional.
+    if (typeof renderizarOrcamentos === "function") renderizarOrcamentos();
+  } catch (erro) {
+    console.warn("Falha ao aplicar orçamento salvo imediatamente:", erro);
+  }
+}
+window.rtAplicarOrcamentoSalvoLocal = rtAplicarOrcamentoSalvoLocal;
+
 async function carregarOrcamentos(forcarAtualizacao = false){
   if (typeof supabaseClient !== 'undefined' && supabaseClient) {
     if (!forcarAtualizacao && Array.isArray(orcamentos) && orcamentos.length && (Date.now() - rtOrcamentosCacheTs) < RT_ORCAMENTOS_CACHE_TTL_MS) return orcamentos;
@@ -223,7 +306,9 @@ async function salvarOrcamentoBanco(orcamento){
       alert('Erro ao salvar orçamento no Supabase: ' + (error.message || '') + '\n\nSe aparecer tabela não encontrada, execute o arquivo SQL incluído no ZIP: EXECUTAR-NO-SUPABASE-ORCAMENTOS.sql');
       return null;
     }
-    rtInvalidarCacheOrcamentos();
+    // O próprio registro retornado pelo Supabase entra na lista imediatamente.
+    // Evita invalidar o cache só para provocar uma releitura completa.
+    rtAplicarOrcamentoSalvoLocal(data);
     return data;
   }
 
@@ -231,6 +316,7 @@ async function salvarOrcamentoBanco(orcamento){
   const idx = orcamentos.findIndex(x => String(x.id) === String(orcamento.id));
   if (idx >= 0) orcamentos[idx] = orcamento; else orcamentos.push(orcamento);
   localStorage.setItem(storageOrcamentosKey, JSON.stringify(orcamentos));
+  rtAplicarOrcamentoSalvoLocal(orcamento);
   return orcamento;
 }
 

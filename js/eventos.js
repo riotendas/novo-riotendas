@@ -784,6 +784,34 @@ async function salvarEventoBanco(evento) {
     });
   }
 
+  // O próprio aparelho que salvou já possui o registro atualizado retornado pelo Supabase.
+  // Aplica-o imediatamente à memória/cache e redesenha as Rotas, sem novo SELECT.
+  try {
+    if (Array.isArray(eventos)) {
+      const idxEventoLocal = eventos.findIndex(e => String(e.id) === String(data.id));
+      if (idxEventoLocal >= 0) eventos[idxEventoLocal] = data;
+      else eventos.push(data);
+      try { localStorage.setItem(storageEventosKey, JSON.stringify(eventos)); } catch {}
+
+      if (typeof rtEventosCacheBanco !== "undefined") rtEventosCacheBanco = eventos.slice();
+      if (typeof rtEventosCacheBancoTs !== "undefined") rtEventosCacheBancoTs = Date.now();
+    }
+
+    const rotasAtiva = document.getElementById("rotasSection")?.classList.contains("active-section") ||
+                       document.getElementById("rotasSection")?.classList.contains("active");
+    const ruaAtiva = document.getElementById("ruaMobileSection")?.classList.contains("active-section") ||
+                     document.getElementById("ruaMobileSection")?.classList.contains("active");
+
+    if (rotasAtiva && typeof renderizarRotas === "function") {
+      setTimeout(() => { try { renderizarRotas(); } catch {} }, 0);
+    }
+    if (ruaAtiva && typeof renderizarRuaMobile === "function") {
+      setTimeout(() => { try { renderizarRuaMobile(); } catch {} }, 0);
+    }
+  } catch (erroAtualizacaoLocal) {
+    console.warn("Evento salvo, mas falhou atualização imediata local das rotas:", erroAtualizacaoLocal);
+  }
+
   if (typeof rtVincularOrcamentoEventoSePendente === "function") {
     try { await rtVincularOrcamentoEventoSePendente(data.id); } catch (e) { console.warn("Não foi possível vincular orçamento ao evento.", e); }
   }
@@ -975,6 +1003,87 @@ async function atualizarPeriodoRecorrenciaAposExclusao(eventoExcluido) {
   }
 }
 
+function rtEventoClienteTextoNorm(v) {
+  return String(v || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function rtEventoClienteDocNorm(v) {
+  return String(v || "").replace(/\D/g, "");
+}
+
+function rtEventoClienteTelNorm(v) {
+  let d = String(v || "").replace(/\D/g, "");
+  if (d.startsWith("55") && (d.length === 12 || d.length === 13)) d = d.slice(2);
+  // Se veio sem DDD, usa somente os 8/9 dígitos finais para comparação equivalente.
+  return d;
+}
+
+function rtEventoClienteMesmoTelefone(a, b) {
+  const ta = rtEventoClienteTelNorm(a);
+  const tb = rtEventoClienteTelNorm(b);
+  if (!ta || !tb) return false;
+  if (ta === tb) return true;
+  const ca = ta.slice(-9);
+  const cb = tb.slice(-9);
+  return ca.length >= 8 && ca === cb;
+}
+
+function rtEventoClienteEnderecoNorm(eventoOuCliente) {
+  return rtEventoClienteTextoNorm(
+    `${eventoOuCliente?.endereco || ""} ${eventoOuCliente?.bairro || ""} ${eventoOuCliente?.cidade || ""}`
+  );
+}
+
+function rtEventoEncontrarClienteExistente(evento) {
+  if (!Array.isArray(clientes) || !clientes.length) return null;
+
+  // 1. Cliente já vinculado: sempre reaproveitar o mesmo cadastro.
+  const clienteId = String(evento?.cliente_id || evento?.clienteId || "").trim();
+  if (clienteId) {
+    const porId = clientes.find(c => String(c.id) === clienteId);
+    if (porId) return porId;
+  }
+
+  const doc = rtEventoClienteDocNorm(evento?.documento);
+  const tel = rtEventoClienteTelNorm(evento?.telefone);
+  const nome = rtEventoClienteTextoNorm(evento?.nome);
+  const endereco = rtEventoClienteEnderecoNorm(evento);
+
+  // 2. CPF/CNPJ normalizado
+  if (doc) {
+    const porDoc = clientes.find(c => rtEventoClienteDocNorm(c.documento) === doc);
+    if (porDoc) return porDoc;
+  }
+
+  // 3. Telefone normalizado/equivalente + mesmo nome.
+  // Isso evita criar outro cliente só porque o telefone foi salvo com/sem máscara/DDD.
+  if (tel && nome) {
+    const porTelNome = clientes.find(c =>
+      rtEventoClienteTextoNorm(c.nome) === nome &&
+      rtEventoClienteMesmoTelefone(c.telefone, tel)
+    );
+    if (porTelNome) return porTelNome;
+  }
+
+  // 4. Mesmo nome + mesmo endereço: útil em recorrências e quando telefone estiver vazio/alterado.
+  if (nome && endereco) {
+    const porNomeEndereco = clientes.find(c =>
+      rtEventoClienteTextoNorm(c.nome) === nome &&
+      rtEventoClienteEnderecoNorm(c) === endereco
+    );
+    if (porNomeEndereco) return porNomeEndereco;
+  }
+
+  return null;
+}
+
 async function garantirClienteDoEvento(evento) {
   if (!evento.nome) return null;
 
@@ -983,17 +1092,10 @@ async function garantirClienteDoEvento(evento) {
   const emailEvento = String(evento.cliente_email || evento.email || "").trim();
   const observacaoEvento = String(evento.cliente_observacao || "").trim();
 
-  let existente = null;
-
-  if (Array.isArray(clientes)) {
-    // Nunca vincula/atualiza um cliente apenas pela coincidência do nome.
-    // Nomes curtos ou iguais são comuns e poderiam sobrescrever endereço e dados
-    // de outro cadastro. A vinculação automática só acontece por documento ou telefone.
-    existente = clientes.find(c =>
-      (documento && String(c.documento || "").trim() === documento) ||
-      (telefone && String(c.telefone || "").trim() === telefone)
-    );
-  }
+  // Localiza o cadastro existente usando vínculo, documento, telefone normalizado
+  // ou nome + endereço. Assim editar telefone/máscara e eventos recorrentes não
+  // ficam criando clientes novos a cada salvamento.
+  let existente = rtEventoEncontrarClienteExistente(evento);
 
   if (typeof salvarClienteBanco !== "function") return existente || null;
 
@@ -1034,13 +1136,19 @@ async function garantirClienteDoEvento(evento) {
       observacao_cliente: atualizado.observacao_cliente || ""
     });
 
-    if (!mudou) return existente;
+    if (!mudou) {
+      evento.cliente_id = existente.id;
+      evento.clienteId = existente.id;
+      return existente;
+    }
 
     const salvo = await salvarClienteBanco(atualizado);
     if (salvo && Array.isArray(clientes)) {
       const idx = clientes.findIndex(c => String(c.id) === String(salvo.id));
       if (idx >= 0) clientes[idx] = salvo;
       else clientes.push(salvo);
+      evento.cliente_id = salvo.id;
+      evento.clienteId = salvo.id;
       if (typeof renderizarClientes === "function") renderizarClientes();
     }
     return salvo || atualizado;
@@ -1065,6 +1173,8 @@ async function garantirClienteDoEvento(evento) {
 
   if (salvo && Array.isArray(clientes)) {
     clientes.push(salvo);
+    evento.cliente_id = salvo.id;
+    evento.clienteId = salvo.id;
     if (typeof renderizarClientes === "function") renderizarClientes();
   }
 
@@ -1822,6 +1932,7 @@ function rtInstalarIndicadoresContatosEventos() {
 }
 
 function rtEventoSelecionarClientePorCampo(tipo) {
+  if (rtEventoPreenchendoDeOrcamento) return;
   if (!Array.isArray(clientes)) return;
   const campo = document.getElementById(tipo === "documento" ? "eventoDocumento" : "eventoTelefone");
   const valorBruto = campo?.value;
@@ -2015,7 +2126,19 @@ function atualizarDatalistClientes() {
   }
 }
 
+let rtEventoPreenchendoDeOrcamento = false;
+
+function rtEventoComDadosProtegidosDeOrcamento(fn) {
+  rtEventoPreenchendoDeOrcamento = true;
+  try {
+    return fn();
+  } finally {
+    setTimeout(() => { rtEventoPreenchendoDeOrcamento = false; }, 0);
+  }
+}
+
 function preencherClienteSelecionado() {
+  if (rtEventoPreenchendoDeOrcamento) return;
   const busca = document.getElementById("eventoBuscaCliente");
   const valor = String(busca?.value || "").trim();
   const valorLower = valor.toLowerCase();
@@ -2551,6 +2674,7 @@ function montarOcorrenciasRecorrentes(baseEvento) {
       tipo_evento: "recorrente",
       recorrente: true,
       recorrencia_grupo_id: grupoId,
+        cliente_id: eventoBase.cliente_id || eventoBase.clienteId || evento.cliente_id || evento.clienteId || null,
       recorrencia_tipo: tipo,
       recorrencia_dias: tipo === "personalizado" ? dias : (tipo === "quinzenal" ? 15 : 30),
       recorrencia_inicio: inicioRec,
@@ -3568,6 +3692,25 @@ function disponibilidadeProdutoParaEvento(produtoId) {
 
   if (produtoEmRevisao) return { livre: true, texto: "⚠ Para revisar", classe: "warning" };
   if (produtoEmConserto) return { livre: true, texto: "⚠ Para consertar", classe: "warning" };
+
+  // Ao editar um evento já salvo, o produto selecionado pertence a este próprio
+  // evento. "Livre para a data" era tecnicamente a ausência de conflito com OUTRO
+  // evento, mas visualmente dava a impressão errada de que o material estava livre.
+  const eventoAtual = (Array.isArray(eventos) ? eventos : []).find(e => String(e?.id) === String(eventoAtualId));
+  if (eventoAtual && eventoUsaProdutoPorIdOuCodigo(eventoAtual, produto)) {
+    const agora = new Date();
+    const inicio = intervaloAtual?.inicio ? new Date(intervaloAtual.inicio) : null;
+    const fim = intervaloAtual?.fim ? new Date(intervaloAtual.fim) : null;
+    const emCurso = inicio && fim &&
+      !Number.isNaN(inicio.getTime()) && !Number.isNaN(fim.getTime()) &&
+      agora >= inicio && agora <= fim;
+    return {
+      livre: true,
+      texto: emCurso ? "Em uso neste evento" : "Reservado neste evento",
+      classe: emCurso ? "warning" : "neutral"
+    };
+  }
+
   return { livre: true, texto: "Livre para a data", classe: "free" };
 }
 
@@ -5360,10 +5503,36 @@ function rtEventoComMaterialEmCampo(evento) {
   if (!evento) return false;
   if (typeof rtEventoCancelado === "function" && rtEventoCancelado(evento)) return false;
 
+  // Produto vendido/baixado não pertence mais ao estoque operacional da RioTendas,
+  // portanto não pode manter o evento em "Materiais em campo".
+  const tendasAtivas = (Array.isArray(evento.tendas) ? evento.tendas : []).filter(item => {
+    const id = String(item?.id || "").trim();
+    const codigo = String(item?.codigo || "").trim();
+    const cadastro = (typeof produtos !== "undefined" && Array.isArray(produtos))
+      ? produtos.find(p =>
+          (id && String(p?.id || "") === id) ||
+          (codigo && String(p?.codigo || "").trim() === codigo)
+        )
+      : null;
+
+    // Se achou no cadastro, respeita o status Vendido/Baixado.
+    if (cadastro) {
+      if (typeof window.rtProdutoArquivado === "function") return !window.rtProdutoArquivado(cadastro);
+      return String(cadastro?.status || "").trim().toLowerCase() !== "vendido/baixado";
+    }
+
+    // Referência histórica sem cadastro ativo não deve, sozinha, ser tratada como material em campo
+    // em Venda/Serviço. Nos demais eventos preservamos compatibilidade com registros antigos.
+    const tipoEvento = String(evento?.tipo_evento || "").trim().toLowerCase();
+    return tipoEvento !== "venda";
+  });
+
   const possuiMaterial = Boolean(
-    (Array.isArray(evento.tendas) && evento.tendas.length) ||
+    tendasAtivas.length ||
     (Array.isArray(evento.itens_apoio) && evento.itens_apoio.some(item => Number(item?.quantidade || 0) > 0)) ||
-    (Array.isArray(evento.produtos_extras) && evento.produtos_extras.some(item => Number(item?.quantidade || 0) > 0))
+    (Array.isArray(evento.produtos_extras) && evento.produtos_extras.some(item =>
+      !item?.operacao_extra && Number(item?.quantidade || 0) > 0
+    ))
   );
   if (!possuiMaterial) return false;
 
@@ -6268,9 +6437,10 @@ function abrirTrocaRapidaProduto(index) {
     rtAplicarUsoEmTransitoProduto(itemNovoRapido, usoTransitoConfirmado ? validacao : null);
 
     if (aplicarPermuta && permutaInfo?.conflito && Number.isFinite(permutaInfo.idxProdutoConflito)) {
+      const produtoReserva = permutaInfo.produtoParaConflito || atual;
       const itemAntigoEvento = {
-        id: atual.id || "", codigo: atual.codigo || "", categoria: atual.categoria || atual.tipo || "",
-        tipo: atual.tipo || atual.categoria || "", tamanho: atual.tamanho || "", cor: atual.cor || ""
+        id: produtoReserva.id || "", codigo: produtoReserva.codigo || "", categoria: produtoReserva.categoria || produtoReserva.tipo || "",
+        tipo: produtoReserva.tipo || produtoReserva.categoria || "", tamanho: produtoReserva.tamanho || "", cor: produtoReserva.cor || ""
       };
       const conflitoAntes = permutaInfo.conflito;
       conflitoAntes.tendas = Array.isArray(conflitoAntes.tendas) ? [...conflitoAntes.tendas] : [];

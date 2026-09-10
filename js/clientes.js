@@ -79,10 +79,305 @@ async function carregarClientes() {
   renderizarClientes();
 }
 
+
+function rtClienteNormalizarTexto(valor) {
+  return String(valor || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function rtClienteNormalizarDocumento(valor) {
+  return String(valor || "").replace(/\D/g, "");
+}
+
+function rtClienteNormalizarTelefone(valor) {
+  let d = String(valor || "").replace(/\D/g, "");
+  if (d.startsWith("55") && (d.length === 12 || d.length === 13)) d = d.slice(2);
+  return d;
+}
+
+function rtClienteMotivosDuplicidade(a, b) {
+  const motivos = [];
+  const docA = rtClienteNormalizarDocumento(a?.documento);
+  const docB = rtClienteNormalizarDocumento(b?.documento);
+  const telA = rtClienteNormalizarTelefone(a?.telefone);
+  const telB = rtClienteNormalizarTelefone(b?.telefone);
+  const nomeA = rtClienteNormalizarTexto(a?.nome);
+  const nomeB = rtClienteNormalizarTexto(b?.nome);
+  const endA = rtClienteNormalizarTexto(`${a?.endereco || ""} ${a?.bairro || ""} ${a?.cidade || ""}`);
+  const endB = rtClienteNormalizarTexto(`${b?.endereco || ""} ${b?.bairro || ""} ${b?.cidade || ""}`);
+
+  // Segurança principal: se os dois cadastros têm endereço preenchido e são claramente
+  // diferentes, NÃO sugerimos mesclagem, mesmo com telefone igual.
+  // Isso evita juntar, por exemplo, o mesmo contato responsável por eventos em locais distintos.
+  if (endA && endB && endA !== endB) return [];
+
+  if (docA && docB && docA === docB) motivos.push("mesmo CPF/CNPJ");
+
+  if (telA && telB && telA === telB) {
+    // Telefone igual só vira sugestão quando o nome também bate ou algum endereço está vazio.
+    if ((nomeA && nomeB && nomeA === nomeB) || !endA || !endB) motivos.push("mesmo telefone");
+  }
+
+  // Nome sozinho nunca é suficiente.
+  if (nomeA && nomeB && nomeA === nomeB && endA && endB && endA === endB) {
+    motivos.push("mesmo nome e endereço");
+  }
+
+  // Telefone equivalente com/sem DDD: exige mesmo nome e endereço compatível.
+  if (!motivos.length && nomeA && nomeA === nomeB && telA && telB) {
+    const curtoA = telA.slice(-9);
+    const curtoB = telB.slice(-9);
+    if (curtoA.length >= 8 && curtoA === curtoB && (!endA || !endB || endA === endB)) {
+      motivos.push("mesmo nome e telefone equivalente");
+    }
+  }
+
+  return motivos;
+}
+
+function rtClientesGruposDuplicados() {
+  const lista = Array.isArray(clientes) ? clientes : [];
+  const pai = lista.map((_, i) => i);
+  const find = i => pai[i] === i ? i : (pai[i] = find(pai[i]));
+  const unir = (a,b) => {
+    a = find(a); b = find(b);
+    if (a !== b) pai[b] = a;
+  };
+
+  for (let i = 0; i < lista.length; i++) {
+    for (let j = i + 1; j < lista.length; j++) {
+      if (rtClienteMotivosDuplicidade(lista[i], lista[j]).length) unir(i,j);
+    }
+  }
+
+  const mapa = new Map();
+  lista.forEach((c,i) => {
+    const r = find(i);
+    if (!mapa.has(r)) mapa.set(r, []);
+    mapa.get(r).push(c);
+  });
+
+  return [...mapa.values()]
+    .filter(g => g.length > 1)
+    .sort((a,b) => String(a[0]?.nome || "").localeCompare(String(b[0]?.nome || ""), "pt-BR"));
+}
+
+function rtClienteResumoLinha(c) {
+  const partes = [
+    c?.nome || "Sem nome",
+    c?.documento ? `CPF/CNPJ: ${c.documento}` : "",
+    c?.telefone ? `Tel: ${c.telefone}` : "",
+    c?.endereco ? `End: ${c.endereco}` : ""
+  ].filter(Boolean);
+  return partes.join(" · ");
+}
+
+function rtClienteCampoMesclado(principal, outros, campo) {
+  const atual = String(principal?.[campo] || "").trim();
+  if (atual) return principal[campo];
+  for (const c of outros) {
+    const v = String(c?.[campo] || "").trim();
+    if (v) return c[campo];
+  }
+  return principal?.[campo] || "";
+}
+
+function rtClienteObservacoesMescladas(principal, outros, campo) {
+  const vals = [principal, ...outros]
+    .map(c => String(c?.[campo] || "").trim())
+    .filter(Boolean);
+  return [...new Set(vals)].join(" | ");
+}
+
+async function rtMesclarGrupoClientes(grupo, principalId) {
+  const principal = grupo.find(c => String(c.id) === String(principalId));
+  const duplicados = grupo.filter(c => String(c.id) !== String(principalId));
+  if (!principal || !duplicados.length) return false;
+
+  // Proteção crítica: nunca mescla documentos diferentes quando ambos existem.
+  const docs = [...new Set(grupo.map(c => rtClienteNormalizarDocumento(c.documento)).filter(Boolean))];
+  if (docs.length > 1) {
+    alert("Mesclagem bloqueada: existem CPF/CNPJ diferentes neste grupo. Revise os cadastros manualmente.");
+    return false;
+  }
+
+  const atualizado = {
+    ...principal,
+    nome: rtClienteCampoMesclado(principal, duplicados, "nome"),
+    documento: rtClienteCampoMesclado(principal, duplicados, "documento"),
+    telefone: rtClienteCampoMesclado(principal, duplicados, "telefone"),
+    email: rtClienteCampoMesclado(principal, duplicados, "email"),
+    endereco: rtClienteCampoMesclado(principal, duplicados, "endereco"),
+    bairro: rtClienteCampoMesclado(principal, duplicados, "bairro"),
+    cidade: rtClienteCampoMesclado(principal, duplicados, "cidade"),
+    complemento: rtClienteCampoMesclado(principal, duplicados, "complemento"),
+    observacao_cliente: rtClienteObservacoesMescladas(principal, duplicados, "observacao_cliente"),
+    observacao_interna: rtClienteObservacoesMescladas(principal, duplicados, "observacao_interna"),
+    perfil_cliente: principal.perfil_cliente || duplicados.find(c => c.perfil_cliente)?.perfil_cliente || "Normal"
+  };
+
+  const resumo = duplicados.map(rtClienteResumoLinha).join("\n");
+  const confirmar = confirm(
+    `MESCLAR CLIENTES\n\n` +
+    `Cadastro principal:\n${rtClienteResumoLinha(principal)}\n\n` +
+    `Serão incorporados e removidos da lista de clientes:\n${resumo}\n\n` +
+    `Eventos e orçamentos históricos NÃO serão apagados.\n` +
+    `Confirma a mesclagem?`
+  );
+  if (!confirmar) return false;
+
+  const antes = JSON.parse(JSON.stringify({ principal, duplicados }));
+
+  const salvo = await salvarClienteBanco(atualizado);
+  if (!salvo) return false;
+
+  // Documentos centralizados que ainda guardem cliente_id passam a apontar para o principal.
+  if (supabaseClient) {
+    for (const dup of duplicados) {
+      try {
+        const { error } = await supabaseClient
+          .from("eventos_documentos")
+          .update({ cliente_id: String(principal.id), cliente_nome: salvo.nome || principal.nome || "" })
+          .eq("cliente_id", String(dup.id));
+        if (error) console.warn("Não foi possível atualizar cliente_id em eventos_documentos:", error);
+      } catch (e) {
+        console.warn("Falha ao atualizar referências documentais do cliente mesclado:", e);
+      }
+    }
+  }
+
+  // Eventos não são apagados nem regravados: nesta base eles guardam os dados históricos
+  // do cliente diretamente no próprio evento, então permanecem intactos.
+  for (const dup of duplicados) {
+    const ok = await excluirClienteBanco(dup.id);
+    if (!ok) {
+      alert(`O cadastro principal foi atualizado, mas não foi possível remover o duplicado ${dup.nome || dup.id}.`);
+      return false;
+    }
+  }
+
+  const idsRemover = new Set(duplicados.map(c => String(c.id)));
+  clientes = (Array.isArray(clientes) ? clientes : [])
+    .filter(c => !idsRemover.has(String(c.id)))
+    .map(c => String(c.id) === String(salvo.id) ? salvo : c);
+
+  try {
+    rtClientesCacheBanco = clientes.slice();
+    rtClientesCacheBancoTs = Date.now();
+    localStorage.setItem(storageClientesKey, JSON.stringify(clientes));
+  } catch {}
+
+  if (typeof registrarLogSistema === "function") {
+    registrarLogSistema({
+      modulo: "Clientes",
+      acao: "Clientes mesclados",
+      registro_id: salvo.id,
+      registro_nome: salvo.nome || "Cliente",
+      antes,
+      depois: salvo,
+      detalhes: `${duplicados.length} cadastro(s) duplicado(s) mesclado(s) no cliente principal. IDs removidos: ${duplicados.map(c => c.id).join(", ")}`
+    });
+  }
+
+  renderizarClientes();
+  return true;
+}
+
+function rtFecharDialogDuplicados() {
+  document.getElementById("clientesDuplicadosDialog")?.remove();
+}
+
+function rtRenderizarGruposDuplicados(dialog) {
+  const body = dialog.querySelector("[data-clientes-duplicados-body]");
+  if (!body) return;
+
+  const grupos = rtClientesGruposDuplicados();
+  if (!grupos.length) {
+    body.innerHTML = `<div class="empty" style="padding:24px">Nenhum duplicado forte encontrado por telefone, CPF/CNPJ ou nome + endereço.</div>`;
+    return;
+  }
+
+  body.innerHTML = grupos.map((grupo, gi) => {
+    const motivos = new Set();
+    for (let i=0; i<grupo.length; i++) {
+      for (let j=i+1; j<grupo.length; j++) {
+        rtClienteMotivosDuplicidade(grupo[i], grupo[j]).forEach(m => motivos.add(m));
+      }
+    }
+    return `
+      <div class="rt-cliente-dup-card" data-grupo="${gi}">
+        <div class="rt-cliente-dup-topo">
+          <div>
+            <strong>${grupo.length} cadastros possivelmente iguais</strong>
+            <small>${[...motivos].join(" · ")}</small>
+          </div>
+          <button type="button" class="btn-outline" data-mesclar-grupo="${gi}">Mesclar</button>
+        </div>
+        <label>Cadastro principal
+          <select data-principal-grupo="${gi}">
+            ${grupo.map(c => `<option value="${c.id}">${rtClienteResumoLinha(c)}</option>`).join("")}
+          </select>
+        </label>
+        <div class="rt-cliente-dup-lista">
+          ${grupo.map(c => `<div>${rtClienteResumoLinha(c)}</div>`).join("")}
+        </div>
+      </div>`;
+  }).join("");
+
+  body.querySelectorAll("[data-mesclar-grupo]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const gi = Number(btn.dataset.mesclarGrupo);
+      const grupo = grupos[gi];
+      const select = body.querySelector(`[data-principal-grupo="${gi}"]`);
+      if (!grupo || !select) return;
+      btn.disabled = true;
+      try {
+        const ok = await rtMesclarGrupoClientes(grupo, select.value);
+        if (ok) rtRenderizarGruposDuplicados(dialog);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+function abrirClientesDuplicados() {
+  rtFecharDialogDuplicados();
+
+  const dialog = document.createElement("dialog");
+  dialog.id = "clientesDuplicadosDialog";
+  dialog.className = "rt-clientes-duplicados-dialog";
+  dialog.innerHTML = `
+    <div class="rt-clientes-dup-header">
+      <div>
+        <h2>Mesclar clientes duplicados</h2>
+        <p>O sistema sugere apenas coincidências fortes. Você escolhe qual cadastro será o principal.</p>
+      </div>
+      <button type="button" class="modal-close" data-fechar-duplicados>×</button>
+    </div>
+    <div class="rt-clientes-dup-alerta">
+      Nenhuma mesclagem é automática. CPF/CNPJ diferentes bloqueiam a operação. Eventos históricos não são apagados.
+    </div>
+    <div class="rt-clientes-dup-body" data-clientes-duplicados-body></div>
+  `;
+  document.body.appendChild(dialog);
+  dialog.querySelector("[data-fechar-duplicados]")?.addEventListener("click", rtFecharDialogDuplicados);
+  dialog.addEventListener("cancel", ev => { ev.preventDefault(); rtFecharDialogDuplicados(); });
+  rtRenderizarGruposDuplicados(dialog);
+  dialog.showModal();
+}
+
 function iniciarClientes() {
   if (!document.getElementById("clientesTbody")) return;
 
   document.getElementById("novoClienteBtn").addEventListener("click", abrirNovoCliente);
+  document.getElementById("clientesDuplicadosBtn")?.addEventListener("click", abrirClientesDuplicados);
   document.getElementById("fecharClienteModal").addEventListener("click", fecharClienteModal);
   document.getElementById("cancelarCliente").addEventListener("click", fecharClienteModal);
   ["clienteNome", "clienteTelefone"].forEach(id => document.getElementById(id)?.addEventListener("input", () => { if (typeof atualizarWhatsappClienteForm === "function") atualizarWhatsappClienteForm(); }));
