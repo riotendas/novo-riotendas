@@ -1236,8 +1236,57 @@ async function gerarPdfOrcamento(o){
   const corpo = rtOrcSanitizarModeloOrcamento(rtOrcAplicarModelo(modelo, dados));
   const nomeArquivoPdf = `orcamento-${String(o.numero || numeroProximoOrcamento(o.data_evento) || 'PREVIEW')}.pdf`;
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${rtOrcEscape(nomeArquivoPdf.replace(/\.pdf$/i, ''))}</title><style>
-    body{font-family:Arial,sans-serif;margin:0;background:#eee;color:#111}.toolbar{position:sticky;top:0;z-index:50;background:#0d3f73;color:#fff;padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.toolbar button,.toolbar input{padding:6px 8px;border:0;border-radius:7px;cursor:pointer}.toolbar .wa-pdf{background:#25d366;color:#062b14;font-weight:700}.toolbar .hint-wa{font-size:11px;opacity:.95}.page{width:190mm;min-height:277mm;margin:0 auto 12px;background:#fff;padding:0 14mm 14mm;box-shadow:0 0 12px #999;box-sizing:border-box}.doc-header{text-align:left;border-bottom:2px solid #111;padding-top:0;padding-bottom:8px;margin-top:0;margin-bottom:12px}.doc-header img{height:auto}.doc-header h1{margin:4px 0;font-size:20px}.doc-header h2{margin:8px 0 4px;font-size:18px}.doc-header p,.small{font-size:11px}.doc-table{width:100%;border-collapse:collapse;margin:8px 0 12px}.doc-table th,.doc-table td{border:1px solid #bbb;padding:7px;font-size:12px;text-align:left;resize:both;overflow:auto}.doc-table th{background:#f1f1f1}.compact{max-width:100%}h3{margin:14px 0 6px}p{font-size:12px;line-height:1.45}.orc-assinatura-responsavel{margin:6px 0 10px;text-align:left;font-size:12px}.doc-assinatura-img{display:block;max-width:185px;max-height:55px;object-fit:contain;margin:0 0 -4px}.linha-assinatura{line-height:1;margin-top:0}.footer{margin-top:22px;border-top:1px solid #111;padding-top:8px;display:flex;justify-content:space-between;font-size:11px}.layout-mode *{outline:1px dashed rgba(13,63,115,.25)}@page{margin:0} @media print{html,body{margin:0!important;padding:0!important}.toolbar{display:none}.page{margin:0;box-shadow:none;width:auto;min-height:auto;padding-top:0!important}.doc-header{margin-top:0!important;padding-top:0!important}.layout-mode *{outline:none}}
-  </style></head><body><div class="toolbar"><strong>Orçamento editável</strong><button onclick="document.execCommand('bold')">B</button><button onclick="document.execCommand('italic')">I</button><button onclick="document.execCommand('underline')">U</button><button onclick="document.execCommand('justifyLeft')">Esq.</button><button onclick="document.execCommand('justifyCenter')">Centro</button><button onclick="document.execCommand('justifyRight')">Dir.</button><button onclick="document.execCommand('fontSize',false,'2')">A-</button><button onclick="document.execCommand('fontSize',false,'4')">A+</button><input type="color" onchange="document.execCommand('foreColor',false,this.value)"><button onclick="document.querySelector('.page').classList.toggle('layout-mode')">Editar layout</button><button onclick="document.title=${JSON.stringify(nomeArquivoPdf.replace(/\.pdf$/i,''))};window.print()">Imprimir/PDF</button><button onclick="window.close()">Fechar</button></div><main class="page" contenteditable="true">${corpo}<div class="footer"><div>RioTendas - Locação de Tendas<br>R. Cons. Lampreia, 245 – Cosme Velho</div><div>Tel.(21) 3490-2333 / 99692-9292<br>www.riotendas.com.br</div></div></main><script>
+    *{box-sizing:border-box}html,body{margin:0!important;padding:0!important;width:100%!important;min-height:100%;}body{font-family:Arial,sans-serif;background:#eef1f6;color:#111}.toolbar{position:sticky;top:0;left:0;right:0;width:100%;margin:0!important;z-index:50;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:9px 12px;background:#172033;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.18)}.toolbar strong{font-size:13px}.toolbar .editor-controls{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.toolbar button{border:0;border-radius:7px;padding:7px 9px;cursor:pointer;font-weight:700;background:#f3b33e;color:#172033;min-height:30px}.toolbar .secondary{background:#fff;color:#172033}.toolbar input[type=color]{width:34px;height:30px;border:0;border-radius:7px;background:#fff;padding:2px;cursor:pointer}.page{width:190mm;min-height:277mm;margin:16px auto 12px;background:#fff;padding:0 14mm 14mm;box-shadow:0 8px 28px rgba(0,0,0,.18);box-sizing:border-box}.doc-header{text-align:left;border-bottom:2px solid #111;padding-top:0;padding-bottom:8px;margin-top:0;margin-bottom:12px}.doc-header img{height:auto}.doc-header h1{margin:4px 0;font-size:20px}.doc-header h2{margin:8px 0 4px;font-size:18px}.doc-header p,.small{font-size:11px}.doc-table{width:100%;border-collapse:collapse;margin:8px 0 12px}.doc-table th,.doc-table td{border:1px solid #bbb;padding:7px;font-size:12px;text-align:left;resize:both;overflow:auto}.doc-table th{background:#f1f1f1}.compact{max-width:100%}h3{margin:14px 0 6px}p{font-size:12px;line-height:1.45}.orc-assinatura-responsavel{margin:6px 0 10px;text-align:left;font-size:12px}.doc-assinatura-img{display:block;max-width:185px;max-height:55px;object-fit:contain;margin:0 0 -4px}.linha-assinatura{line-height:1;margin-top:0}.footer{margin-top:22px;border-top:1px solid #111;padding-top:8px;display:flex;justify-content:space-between;font-size:11px}.layout-mode *{outline:1px dashed rgba(13,63,115,.25)}@page{margin:0} @media print{html,body{margin:0!important;padding:0!important}.toolbar{display:none}.page{margin:0;box-shadow:none;width:auto;min-height:auto;padding-top:0!important}.doc-header{margin-top:0!important;padding-top:0!important}.layout-mode *{outline:none}}
+  </style></head><body><div class="toolbar" contenteditable="false"><strong>Orçamento editável — ajuste antes de imprimir/PDF</strong><div class="editor-controls" contenteditable="false"><button class="secondary" type="button" data-orc-font="down" title="Diminuir fonte">A−</button><button class="secondary" type="button" data-orc-font="up" title="Aumentar fonte">A+</button><button class="secondary" type="button" data-orc-cmd="bold" title="Negrito"><b>N</b></button><button class="secondary" type="button" data-orc-cmd="italic" title="Itálico"><i>I</i></button><button class="secondary" type="button" data-orc-cmd="underline" title="Sublinhado"><u>S</u></button><button class="secondary" type="button" data-orc-cmd="justifyLeft" title="Alinhar à esquerda">☰</button><button class="secondary" type="button" data-orc-cmd="justifyCenter" title="Centralizar">≡</button><button class="secondary" type="button" data-orc-cmd="justifyRight" title="Alinhar à direita">☷</button><input type="color" id="rtOrcTextColor" value="#111111" title="Cor do texto"><button class="secondary" type="button" data-orc-cmd="undo" title="Desfazer">↶</button><button class="secondary" type="button" data-orc-cmd="redo" title="Refazer">↷</button><button class="secondary" type="button" id="rtOrcLayoutBtn">Editar layout</button><button class="secondary" type="button" id="rtOrcResetBtn">Restaurar padrão</button><button class="secondary" type="button" id="rtOrcPrintBtn">Imprimir/PDF</button><button type="button" id="rtOrcCloseBtn">Fechar</button></div></div><main class="page" id="rtOrcPage" contenteditable="true">${corpo}<div class="footer"><div>RioTendas - Locação de Tendas<br>R. Cons. Lampreia, 245 – Cosme Velho</div><div>Tel.(21) 3490-2333 / 99692-9292<br>www.riotendas.com.br</div></div></main><script>
+(function(){
+  const page=document.getElementById('rtOrcPage');
+  const htmlPadrao=page ? page.innerHTML : '';
+  let fontScale=1;
+
+  function focarPagina(){ try{ page && page.focus(); }catch(e){} }
+  function comando(cmd,valor){ focarPagina(); try{ document.execCommand(cmd,false,valor||null); }catch(e){ console.warn('Comando não aplicado',cmd,e); } }
+  function aplicarFonte(v){
+    fontScale=Math.min(1.6,Math.max(.75,v));
+    if(page) page.style.fontSize=(fontScale*100)+'%';
+  }
+
+  window.rtOrcImprimirDocumento=function(){
+    try{
+      document.title=${JSON.stringify(nomeArquivoPdf.replace(/\.pdf$/i,''))};
+      if(page) page.classList.remove('layout-mode');
+      window.focus();
+      setTimeout(function(){ window.print(); },30);
+    }catch(e){
+      console.error('Falha ao abrir impressão do orçamento:',e);
+      alert('Não foi possível abrir a impressão. Tente novamente.');
+    }
+  };
+
+  document.querySelectorAll('[data-orc-cmd]').forEach(function(btn){
+    btn.addEventListener('click',function(){ comando(btn.getAttribute('data-orc-cmd')); });
+  });
+  document.querySelector('[data-orc-font="down"]')?.addEventListener('click',function(){ aplicarFonte(fontScale-.08); });
+  document.querySelector('[data-orc-font="up"]')?.addEventListener('click',function(){ aplicarFonte(fontScale+.08); });
+  document.getElementById('rtOrcTextColor')?.addEventListener('input',function(){ comando('foreColor',this.value); });
+  document.getElementById('rtOrcLayoutBtn')?.addEventListener('click',function(){
+    page?.classList.toggle('layout-mode');
+    this.textContent=page?.classList.contains('layout-mode') ? 'Finalizar layout' : 'Editar layout';
+  });
+  document.getElementById('rtOrcResetBtn')?.addEventListener('click',function(){
+    if(!page) return;
+    if(confirm('Restaurar o orçamento para o layout/texto original desta geração?')){
+      page.innerHTML=htmlPadrao;
+      page.classList.remove('layout-mode');
+      fontScale=1;
+      page.style.fontSize='';
+      const b=document.getElementById('rtOrcLayoutBtn'); if(b) b.textContent='Editar layout';
+    }
+  });
+  document.getElementById('rtOrcPrintBtn')?.addEventListener('click',window.rtOrcImprimirDocumento);
+  document.getElementById('rtOrcCloseBtn')?.addEventListener('click',function(){ window.close(); });
+  window.addEventListener('beforeprint',function(){ try{ page?.classList.remove('layout-mode'); }catch(e){} });
+})();
+
 function rtOrcHtmlLimpo(){var p=document.querySelector('.page'); if(!p) return ''; var c=p.cloneNode(true); return c.innerHTML;}
 async function rtSalvarModeloOrcamentoNuvem(){
   try{
