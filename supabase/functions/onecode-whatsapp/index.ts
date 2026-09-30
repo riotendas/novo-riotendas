@@ -25,7 +25,27 @@ Deno.serve(async(req)=>{
   const templateId=String(body.templateId||Deno.env.get("ONECODE_TEMPLATE_CAMINHO_ID")||"15");
   if(!/^55\d{10,11}$/.test(telefone))return json({error:"Telefone inválido. Use país, DDD e número."},400);
   if(!/^\d+$/.test(templateId))return json({error:"ID de template inválido."},400);
-  const bodyParams=(body.bodyParams&&typeof body.bodyParams==="object")?body.bodyParams:{additionalProp1:nome,additionalProp2:tipo};
+  const recebido=(body.bodyParams&&typeof body.bodyParams==="object")?body.bodyParams:{additionalProp1:nome,additionalProp2:tipo};
+  const vars=Array.isArray(body.templateVariables)?body.templateVariables.map((v:any)=>String(v??"").replace(/^\\{\\{\\s*|\\s*\\}\\}$/g,"").trim()).filter(Boolean):[];
+  let bodyParams:any={...recebido};
+
+  if(vars.length){
+    const valorPos=(pos:number)=>{
+      const chaves=[String(pos),`additionalProp${pos}`];
+      for(const k of chaves){
+        if(Object.prototype.hasOwnProperty.call(recebido,k)) return String(recebido[k]??"");
+      }
+      return "";
+    };
+    const normalizado:any={};
+    vars.forEach((v:string,i:number)=>{
+      const m=v.match(/(\\d+)$/);
+      const pos=m?Number(m[1]):i+1;
+      normalizado[v]=Object.prototype.hasOwnProperty.call(recebido,v)?String(recebido[v]??""):valorPos(pos);
+    });
+    bodyParams=normalizado;
+  }
+
   const r=await fetch(`${apiUrl}/api/send-template/${telefone}`,{method:"POST",headers:{Accept:"application/json","Content-Type":"application/json",Authorization:`Bearer ${apiKey}`},body:JSON.stringify({connectionFrom:connectionId,templateId,bodyParams,headerParams:{},buttonParams:{},ticketStrategy:"create"})});
   const text=await r.text();let d:any;try{d=text?JSON.parse(text):{}}catch{d={raw:text}}
   if(!r.ok)return json({error:d?.error||`Erro OneCode (${r.status}).`,details:d},r.status);

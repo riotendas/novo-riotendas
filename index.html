@@ -334,7 +334,10 @@
           <h2>Eventos</h2>
           <p>Cadastro de eventos, financeiro e produtos alugados.</p>
         </div>
-        <button id="novoEventoBtn">Novo evento</button>
+        <div class="rt-eventos-header-acoes">
+          <button type="button" id="abrirBaseAntigaBtn" class="btn-outline" title="Consultar eventos anteriores ao Novo RioTendas">📚 Base antiga</button>
+          <button id="novoEventoBtn">Novo evento</button>
+        </div>
       </div>
 
       <div class="eventos-toolbar">
@@ -1333,74 +1336,53 @@
       </dialog>
 
       <dialog id="configModalProdutos" class="modal large-modal config-popup config-produtos-tabs-modal">
-        <div class="modal-header"><div><h2>Produtos</h2><p>Exportar/importar, categorias/modelos, materiais, cores e fotos em uma tela única.</p></div><button type="button" class="modal-close" data-close-config="configModalProdutos">×</button></div>
+        <div class="modal-header"><div><h2>Produtos</h2><p>Cadastro unificado de produtos, modelos/tamanhos, cores, fotos e quantidades.</p></div><button type="button" class="modal-close" data-close-config="configModalProdutos">×</button></div>
         <div class="config-popup-body config-produtos-tabs-body">
           <div class="config-produtos-tabs" role="tablist" aria-label="Configurações de produtos">
-            <button type="button" class="config-produtos-tab active" data-produtos-config-tab="exportar">Exportar / Importar</button>
-            <button type="button" class="config-produtos-tab" data-produtos-config-tab="categorias">Categorias / Modelos</button>
-            <button type="button" class="config-produtos-tab" data-produtos-config-tab="materiais">Materiais de Apoio</button>
-            <button type="button" class="config-produtos-tab" data-produtos-config-tab="cores">Cores dos Produtos</button>
-            <button type="button" class="config-produtos-tab" data-produtos-config-tab="fotos">Fotos</button>
+            <button type="button" class="config-produtos-tab active" data-produtos-config-tab="cadastro">Cadastro de Produtos</button>
+            <button type="button" class="config-produtos-tab" data-produtos-config-tab="exportar">Exportar / Importar</button>
           </div>
           <div class="config-produtos-tabs-content">
-            <div class="config-produtos-pane active" data-produtos-config-pane="exportar">
-              <h3>Exportar / Importar</h3>
-          <div class="config-actions">
-            <button id="exportarProdutosExcel">Exportar produtos Excel</button>
-            <label class="file-button">Importar produtos Excel<input id="importarProdutosExcel" type="file" accept=".xlsx,.xls,.csv"></label>
-          </div>
-          <small>Colunas: código, categoria, tamanho, cor, status, observação, foto, usabilidade e colaborador.</small>
-            </div>
-            <div class="config-produtos-pane" data-produtos-config-pane="categorias">
-              <h3>Categorias / Modelos</h3>
-              <div class="config-inline-form">
-                <input id="novaCategoriaNome" type="text" placeholder="Ex.: Ombrelone c/ Franja">
-                <input id="novaCategoriaTamanhos" type="text" placeholder="Tamanhos separados por vírgula. Ex.: 2,40">
-                <button id="adicionarCategoriaConfig" type="button">Adicionar categoria/modelo</button>
+            <div class="config-produtos-pane active" data-produtos-config-pane="cadastro">
+              <div class="catalogo-v2-intro">
+                <div><h3>Cadastro de Produtos</h3><small>Um único lugar para modelos/tamanhos, cores, fotos e produtos controlados por quantidade. A estrutura atual do banco é preservada.</small></div>
               </div>
-              <small>A categoria/modelo define o tipo principal do produto, como Tenda Sanfonada, Tenda Piramidal, Ombrelone ou Ombrelone c/ Franja.</small>
-              <div id="listaCategoriasConfig" class="config-list"></div>
+
+              <section class="catalogo-v2-section">
+                <div class="catalogo-v2-title"><div><strong>Produtos inventariados</strong><small>Produto, modelos/tamanhos, cores e fotos no mesmo cadastro. Os produtos físicos com código continuam preservados.</small></div></div>
+                <div class="config-inline-form catalogo-v2-add">
+                  <input id="novaCategoriaNome" type="text" placeholder="Produto / categoria. Ex.: Tenda Sanfonada">
+                  <input id="novaCategoriaTamanhos" type="text" placeholder="Modelos/tamanhos separados por vírgula. Ex.: 3x3, 4x4">
+                  <button id="adicionarCategoriaConfig" type="button">Adicionar produto</button>
+                </div>
+                <div id="listaCategoriasConfig" class="config-list catalogo-v2-list"></div>
+              </section>
+
+              <div hidden aria-hidden="true">
+                <input id="novaCorNome"><button id="adicionarCorConfig" type="button"></button><div id="listaCoresConfig"></div>
+                <select id="fotoPadraoCategoria"></select><select id="fotoPadraoTamanho"></select><input id="fotoPadraoArquivo" type="file"><input id="fotoPadraoUrl"><button id="adicionarFotoPadraoConfig" type="button"></button><div id="listaFotosPadraoConfig"></div>
+              </div>
+
+              <section class="catalogo-v2-section">
+                <div class="catalogo-v2-title"><div><strong>Produtos por quantidade</strong><small>Mesas, cadeiras, caixas, toalhas e outros itens sem código individual. A quantidade continua gravada no estoque atual.</small></div></div>
+                <div class="config-inline-form catalogo-v2-add">
+                  <select id="novoMaterialApoioTipo" title="Grupo">
+                    <option value="material">Materiais Gerais</option><option value="caixa">Caixas Térmicas</option><option value="toalha">Toalhas</option><option value="acessorio-tenda">Acessórios de Tendas</option>
+                  </select>
+                  <input id="novoMaterialApoioNome" type="text" placeholder="Nome do produto. Ex.: Cadeira de Madeira">
+                  <input id="novoMaterialApoioCor" type="text" placeholder="Cor da toalha" list="coresToalhaSugestoes" style="display:none">
+                  <datalist id="coresToalhaSugestoes"><option value="Branca"></option><option value="Azul"></option><option value="Verde"></option><option value="Preta"></option><option value="Vermelha"></option><option value="Amarela"></option></datalist>
+                  <input id="novoMaterialApoioQtd" type="number" min="0" step="1" value="0" placeholder="Quantidade">
+                  <button id="adicionarMaterialApoioConfig" type="button">Adicionar produto</button>
+                </div>
+                <div id="listaMateriaisApoioConfig" class="config-list"></div>
+              </section>
             </div>
-            <div class="config-produtos-pane" data-produtos-config-pane="materiais">
-              <h3>Materiais de Apoio</h3>
-          <div class="config-inline-form">
-            <select id="novoMaterialApoioTipo" title="Subcategoria">
-              <option value="material">Materiais Gerais</option>
-              <option value="caixa">Caixas Térmicas</option>
-              <option value="toalha">Toalhas</option>
-              <option value="acessorio-tenda">Acessórios de Tendas</option>
-            </select>
-            <input id="novoMaterialApoioNome" type="text" placeholder="Nome do material. Ex: Lateral 3m">
-            <input id="novoMaterialApoioCor" type="text" placeholder="Cor da toalha. Ex: branca, azul, verde" list="coresToalhaSugestoes" style="display:none">
-            <datalist id="coresToalhaSugestoes">
-              <option value="Branca"></option>
-              <option value="Azul"></option>
-              <option value="Verde"></option>
-              <option value="Preta"></option>
-              <option value="Vermelha"></option>
-              <option value="Amarela"></option>
-            </datalist>
-            <input id="novoMaterialApoioQtd" type="number" min="0" step="1" value="0" placeholder="Quantidade">
-            <button id="adicionarMaterialApoioConfig" type="button">Adicionar material</button>
-          </div>
-          <small>Estes itens aparecem como Materiais de Apoio, com controle por quantidade e sem código individual. Caixas térmicas, toalhas e acessórios de tendas ficam agrupados em subcategorias próprias. Para toalhas, selecione “Toalhas” e informe a cor.</small>
-          <div id="listaMateriaisApoioConfig" class="config-list"></div>
-            </div>
-            <div class="config-produtos-pane" data-produtos-config-pane="cores">
-              <h3>Cores dos Produtos</h3>
-          <div class="config-inline-form"><input id="novaCorNome" type="text" placeholder="Nova cor"><button id="adicionarCorConfig" type="button">Adicionar cor</button></div>
-          <div id="listaCoresConfig" class="config-list"></div>
-            </div>
-            <div class="config-produtos-pane" data-produtos-config-pane="fotos">
-              <h3>Fotos</h3>
-          <div class="foto-padrao-form">
-            <label>Categoria / Modelo<select id="fotoPadraoCategoria"><option value="">Selecione uma categoria/modelo</option></select></label>
-            <label>Tamanho<select id="fotoPadraoTamanho"><option value="">Selecione um tamanho</option></select></label>
-            <label>Foto<input id="fotoPadraoArquivo" type="file" accept="image/*"></label>
-            <input id="fotoPadraoUrl" type="hidden">
-            <button id="adicionarFotoPadraoConfig" type="button">Salvar/alterar foto</button>
-          </div>
-          <div id="listaFotosPadraoConfig" class="config-list"></div>
+
+            <div class="config-produtos-pane" data-produtos-config-pane="exportar">
+              <h3>Exportar / Importar</h3>
+              <div class="config-actions"><button id="exportarProdutosExcel">Exportar produtos Excel</button><label class="file-button">Importar produtos Excel<input id="importarProdutosExcel" type="file" accept=".xlsx,.xls,.csv"></label></div>
+              <small>Colunas: código, categoria, tamanho, cor, status, observação, foto, usabilidade e colaborador.</small>
             </div>
           </div>
         </div>
@@ -1959,6 +1941,7 @@
               <input id="eventoPagamentoQuitado" type="checkbox">
               <span>Quitado</span>
             </label>
+            <button type="button" id="eventoGerarLinkPagBank" class="btn-outline rt-pagbank-btn">🔗 Gerar link de pagamento</button>
           </div>
         </div>
       </div>
@@ -2440,7 +2423,7 @@
   <script src="js/orcamentos.js"></script>
   <script src="js/financeiro.js?v=20260814-perf-v3"></script>
   <script src="js/rotas.js?v=20260814-perf-v3"></script>
-  <script src="js/mapa.js"></script>
+  <script src="js/mapa.js?v=20260924-openfreemap-v1"></script>
   <script src="js/rua-mobile.js?v=20260814-perf-v3"></script>
   <script src="js/mobile-manutencao.js"></script>
   <script src="js/mobile-eventos.js"></script>
@@ -2646,5 +2629,98 @@ Essa ação não poderá ser desfeita.')) return;
     </div>
   </dialog>
 
+    <dialog id="baseAntigaDialog" class="rt-base-antiga-dialog">
+      <div class="rt-base-antiga-card">
+        <div class="rt-base-antiga-header">
+          <div>
+            <h2>📚 Base antiga</h2>
+            <p>Histórico anterior ao Novo RioTendas · somente consulta</p>
+          </div>
+          <button type="button" id="fecharBaseAntigaBtn" class="btn-outline rt-base-antiga-fechar" aria-label="Fechar">×</button>
+        </div>
+
+        <div class="rt-base-antiga-aviso">
+          Estes registros são independentes da base atual. Consultar aqui não altera clientes, eventos, produtos, rotas ou financeiro.
+        </div>
+
+        <form id="baseAntigaBuscaForm" class="rt-base-antiga-busca rt-base-antiga-busca-v2">
+          <label class="rt-base-antiga-campo">Buscar por
+            <select id="baseAntigaCampo">
+              <option value="todos">Todos os campos</option>
+              <option value="cliente">Nome do cliente</option>
+              <option value="contatos">Telefone/contato</option>
+              <option value="endereco">Endereço</option>
+              <option value="descricao_servico">Serviço/material</option>
+              <option value="cpf_cnpj">CPF/CNPJ</option>
+              <option value="colaborador">Colaborador</option>
+            </select>
+          </label>
+          <label class="rt-base-antiga-termo">Termo da busca
+            <input id="baseAntigaBusca" type="search" autocomplete="off"
+              placeholder="Digite o que deseja localizar...">
+          </label>
+          <label>Data inicial
+            <input id="baseAntigaDataInicial" type="date">
+          </label>
+          <label>Data final
+            <input id="baseAntigaDataFinal" type="date">
+          </label>
+          <button type="submit" id="baseAntigaBuscarBtn">Buscar</button>
+        </form>
+
+        <div class="rt-base-antiga-status" id="baseAntigaStatus">
+          Pesquise por um campo específico, todos os campos ou por uma faixa de datas.
+        </div>
+
+        <div id="baseAntigaResultados" class="rt-base-antiga-resultados rt-base-antiga-resultados-v2"></div>
+
+        <div class="rt-base-antiga-paginacao">
+          <button type="button" id="baseAntigaAnteriorBtn" class="btn-outline" disabled>‹ Anterior</button>
+          <span id="baseAntigaPaginaInfo"></span>
+          <button type="button" id="baseAntigaProximaBtn" class="btn-outline" disabled>Próxima ›</button>
+        </div>
+      </div>
+    </dialog>
+
+  <dialog id="pagbankLinkDialog" class="rt-pagbank-dialog">
+    <div class="rt-pagbank-card">
+      <div class="rt-pagbank-header">
+        <h3>Gerar link de pagamento</h3>
+        <button type="button" id="pagbankFechar" class="btn-outline rt-pagbank-close" aria-label="Fechar">×</button>
+      </div>
+      <div class="rt-pagbank-grid">
+        <label class="rt-pagbank-cliente">Cliente
+          <input id="pagbankCliente" type="text" readonly>
+        </label>
+        <label>Valor
+          <input id="pagbankValor" class="money-input" type="text" inputmode="decimal">
+        </label>
+        <label>Parcelamento máximo
+          <select id="pagbankParcelas">
+            <option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option>
+            <option value="5">5x</option><option value="6">6x</option><option value="7">7x</option><option value="8">8x</option>
+            <option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12">12x</option>
+          </select>
+        </label>
+      </div>
+      <div id="pagbankStatus" class="rt-pagbank-status"></div>
+      <div id="pagbankResultado" class="rt-pagbank-result hidden">
+        <label>Link criado
+          <input id="pagbankLink" type="text" readonly>
+        </label>
+        <div class="rt-pagbank-result-actions">
+          <button type="button" id="pagbankCopiar" class="btn-outline">Copiar link</button>
+          <button type="button" id="pagbankWhatsApp" class="btn-outline">Enviar WhatsApp</button>
+        </div>
+      </div>
+      <div class="rt-pagbank-actions">
+        <button type="button" id="pagbankCancelar" class="btn-outline">Cancelar</button>
+        <button type="button" id="pagbankGerar">Gerar link</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="js/pagbank.js?v=20260924-sandbox-v1"></script>
+  <script src="js/eventos-historicos.js?v=20260925-base-antiga-v7-novo-evento"></script>
 </body>
 </html>

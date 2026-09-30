@@ -4599,9 +4599,16 @@ function rtEscapeHtmlOrganizador(valor) {
     .replace(/'/g, "&#39;");
 }
 
-function rtCarrosFixosOrganizador(gruposData = {}) {
+function rtCarrosFixosOrganizador(gruposData = {}, data = "") {
   const fixos = ["Sem carro", ...carrosDisponiveisRotas()];
-  const extras = Object.keys(gruposData || {}).filter(carro => !fixos.includes(carro));
+  const carrosNotas = data
+    ? rtNotasCarregar().filter(n => n && n.data === data).map(n => n.carro || "Sem carro")
+    : [];
+  // Notas são itens independentes do Kanban. Mesmo que um carro fique sem eventos
+  // (por troca/reordenação feita em outro computador), o grupo continua visível
+  // enquanto houver nota nele. Assim a nota nunca "some" por ficar órfã.
+  const extras = [...Object.keys(gruposData || {}), ...carrosNotas]
+    .filter((carro, i, arr) => carro && !fixos.includes(carro) && arr.indexOf(carro) === i);
   return [...fixos, ...extras.sort((a, b) => ordemCarro(a) - ordemCarro(b))];
 }
 
@@ -4663,7 +4670,7 @@ function rtRenderizarPainelOrganizarRotas(rotasFiltradas = []) {
   if (dataEl) dataEl.textContent = datas.length === 1 ? rtDataOrganizadorRota(datas[0]) : `${datas.length} datas no filtro`;
 
   listaEl.innerHTML = datas.map(data => {
-    const carrosBase = rtCarrosFixosOrganizador(grupos[data]);
+    const carrosBase = rtCarrosFixosOrganizador(grupos[data], data);
     const carrosComQtd = carrosBase.map(carro => ({ carro, lista: grupos[data][carro] || [] }));
     const carros = [
       ...carrosComQtd.filter(item => item.lista.length > 0),
@@ -4717,6 +4724,22 @@ function rtTrocarCarroGrupo(data, carroOrigem, destino) {
 
   salvarRotasCarrosLocal();
   salvarRotasOrdemManual();
+
+  // Se o carro/grupo inteiro foi transferido, as notas daquele mesmo dia acompanham
+  // o grupo. Antes elas permaneciam presas ao nome antigo do carro e podiam desaparecer
+  // do Kanban quando o grupo antigo deixava de existir.
+  const notasGrupo = rtNotasCarregar();
+  const notasMovidas = notasGrupo.filter(n => n && n.data === data && n.carro === carroOrigem);
+  if (notasMovidas.length) {
+    const agora = new Date().toISOString();
+    notasMovidas.forEach(n => { n.carro = destino; n.atualizadoEm = agora; });
+    rtNotasMarcarEdicaoManual(2600);
+    rtNotasSalvarLocal(notasGrupo);
+    Promise.all(notasMovidas.map(n => rtNotaSalvarNuvem(n))).then(() => {
+      rtNotasMarcarMigrado();
+      rtNotasMarcarEdicaoManual(900);
+    }).catch(() => {});
+  }
 
   if (typeof registrarLogSistema === "function") {
     registrarLogSistema({

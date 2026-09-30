@@ -93,16 +93,27 @@ async function garantirCarrosRotasDashboard() {
 }
 
 async function garantirEventosDashboard() {
-  if (rtDashboardEventosCache && (Date.now() - rtDashboardEventosCacheTs) < RT_DASHBOARD_EVENTOS_TTL_MS) {
-    return rtDashboardEventosCache;
-  }
-
+  // Performance V7.1:
+  // Eventos/Rotas trabalham com a lista global já atualizada pelo Realtime.
+  // Ela precisa ter prioridade sobre o cache próprio do Dashboard; caso contrário,
+  // uma alteração de data/cancelamento pode continuar aparecendo como pendência
+  // até o TTL do Dashboard vencer.
   try {
     if (typeof eventos !== "undefined" && Array.isArray(eventos) && eventos.length) {
-      rtDashboardEventosCache = eventos; rtDashboardEventosCacheTs = Date.now(); return eventos;
+      rtDashboardEventosCache = eventos;
+      rtDashboardEventosCacheTs = Date.now();
+      return eventos;
     }
     if (Array.isArray(window.eventos) && window.eventos.length) {
-      rtDashboardEventosCache = window.eventos; rtDashboardEventosCacheTs = Date.now(); return window.eventos;
+      rtDashboardEventosCache = window.eventos;
+      rtDashboardEventosCacheTs = Date.now();
+      return window.eventos;
+    }
+
+    // O cache do Dashboard passa a ser apenas fallback quando ainda não existe
+    // uma lista global carregada. Isso não gera nenhuma nova consulta ao Supabase.
+    if (rtDashboardEventosCache && (Date.now() - rtDashboardEventosCacheTs) < RT_DASHBOARD_EVENTOS_TTL_MS) {
+      return rtDashboardEventosCache;
     }
 
     // Performance V2: pinta o Dashboard imediatamente com o último cache válido.
@@ -835,6 +846,11 @@ async function renderizarDashboardAlertas() {
   const eventosLista = await garantirEventosDashboard();
   const hoje = dataISOHojeDashboard();
   const cfg = rtDashboardAlertasConfig || RT_DASH_ALERTAS_DEFAULT;
+
+  // A pendência é sempre derivada do estado corrente do evento em memória.
+  // Datas antigas que foram remarcadas deixam de participar assim que o evento
+  // atualizado chega pelo Realtime; cancelados continuam sendo descartados abaixo.
+
 
   const montagensPorDia = new Map();
   const desmontagensPorDia = new Map();

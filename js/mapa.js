@@ -25,6 +25,40 @@
   const RJ_CENTER = [-22.9068, -43.1729];
   const MAX_GEOCODE_BACKGROUND = 0; // coordenadas agora são salvas no evento; mapa não geocodifica ao abrir
 
+  // Basemap vetorial sob demanda: evita usar os servidores comunitários de tiles raster do OSM.
+  // OpenFreeMap não exige chave; carregamos MapLibre apenas quando o Mapa Operacional é aberto.
+  let rtMapaBasemapAssetsPromise = null;
+  function rtMapaCarregarScript(src, teste){
+    if(teste()) return Promise.resolve(true);
+    return new Promise((resolve,reject)=>{
+      const existente=[...document.scripts].find(x=>x.src===src);
+      if(existente){
+        existente.addEventListener('load',()=>resolve(true),{once:true});
+        existente.addEventListener('error',()=>reject(new Error('Falha ao carregar mapa vetorial')),{once:true});
+        setTimeout(()=>teste()&&resolve(true),0);
+        return;
+      }
+      const el=document.createElement('script'); el.src=src; el.async=true;
+      el.onload=()=>resolve(true); el.onerror=()=>reject(new Error('Falha ao carregar mapa vetorial'));
+      document.head.appendChild(el);
+    });
+  }
+  function rtMapaCarregarBasemapAssets(){
+    if(window.L?.maplibreGL) return Promise.resolve(true);
+    if(rtMapaBasemapAssetsPromise) return rtMapaBasemapAssetsPromise;
+    rtMapaBasemapAssetsPromise=(async()=>{
+      if(!document.querySelector('link[data-rt-maplibre]')){
+        const css=document.createElement('link'); css.rel='stylesheet';
+        css.href='https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css';
+        css.dataset.rtMaplibre='1'; document.head.appendChild(css);
+      }
+      await rtMapaCarregarScript('https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js',()=>!!window.maplibregl);
+      await rtMapaCarregarScript('https://unpkg.com/@maplibre/maplibre-gl-leaflet/leaflet-maplibre-gl.js',()=>!!window.L?.maplibreGL);
+      return !!window.L?.maplibreGL;
+    })().catch(err=>{ rtMapaBasemapAssetsPromise=null; throw err; });
+    return rtMapaBasemapAssetsPromise;
+  }
+
   function esc(v){return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   function norm(v){return String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();}
   function hojeISO(){ const d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); }
@@ -414,7 +448,7 @@
     if(!window.L) return false;
     if(!rtMapa){
       rtMapa = L.map(box, { preferCanvas:true, zoomControl:true, fadeAnimation:false, markerZoomAnimation:false }).setView(RJ_CENTER, 10);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, updateWhenIdle:true, updateWhenZooming:false, keepBuffer:1, attribution: '&copy; OpenStreetMap' }).addTo(rtMapa);
+      L.maplibreGL({ style:'https://tiles.openfreemap.org/styles/liberty' }).addTo(rtMapa);
       rtMapaLayer = L.layerGroup().addTo(rtMapa);
       if(!rtMapa.__rtViewportCardsBind){
         rtMapa.__rtViewportCardsBind = true;
@@ -545,7 +579,8 @@
     atualizarResumo(lista);
     atualizarLista(lista, new Set());
 
-    if(!garantirMapa(box)){
+    try { await rtMapaCarregarBasemapAssets(); } catch(err) { console.warn('Basemap vetorial indisponível:', err); }
+    if(!window.L?.maplibreGL || !garantirMapa(box)){
       box.innerHTML = '<div class="mapa-sem-leaflet">Mapa indisponível no momento. Verifique a conexão com a internet.</div>';
       listaBox.classList.remove('mapa-carregando');
       return;

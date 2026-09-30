@@ -68,11 +68,49 @@ function filtrarMateriaisApoioVisiveis(lista) {
 
 
 function categoriasProdutosAtivas() {
-  return window.categoriasProdutosConfig || categoriasProdutos;
+  const origem = window.categoriasProdutosConfig || categoriasProdutos || {};
+  const saida = { ...origem };
+  // V4: Ombrelone é um único produto na interface. O legado "Ombrelone c/ Franja"
+  // continua existindo somente no banco para preservar compatibilidade.
+  if (saida["Ombrelone"] || saida["Ombrelone c/ Franja"]) {
+    saida.Ombrelone = rtModelosOmbreloneAtivos();
+    delete saida["Ombrelone c/ Franja"];
+  }
+  return saida;
+}
+
+function rtCorLegadaFranja(cor) {
+  const n = String(cor || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  return n === "c franja" || n === "com franja" || n === "franja";
 }
 
 function coresProdutosAtivas() {
-  return window.coresProdutosConfig || coresProdutos;
+  const lista = window.coresProdutosConfig || coresProdutos;
+  return (Array.isArray(lista) ? lista : []).filter(c => !rtCorLegadaFranja(c));
+}
+
+function rtModelosOmbreloneAtivos() {
+  try {
+    const cfg = (typeof carregarConfiguracoes === "function") ? carregarConfiguracoes() : null;
+    const salvos = cfg?.catalogoProdutosV2?.Ombrelone?.modelos;
+    if (Array.isArray(salvos) && salvos.length >= 2) return salvos.slice(0,2);
+  } catch {}
+  return ["Simples", "Com franja"];
+}
+
+function rtProdutoEhOmbreloneFranja(produto = {}) {
+  return String(produto.categoria || produto.tipo || "").trim() === "Ombrelone c/ Franja" || rtCorLegadaFranja(produto.cor);
+}
+
+function rtCategoriaVisualProduto(produto = {}) {
+  const cat = String(produto.categoria || produto.tipo || "").trim();
+  return (cat === "Ombrelone" || cat === "Ombrelone c/ Franja") ? "Ombrelone" : cat;
+}
+
+function rtModeloVisualProduto(produto = {}) {
+  if (rtCategoriaVisualProduto(produto) !== "Ombrelone") return produto.tamanho || "";
+  const modelos = rtModelosOmbreloneAtivos();
+  return modelos[rtProdutoEhOmbreloneFranja(produto) ? 1 : 0] || (rtProdutoEhOmbreloneFranja(produto) ? "Com franja" : "Simples");
 }
 
 
@@ -631,7 +669,8 @@ window.rtAtualizarCategoriasProdutosUI = rtAtualizarCategoriasProdutosUI;
 
 function atualizarTamanhos() {
   const categoria = document.getElementById("produtoCategoria").value;
-  popularSelect(document.getElementById("produtoTamanho"), categoriasProdutosAtivas()[categoria] || []);
+  const tamanhos = categoria === "Ombrelone" ? rtModelosOmbreloneAtivos() : (categoriasProdutosAtivas()[categoria] || []);
+  popularSelect(document.getElementById("produtoTamanho"), tamanhos);
 }
 
 function atualizarFiltroTamanhos() {
@@ -662,10 +701,13 @@ function abrirEditarProduto(id) {
   fotoAtual = produto.foto || "";
   document.getElementById("produtoId").value = produto.id;
   document.getElementById("produtoCodigo").value = produto.codigo || "";
-  document.getElementById("produtoCategoria").value = produto.categoria || produto.tipo || "";
+  const ehFranja = rtProdutoEhOmbreloneFranja(produto);
+  const categoriaVisual = (String(produto.categoria || produto.tipo || "") === "Ombrelone c/ Franja" || String(produto.categoria || produto.tipo || "") === "Ombrelone") ? "Ombrelone" : (produto.categoria || produto.tipo || "");
+  document.getElementById("produtoCategoria").value = categoriaVisual;
   atualizarTamanhos();
-  document.getElementById("produtoTamanho").value = produto.tamanho || "";
-  document.getElementById("produtoCor").value = produto.cor || "";
+  document.getElementById("produtoTamanho").value = categoriaVisual === "Ombrelone" ? rtModelosOmbreloneAtivos()[ehFranja ? 1 : 0] : (produto.tamanho || "");
+  const corReal = rtCorLegadaFranja(produto.cor) ? "" : (produto.cor || "");
+  document.getElementById("produtoCor").value = corReal;
   const statusModal = document.getElementById("produtoStatus");
   statusModal.disabled = rtProdutoArquivado(produto);
   if (rtProdutoArquivado(produto)) {
@@ -713,10 +755,10 @@ function duplicarProdutoAtual() {
 
   document.getElementById("produtoId").value = "";
   document.getElementById("produtoCodigo").value = novoCodigo;
-  document.getElementById("produtoCategoria").value = produtoAtual.categoria || produtoAtual.tipo || "";
+  document.getElementById("produtoCategoria").value = rtCategoriaVisualProduto(produtoAtual);
   atualizarTamanhos();
-  document.getElementById("produtoTamanho").value = produtoAtual.tamanho || "";
-  document.getElementById("produtoCor").value = produtoAtual.cor || "";
+  document.getElementById("produtoTamanho").value = rtModeloVisualProduto(produtoAtual);
+  document.getElementById("produtoCor").value = rtCorLegadaFranja(produtoAtual.cor) ? "" : (produtoAtual.cor || "");
   document.getElementById("produtoStatus").value = produtoAtual.status || "Livre";
   document.getElementById("produtoUsabilidade").value = produtoAtual.grau_usabilidade || "Bom";
   document.getElementById("produtoObservacao").value = produtoAtual.observacao || "";
@@ -762,12 +804,19 @@ async function salvarProdutoForm(event) {
     return;
   }
 
+  const categoriaTela = document.getElementById("produtoCategoria").value;
+  const modeloTela = document.getElementById("produtoTamanho").value;
+  const modelosOmb = rtModelosOmbreloneAtivos();
+  const ombFranja = categoriaTela === "Ombrelone" && modeloTela === modelosOmb[1];
+  const categoriaBanco = ombFranja ? "Ombrelone c/ Franja" : categoriaTela;
+  const tamanhoBanco = categoriaTela === "Ombrelone" ? (ombFranja ? "Padrão" : "2,40") : modeloTela;
+
   const produto = {
     id,
     codigo: codigoInformado,
-    categoria: document.getElementById("produtoCategoria").value,
-    tipo: document.getElementById("produtoCategoria").value,
-    tamanho: document.getElementById("produtoTamanho").value,
+    categoria: categoriaBanco,
+    tipo: categoriaBanco,
+    tamanho: tamanhoBanco,
     cor: document.getElementById("produtoCor").value,
     status: existente && rtProdutoArquivado(existente) ? RT_PRODUTO_STATUS_ARQUIVADO : document.getElementById("produtoStatus").value,
     grau_usabilidade: document.getElementById("produtoUsabilidade").value,
@@ -1423,13 +1472,15 @@ function filtrarProdutos() {
   const somenteDisponiveis = document.getElementById("mostrarSomenteDisponiveis")?.checked || false;
 
   return produtos.filter(p => {
-    const texto = `${p.codigo} ${p.categoria || p.tipo} ${p.tamanho} ${p.cor} ${p.status} ${p.grau_usabilidade || ""} ${p.observacao}`.toLowerCase();
+    const categoriaVisual = rtCategoriaVisualProduto(p);
+    const modeloVisual = rtModeloVisualProduto(p);
+    const texto = `${p.codigo} ${categoriaVisual} ${modeloVisual} ${p.categoria || p.tipo} ${p.tamanho} ${p.cor} ${p.status} ${p.grau_usabilidade || ""} ${p.observacao}`.toLowerCase();
     const disp = disponibilidadePeriodoProduto(p);
 
     const passaCiclo = ciclo === "todos" || (ciclo === "baixados" ? rtProdutoArquivado(p) : rtProdutoAtivo(p));
     return passaCiclo
-      && (!categoria || (p.categoria || p.tipo) === categoria)
-      && (!tamanho || p.tamanho === tamanho)
+      && (!categoria || categoriaVisual === categoria)
+      && (!tamanho || modeloVisual === tamanho)
       && (!status || (status === "Em manutenção" ? ["Bloqueada", "Revisar", "Limpar", "Consertar"].includes(p.status) : p.status === status))
       && (!usabilidade || String(p.grau_usabilidade || p.usabilidade || "") === usabilidade)
       && (!busca || texto.includes(busca))
@@ -1804,8 +1855,8 @@ function renderizarProdutos() {
     <tr class="status-${normalizarStatus(statusParaSelect)}">
       <td>${obterFotoProduto(p) ? `<img class="product-img" src="${obterFotoProduto(p)}" alt="">` : `<span class="product-img-placeholder">Sem foto</span>`}</td>
       <td><button class="code-link" data-action="detalhe" data-id="${p.id}">${p.codigo || "Sem código"}</button></td>
-      <td>${p.categoria || p.tipo || "-"}</td>
-      <td>${p.tamanho || "-"}</td>
+      <td>${rtCategoriaVisualProduto(p) || "-"}</td>
+      <td>${rtModeloVisualProduto(p) || "-"}</td>
       <td>${p.cor || "-"}</td><td>${p.grau_usabilidade || p.usabilidade || "-"}</td>
       <td>
         ${arquivado

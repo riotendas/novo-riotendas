@@ -67,6 +67,16 @@
           if (typeof rtEventosCacheBanco !== 'undefined') rtEventosCacheBanco = eventos.slice();
           if (typeof rtEventosCacheBancoTs !== 'undefined') rtEventosCacheBancoTs = Date.now();
         } catch {}
+
+        // Performance V7: o payload Realtime já contém o evento alterado.
+        // Recalcula imediatamente os cards/pendências do Dashboard usando a
+        // memória atualizada, sem buscar novamente a tabela eventos.
+        try {
+          if (typeof window.rtDashAtualizarOperacaoSemRede === "function") {
+            window.rtDashAtualizarOperacaoSemRede();
+          }
+        } catch {}
+
         rtRenderEventosRealtime();
       }
     } catch (err) { console.warn('Falha ao aplicar evento realtime:', err); }

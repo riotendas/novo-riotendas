@@ -265,6 +265,32 @@
     Object.entries(params||{}).forEach(([k,v])=>{const pos=String(k).replace("additionalProp","");texto=texto.replace(new RegExp(`\\{\\{${pos}\\}\\}`,"g"),String(v||""));});
     return texto;
   }
+  function bodyParamsParaApi(t,params){
+    const origem=params||{};
+    const valorPos=pos => String(origem[`additionalProp${pos}`] ?? origem[String(pos)] ?? "").trim();
+
+    let vars=Array.isArray(t?.variables) ? t.variables.map(v=>String(v??"").trim()).filter(Boolean) : [];
+    if(!vars.length){
+      const encontrados=[...String(t?.body||"").matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)].map(m=>String(m[1]||"").trim());
+      vars=[...new Set(encontrados)];
+    }
+
+    // Se a OneCode informou os nomes das variáveis, usamos exatamente esses nomes.
+    // Ex.: template com {{1}}...{{4}} recebe {"1":"...", "2":"...", ...}.
+    if(vars.length){
+      const out={};
+      vars.forEach((nomeVar,idx)=>{
+        const limpo=String(nomeVar).replace(/^\{\{\s*|\s*\}\}$/g,"").trim();
+        const posNum=(limpo.match(/(\d+)$/)||[])[1] || String(idx+1);
+        const valor=valorPos(posNum) || valorPos(idx+1);
+        if(limpo) out[limpo]=valor;
+      });
+      return out;
+    }
+
+    // Compatibilidade com templates antigos já usados no RioTendas.
+    return {...origem};
+  }
   function garantirDialogPrevisao(){
     let d=document.getElementById("waApiPrevisaoDialog"); if(d)return d;
     d=document.createElement("dialog"); d.id="waApiPrevisaoDialog"; d.className="modal wa-api-previsao-dialog";
@@ -319,10 +345,11 @@
     try{
       const sb=typeof supabaseClient!=="undefined"?supabaseClient:window.supabaseClient;if(!sb?.functions?.invoke)throw new Error("Cliente Supabase indisponível.");
       const telefone=normalizarTelefone(r.telefone),nome=params.additionalProp1,tipo=String(r.tipo||"montagem").toLowerCase();
-      const {data,error}=await sb.functions.invoke("onecode-whatsapp",{body:{action:"send_template",telefone,nome,tipo,templateId:Number(t.templateId),nomeTemplate:t.nomeTemplate||"",bodyParams:params}});
+      const bodyParamsApi=bodyParamsParaApi(t,params);
+      const {data,error}=await sb.functions.invoke("onecode-whatsapp",{body:{action:"send_template",telefone,nome,tipo,templateId:Number(t.templateId),nomeTemplate:t.nomeTemplate||"",templateVariables:t.variables||[],bodyParams:bodyParamsApi}});
       if(error||data?.error)throw new Error(await mensagemErroEdge(error,data));
       status.className="wa-api-envio-status sucesso";status.textContent="Previsão enviada com sucesso.";
-      if(typeof registrarLogSistema==="function")await registrarLogSistema({modulo:"WhatsApp",acao:"Template enviado",registro_id:String(r.evento_id||""),registro_nome:r.cliente||nome,depois:{acaoId:String(t.id),templateId:String(t.templateId),nomeTemplate:t.nomeTemplate||"",titulo:t.titulo||"Previsão de entrega",rotaId:r.id,tipo,telefone,bodyParams:params,mensagem:aplicarParametrosAoTexto(t.body,params)},detalhes:`${tituloExibicaoTemplate(t)} enviado para ${r.cliente||nome}`});
+      if(typeof registrarLogSistema==="function")await registrarLogSistema({modulo:"WhatsApp",acao:"Template enviado",registro_id:String(r.evento_id||""),registro_nome:r.cliente||nome,depois:{acaoId:String(t.id),templateId:String(t.templateId),nomeTemplate:t.nomeTemplate||"",titulo:t.titulo||"Previsão de entrega",rotaId:r.id,tipo,telefone,bodyParams:params,bodyParamsApi,mensagem:aplicarParametrosAoTexto(t.body,params)},detalhes:`${tituloExibicaoTemplate(t)} enviado para ${r.cliente||nome}`});
       setTimeout(()=>{try{d.close()}catch{}},1200);
     }catch(e){console.error(e);status.className="wa-api-envio-status erro";status.textContent=`Não foi possível enviar: ${e?.message||"erro desconhecido"}`;}finally{btn.disabled=false;}
   }
@@ -377,7 +404,8 @@
     const d=garantirDialogTemplatePreview(),status=d.querySelector("#waTplPreviewStatus");btn.disabled=true;status.hidden=false;status.className="wa-api-envio-status enviando";status.textContent="Enviando mensagem...";
     try{
       const sb=typeof supabaseClient!=="undefined"?supabaseClient:window.supabaseClient;if(!sb?.functions?.invoke)throw new Error("Cliente Supabase indisponível.");
-      const {data,error}=await sb.functions.invoke("onecode-whatsapp",{body:{action:"send_template",telefone,nome,tipo,templateId:Number(t.templateId),nomeTemplate:t.nomeTemplate||"",bodyParams}});
+      const bodyParamsApi=bodyParamsParaApi(t,bodyParams);
+      const {data,error}=await sb.functions.invoke("onecode-whatsapp",{body:{action:"send_template",telefone,nome,tipo,templateId:Number(t.templateId),nomeTemplate:t.nomeTemplate||"",templateVariables:t.variables||[],bodyParams:bodyParamsApi}});
       if(error||data?.error)throw new Error(await mensagemErroEdge(error,data));
       status.className="wa-api-envio-status sucesso";status.textContent="Mensagem enviada com sucesso.";
       if(typeof registrarLogSistema==="function")await registrarLogSistema({modulo:"WhatsApp",acao:"Template enviado",registro_id:String(r.evento_id||""),registro_nome:r.cliente||nome,depois:{acaoId:String(t.id),templateId:String(t.templateId),nomeTemplate:t.nomeTemplate||"",titulo:tituloExibicaoTemplate(t),rotaId:r.id,tipo,telefone,bodyParams,mensagem:aplicarParametrosAoTexto(t.body,bodyParams)},detalhes:`${tituloExibicaoTemplate(t)} enviado para ${r.cliente||nome}`});
@@ -398,7 +426,8 @@
     const d=garantirDialog(),s=d.querySelector("#waApiEnvioStatus");b.disabled=true;s.hidden=false;s.className="wa-api-envio-status enviando";s.textContent="Enviando mensagem...";
     try{
       const sb=typeof supabaseClient!=="undefined"?supabaseClient:window.supabaseClient;if(!sb?.functions?.invoke)throw new Error("Cliente Supabase indisponível.");
-      const {data,error}=await sb.functions.invoke("onecode-whatsapp",{body:{action:"send_template",telefone,nome,tipo,templateId:Number(t.templateId),nomeTemplate:t.nomeTemplate||"",bodyParams}});
+      const bodyParamsApi=bodyParamsParaApi(t,bodyParams);
+      const {data,error}=await sb.functions.invoke("onecode-whatsapp",{body:{action:"send_template",telefone,nome,tipo,templateId:Number(t.templateId),nomeTemplate:t.nomeTemplate||"",templateVariables:t.variables||[],bodyParams:bodyParamsApi}});
       if(error||data?.error)throw new Error(await mensagemErroEdge(error,data));
       s.className="wa-api-envio-status sucesso";s.textContent="Mensagem enviada com sucesso.";
       if(typeof registrarLogSistema==="function")await registrarLogSistema({modulo:"WhatsApp",acao:"Template enviado",registro_id:String(r.evento_id||""),registro_nome:r.cliente||nome,depois:{acaoId:String(t.id),templateId:String(t.templateId),nomeTemplate:t.nomeTemplate||"",titulo:tituloExibicaoTemplate(t),rotaId:r.id,tipo,telefone,bodyParams},detalhes:`${tituloExibicaoTemplate(t)} enviado para ${r.cliente||nome}`});

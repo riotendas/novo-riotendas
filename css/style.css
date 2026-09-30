@@ -24774,3 +24774,166 @@ html body [data-evento-contatos].evento-contatos-indicador{
   .clientes-header-actions button{ font-size:12px; padding:8px 9px; }
   .rt-clientes-duplicados-dialog{ width:97vw; max-height:94vh; }
 }
+
+
+/* RioTendas - Base antiga de eventos */
+.rt-eventos-header-acoes{display:flex;align-items:center;gap:8px}
+.rt-base-antiga-dialog{width:min(1180px,96vw);height:min(850px,94vh);max-width:none;max-height:none;padding:0;border:0;border-radius:18px;box-shadow:0 18px 55px rgba(15,40,70,.28);overflow:hidden}
+.rt-base-antiga-dialog::backdrop{background:rgba(15,31,50,.52)}
+.rt-base-antiga-card{height:100%;display:flex;flex-direction:column;background:#f7faff;color:#14253b}
+.rt-base-antiga-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 22px;background:#eaf4ff;border-bottom:1px solid #cbdbea}
+.rt-base-antiga-header h2{margin:0;color:#0d4f83}
+.rt-base-antiga-header p{margin:3px 0 0;color:#61728a}
+.rt-base-antiga-fechar{font-size:24px;min-width:44px;height:44px;padding:0}
+.rt-base-antiga-aviso{margin:14px 18px 0;padding:10px 13px;border:1px solid #b9d7ef;border-radius:10px;background:#f0f8ff;color:#385875;font-size:13px}
+.rt-base-antiga-busca{display:grid;grid-template-columns:minmax(280px,1fr) 150px auto;gap:10px;align-items:end;padding:14px 18px 8px}
+.rt-base-antiga-busca label{display:flex;flex-direction:column;gap:5px;font-weight:700;color:#31445d}
+.rt-base-antiga-busca input,.rt-base-antiga-busca select{width:100%;min-height:42px}
+.rt-base-antiga-busca button{min-height:42px}
+.rt-base-antiga-status{padding:5px 18px 10px;color:#5a6b80;font-size:13px}
+.rt-base-antiga-resultados{flex:1;overflow:auto;padding:0 18px 10px;display:flex;flex-direction:column;gap:9px}
+.rt-base-antiga-item{background:#fff;border:1px solid #d8e2ee;border-left:4px solid #145b91;border-radius:12px;padding:11px 13px}
+.rt-base-antiga-item-topo{display:grid;grid-template-columns:165px 1fr auto;gap:10px;align-items:center;padding-bottom:8px;border-bottom:1px solid #e8eef5}
+.rt-base-antiga-item-topo strong{color:#0d4f83}.rt-base-antiga-item-topo span{font-size:16px;font-weight:800}.rt-base-antiga-item-topo small{color:#6a788b}
+.rt-base-antiga-grid{display:grid;grid-template-columns:1.15fr 2fr .7fr 1fr 1.2fr 1fr;gap:9px;margin-top:9px}
+.rt-base-antiga-grid>div,.rt-base-antiga-servico{min-width:0}
+.rt-base-antiga-grid b,.rt-base-antiga-servico b{display:block;font-size:11px;text-transform:uppercase;color:#61728a;margin-bottom:2px}
+.rt-base-antiga-grid span,.rt-base-antiga-servico span{white-space:pre-wrap;overflow-wrap:anywhere}
+.rt-base-antiga-servico{margin-top:9px;padding:8px 10px;background:#f4f8fc;border-radius:8px}
+.rt-base-antiga-financeiro{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:9px;font-size:13px}
+.rt-base-antiga-pagamento{flex:1;min-width:300px}
+.rt-base-antiga-paginacao{display:flex;justify-content:center;align-items:center;gap:14px;padding:10px 18px 15px;border-top:1px solid #dce5ef;background:#fff}
+@media(max-width:800px){
+ .rt-eventos-header-acoes{gap:5px}.rt-eventos-header-acoes button{padding-left:10px;padding-right:10px}
+ .rt-base-antiga-dialog{width:100vw;height:100vh;max-width:100vw;max-height:100vh;border-radius:0}
+ .rt-base-antiga-busca{grid-template-columns:1fr 105px}.rt-base-antiga-busca button{grid-column:1/-1}
+ .rt-base-antiga-item-topo{grid-template-columns:1fr}.rt-base-antiga-grid{grid-template-columns:1fr 1fr}
+ .rt-base-antiga-endereco{grid-column:1/-1}.rt-base-antiga-pagamento{min-width:100%}
+}
+
+
+/* Base antiga V2 - resultados compactos e filtros específicos */
+.rt-base-antiga-busca-v2{
+  grid-template-columns:180px minmax(260px,1fr) 155px 155px auto;
+}
+.rt-base-antiga-busca-v2 .rt-base-antiga-termo{min-width:0}
+.rt-base-antiga-resultados-v2{gap:0;border:1px solid #d8e2ee;border-radius:10px;background:#fff;padding:0;margin:0 18px 10px}
+.rt-hist-head,.rt-hist-row{
+  display:grid;
+  grid-template-columns:105px minmax(150px,1.15fr) 135px minmax(190px,1.45fr) minmax(180px,1.35fr) 105px 62px;
+  align-items:center;
+}
+.rt-hist-head{
+  position:sticky;top:0;z-index:2;background:#0f4f82;color:#fff;font-weight:800;font-size:12px;
+  min-height:36px;padding:0 10px
+}
+.rt-hist-row{position:relative;min-height:42px;padding:0 10px;border-bottom:1px solid #dfe7ef;font-size:13px}
+.rt-hist-row.rt-hist-row-aberta{align-items:start;padding-top:0;padding-bottom:4px;background:#f8fbfe}
+.rt-hist-row.rt-hist-row-aberta .rt-hist-cell{align-self:center}
+.rt-hist-row:last-child{border-bottom:0}
+.rt-hist-row:hover{background:#f6faff}
+.rt-hist-cell{min-width:0;padding:7px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rt-hist-data{font-weight:800;color:#0d4f83}
+.rt-hist-cliente{font-weight:800}
+.rt-hist-total{text-align:right}
+.rt-hist-mais{text-align:right}
+.rt-hist-mais-btn{padding:4px 9px!important;min-height:29px!important;font-size:12px!important}
+.rt-hist-detalhe{
+  display:grid;
+  flex:0 0 auto;
+  width:auto;
+  box-sizing:border-box;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:7px 18px;
+  margin:0 10px 10px;
+  padding:10px 12px;
+  background:#f3f7fb;
+  border:1px solid #dbe6f0;
+  border-radius:8px;
+  font-size:12px;
+}
+.rt-hist-detalhe[hidden]{display:none!important}
+.rt-hist-detalhe-pag,.rt-hist-detalhe-serv{grid-column:span 2}
+.rt-hist-detalhe-serv{white-space:pre-wrap}
+.rt-hist-detalhe-acoes{grid-column:1/-1;display:flex;align-items:center;justify-content:flex-end;gap:10px;padding-top:5px;border-top:1px solid #dbe6f0}
+.rt-hist-importar-cliente{font-size:12px!important;padding:6px 10px!important}
+.rt-hist-importar-status{font-size:11px;color:#48627d;font-weight:700}
+.rt-hist-importar-cliente:disabled{opacity:.55;cursor:wait}
+@media(max-width:1050px){
+  .rt-base-antiga-busca-v2{grid-template-columns:160px 1fr 145px 145px}
+  .rt-base-antiga-busca-v2 button{grid-column:1/-1}
+  .rt-hist-head,.rt-hist-row{grid-template-columns:95px minmax(140px,1fr) 125px minmax(170px,1.2fr) minmax(150px,1fr) 95px 55px}
+}
+@media(max-width:800px){
+  .rt-base-antiga-busca-v2{grid-template-columns:1fr 1fr}
+  .rt-base-antiga-busca-v2 .rt-base-antiga-termo{grid-column:1/-1}
+  .rt-hist-head{display:none}
+  .rt-hist-row{grid-template-columns:1fr 1fr;gap:2px 8px;padding:8px}
+  .rt-hist-cell{white-space:normal;padding:4px 6px}
+  .rt-hist-cell::before{content:attr(data-label) ": ";font-size:10px;font-weight:800;color:#65758a;text-transform:uppercase}
+  .rt-hist-endereco,.rt-hist-servico{grid-column:1/-1}
+  .rt-hist-mais{text-align:left}
+  .rt-hist-detalhe{grid-template-columns:1fr 1fr}
+  .rt-hist-detalhe-pag,.rt-hist-detalhe-serv{grid-column:1/-1}
+}
+
+/* PagBank - link de pagamento (Sandbox) */
+.rt-pagbank-btn{width:100%;margin-top:4px;white-space:nowrap;font-size:12px;padding:7px 9px}
+.rt-pagbank-dialog{border:0;padding:0;background:transparent;max-width:calc(100vw - 24px)}
+.rt-pagbank-dialog::backdrop{background:rgba(15,23,42,.45)}
+.rt-pagbank-card{width:min(470px,calc(100vw - 28px));background:#fff;border-radius:14px;box-shadow:0 22px 60px rgba(15,23,42,.28);padding:18px}
+.rt-pagbank-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.rt-pagbank-header h3{margin:0;font-size:18px}.rt-pagbank-close{min-width:34px}
+.rt-pagbank-grid{display:grid;grid-template-columns:1fr 145px;gap:10px}.rt-pagbank-grid label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700}.rt-pagbank-grid .rt-pagbank-cliente{grid-column:1/-1}.rt-pagbank-grid input,.rt-pagbank-grid select{width:100%;box-sizing:border-box}
+.rt-pagbank-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.rt-pagbank-status{margin-top:12px;font-size:12px;min-height:18px}.rt-pagbank-status.erro{color:#b91c1c}.rt-pagbank-status.ok{color:#166534}.rt-pagbank-result{margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb}.rt-pagbank-result input{width:100%;box-sizing:border-box;font-size:12px}.rt-pagbank-result-actions{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
+@media(max-width:560px){.rt-pagbank-grid{grid-template-columns:1fr}.rt-pagbank-grid .rt-pagbank-cliente{grid-column:auto}.rt-pagbank-actions{flex-direction:column}.rt-pagbank-actions button{width:100%}}
+
+/* Cadastro de Produtos V2 — interface unificada, mantendo as fontes de dados atuais */
+#configModalProdutos.config-produtos-tabs-modal { width:min(1180px,96vw); }
+#configModalProdutos .config-produtos-tabs { position:sticky; top:0; z-index:3; background:#fff; padding-bottom:10px; }
+#configModalProdutos .catalogo-v2-intro { display:flex; justify-content:space-between; gap:16px; margin-bottom:12px; }
+#configModalProdutos .catalogo-v2-intro h3 { margin:0 0 4px; }
+#configModalProdutos .catalogo-v2-section { border:1px solid #dbe5ef; border-radius:14px; padding:14px; margin:0 0 14px; background:#fbfdff; }
+#configModalProdutos .catalogo-v2-title { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:10px; }
+#configModalProdutos .catalogo-v2-title strong { display:block; font-size:17px; color:#17324f; }
+#configModalProdutos .catalogo-v2-title small { display:block; margin-top:2px; color:#61758a; }
+#configModalProdutos .catalogo-v2-add { margin-bottom:12px; }
+#configModalProdutos .catalogo-v2-product-card { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px 16px; align-items:center; padding:12px; margin-bottom:8px; border:1px solid #e0e8f0; border-radius:12px; background:#fff; }
+#configModalProdutos .catalogo-v2-product-name { display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+#configModalProdutos .catalogo-v2-product-name strong { font-size:16px; }
+#configModalProdutos .catalogo-v2-badge { font-size:11px; font-weight:700; color:#175b8e; background:#eaf4fb; border-radius:999px; padding:3px 8px; }
+#configModalProdutos .catalogo-v2-models { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+#configModalProdutos .catalogo-v2-models span { border:1px solid #cddceb; background:#f5f9fd; border-radius:999px; padding:3px 8px; font-size:12px; }
+#configModalProdutos .catalogo-v2-product-actions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+#configModalProdutos .catalogo-v2-edit-row { grid-column:1/-1; display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:8px; align-items:end; border-top:1px dashed #d7e1ea; padding-top:10px; }
+#configModalProdutos .catalogo-v2-edit-row[hidden] { display:none !important; }
+#configModalProdutos .catalogo-v2-edit-row label { margin:0; }
+#configModalProdutos .catalogo-v2-edit-row input { width:100%; }
+#configModalProdutos .catalogo-v2-colors { display:flex; flex-wrap:wrap; gap:7px; }
+#configModalProdutos .catalogo-v2-colors .config-list-item { width:auto; min-width:150px; flex:0 0 auto; }
+#configModalProdutos .catalogo-v2-photo-form { margin-bottom:12px; }
+#configModalProdutos .materiais-apoio-toolbar { margin-top:4px; }
+@media (max-width:760px){
+  #configModalProdutos .catalogo-v2-product-card { grid-template-columns:1fr; }
+  #configModalProdutos .catalogo-v2-product-actions { justify-content:flex-start; }
+  #configModalProdutos .catalogo-v2-edit-row { grid-template-columns:1fr; }
+}
+/* Cadastro Produtos V2.1 — dados do produto reunidos no mesmo card */
+#configModalProdutos .catalogo-v2-info-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:7px;font-size:12px;color:#42566b}
+#configModalProdutos .catalogo-v2-info-line>b{min-width:112px;color:#263b50}
+#configModalProdutos .catalogo-v2-info-line .catalogo-v2-models{margin-top:0}
+#configModalProdutos .catalogo-v2-thumbs{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+#configModalProdutos .catalogo-v2-thumbs>span{display:flex;align-items:center;gap:4px;border:1px solid #d8e3ed;border-radius:8px;padding:3px 6px;background:#f8fbfe}
+#configModalProdutos .catalogo-v2-thumbs img{width:34px;height:26px;object-fit:cover;border-radius:5px}
+#configModalProdutos .catalogo-v2-editor-completo{grid-template-columns:1fr 1fr!important;align-items:start!important}
+#configModalProdutos .catalogo-v2-editor-fotos{grid-column:1/-1;display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+#configModalProdutos .catalogo-v2-editor-fotos>b{width:100%;font-size:12px;color:#263b50}
+#configModalProdutos .catalogo-v2-editor-fotos label{min-width:170px;flex:1}
+#configModalProdutos .catalogo-v2-editor-fotos input{font-size:11px}
+#configModalProdutos .catalogo-v2-editor-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px}
+#configModalProdutos .catalogo-v2-safe-note{grid-column:1/-1;color:#61758a}
+@media(max-width:760px){#configModalProdutos .catalogo-v2-editor-completo{grid-template-columns:1fr!important}.catalogo-v2-info-line>b{min-width:100%!important}}
+
+/* Cadastro de Produtos V4: exclusão protegida no catálogo */
+.catalogo-v2-product-actions { display:flex; gap:8px; align-items:center; }
+.catalogo-v2-delete { color:#b00020 !important; border-color:#ef9aa8 !important; background:#fff !important; }
+.catalogo-v2-delete:hover { background:#fff5f6 !important; }

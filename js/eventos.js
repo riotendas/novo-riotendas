@@ -372,6 +372,60 @@ function rtSelecionarHoraEventoNoSelect(id, valor) {
   el.value = hora;
 }
 
+
+function rtTipoOperacaoIncompativelComHora(tipo) {
+  const t = String(tipo || "").trim().toLowerCase();
+  return !t || t === "horário comercial" || t === "horario comercial" || t === "livre / combinar" || t === "livre";
+}
+
+function rtSincronizarTipoComHoraOperacao(prefixo) {
+  const hora = document.getElementById(`evento${prefixo}Hora`);
+  const tipo = document.getElementById(`evento${prefixo}Tipo`);
+  if (!hora || !tipo) return;
+
+  const especifica = Boolean(String(hora.value || "").trim());
+  let placeholder = tipo.querySelector('option[value=""]');
+  if (!placeholder) {
+    placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Selecione...";
+    tipo.insertBefore(placeholder, tipo.firstChild);
+  }
+
+  Array.from(tipo.options).forEach(opt => {
+    const v = String(opt.value || "").trim();
+    opt.disabled = especifica && (v === "Horário comercial" || v === "Livre / combinar");
+  });
+
+  if (especifica && rtTipoOperacaoIncompativelComHora(tipo.value)) {
+    tipo.value = "";
+  } else if (!especifica && !tipo.value) {
+    tipo.value = "Horário comercial";
+  }
+  atualizarCampoHoraFinalOperacao(prefixo);
+}
+
+function rtValidarHorarioTipoOperacoesEvento() {
+  for (const prefixo of ["Montagem", "Desmontagem"]) {
+    if (prefixo === "Desmontagem" && rtEventoVendaMarcada()) continue;
+    const hora = document.getElementById(`evento${prefixo}Hora`);
+    const tipo = document.getElementById(`evento${prefixo}Tipo`);
+    if (hora?.value && rtTipoOperacaoIncompativelComHora(tipo?.value)) {
+      alert(`${prefixo}: ao informar um horário específico, escolha "Até", "A partir de", "Exatamente" ou "Intervalo".`);
+      tipo?.focus();
+      return false;
+    }
+  }
+
+  for (const item of (operacoesExtrasEventoAtual || [])) {
+    if (item?.hora && rtTipoOperacaoIncompativelComHora(item?.tipo_horario)) {
+      alert(`${item.operacao_tipo === "desmontagem" ? "Desmontagem" : "Montagem"} adicional: ao informar um horário específico, escolha "Até", "A partir de", "Exatamente" ou "Intervalo".`);
+      return false;
+    }
+  }
+  return true;
+}
+
 function atualizarCampoHoraFinalOperacao(prefixo) {
   const select = document.getElementById(`evento${prefixo}Tipo`);
   const box = document.getElementById(`evento${prefixo}FimBox`);
@@ -808,15 +862,24 @@ async function salvarEventoBanco(evento) {
     if (ruaAtiva && typeof renderizarRuaMobile === "function") {
       setTimeout(() => { try { renderizarRuaMobile(); } catch {} }, 0);
     }
+
+    // Performance V7: o registro salvo já voltou do Supabase e já está na
+    // memória. Atualiza as pendências do Dashboard imediatamente, sem novo SELECT.
+    try {
+      if (typeof window.rtDashAtualizarOperacaoSemRede === "function") {
+        window.rtDashAtualizarOperacaoSemRede();
+      }
+    } catch {}
   } catch (erroAtualizacaoLocal) {
-    console.warn("Evento salvo, mas falhou atualização imediata local das rotas:", erroAtualizacaoLocal);
+    console.warn("Evento salvo, mas falhou atualização imediata local das rotas/dashboard:", erroAtualizacaoLocal);
   }
 
   if (typeof rtVincularOrcamentoEventoSePendente === "function") {
     try { await rtVincularOrcamentoEventoSePendente(data.id); } catch (e) { console.warn("Não foi possível vincular orçamento ao evento.", e); }
   }
 
-  rtInvalidarCacheEventosBanco();
+  // Performance V7: o cache acabou de ser atualizado com a resposta oficial
+  // do upsert. Não invalidar aqui evita uma leitura completa desnecessária.
   return data;
 }
 
@@ -1261,6 +1324,8 @@ function iniciarEventos() {
   rtEventoPrepararValidadorEndereco();
   onEventoSeguro("eventoMontagemTipo", "change", () => atualizarCampoHoraFinalOperacao("Montagem"));
   onEventoSeguro("eventoDesmontagemTipo", "change", () => atualizarCampoHoraFinalOperacao("Desmontagem"));
+  onEventoSeguro("eventoMontagemHora", "change", () => rtSincronizarTipoComHoraOperacao("Montagem"));
+  onEventoSeguro("eventoDesmontagemHora", "change", () => rtSincronizarTipoComHoraOperacao("Desmontagem"));
   onEventoSeguro("btnMontagemDiaAnterior", "click", () => definirOperacaoDiaRelativo("Montagem", -1));
   onEventoSeguro("btnDesmontagemDiaPosterior", "click", () => definirOperacaoDiaRelativo("Desmontagem", 1));
   onEventoSeguro("btnMontagemOutraData", "click", () => rtAbrirOutraDataOperacao("montagem"));
@@ -1298,6 +1363,8 @@ function iniciarEventos() {
       renderizarProdutosSelecionadosEvento();
       renderizarApoioEvento(obterApoioSelecionadoEvento());
       atualizarAlertasOperacaoEvento();
+      if (id === "eventoMontagemHora") rtSincronizarTipoComHoraOperacao("Montagem");
+      if (id === "eventoDesmontagemHora") rtSincronizarTipoComHoraOperacao("Desmontagem");
     });
   });
 
@@ -1437,6 +1504,20 @@ function rtRenderizarOperacoesExtrasEvento() {
           const chave = campo.dataset.opExtraCampo;
           item[chave] = String(campo.value || "");
 
+          if (chave === "hora") {
+            const tipoExtra = linha.querySelector('[data-op-extra-campo="tipo_horario"]');
+            const especifica = Boolean(String(campo.value || "").trim());
+            if (tipoExtra) {
+              Array.from(tipoExtra.options).forEach(opt => {
+                opt.disabled = especifica && (opt.value === "Horário comercial" || opt.value === "Livre / combinar");
+              });
+              if (especifica && rtTipoOperacaoIncompativelComHora(tipoExtra.value)) {
+                tipoExtra.value = "";
+                item.tipo_horario = "";
+              }
+            }
+          }
+
           if (chave === "tipo_horario") {
             const fim = linha.querySelector(".rt-op-extra-fim");
             if (fim) {
@@ -1477,19 +1558,36 @@ function rtAbrirOutraDataOperacao(tipoOperacao) {
       <div class="form-row rt-outra-data-grid">
         <label>Data<input id="rtOpExtraData" type="date" value="${baseData}"></label>
         <label>Hora<input id="rtOpExtraHora" type="time"></label>
-        <label>Tipo<select id="rtOpExtraTipo"><option>Exatamente</option><option>A partir de</option><option>Até</option><option>Horário comercial</option><option selected>Livre / combinar</option></select></label>
+        <label>Tipo<select id="rtOpExtraTipo"><option value="">Selecione...</option><option>Exatamente</option><option>A partir de</option><option>Até</option><option>Intervalo</option><option>Horário comercial</option><option selected>Livre / combinar</option></select></label>
         <label class="rt-op-extra-obs">Motivo / observação<input id="rtOpExtraObs" type="text" placeholder="Opcional"></label>
       </div>
       <div class="modal-actions"><button type="button" class="btn-outline" data-rt-op-extra-fechar>Cancelar</button><button type="button" class="btn-primary" data-rt-op-extra-salvar>Adicionar data</button></div>
     </div>`;
+  const rtHoraExtra = dlg.querySelector("#rtOpExtraHora");
+  const rtTipoExtra = dlg.querySelector("#rtOpExtraTipo");
+  rtHoraExtra?.addEventListener("change", () => {
+    const especifica = Boolean(String(rtHoraExtra.value || "").trim());
+    Array.from(rtTipoExtra?.options || []).forEach(opt => {
+      opt.disabled = especifica && (opt.value === "Horário comercial" || opt.value === "Livre / combinar");
+    });
+    if (especifica && rtTipoOperacaoIncompativelComHora(rtTipoExtra?.value)) rtTipoExtra.value = "";
+    if (!especifica && !rtTipoExtra?.value) rtTipoExtra.value = "Livre / combinar";
+  });
   dlg.querySelectorAll("[data-rt-op-extra-fechar]").forEach(b => b.addEventListener("click", () => dlg.close()));
   dlg.querySelector("[data-rt-op-extra-salvar]")?.addEventListener("click", () => {
     const data = dlg.querySelector("#rtOpExtraData")?.value || "";
     if (!data) { alert("Informe a data adicional."); return; }
+    const horaExtra = dlg.querySelector("#rtOpExtraHora")?.value || "";
+    const tipoExtra = dlg.querySelector("#rtOpExtraTipo")?.value || "";
+    if (horaExtra && rtTipoOperacaoIncompativelComHora(tipoExtra)) {
+      alert('Ao informar um horário específico, escolha "Até", "A partir de", "Exatamente" ou "Intervalo".');
+      dlg.querySelector("#rtOpExtraTipo")?.focus();
+      return;
+    }
     const item = rtOperacaoExtraTemplate(tipo, {
       data,
-      hora: dlg.querySelector("#rtOpExtraHora")?.value || "",
-      tipo_horario: dlg.querySelector("#rtOpExtraTipo")?.value || "Livre / combinar",
+      hora: horaExtra,
+      tipo_horario: tipoExtra || "Livre / combinar",
       observacao: dlg.querySelector("#rtOpExtraObs")?.value.trim() || ""
     });
     operacoesExtrasEventoAtual.push(item);
@@ -4773,6 +4871,7 @@ async function salvarEventoForm(event) {
   // data operacional de desmontagem até o encerramento da recorrência. Isso não
   // deve bloquear lançamentos financeiros nem outras edições do período.
   if (tipoEvento !== "recorrente" && !rtValidarRetiradaOuVendaEvento()) return;
+  if (!rtValidarHorarioTipoOperacoesEvento()) return;
   if (!(await validarProdutosDoEvento())) return;
   if (!validarApoioDoEvento()) return;
 
@@ -5749,8 +5848,20 @@ function renderizarEventos() {
     const materiaisEmCampo = lista.filter(rtEventoComMaterialEmCampo);
     const idsMateriaisEmCampo = new Set(materiaisEmCampo.map(e => String(e.id || "")));
     const listaForaDeCampo = lista.filter(e => !idsMateriaisEmCampo.has(String(e.id || "")));
-    const anteriores = listaForaDeCampo.filter(e => String(e.data_evento || "").slice(0, 10) < hojeISO);
-    const atuaisEFuturos = listaForaDeCampo.filter(e => String(e.data_evento || "").slice(0, 10) >= hojeISO);
+    // Um evento pontual passa para o histórico assim que sua retirada/desmontagem
+    // for concluída, mesmo que isso aconteça no próprio dia do evento.
+    // O status financeiro não interfere nessa classificação: eventual saldo pendente
+    // continua sendo tratado pelo bloco de devedores anteriores.
+    const rtEventoPontualJaEncerrado = (e) => {
+      const dataEvento = String(e.data_evento || "").slice(0, 10);
+      if (dataEvento && dataEvento < hojeISO) return true;
+      try {
+        if (typeof rtEventoOrigemJaRecolhidoEvento === "function" && rtEventoOrigemJaRecolhidoEvento(e)) return true;
+      } catch {}
+      return false;
+    };
+    const anteriores = listaForaDeCampo.filter(rtEventoPontualJaEncerrado);
+    const atuaisEFuturos = listaForaDeCampo.filter(e => !rtEventoPontualJaEncerrado(e));
     const buscaAtiva = rtEventosTemFiltroAtivo();
     const mostrarAnteriores = rtEventosAnterioresExpandidos || buscaAtiva;
     const devedoresAnteriores = anteriores.filter(rtEventoAnteriorDevedor);

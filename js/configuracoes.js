@@ -448,10 +448,10 @@ function iniciarAbasProdutosConfig() {
   const ativar = chave => {
     tabs.forEach(tab => tab.classList.toggle("active", tab.dataset.produtosConfigTab === chave));
     panes.forEach(pane => pane.classList.toggle("active", pane.dataset.produtosConfigPane === chave));
-    if (chave === "categorias") renderizarCategoriasConfig();
-    if (chave === "materiais") renderizarMateriaisApoioConfig();
-    if (chave === "cores") renderizarCoresConfig();
-    if (chave === "fotos") {
+    if (chave === "cadastro") {
+      renderizarCategoriasConfig();
+      renderizarMateriaisApoioConfig();
+      renderizarCoresConfig();
       preencherSelectsFotoPadrao();
       renderizarFotosPadraoConfig();
     }
@@ -460,7 +460,7 @@ function iniciarAbasProdutosConfig() {
   tabs.forEach(tab => {
     tab.addEventListener("click", () => ativar(tab.dataset.produtosConfigTab));
   });
-  ativar("exportar");
+  ativar("cadastro");
 }
 
 function iniciarConfiguracoes() {
@@ -2279,30 +2279,136 @@ function adicionarCarroConfig() {
   renderizarCarrosConfig();
 }
 
+function rtCatalogoProdutoVisual(categoria) {
+  if (categoria === "Ombrelone" || categoria === "Ombrelone c/ Franja") return "Ombrelone";
+  return categoria;
+}
+
+function rtCatalogoLegadosProduto(nomeVisual, config) {
+  if (nomeVisual === "Ombrelone") return ["Ombrelone", "Ombrelone c/ Franja"].filter(c => config.categorias?.[c]);
+  return config.categorias?.[nomeVisual] ? [nomeVisual] : [];
+}
+
+function rtCatalogoModelosVisuais(nomeVisual, config) {
+  if (nomeVisual === "Ombrelone") {
+    const salvos = config.catalogoProdutosV2?.Ombrelone?.modelos;
+    return Array.isArray(salvos) && salvos.length >= 2 ? salvos.slice(0, 2) : ["Simples", "Com franja"];
+  }
+  return Array.isArray(config.categorias?.[nomeVisual]) ? config.categorias[nomeVisual] : ["Padrão"];
+}
+
+function rtCatalogoChaveFoto(nomeVisual, modelo) {
+  if (nomeVisual === "Ombrelone") {
+    const cfg = carregarConfiguracoes();
+    const modelos = rtCatalogoModelosVisuais("Ombrelone", cfg);
+    const indice = modelos.indexOf(modelo);
+    // O segundo modelo visual sempre representa o legado Ombrelone c/ Franja,
+    // mesmo que o usuário renomeie "Com franja" para "Com franjas" ou outro nome.
+    if (indice === 1) return chaveFotoPadrao("Ombrelone c/ Franja", "Padrão");
+    return chaveFotoPadrao("Ombrelone", "2,40");
+  }
+  return chaveFotoPadrao(nomeVisual, modelo);
+}
+
+function rtCatalogoCoresProduto(nomeVisual, config) {
+  config.catalogoProdutosV2 = config.catalogoProdutosV2 || {};
+  const salvas = config.catalogoProdutosV2[nomeVisual]?.cores;
+  if (Array.isArray(salvas) && salvas.length) return salvas;
+  const legados = rtCatalogoLegadosProduto(nomeVisual, config);
+  const achadas = new Set();
+  try {
+    const lista = (typeof produtos !== "undefined" && Array.isArray(produtos)) ? produtos : [];
+    lista.forEach(p => {
+      const cat = String(p?.categoria || p?.tipo || "").trim();
+      if (legados.includes(cat) && p?.cor) achadas.add(String(p.cor).trim());
+    });
+  } catch {}
+  return [...achadas].filter(c => {
+    const n = String(c || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+    return n && n !== "c franja" && n !== "com franja" && n !== "franja";
+  });
+}
+
 function renderizarCategoriasConfig() {
   const config = carregarConfiguracoes();
   const lista = document.getElementById("listaCategoriasConfig");
   if (!lista) return;
+  config.catalogoProdutosV2 = config.catalogoProdutosV2 || {};
+  const esc = v => String(v ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const nomes = [...new Set(Object.keys(config.categorias || {}).map(rtCatalogoProdutoVisual))];
 
-  lista.innerHTML = Object.entries(config.categorias).map(([categoria, tamanhos]) => `
-    <div class="config-list-item config-list-item-column">
-      <div>
-        <strong>${categoria}</strong>
-        <small>${(tamanhos || []).join(", ")}</small>
-      </div>
-      <button type="button" class="btn-outline" data-remover-categoria="${categoria}">Excluir</button>
-    </div>
-  `).join("");
+  lista.innerHTML = nomes.map(nome => {
+    const modelos = rtCatalogoModelosVisuais(nome, config);
+    const cores = rtCatalogoCoresProduto(nome, config);
+    const fotos = modelos.map(modelo => ({ modelo, url: config.fotosPadrao?.[rtCatalogoChaveFoto(nome, modelo)] || "" })).filter(x => x.url);
+    return `
+      <div class="catalogo-v2-product-card catalogo-v2-complete-card" data-categoria-card="${esc(nome)}">
+        <div class="catalogo-v2-product-main">
+          <div class="catalogo-v2-product-name"><strong>${esc(nome)}</strong><span class="catalogo-v2-badge">Controle individual</span></div>
+          <div class="catalogo-v2-info-line"><b>Modelos / tamanhos:</b><div class="catalogo-v2-models">${modelos.map(t=>`<span>${esc(t)}</span>`).join("")}</div></div>
+          <div class="catalogo-v2-info-line"><b>Cores:</b><div class="catalogo-v2-models">${cores.length?cores.map(c=>`<span>${esc(c)}</span>`).join(""):'<small>Definir cores</small>'}</div></div>
+          <div class="catalogo-v2-info-line"><b>Fotos:</b><div class="catalogo-v2-thumbs">${fotos.length?fotos.map(f=>`<span title="${esc(f.modelo)}"><img src="${esc(f.url)}" alt="${esc(f.modelo)}"><small>${esc(f.modelo)}</small></span>`).join(""):'<small>Nenhuma foto</small>'}</div></div>
+        </div>
+        <div class="catalogo-v2-product-actions"><button type="button" class="btn-outline" data-editar-categoria="${esc(nome)}">Editar</button><button type="button" class="btn-outline catalogo-v2-delete" data-excluir-categoria="${esc(nome)}">Excluir</button></div>
+        <div class="catalogo-v2-edit-row catalogo-v2-editor-completo" data-editor-categoria="${esc(nome)}" hidden>
+          <label>Modelos / tamanhos<input type="text" data-tamanhos-categoria="${esc(nome)}" value="${esc(modelos.join(', '))}"></label>
+          <label>Cores disponíveis<input type="text" data-cores-categoria="${esc(nome)}" value="${esc(cores.join(', '))}" placeholder="Ex.: Branca, Cristal, Azul"></label>
+          <div class="catalogo-v2-editor-fotos"><b>Fotos por modelo/tamanho</b>${modelos.map(m=>`<label>${esc(m)}<input type="file" accept="image/*" data-foto-categoria="${esc(nome)}" data-foto-modelo="${esc(m)}"></label>`).join('')}</div>
+          <div class="catalogo-v2-editor-actions"><button type="button" class="btn-primary" data-salvar-categoria="${esc(nome)}">Salvar</button><button type="button" class="btn-outline" data-cancelar-categoria="${esc(nome)}">Cancelar</button></div>
+          ${nome==='Ombrelone'?'<small class="catalogo-v2-safe-note">Compatibilidade preservada: “Simples” continua usando Ombrelone e “Com franja” continua usando Ombrelone c/ Franja internamente.</small>':''}
+        </div>
+      </div>`;
+  }).join("");
 
-  lista.querySelectorAll("[data-remover-categoria]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const config = carregarConfiguracoes();
-      delete config.categorias[btn.dataset.removerCategoria];
-      salvarConfiguracoes(config);
-      renderizarCategoriasConfig();
-  preencherSelectsFotoPadrao();
-    });
-  });
+  lista.querySelectorAll("[data-editar-categoria]").forEach(btn => btn.addEventListener("click",()=>{ const e=lista.querySelector(`[data-editor-categoria="${CSS.escape(btn.dataset.editarCategoria)}"]`); if(e)e.hidden=!e.hidden; }));
+  lista.querySelectorAll("[data-excluir-categoria]").forEach(btn => btn.addEventListener("click",()=>{
+    const nome = btn.dataset.excluirCategoria;
+    const atual = carregarConfiguracoes();
+    const legados = rtCatalogoLegadosProduto(nome, atual);
+    const vinculados = (() => {
+      try {
+        const listaProdutos = (typeof produtos !== "undefined" && Array.isArray(produtos)) ? produtos : [];
+        return listaProdutos.filter(p => legados.includes(String(p?.categoria || p?.tipo || "").trim()));
+      } catch { return []; }
+    })();
+    if (vinculados.length) {
+      alert(`Não é possível excluir ${nome}: existem ${vinculados.length} produto(s) com código vinculados a este cadastro.\n\nExclua/baixe ou altere essas unidades primeiro. Nenhum dado foi apagado.`);
+      return;
+    }
+    if (!confirm(`Excluir o cadastro “${nome}”?\n\nIsso remove a opção para novos produtos, mas não altera textos de eventos históricos.`)) return;
+    legados.forEach(cat => { delete atual.categorias?.[cat]; });
+    if (atual.catalogoProdutosV2) delete atual.catalogoProdutosV2[nome];
+    if (atual.fotosPadrao) {
+      Object.keys(atual.fotosPadrao).forEach(chave => {
+        if (legados.some(cat => String(chave).toLowerCase().includes(String(cat).toLowerCase().replace(/\s+/g,"_")))) delete atual.fotosPadrao[chave];
+      });
+    }
+    salvarConfiguracoes(atual);
+    aplicarConfiguracoesNoSistema();
+    renderizarCategoriasConfig();
+    preencherSelectsFotoPadrao();
+    renderizarFotosPadraoConfig();
+    if (typeof renderizarProdutos === "function") renderizarProdutos();
+  }));
+  lista.querySelectorAll("[data-cancelar-categoria]").forEach(btn => btn.addEventListener("click",()=>{ const e=lista.querySelector(`[data-editor-categoria="${CSS.escape(btn.dataset.cancelarCategoria)}"]`); if(e)e.hidden=true; }));
+  lista.querySelectorAll("[data-salvar-categoria]").forEach(btn => btn.addEventListener("click", async()=>{
+    const nome=btn.dataset.salvarCategoria; const atual=carregarConfiguracoes(); atual.catalogoProdutosV2=atual.catalogoProdutosV2||{}; atual.catalogoProdutosV2[nome]=atual.catalogoProdutosV2[nome]||{};
+    const editor=lista.querySelector(`[data-editor-categoria="${CSS.escape(nome)}"]`);
+    const cores=String(editor?.querySelector('[data-cores-categoria]')?.value||'').split(',').map(v=>v.trim()).filter(Boolean);
+    atual.catalogoProdutosV2[nome].cores=[...new Set(cores)];
+    cores.forEach(c=>{ atual.cores=Array.isArray(atual.cores)?atual.cores:[]; if(!atual.cores.includes(c)) atual.cores.push(c); });
+    const tamanhos=String(editor?.querySelector('[data-tamanhos-categoria]')?.value||'').split(',').map(v=>v.trim()).filter(Boolean);
+    if(nome === "Ombrelone") {
+      const modelos = [...new Set(tamanhos)].slice(0, 2);
+      if (modelos.length < 2) { alert("O Ombrelone precisa manter dois modelos: Simples e Com franja (os nomes podem ser editados)."); return; }
+      atual.catalogoProdutosV2[nome].modelos = modelos;
+    } else {
+      atual.categorias[nome]=tamanhos.length?[...new Set(tamanhos)]:["Padrão"];
+    }
+    atual.fotosPadrao=atual.fotosPadrao||{};
+    for (const input of editor?.querySelectorAll('[data-foto-categoria]')||[]) { const file=input.files?.[0]; if(!file) continue; try { atual.fotosPadrao[rtCatalogoChaveFoto(nome,input.dataset.fotoModelo)]=await arquivoFotoPadraoParaDataURL(file); } catch(e){ console.warn(e); } }
+    salvarConfiguracoes(atual); aplicarConfiguracoesNoSistema(); renderizarCategoriasConfig(); preencherSelectsFotoPadrao(); renderizarFotosPadraoConfig(); if(typeof renderizarProdutos==='function') renderizarProdutos();
+  }));
 }
 
 function adicionarCategoriaConfig() {
