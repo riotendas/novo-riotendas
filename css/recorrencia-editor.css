@@ -1,0 +1,45 @@
+#rtContratoRecorrenteEditor[hidden]{display:none!important}
+#rtContratoRecorrenteEditor{margin-top:14px}
+.rt-contrato-editor{padding:12px 0 2px;color:#1b3953;font-size:14px;max-width:100%;box-sizing:border-box}
+.rt-rec-resumo{display:flex;flex-wrap:wrap;gap:6px 18px;background:#eaf1f8;border:1px solid #d6e4f2;border-radius:9px;padding:11px 13px}
+.rt-rec-aviso{margin-top:10px;background:#fff7e6;border-radius:8px;padding:9px 12px}
+.rt-rec-controles{display:flex;flex-wrap:wrap;align-items:end;gap:10px;margin-top:14px}
+.rt-rec-controles label{display:flex;flex-direction:column;gap:5px;font-weight:600;font-size:13px;min-width:120px}
+.rt-rec-controles input{height:40px;border:1px solid #cbdced;border-radius:8px;padding:8px 10px;background:white;box-sizing:border-box;max-width:190px}
+.rt-rec-btn{background:#14517b!important;color:white!important;border:1px solid #14517b!important;border-radius:8px!important;padding:10px 13px!important;cursor:pointer;min-height:40px}
+.rt-rec-hint{font-size:12px;color:#526174;margin:10px 0}
+.rt-rec-historico-titulo{font-size:14px;color:#14517b;margin:15px 0 7px}
+.rt-rec-tabela{overflow-x:auto;max-width:100%;max-height:240px;overflow-y:auto}
+.rt-rec-tabela table{width:100%;min-width:410px;border-collapse:collapse;font-size:13px}
+.rt-rec-tabela th{background:#14517b;color:#fff;text-align:left}
+.rt-rec-tabela th,.rt-rec-tabela td{padding:8px;border-bottom:1px solid #dbe5ef}
+#eventoForm .rt-rec-data-oculta>label:first-child,#eventoForm .rt-rec-data-oculta>label:nth-child(2),#eventoForm .rt-rec-data-oculta>label:nth-child(3){display:none!important}
+#eventoForm .rt-rec-data-oculta{display:flex!important;justify-content:flex-start!important}
+
+#eventoForm .event-type-top-row{margin:8px 0 14px;display:flex;justify-content:flex-start}
+#eventoForm .event-type-top-row>label{width:min(280px,100%)}
+.rt-rec-controles select{height:40px;border:1px solid #cbdced;border-radius:8px;padding:8px 10px;background:white;min-width:128px}
+@media(min-width:850px){.rt-rec-controles{flex-wrap:nowrap}.rt-rec-controles label{min-width:0}.rt-rec-controles label:nth-child(2){width:130px}.rt-rec-controles label:nth-child(3){width:225px}}
+
+#rtRecMeses{width:72px!important;max-width:72px!important}
+.rt-rec-controles label:nth-child(2){width:82px!important;min-width:82px!important}
+.rt-rec-edit-period,.rt-rec-delete-period{border:1px solid #cbdced;background:#fff;color:#14517b;border-radius:6px;cursor:pointer;margin-right:4px;padding:4px 8px}
+.rt-rec-delete-period{color:#a83d3d}
+.rt-rec-tabela table{min-width:540px}
+
+/* Histórico compacto: mesmos botões, dimensões uniformes e alinhamento estável. */
+#rtGestorRecorrencia .rt-rec-tabela th,#rtGestorRecorrencia .rt-rec-tabela td{padding:4px 8px!important;line-height:1.2!important;height:30px!important;vertical-align:middle!important}
+#rtGestorRecorrencia .rt-rec-tabela tr{height:30px!important}
+#rtGestorRecorrencia .rt-rec-tabela th:last-child,#rtGestorRecorrencia .rt-rec-tabela td:last-child{width:114px!important;min-width:114px!important;white-space:nowrap!important;text-align:center!important}
+#rtGestorRecorrencia .rt-rec-tabela button.rt-rec-edit-period,#rtGestorRecorrencia .rt-rec-tabela button.rt-rec-open-period,#rtGestorRecorrencia .rt-rec-tabela button.rt-rec-delete-period{display:inline-flex!important;align-items:center!important;justify-content:center!important;width:26px!important;height:26px!important;min-width:26px!important;min-height:26px!important;padding:0!important;margin:0 2px!important;border:1px solid #cbdced!important;border-radius:6px!important;background:#fff!important;color:#14517b!important;font-size:13px!important;font-weight:normal!important;line-height:1!important;box-shadow:none!important;vertical-align:middle!important}
+#rtGestorRecorrencia .rt-rec-tabela button.rt-rec-delete-period{color:#a83d3d!important}
+#rtGestorRecorrencia .rt-rec-tabela button.rt-rec-edit-period:hover,#rtGestorRecorrencia .rt-rec-tabela button.rt-rec-open-period:hover{background:#edf5fc!important}
+#rtGestorRecorrencia .rt-rec-tabela .rt-rec-inline{flex-wrap:nowrap!important;gap:4px!important}
+#rtGestorRecorrencia .rt-rec-tabela .rt-rec-inline input{width:125px!important;height:30px!important;padding:3px!important;font-size:11px!important}
+#rtGestorRecorrencia .rt-rec-tabela input.rt-rec-preco{height:30px!important;padding:3px 5px!important}
+#rtGestorRecorrencia .rt-rec-tabela button.rt-rec-salvar,#rtGestorRecorrencia .rt-rec-tabela button.rt-rec-cancelar{padding:4px 6px!important;margin:1px!important;font-size:11px!important;min-height:26px!important;border-radius:5px!important}
+
+/* Próxima renovação: destaque discreto dentro do editor de contrato */
+.rt-rec-proxima-geracao{margin:12px 0 8px;padding:12px 14px;border:1px solid #c9dff3;background:#eaf3fb;border-radius:10px;color:#123d60;line-height:1.6;font-size:14px}
+.rt-rec-proxima-geracao strong{font-weight:700}
+.rt-rec-proxima-geracao small{display:block;color:#47677d;font-size:12px;margin-top:2px}

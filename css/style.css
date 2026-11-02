@@ -24937,3 +24937,26 @@ html body [data-evento-contatos].evento-contatos-indicador{
 .catalogo-v2-product-actions { display:flex; gap:8px; align-items:center; }
 .catalogo-v2-delete { color:#b00020 !important; border-color:#ef9aa8 !important; background:#fff !important; }
 .catalogo-v2-delete:hover { background:#fff5f6 !important; }
+
+/* Gestor de recorrências: exibir botão legível sem alterar outras tabelas */
+#eventosSection table.eventos-tabela-recorrentes td.actions {min-width:138px!important;max-width:138px!important;width:138px!important;overflow:visible!important;}
+#eventosSection table.eventos-tabela-recorrentes td.actions .clientes-actions-row {width:136px!important;min-width:136px!important;max-width:136px!important;overflow:visible!important;}
+#eventosSection table.eventos-tabela-recorrentes td.actions button[data-action="gerenciar-recorrencia"] {font-size:11px!important;width:64px!important;min-width:64px!important;max-width:64px!important;flex:0 0 64px!important;padding:0 3px!important;}
+/* Recorrências: edição compacta na própria linha */
+.rt-rec-inline{display:flex;gap:5px;flex-wrap:wrap}.rt-rec-inline input{width:135px;max-width:100%;font-size:12px}.rt-rec-tabela td input.rt-rec-preco{width:105px;max-width:100%;font-size:12px}.rt-rec-tabela td button{margin:2px;white-space:nowrap}
+
+/* Recorrencia: cinco controles alinhados na mesma linha no desktop */
+#eventoDialog .recurrence-row {display:grid;grid-template-columns:minmax(155px,1.15fr) minmax(115px,.72fr) minmax(160px,1.15fr) minmax(160px,1.15fr) minmax(170px,1.12fr);gap:10px;align-items:end;}
+#eventoDialog .recurrence-row > label {min-width:0;}
+#eventoDialog .recurrence-row input,#eventoDialog .recurrence-row select {max-width:100%;box-sizing:border-box;}
+#eventoDialog .recurrence-row .rt-auto-renovacao {display:flex;flex-direction:column;justify-content:flex-end;gap:8px;}
+#eventoDialog .rt-auto-checkbox {display:flex;align-items:center;gap:7px;min-height:43px;font-weight:normal;line-height:1.2;cursor:pointer;}
+#eventoDialog .rt-auto-checkbox input {width:16px;min-width:16px;height:16px;margin:0;}
+#eventoDialog #eventoRecorrenciaFim:disabled {background:#eef2f7;color:#8c98a8;opacity:1;cursor:not-allowed;}
+@media(max-width:900px){#eventoDialog .recurrence-row {grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:540px){#eventoDialog .recurrence-row {grid-template-columns:1fr;}}
+
+/* RioTendas: status da reserva distinto da quitação */
+.pagamento-confirmado { color: #1464b8 !important; }
+/* Base antiga: endereço legível ao expandir, sem alargar a tabela */
+.rt-hist-endereco-completo { grid-column: 1 / -1; overflow-wrap: anywhere; word-break: normal; white-space: normal; }

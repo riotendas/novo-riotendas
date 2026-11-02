@@ -484,7 +484,7 @@ async function buscarEventosBanco(forcarAtualizacao = false) {
   rtEventosBuscaEmAndamento = (async () => {
     const { data, error } = await supabaseClient
       .from("eventos")
-      .select("id,nome,documento,telefone,contatos_adicionais,cliente_email,endereco,bairro,cidade,complemento,latitude,longitude,geocode_status,geocode_at,cliente_observacao,data_evento,hora_evento,hora_inicio,hora_termino,montagem_tipo,montagem,desmontagem_tipo,desmontagem,tendas,itens_apoio,produtos_extras,valor_total,valor_sinal,valor_restante,forma_pagamento,pagamento_quitado,assinatura_status,assinatura_link,assinatura_enviada_em,assinatura_realizada_em,status_evento,colaborador,criado_em,atualizado_em,tipo_evento,recorrente,recorrencia_grupo_id,recorrencia_tipo,recorrencia_dias,recorrencia_inicio,recorrencia_fim,recorrencia_ordem")
+      .select("id,nome,documento,telefone,contatos_adicionais,cliente_email,endereco,bairro,cidade,complemento,latitude,longitude,geocode_status,geocode_at,cliente_observacao,data_evento,hora_evento,hora_inicio,hora_termino,montagem_tipo,montagem,desmontagem_tipo,desmontagem,tendas,itens_apoio,produtos_extras,valor_total,valor_sinal,valor_restante,forma_pagamento,pagamento_quitado,assinatura_status,assinatura_link,assinatura_enviada_em,assinatura_realizada_em,status_evento,colaborador,criado_em,atualizado_em,tipo_evento,recorrente,recorrencia_grupo_id,recorrencia_tipo,recorrencia_dias,recorrencia_inicio,recorrencia_fim,recorrencia_ordem,recorrencia_auto,recorrencia_periodo_fim")
       .order("data_evento", { ascending: true });
 
     if (error) {
@@ -812,6 +812,8 @@ async function salvarEventoBanco(evento) {
     recorrencia_dias: evento.recorrencia_dias || null,
     recorrencia_inicio: evento.recorrencia_inicio || null,
     recorrencia_fim: evento.recorrencia_fim || null,
+    recorrencia_auto: Boolean(evento.recorrencia_auto),
+    recorrencia_periodo_fim: evento.recorrencia_periodo_fim || null,
     recorrencia_ordem: evento.recorrencia_ordem || null
   };
 
@@ -2520,13 +2522,14 @@ function rtFimPeriodoRecorrenteISO(e) {
   if (!e || !isEventoRecorrente(e)) return String(e?.data_evento || '').slice(0, 10);
   const inicio = String(e.data_evento || e.recorrencia_inicio || '').slice(0, 10);
   if (!inicio) return '';
+  if (e.recorrencia_periodo_fim) return String(e.recorrencia_periodo_fim).slice(0,10);
   let fim = inicio;
   const tipo = e.recorrencia_tipo || 'mensal';
   if (tipo === 'mensal') fim = addMesISO(inicio, 1);
   else if (tipo === 'quinzenal') fim = addDiasISO(inicio, 15);
   else fim = addDiasISO(inicio, Number(e.recorrencia_dias || 30));
   const fimGeral = String(e.recorrencia_fim || '').slice(0, 10);
-  if (fimGeral && fim > fimGeral) fim = fimGeral;
+  if (fimGeral && !e.recorrencia_auto && fim > fimGeral) fim = fimGeral;
   return fim;
 }
 
@@ -2553,7 +2556,11 @@ function addDiasISO(dataISO, dias) {
 
 function addMesISO(dataISO, meses) {
   const d = new Date(`${dataISO}T12:00:00`);
+  const dia = d.getDate();
+  d.setDate(1);
   d.setMonth(d.getMonth() + Number(meses || 0));
+  const ultimo = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
+  d.setDate(Math.min(dia, ultimo));
   return d.toISOString().slice(0, 10);
 }
 
@@ -2756,7 +2763,7 @@ function montarOcorrenciasRecorrentes(baseEvento) {
   const tipo = document.getElementById("eventoRecorrenciaTipo")?.value || "mensal";
   const dias = Number(document.getElementById("eventoRecorrenciaDias")?.value || 30);
   const inicioRec = document.getElementById("eventoRecorrenciaInicio")?.value || baseEvento.data_evento;
-  const fimRec = document.getElementById("eventoRecorrenciaFim")?.value || baseEvento.data_evento;
+  const fimRec = document.getElementById("eventoRecorrenciaFim")?.value || (document.getElementById("eventoRecorrenciaAuto")?.checked ? addMesISO(inicioRec,1) : baseEvento.data_evento);
   const grupoId = gerarId();
   const datas = datasRecorrencia(inicioRec, fimRec, tipo, dias);
 
@@ -2776,7 +2783,9 @@ function montarOcorrenciasRecorrentes(baseEvento) {
       recorrencia_tipo: tipo,
       recorrencia_dias: tipo === "personalizado" ? dias : (tipo === "quinzenal" ? 15 : 30),
       recorrencia_inicio: inicioRec,
-      recorrencia_fim: fimRec,
+      recorrencia_fim: document.getElementById("eventoRecorrenciaAuto")?.checked ? null : fimRec,
+      recorrencia_auto: Boolean(document.getElementById("eventoRecorrenciaAuto")?.checked),
+      recorrencia_periodo_fim: null,
       recorrencia_ordem: index + 1
     };
 
@@ -2814,6 +2823,12 @@ function prepararHorarioPadraoNovoEvento() {
 }
 
 function abrirNovoEvento() {
+  const indicadorPeriodo = document.getElementById("rtPeriodoEmEdicao");
+  if (indicadorPeriodo) indicadorPeriodo.hidden = true;
+  const textoPeriodo = document.getElementById("rtPeriodoEmEdicaoTexto");
+  if (textoPeriodo) textoPeriodo.textContent = "";
+  const painelContrato = document.getElementById("rtContratoRecorrenteEditor");
+  if (painelContrato) {painelContrato.hidden=true; painelContrato.replaceChildren();}
   preencherSelectsHorarioEvento();
   document.getElementById("eventoForm").reset();
   prepararHorarioPadraoNovoEvento();
@@ -2847,6 +2862,10 @@ function abrirNovoEvento() {
   if (inicioRec) inicioRec.value = "";
   const fimRec = document.getElementById("eventoRecorrenciaFim");
   if (fimRec) fimRec.value = "";
+  const autoRec = document.getElementById("eventoRecorrenciaAuto");
+  if (autoRec) autoRec.checked = false;
+  rtRecorrenciaFimGuardado = "";
+  rtAtualizarRecorrenciaAutoUI();
   atualizarBoxRecorrencia();
   atualizarCampoDiasRecorrencia();
   configurarCampoColaboradorEvento(getColaboradorLogado());
@@ -2942,6 +2961,14 @@ function abrirEditarEvento(id) {
   if (inicioRec) inicioRec.value = e.recorrencia_inicio || e.data_evento || "";
   const fimRec = document.getElementById("eventoRecorrenciaFim");
   if (fimRec) fimRec.value = e.recorrencia_fim || e.data_evento || "";
+  const autoRec = document.getElementById("eventoRecorrenciaAuto");
+  // Renovação é atributo do contrato, não da mensalidade aberta.
+  const grupoRec = e.recorrencia_grupo_id;
+  const irmasRec = grupoRec ? (eventos || []).filter(x => String(x.recorrencia_grupo_id || '') === String(grupoRec)) : [];
+  const renovacaoGrupo = irmasRec.some(x => x.recorrencia_auto === true);
+  if (autoRec) autoRec.checked = grupoRec ? renovacaoGrupo : Boolean(e.recorrencia_auto);
+  rtRecorrenciaFimGuardado = fimRec?.value || "";
+  rtAtualizarRecorrenciaAutoUI();
   atualizarBoxRecorrencia();
   atualizarCampoDiasRecorrencia();
   configurarCampoColaboradorEvento(e.colaborador || getColaboradorLogado());
@@ -2957,6 +2984,7 @@ function abrirEditarEvento(id) {
   atualizarVisibilidadeDuplicarEvento(true);
   const dialogEvento = document.getElementById("eventoDialog");
   if (dialogEvento && !dialogEvento.open) dialogEvento.showModal();
+  rtIntegrarGestorNoEditor(e);
 
   // No mobile, a tela de Produtos pode nunca ter sido aberta. Garante a base de materiais
   // sem bloquear a abertura do modal e sem duplicar consulta quando já existe cache/carga em andamento.
@@ -3018,6 +3046,10 @@ function duplicarEventoAtual() {
   const fimRec = document.getElementById("eventoRecorrenciaFim");
   if (inicioRec) inicioRec.value = "";
   if (fimRec) fimRec.value = "";
+  const autoRec = document.getElementById("eventoRecorrenciaAuto");
+  if (autoRec) autoRec.checked = false;
+  rtRecorrenciaFimGuardado = "";
+  rtAtualizarRecorrenciaAutoUI();
   atualizarBoxRecorrencia();
   atualizarCampoDiasRecorrencia();
 
@@ -3488,10 +3520,16 @@ function rtProdutoCompatAtalho(produto, tipo) {
   const texto = rtNormalizarEventoTexto(rtTextoProdutoEvento(produto));
   const tam = rtNormalizarEventoTexto(produto.tamanho || "");
   const cat = rtNormalizarEventoTexto(produto.categoria || produto.tipo || "");
-  // Os atalhos representam categoria/tamanho, não cor. Cristal, branca ou qualquer
-  // outra cor cadastrada deve permanecer elegível.
-  if (tipo === "ombrelone") return texto.includes("ombrelone") || cat.includes("ombrelone");
+  const cor = rtNormalizarEventoTexto(produto.cor || "");
+  // Atalhos só selecionam modelos tradicionais brancos; os especiais continuam
+  // disponíveis para escolha manual pelo seletor completo.
+  if (tipo === "ombrelone") {
+    if (!texto.includes("ombrelone") && !cat.includes("ombrelone")) return false;
+    if (texto.includes("franja") || cat.includes("franja") || tam.includes("franja") || cor.includes("franja")) return false;
+    return cor.includes("branc");
+  }
   if (!texto.includes("tenda") && !cat.includes("tenda")) return false;
+  if (!cor.includes("branc") || /\b(cristal|preta|preto|transparente|fum[eê])\b/.test(texto)) return false;
   if (tipo === "3x3") return tam.includes("3x3") || texto.includes("3x3");
   if (tipo === "4.5x3") return tam.includes("4 5x3") || tam.includes("4 50x3") || tam.includes("45x3") || texto.includes("4 5x3") || texto.includes("4 50x3") || texto.includes("45x3");
   if (tipo === "6x3") return tam.includes("6x3") || texto.includes("6x3");
@@ -4879,7 +4917,7 @@ async function salvarEventoForm(event) {
 
   if (tipoEvento === "recorrente" && !existente) {
     const inicioRec = document.getElementById("eventoRecorrenciaInicio")?.value || evento.data_evento;
-    const fimRec = document.getElementById("eventoRecorrenciaFim")?.value || evento.data_evento;
+    const fimRec = document.getElementById("eventoRecorrenciaFim")?.value || (evento.recorrencia_auto ? addMesISO(inicioRec,1) : evento.data_evento);
 
     if (!inicioRec || !fimRec) {
       alert("Informe o início e o fim da recorrência.");
@@ -4923,7 +4961,9 @@ async function salvarEventoForm(event) {
   evento.recorrencia_tipo = tipoEvento === "recorrente" ? (document.getElementById("eventoRecorrenciaTipo")?.value || "mensal") : null;
   evento.recorrencia_dias = tipoEvento === "recorrente" ? Number(document.getElementById("eventoRecorrenciaDias")?.value || 30) : null;
   evento.recorrencia_inicio = tipoEvento === "recorrente" ? (document.getElementById("eventoRecorrenciaInicio")?.value || evento.data_evento) : null;
-  evento.recorrencia_fim = tipoEvento === "recorrente" ? (document.getElementById("eventoRecorrenciaFim")?.value || evento.data_evento) : null;
+  evento.recorrencia_fim = tipoEvento === "recorrente" ? (document.getElementById("eventoRecorrenciaFim")?.value || (document.getElementById("eventoRecorrenciaAuto")?.checked ? null : evento.data_evento)) : null;
+  evento.recorrencia_auto = tipoEvento === "recorrente" && Boolean(document.getElementById("eventoRecorrenciaAuto")?.checked);
+  evento.recorrencia_periodo_fim = existente?.recorrencia_periodo_fim || null;
 
   await garantirClienteDoEvento(evento);
 
@@ -4936,8 +4976,35 @@ async function salvarEventoForm(event) {
     }
   }
 
+  // Configuração única do contrato: atualizar TODAS as mensalidades em transação no banco.
+  const grupoAnterior = existente?.recorrencia_grupo_id;
+  const autoAnterior = grupoAnterior && (eventos || []).some(x =>
+    String(x.recorrencia_grupo_id || '') === String(grupoAnterior) && x.recorrencia_auto === true);
+  const mudouAutoContrato = Boolean(grupoAnterior) && Boolean(autoAnterior) !== Boolean(evento.recorrencia_auto);
+  if (mudouAutoContrato && !evento.recorrencia_auto &&
+      !confirm('Desativar a renovação automática de TODO este contrato? As mensalidades existentes serão preservadas.')) return;
+  if (mudouAutoContrato && !supabaseClient) {
+    alert('Para alterar a renovação de todo o contrato, conecte o Supabase. Nenhuma alteração foi salva.');
+    return;
+  }
   const salvo = await salvarEventoBanco(evento);
   if (!salvo) return;
+  if (mudouAutoContrato) {
+    const { error: erroAuto } = await supabaseClient.rpc('rt_definir_renovacao_contrato', {
+      p_evento_id: salvo.id, p_ativa: Boolean(evento.recorrencia_auto)
+    });
+    if (erroAuto) {
+      alert('O evento foi salvo, mas a renovação do contrato NÃO foi sincronizada: ' + erroAuto.message +
+        '. Execute o SQL de atualização e confira o contrato antes de usar a automação.');
+      return;
+    }
+    for (const mensalidade of eventos) {
+      if (String(mensalidade.recorrencia_grupo_id || '') === String(grupoAnterior)) {
+        mensalidade.recorrencia_auto = Boolean(evento.recorrencia_auto);
+        mensalidade.recorrencia_fim = evento.recorrencia_auto ? null : (evento.recorrencia_fim || null);
+      }
+    }
+  }
 
   const i = eventos.findIndex(e => e.id === salvo.id);
   if (i >= 0) eventos[i] = salvo;
@@ -5445,7 +5512,7 @@ function rtRecorrenciaUltimaOcorrencia(evento) {
   const relacionados = (eventos || []).filter(e => {
     if (!isEventoRecorrente(e)) return false;
     if (String(e.id) === String(evento.id)) return true;
-    if (grupo && String(e.recorrencia_grupo_id || "") === grupo) return true;
+    if (grupo) return String(e.recorrencia_grupo_id || "") === grupo;
     return rtChaveClienteRecorrencia(e) === chaveCliente;
   });
 
@@ -6230,6 +6297,7 @@ async function lidarAcaoEvento(event) {
   const action = event.currentTarget.dataset.action;
   const id = event.currentTarget.dataset.id;
 
+  if (action === "gerenciar-recorrencia") return rtAbrirGestorRecorrencia(id);
   if (action === "editar") return rtAbrirEditarEventoUmaVez(id);
   if (action === "editar-produtos") return abrirProdutosRapido(id);
   if (action === "atendimento-extra") return criarAtendimentoExtraRecorrente(id);
@@ -7933,7 +8001,8 @@ async function rtDocEventoAbrir(tipo, opcoes = {}) {
   }
   janela.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${tituloArquivoPdf}</title><style>
     *{box-sizing:border-box} body{font-family:Arial, Helvetica, sans-serif;background:#eef1f6;margin:0;color:#111;font-size:calc(12px * var(--rt-doc-font-scale,1))}.toolbar{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:9px 12px;background:#172033;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.18)}.toolbar strong{font-size:13px}.toolbar .editor-controls{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.toolbar button{border:0;border-radius:7px;padding:7px 9px;cursor:pointer;font-weight:700;background:#f3b33e;color:#172033;min-height:30px}.toolbar .secondary{background:#fff;color:#172033}.toolbar input[type=color]{width:34px;height:30px;border:0;border-radius:7px;background:#fff;padding:2px;cursor:pointer}.page{width:210mm;min-height:297mm;margin:16px auto;background:#fff;padding:16mm;box-shadow:0 8px 28px rgba(0,0,0,.18);font-size:calc(12px * var(--rt-doc-font-scale,1))}.doc-header{text-align:center;border-bottom:1px solid #333;margin-bottom:14px;padding-bottom:10px}.doc-logo{max-height:70px;max-width:220px;margin:0 auto 10px;display:block}.doc-header h1{font-size:calc(18px * var(--rt-doc-font-scale,1));margin:0 0 6px}.doc-header h2{font-size:calc(18px * var(--rt-doc-font-scale,1));text-transform:uppercase;margin:12px 0 0}.doc-header p{margin:0;line-height:1.35}h3{margin:16px 0 8px;text-transform:uppercase;font-size:calc(15px * var(--rt-doc-font-scale,1))}h4{margin:12px 0 6px;font-size:calc(13px * var(--rt-doc-font-scale,1));text-transform:uppercase}p{font-size:calc(12px * var(--rt-doc-font-scale,1));line-height:1.45;margin:7px 0}.doc-table{width:100%;border-collapse:collapse;margin:10px 0}.doc-table th,.doc-table td{border:1px solid #333;padding:7px;vertical-align:top;font-size:calc(12px * var(--rt-doc-font-scale,1))}.doc-table th{width:18%;background:#f2f2f2;text-align:left;text-transform:uppercase;font-size:calc(11px * var(--rt-doc-font-scale,1))}.doc-table.compact th,.doc-table.compact td{padding:6px}.small-text{font-size:calc(11px * var(--rt-doc-font-scale,1))}.assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:30px;text-align:center;margin-top:26px;font-size:calc(12px * var(--rt-doc-font-scale,1));align-items:end}.doc-assinatura-img{display:block;max-width:190px;max-height:58px;margin:0 auto -5px;object-fit:contain}.linha-assinatura{line-height:1;margin-top:2px}.linha-assinatura.cliente{margin-top:58px}.doc-editavel{outline:0}.doc-editavel:focus{box-shadow:0 0 0 2px #7aa7ff inset}.doc-editavel table{position:relative;table-layout:auto}.doc-editavel td,.doc-editavel th,.doc-editavel p,.doc-editavel h1,.doc-editavel h2,.doc-editavel h3,.doc-editavel h4{min-height:1em}.doc-editavel.layout-mode table{position:relative;table-layout:fixed}.doc-editavel.layout-mode td,.doc-editavel.layout-mode th{position:relative;min-width:34px;min-height:18px}.doc-editavel.layout-mode .assinaturas,.doc-editavel.layout-mode .doc-header,.doc-editavel.layout-mode p,.doc-editavel.layout-mode h3,.doc-editavel.layout-mode h4{position:relative;outline:1px dashed #8aa1c1}.rt-layout-hint{font-size:11px;background:#fff3cd;color:#172033;border-radius:7px;padding:7px 9px;display:none}.layout-on .rt-layout-hint{display:inline-block}.rt-resizer{display:none;position:absolute;z-index:20;background:#f3b33e;opacity:.85}.layout-on .rt-resizer{display:block}.rt-col-resizer{top:0;right:-3px;width:6px;height:100%;cursor:col-resize}.rt-row-resizer{left:0;right:0;bottom:-3px;height:6px;cursor:row-resize}.rt-block-resizer{right:-6px;bottom:-6px;width:12px;height:12px;border-radius:50%;cursor:nwse-resize;box-shadow:0 0 0 2px #fff}.rt-layout-selected{outline:2px solid #f3b33e!important}@media(max-width:900px){.page{width:calc(100% - 20px);padding:18px}.toolbar{align-items:flex-start}.toolbar .editor-controls{justify-content:flex-start}}@media print{body{background:#fff}.toolbar{display:none}.page{margin:0!important;box-shadow:none;width:auto;min-height:auto;padding:0!important}@page{size:A4;margin:0} .doc-header{margin-top:0!important;padding-top:0!important}.doc-header h1,.doc-header h2,.doc-header p{margin-top:0!important}.assinaturas{margin-top:10px!important}}
-  </style></head><body><div class="toolbar" contenteditable="false"><strong>${titulo} editável — ajuste antes de imprimir/PDF</strong><div class="editor-controls" contenteditable="false"><button class="secondary" type="button" data-doc-font="down" title="Diminuir fonte">A−</button><button class="secondary" type="button" data-doc-font="up" title="Aumentar fonte">A+</button><button class="secondary" type="button" data-doc-cmd="bold" title="Negrito"><b>N</b></button><button class="secondary" type="button" data-doc-cmd="italic" title="Itálico"><i>I</i></button><button class="secondary" type="button" data-doc-cmd="underline" title="Sublinhado"><u>S</u></button><button class="secondary" type="button" data-doc-cmd="justifyLeft" title="Alinhar à esquerda">☰</button><button class="secondary" type="button" data-doc-cmd="justifyCenter" title="Centralizar">≡</button><button class="secondary" type="button" data-doc-cmd="justifyRight" title="Alinhar à direita">☷</button><input type="color" id="rtDocTextColor" value="#111111" title="Cor do texto"><button class="secondary" type="button" data-doc-cmd="undo" title="Desfazer">↶</button><button class="secondary" type="button" data-doc-cmd="redo" title="Refazer">↷</button><button class="secondary" type="button" id="rtDocLayoutBtn" title="Ativar ajuste direto de linhas, colunas e blocos na folha">Editar layout</button><button class="secondary" type="button" id="rtDocResetBtn">Restaurar padrão</button><span class="rt-layout-hint">Layout ativo: arraste as divisórias das colunas, as bordas das linhas e os pontos dos blocos diretamente na folha.</span><button class="secondary" type="button" onclick="rtDocImprimirDocumento()">Imprimir/PDF</button><button type="button" onclick="window.close()">Fechar</button></div></div><main class="page doc-editavel" id="rtDocPage" contenteditable="true">${conteudo}</main><script>
+  </style><link rel="stylesheet" href="css/recorrencia-periodo-edicao.css">
+</head><body><div class="toolbar" contenteditable="false"><strong>${titulo} editável — ajuste antes de imprimir/PDF</strong><div class="editor-controls" contenteditable="false"><button class="secondary" type="button" data-doc-font="down" title="Diminuir fonte">A−</button><button class="secondary" type="button" data-doc-font="up" title="Aumentar fonte">A+</button><button class="secondary" type="button" data-doc-cmd="bold" title="Negrito"><b>N</b></button><button class="secondary" type="button" data-doc-cmd="italic" title="Itálico"><i>I</i></button><button class="secondary" type="button" data-doc-cmd="underline" title="Sublinhado"><u>S</u></button><button class="secondary" type="button" data-doc-cmd="justifyLeft" title="Alinhar à esquerda">☰</button><button class="secondary" type="button" data-doc-cmd="justifyCenter" title="Centralizar">≡</button><button class="secondary" type="button" data-doc-cmd="justifyRight" title="Alinhar à direita">☷</button><input type="color" id="rtDocTextColor" value="#111111" title="Cor do texto"><button class="secondary" type="button" data-doc-cmd="undo" title="Desfazer">↶</button><button class="secondary" type="button" data-doc-cmd="redo" title="Refazer">↷</button><button class="secondary" type="button" id="rtDocLayoutBtn" title="Ativar ajuste direto de linhas, colunas e blocos na folha">Editar layout</button><button class="secondary" type="button" id="rtDocResetBtn">Restaurar padrão</button><span class="rt-layout-hint">Layout ativo: arraste as divisórias das colunas, as bordas das linhas e os pontos dos blocos diretamente na folha.</span><button class="secondary" type="button" onclick="rtDocImprimirDocumento()">Imprimir/PDF</button><button type="button" onclick="window.close()">Fechar</button></div></div><main class="page doc-editavel" id="rtDocPage" contenteditable="true">${conteudo}</main><script>
     (function(){
       const tipo = ${JSON.stringify(tipo)};
       const dadosDocumento = ${JSON.stringify({ id: d.id, nome: d.nome, dataEvento: d.dataEvento, numero: numero, tipoPagamento: d.tipoPagamento || '', valorRecibo: d.valorRecibo != null ? d.valorRecibo : null })};
@@ -8480,3 +8549,235 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(rtInstalarModoVendaServicoEvento, 0);
   setTimeout(rtAtualizarModoVendaServicoEvento, 100);
 });
+
+
+// Gestor de recorrência: utiliza os IDs originais, sem modificar pagamentos anteriores.
+function rtGrupoContratoRecorrente(e) {
+  if (!e || !e.recorrencia_grupo_id) return [];
+  return (eventos || []).filter(x => String(x.recorrencia_grupo_id || '') === String(e.recorrencia_grupo_id))
+    .sort((a,b) => String(a.data_evento || '').localeCompare(String(b.data_evento || '')));
+}
+function rtAbrirGestorRecorrencia(id) {
+  const origem = (eventos || []).find(e => String(e.id) === String(id));
+  const serie = rtGrupoContratoRecorrente(origem);
+  if (!serie.length) return alert('Esta recorrência não possui um grupo identificado. Revise o cadastro antes de prorrogá-la.');
+  const ultima = serie[serie.length-1];
+  const valor = Number(ultima.valor_total || 0);
+  const autoContrato = serie.some(x => x.recorrencia_auto === true); // status do contrato, não do registro isolado
+  const fim = rtFimPeriodoRecorrenteISO(ultima); // cursor real: último período existente, nunca a data final histórica
+  const proximoInicio = rtFimPeriodoRecorrenteISO(ultima);
+  const proximoFim = addMesISO(proximoInicio, 1);
+  const dataGeracao = (() => { const d = new Date(proximoInicio + 'T12:00:00'); d.setDate(d.getDate()-7); return d.toISOString().slice(0,10); })();
+  const diasParaGeracao = Math.ceil((new Date(dataGeracao + 'T12:00:00') - new Date(new Date().toISOString().slice(0,10) + 'T12:00:00')) / 86400000);
+  const avisoGeracao = autoContrato ? ('Renovação automática ativada para todo o contrato. Próxima mensalidade prevista: ' + dataBR(proximoInicio) + ' a ' + dataBR(proximoFim) + '. Geração programada para ' + dataBR(dataGeracao) + (diasParaGeracao > 0 ? ' (em ' + diasParaGeracao + ' dia(s)).' : ' (data prevista atingida; confirme a execução no Supabase).')) : 'Renovação automática desativada para este contrato.';
+  const datasExistentes = new Set(serie.map(x => String(x.data_evento || "").slice(0,10)));
+  const inicioContrato = String(serie[0].recorrencia_inicio || serie[0].data_evento).slice(0,10);
+  // Detecta ocorrências com período zerado sem alterar registros financeiros.
+  const periodosInvalidos = serie.filter(x => {
+    const ini = String(x.data_evento || '').slice(0,10);
+    return ini && rtFimPeriodoRecorrenteISO(x) <= ini;
+  });
+  const lacunas = [];
+  if ((ultima.recorrencia_tipo || "mensal") === "mensal") {
+    for (let d=inicioContrato, i=0; d < fim && i < 240; d=addMesISO(d,1),i++) {
+      if (!datasExistentes.has(d)) lacunas.push(d);
+    }
+  }
+  document.getElementById('rtGestorRecorrencia')?.remove();
+  const modal = document.createElement('section');
+  modal.id = 'rtGestorRecorrencia';
+  modal.className = 'rt-contrato-editor';
+  const esc = x => String(x ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const money = x => Number(x||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  modal.innerHTML = `<div class="rt-rec-resumo"><strong>Mensalidade atual:</strong> ${money(valor)} <span><strong>Períodos:</strong> ${serie.length}</span> <span><strong>Fim registrado:</strong> ${esc(dataBR(fim))}</span></div>
+  ${periodosInvalidos.length ? `<div class="rt-rec-aviso" role="alert"><strong>Atenção: período(s) sem duração:</strong> ${periodosInvalidos.map(x=>esc(dataBR(x.data_evento))).join(', ')}. Corrija a data pelo lápis; não exclua e recrie enquanto houver vínculos financeiros.</div>` : ''}
+  ${lacunas.length ? `<div class="rt-rec-aviso"><strong>Períodos excluídos ou não cadastrados (opcionais):</strong> ${lacunas.map(dataBR).join(", ")}</div>` : ''}
+  <div class="rt-rec-controles"><label>Tipo de extensão<select id="rtRecModo"><option value="meses">Meses</option><option value="dias">Dias extras</option></select></label><label><span id="rtRecQtdLabel">Adicionar meses</span><input id="rtRecMeses" type="number" min="1" max="36" value="1"></label><label><span id="rtRecValorLabel">Valor da mensalidade (R$)</span><input id="rtRecValor" type="number" min="0" step="0.01" value="${valor}"></label>
+  <button type="button" id="rtRecProrrogar" class="rt-rec-btn">+ Adicionar períodos</button></div>
+  ${autoContrato ? `<div class="rt-rec-proxima-geracao" role="status" aria-live="polite"><strong>◷ Renovação automática ativada</strong><div>Próxima mensalidade prevista: <strong>${esc(dataBR(proximoInicio))} a ${esc(dataBR(proximoFim))}</strong></div><div>${diasParaGeracao > 0 ? `<strong>Faltam ${diasParaGeracao} dia(s) para a criação automática.</strong>` : `<strong>A data prevista de geração já chegou.</strong> Confirme a execução no Supabase.`}</div><small>Geração programada para ${esc(dataBR(dataGeracao))}, 7 dias antes do próximo período.</small></div>` : `<p class="rt-rec-hint">Renovação automática não está ativa nos registros carregados. Salve o contrato e confira a sincronização no Supabase.</p>`}
+  <p class="rt-rec-hint">As mensalidades anteriores e seus pagamentos serão preservados. Novas mensalidades não serão marcadas como quitadas.</p>
+  ${lacunas.length ? `<div class="rt-rec-recriar-opcoes">${lacunas.map(d=>`<label style="display:inline-flex;align-items:center;gap:5px;margin:4px 14px 4px 0"><input type="checkbox" class="rt-rec-lacuna" value="${esc(d)}">${esc(dataBR(d))}</label>`).join('')}</div><button type="button" id="rtRecCompletar" class="rt-rec-btn">Recriar períodos selecionados</button>` : ''}
+  <h4 class="rt-rec-historico-titulo">Histórico das mensalidades</h4>
+  <div class="rt-rec-tabela"><table><thead><tr><th>Período</th><th>Valor</th><th>Pagamento</th><th>Ações</th></tr></thead><tbody>${serie.map(e=>`<tr><td>${esc(dataBR(e.data_evento))} a ${esc(dataBR(rtFimPeriodoRecorrenteISO(e)))}</td><td>${money(e.valor_total)}</td><td>${e.pagamento_quitado?'Quitado':'Pendente / verificar'}</td><td><button type="button" class="rt-rec-edit-period" data-id="${esc(e.id)}" title="Editar datas e valor na linha">✎</button><button type="button" class="rt-rec-open-period" data-id="${esc(e.id)}" title="Abrir edição completa da ocorrência">↗</button><button type="button" class="rt-rec-delete-period" data-id="${esc(e.id)}" title="Excluir com proteção">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
+  const destino = document.getElementById('rtContratoRecorrenteEditor');
+  if (!destino) return;
+  destino.replaceChildren(modal);
+ 
+  if (lacunas.length) modal.querySelector('#rtRecCompletar').onclick = async () => {
+    const selecionadas = [...modal.querySelectorAll('.rt-rec-lacuna:checked')].map(x=>x.value);
+    if (!selecionadas.length) return alert('Selecione o período que deseja recriar.');
+    if (!confirm(`Recriar ${selecionadas.length} mensalidade(s) selecionada(s)? Os pagamentos antigos não serão alterados.`)) return;
+    const botao = modal.querySelector('#rtRecCompletar');
+    botao.disabled = true;
+    let criadas = 0;
+    try {
+      for (const data of selecionadas) {
+        if ((eventos || []).some(x => String(x.recorrencia_grupo_id || '') === String(origem.recorrencia_grupo_id) && String(x.data_evento || '').slice(0,10) === data)) continue;
+        const modelo = [...serie].reverse().find(x => String(x.data_evento).slice(0,10) < data) || serie[0];
+        const nova = {...modelo, id:gerarId(), data_evento:data, montagem:null, desmontagem:null, valor_sinal:0, valor_restante:Number(modelo.valor_total||0), pagamento_quitado:false, forma_pagamento:'', recorrencia_fim:autoContrato?null:fim, recorrencia_periodo_fim:addMesISO(data,1), recorrencia_auto:autoContrato, recorrencia_ordem:serie.length+criadas+1, criado_em:new Date().toISOString(), atualizado_em:new Date().toISOString()};
+        const salvo = await salvarEventoBanco(nova);
+        if (!salvo) throw new Error('Falha ao salvar '+dataBR(data));
+        criadas++;
+      }
+      rtAtualizarEditorContrato(id); renderizarEventos();
+      alert(`${criadas} mensalidade(s) criada(s). Verifique disponibilidade e financeiro antes de utilizar operacionalmente.`);
+    } catch (erro) {console.error(erro); alert(`Erro: ${erro.message}. ${criadas} registros foram criados. Revise antes de tentar novamente.`);renderizarEventos();}
+    finally {botao.disabled=false;}
+  };
+  // Edição na própria linha; não altera outras mensalidades.
+  modal.querySelectorAll('.rt-rec-edit-period').forEach(btn => btn.addEventListener('click', () => {
+    const atual = serie.find(x => String(x.id) === btn.dataset.id);
+    const tr = btn.closest('tr');
+    if (!atual || !tr || tr.dataset.editando) return;
+    tr.dataset.editando='1';
+    const inicio = String(atual.data_evento||'').slice(0,10);
+    const proximo = serie.find(x=>String(x.data_evento||'').slice(0,10)>inicio);
+    const fimAtual = rtFimPeriodoRecorrenteISO(atual);
+    const sugestao = fimAtual<=inicio ? (proximo?String(proximo.data_evento).slice(0,10):addMesISO(inicio,1)) : fimAtual;
+    tr.cells[0].innerHTML=`<div class="rt-rec-inline"><input type="date" class="rt-rec-inicio" value="${inicio}" aria-label="Início"><input type="date" class="rt-rec-fim" value="${sugestao}" aria-label="Término"></div>`;
+    tr.cells[1].innerHTML=`<input type="number" class="rt-rec-preco" min="0" step="0.01" value="${Number(atual.valor_total||0)}" aria-label="Valor">`;
+    const td=tr.cells[3];td.innerHTML='<button type="button" class="rt-rec-salvar">Salvar</button> <button type="button" class="rt-rec-cancelar">Cancelar</button>';
+    td.querySelector('.rt-rec-cancelar').onclick=()=>rtAtualizarEditorContrato(id);
+    td.querySelector('.rt-rec-salvar').onclick=async()=>{
+      const ni=tr.querySelector('.rt-rec-inicio').value,nf=tr.querySelector('.rt-rec-fim').value,nv=Number(tr.querySelector('.rt-rec-preco').value);
+      const anterior=serie.filter(x=>String(x.id)!==String(atual.id)&&String(x.data_evento||'').slice(0,10)<inicio).at(-1);
+      const anteriorFim=anterior?rtFimPeriodoRecorrenteISO(anterior):'';
+      if(!ni||!nf||nf<=ni||!Number.isFinite(nv)||nv<0) return alert('Informe datas válidas e valor não negativo.');
+      if((anteriorFim&&ni<anteriorFim)||(proximo&&nf>String(proximo.data_evento).slice(0,10))) return alert('O período não pode se sobrepor às mensalidades vizinhas.');
+      if(serie.some(x=>String(x.id)!==String(atual.id)&&String(x.data_evento||'').slice(0,10)===ni)) return alert('Já existe uma mensalidade com esta data de início.');
+      if(atual.pagamento_quitado&&nv!==Number(atual.valor_total||0)) return alert('Mensalidade quitada: altere o valor pelo procedimento financeiro apropriado.');
+      if(!confirm(`Salvar a correção de ${dataBR(ni)} a ${dataBR(nf)} por ${money(nv)}?`))return;
+      const save=td.querySelector('.rt-rec-salvar');save.disabled=true;
+      try{
+        if (!supabaseClient) throw new Error('É necessária uma conexão com o Supabase para editar com segurança.');
+        const {error} = await supabaseClient.rpc('rt_corrigir_periodo_recorrente',{p_evento_id:atual.id,p_inicio:ni,p_fim:nf,p_valor:nv});
+        if(error) throw new Error(error.message || 'Falha ao corrigir mensalidade. Confira se a migração SQL foi instalada.');
+        rtInvalidarCacheEventosBanco();
+        eventos = await buscarEventosBanco(true);
+        normalizarOrdemEventosGlobal();
+        rtAtualizarEditorContrato(id);renderizarEventos();
+      }catch(err){alert(err.message||'Erro ao salvar');save.disabled=false;}
+    };
+  }));
+  modal.querySelectorAll('.rt-rec-open-period').forEach(btn=>btn.addEventListener('click',()=>{
+    const eid=String(btn.dataset.id || '');
+    const ocorrencia=(eventos||[]).find(x=>String(x.id)===eid);
+    if(!ocorrencia) return alert('Não foi possível localizar esta mensalidade. Atualize os eventos e tente novamente.');
+    // A edição já está aberta: trocar o registro e voltar ao topo do MESMO formulário.
+    abrirEditarEvento(ocorrencia.id);
+    const dlg=document.getElementById('eventoDialog');
+    if(dlg){dlg.scrollTop=0;const corpo=dlg.querySelector('.modal-body, .dialog-body, .evento-modal-body');if(corpo)corpo.scrollTop=0;}
+    document.getElementById('eventoModalTitulo')?.scrollIntoView({block:'start',behavior:'instant'});
+    const nome=document.getElementById('eventoNome');
+    if(nome)nome.focus({preventScroll:true});
+  }));
+  modal.querySelectorAll('.rt-rec-delete-period').forEach(btn=>btn.addEventListener('click',async()=>{
+    const eid=btn.dataset.id;
+    const atual=serie.find(x=>String(x.id)===String(eid));
+    if(!atual || !supabaseClient) return alert('Exclusão segura requer conexão com o Supabase.');
+    if(!confirm(`Excluir definitivamente a mensalidade de ${dataBR(atual.data_evento)}? O banco impedirá exclusão de registros com pagamentos, operações ou vínculos.`))return;
+    btn.disabled=true;
+    try {
+      const {error}=await supabaseClient.rpc('rt_excluir_mensalidade_segura',{p_evento_id:eid});
+      if(error)throw new Error(error.message);
+      rtInvalidarCacheEventosBanco();
+      eventos = await buscarEventosBanco(true);
+      normalizarOrdemEventosGlobal();
+      const proximoId = (eventos || []).some(x=>String(x.id)===String(id)) ? id : (eventos || []).find(x=>String(x.recorrencia_grupo_id||'')===String(origem.recorrencia_grupo_id))?.id;
+      if (proximoId) rtAtualizarEditorContrato(proximoId);
+      else document.getElementById('rtContratoRecorrenteEditor')?.replaceChildren();
+      renderizarEventos();
+    } catch(err) { alert('Não foi possível excluir: '+(err.message||err));btn.disabled=false; }
+  }));
+  const seletorModo = modal.querySelector('#rtRecModo');
+  const ajustarModo = () => {
+    const dias = seletorModo.value === 'dias';
+    modal.querySelector('#rtRecQtdLabel').textContent = dias ? 'Adicionar dias' : 'Adicionar meses';
+    modal.querySelector('#rtRecValorLabel').textContent = dias ? 'Valor total do extra (R$)' : 'Valor da mensalidade (R$)';
+    const campo = modal.querySelector('#rtRecMeses');
+    campo.max = dias ? '365' : '36';
+    campo.value = dias ? '10' : '1';
+    modal.querySelector('#rtRecProrrogar').textContent = dias ? '+ Adicionar período extra' : '+ Adicionar períodos';
+  };
+  seletorModo.addEventListener('change', ajustarModo);
+  modal.querySelector('#rtRecProrrogar').onclick = async () => {
+    const botao = modal.querySelector('#rtRecProrrogar');
+    const quantidade = Number(modal.querySelector('#rtRecMeses').value);
+    const extraDias = seletorModo.value === 'dias';
+    const novoValor = Number(modal.querySelector('#rtRecValor').value);
+    if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > (extraDias ? 365 : 36) || !Number.isFinite(novoValor) || novoValor < 0) return alert('Informe uma quantidade válida e um valor não negativo.');
+    const tipo = ultima.recorrencia_tipo || 'mensal';
+    if (tipo !== 'mensal' && !extraDias) return alert('A prorrogação automática está disponível inicialmente para contratos mensais.');
+    if (lacunas.length && !extraDias) return alert('Existem períodos anteriores não cadastrados. Se quiser recuperá-los, selecione as datas em Recriar períodos selecionados. Para ampliar o contrato além do último período existente, revise primeiro essas lacunas.');
+    const datas = [];
+    let proxima = fim;
+    for(let i=0;i<(extraDias ? 1 : quantidade);i++){datas.push(proxima);proxima=extraDias ? addDiasISO(proxima,quantidade) : addMesISO(proxima,1);}
+    if(datas.some(d=>serie.some(e=>String(e.data_evento).slice(0,10)===d))) return alert('Já existem períodos nessas datas. Nenhum registro foi alterado.');
+    const novoFim = proxima;
+    if(!confirm(`${extraDias ? `Adicionar ${quantidade} dia(s) extras` : `Adicionar ${quantidade} mensalidade(s)`} ao contrato, no valor de ${money(novoValor)}${extraDias ? ' pelo período inteiro' : ' cada'}?\nNovo período: ${dataBR(datas[0])} até ${dataBR(novoFim)}.`)) return;
+    botao.disabled=true;botao.textContent='Salvando...';
+    let criadas=0;
+    try {
+      for(const data of datas){
+        const evento = {...ultima,id:gerarId(),data_evento:data,montagem:null,desmontagem:null,valor_total:novoValor,valor_sinal:0,valor_restante:novoValor,pagamento_quitado:false,forma_pagamento:'',recorrencia_ordem:serie.length+criadas+1,recorrencia_periodo_fim:extraDias?addDiasISO(data,quantidade):addMesISO(data,1),recorrencia_auto:autoContrato,recorrencia_fim:autoContrato?null:novoFim,recorrencia_tipo:extraDias ? 'personalizado' : 'mensal',recorrencia_dias:extraDias ? quantidade : ultima.recorrencia_dias,criado_em:new Date().toISOString(),atualizado_em:new Date().toISOString()};
+        // Não copiar IDs de lançamentos financeiros para novas mensalidades.
+        const salvo=await salvarEventoBanco(evento);
+        if(!salvo) throw new Error('Não foi possível salvar a mensalidade de '+dataBR(data));
+        criadas++;
+      }
+      // Atualizar o término da série somente após as novas mensalidades terem sido salvas.
+      for(const antigo of serie){
+        const salvo=await salvarEventoBanco({...antigo,recorrencia_fim:autoContrato?null:novoFim,atualizado_em:new Date().toISOString()});
+        if(!salvo) throw new Error('Mensalidades criadas, mas não foi possível atualizar o período de todos os registros.');
+      }
+      rtAtualizarEditorContrato(id);renderizarEventos();alert(`${criadas} período(s) adicionados. ATENÇÃO: confirme a disponibilidade dos materiais antes de utilizar o período operacionalmente.`);
+    }catch(err){console.error(err);alert(`${err.message}. Foram criadas ${criadas} mensalidades; confira o contrato antes de tentar novamente.`);renderizarEventos();}
+    finally{botao.disabled=false;botao.textContent=extraDias ? '+ Adicionar período extra' : '+ Adicionar períodos';}
+  };
+
+}
+
+// Contrato recorrente integrado à edição padrão, sem segundo botão na tabela.
+function rtIntegrarGestorNoEditor(e) {
+  let painel = document.getElementById('rtContratoRecorrenteEditor');
+  if (!painel) {
+    painel = document.createElement('div');
+    painel.id = 'rtContratoRecorrenteEditor';
+    const area = document.getElementById('eventoRecorrenciaBox');
+    if (area) area.insertAdjacentElement('beforeend',painel);
+    else document.getElementById('eventoForm')?.appendChild(painel);
+  }
+  painel.replaceChildren();
+  const indicador = document.getElementById('rtPeriodoEmEdicao');
+  const indicadorTexto = document.getElementById('rtPeriodoEmEdicaoTexto');
+  const periodoValido = Boolean(e && e.id && e.data_evento && (e.recorrencia_grupo_id || e.recorrente) && document.getElementById("eventoId")?.value && String(document.getElementById("eventoTipoEvento")?.value) === "recorrente");
+  if (indicador) indicador.hidden = !periodoValido;
+  if (indicadorTexto) indicadorTexto.textContent = periodoValido ? `${dataBR(e.data_evento)} a ${dataBR(rtFimPeriodoRecorrenteISO(e))}` : '';
+  const recorrente = !!(e && (e.recorrencia_grupo_id || e.recorrente));
+  painel.hidden = !recorrente;
+  const linhaData = document.querySelector('#eventoForm .event-date-row');
+  if (linhaData) linhaData.classList.toggle('rt-rec-data-oculta', recorrente && (e.recorrencia_tipo || 'mensal') === 'mensal');
+  if (recorrente) rtAbrirGestorRecorrencia(e.id);
+}
+function rtAtualizarEditorContrato(id) {
+  const painel = document.getElementById('rtContratoRecorrenteEditor');
+  if (painel) { painel.hidden = false; rtAbrirGestorRecorrencia(id); }
+}
+
+let rtRecorrenciaFimGuardado = "";
+function rtAtualizarRecorrenciaAutoUI(){
+  const checkbox=document.getElementById('eventoRecorrenciaAuto');
+  const fim=document.getElementById('eventoRecorrenciaFim');
+  if(!fim || !checkbox) return;
+  if(checkbox.checked){
+    if(fim.value) rtRecorrenciaFimGuardado = fim.value;
+    fim.value = "";
+    fim.disabled = true;
+    fim.required = false;
+  }else{
+    fim.disabled = false;
+    if(!fim.value && rtRecorrenciaFimGuardado) fim.value = rtRecorrenciaFimGuardado;
+    fim.required = true;
+  }
+}
+document.addEventListener('change',e=>{if(e.target?.id==='eventoRecorrenciaAuto')rtAtualizarRecorrenciaAutoUI();});

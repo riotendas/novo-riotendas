@@ -1365,12 +1365,30 @@ function dinheiroRota(valor) {
   return Number(valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function statusPagamentoRota(evento) {
-  return evento.pagamento_quitado ? "Quitado" : "Em aberto";
+// Estado visual da reserva; não altera o financeiro ou os recebimentos.
+function rtStatusReservaRota(evento) {
+  const quitado = typeof rtBooleanoSeguro === "function"
+    ? rtBooleanoSeguro(evento?.pagamento_quitado)
+    : evento?.pagamento_quitado === true;
+  if (quitado) return "quitado";
+  const sinal = Number(evento?.valor_sinal || 0);
+  const total = Number(evento?.valor_total || 0);
+  const restante = Number(evento?.valor_restante || 0);
+  const inloco = typeof rtEventoPagarInlocoMarcado === "function"
+    ? rtEventoPagarInlocoMarcado(evento)
+    : Boolean(evento?.pagar_inloco) || /in\s*loco|faturad/i.test(String(evento?.forma_pagamento || ""));
+  // Um sinal efetivamente registrado ou cobrança in loco/faturada confirma a reserva.
+  // Não confundir "forma de pagamento" genérica com recebimento.
+  if ((sinal > 0 && (restante > 0 || total > 0)) || inloco) return "confirmado";
+  return "aberto";
 }
-
+function statusPagamentoRota(evento) {
+  const estado = rtStatusReservaRota(evento);
+  return estado === "quitado" ? "Quitado" : estado === "confirmado" ? "Confirmado" : "Em aberto";
+}
 function classePagamentoRota(evento) {
-  return evento.pagamento_quitado ? "pagamento-ok" : "pagamento-aberto";
+  const estado = rtStatusReservaRota(evento);
+  return estado === "quitado" ? "pagamento-ok" : estado === "confirmado" ? "pagamento-confirmado" : "pagamento-aberto";
 }
 
 

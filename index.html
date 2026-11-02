@@ -36,6 +36,8 @@
   background-color:#eef6ff!important;
 }
 </style>
+<link rel="stylesheet" href="css/recorrencia-editor.css">
+<link rel="stylesheet" href="css/recorrencia-periodo-edicao.css?v=3">
 </head>
 <body>
   <section id="loginScreen" class="login-screen">
@@ -1795,6 +1797,17 @@
       <div class="subpanel">
         <h3>Dados do evento</h3>
 
+                  <div class="form-row event-type-top-row">
+            <label>Tipo de evento
+              <select id="eventoTipoEvento">
+                <option value="pontual">Pontual</option>
+                <option value="recorrente">Recorrente</option>
+                <option value="venda">Venda / Serviço</option>
+              </select>
+            </label>
+            <div id="rtPeriodoEmEdicao" class="rt-periodo-edicao" hidden><span class="rt-periodo-rotulo">Período em edição</span><div class="rt-periodo-valor" id="rtPeriodoEmEdicaoTexto"></div></div>
+          </div>
+
         <div id="eventoRecorrenciaBox" class="recurrence-box hidden">
           <div class="form-row recurrence-row">
             <label>Recorrência
@@ -1813,6 +1826,7 @@
             <label>Fim da recorrência
               <input id="eventoRecorrenciaFim" type="date">
             </label>
+            <label class="rt-auto-renovacao"><span class="rt-auto-caption">Renovação</span><span class="rt-auto-checkbox"><input id="eventoRecorrenciaAuto" type="checkbox"> <span>Automática (sem prazo final)</span></span></label>
           </div>
           <p class="hint">O sistema criará uma ocorrência para cada período dentro das datas informadas, mantendo os mesmos dados do evento.</p>
         </div>
@@ -1828,13 +1842,7 @@
             <label>Término
               <select id="eventoHoraTermino" class="time-list-select"></select>
             </label>
-            <label>Tipo de evento
-              <select id="eventoTipoEvento">
-                <option value="pontual">Pontual</option>
-                <option value="recorrente">Recorrente</option>
-                <option value="venda">Venda / Serviço</option>
-              </select>
-            </label>
+
           </div>
 
           <div id="eventoLinhaMontagem" class="form-row event-operation-row event-operation-row-fast">

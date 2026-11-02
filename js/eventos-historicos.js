@@ -56,6 +56,7 @@
       </div>
     </div>
     <div class="rt-hist-detalhe" id="${id}" hidden>
+        <div class="rt-hist-endereco-completo"><b>Endereço completo:</b> ${esc(r.endereco || "-")}</div>
         <div><b>Horário:</b> ${esc(r.horario || "-")}</div>
         <div><b>Montagem:</b> ${esc(r.montagem || "-")}</div>
         <div><b>Retirada/desmontagem:</b> ${esc(r.desmontagem || "-")}</div>
